@@ -1,0 +1,9 @@
+{
+  "firestore": [
+    {
+      "database": "bigquery-aif",
+      "rules": "firestore.rules",
+      "indexes": "firestore.indexes.json"
+    }
+  ]
+}

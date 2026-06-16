@@ -1,0 +1,41 @@
+{
+  "name": "bigquery-aif",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 5800",
+    "build": "next build",
+    "start": "next start --port 5800",
+    "lint": "eslint",
+    "test:auth": "/Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/auth-setup.mjs",
+    "test:setup": "/Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/setup-reference-dataset.mjs",
+    "test:run": "/Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/test-loop.mjs",
+    "test:screenshots": "/Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/capture-screenshots.mjs",
+    "test:report": "/Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/generate-report.mjs",
+    "test:all": "/Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/test-loop.mjs && /Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/capture-screenshots.mjs && /Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/generate-report.mjs"
+  },
+  "dependencies": {
+    "@ai-sdk/google": "^3.0.82",
+    "@google-cloud/bigquery": "^8.3.1",
+    "ai": "^6.0.205",
+    "firebase": "^12.14.0",
+    "google-auth-library": "^10.7.0",
+    "next": "16.2.9",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "recharts": "^3.8.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.0",
+    "@tailwindcss/postcss": "^4",
+    "@types/google.accounts": "^0.0.18",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.9",
+    "playwright": "^1.61.0",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
