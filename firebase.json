@@ -6,16 +6,22 @@
       "indexes": "firestore.indexes.json"
     }
   ],
-  "apphosting": {
-    "backendId": "bigquery-aif",
-    "rootDir": "/",
+  "hosting": {
+    "site": "bigquery-aif-schomer",
+    "public": "public",
     "ignore": [
-      "node_modules",
-      ".git",
-      "firebase-debug.log",
-      "firebase-debug.*.log",
-      "test-results",
-      "docs from claude"
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "function": {
+          "functionId": "ssrbigqueryaifschomer",
+          "region": "us-central1"
+        }
+      }
     ]
   }
 }
