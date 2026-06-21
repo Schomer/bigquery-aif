@@ -1,24 +1,25 @@
 // src/lib/skills/schema.ts
-// Schema skill implementation — BigQuery SDK with ADC and caching
-// Uses Application Default Credentials (ADC) for authentication.
+// Client-side Schema skill implementation using direct BigQuery REST API calls.
 
-import { BigQuery } from '@google-cloud/bigquery';
 import {
   getCacheKey,
   getFromCache,
   setInCache,
 } from '../schema-cache';
 import type { SchemaResult, SchemaColumn } from '../types';
+import { checkResponse } from '../bigquery-client';
 
-const PROJECT = process.env.GOOGLE_PROJECT_ID ?? 'malloy-data';
-const bqClient = new BigQuery({ projectId: PROJECT });
+const BQ_BASE = 'https://bigquery.googleapis.com/bigquery/v2';
 
-function getProject(): string {
-  return PROJECT;
-}
-
-function getClient(project?: string): BigQuery {
-  return project && project !== PROJECT ? new BigQuery({ projectId: project }) : bqClient;
+function getHeaders(): Headers {
+  const token = typeof window !== 'undefined' ? sessionStorage.getItem('google_access_token') : null;
+  if (!token) {
+    throw new Error('BigQuery access not authorized. Please sign in with Google.');
+  }
+  const headers = new Headers();
+  headers.set('Authorization', `Bearer ${token}`);
+  headers.set('Content-Type', 'application/json');
+  return headers;
 }
 
 // ─── Public entrypoint ────────────────────────────────────────────────────────
@@ -28,7 +29,7 @@ export async function fetchSchema(
   table?: string,
   projectOverride?: string,
 ): Promise<SchemaResult> {
-  const PROJ = projectOverride || getProject();
+  const PROJ = projectOverride || 'malloy-data';
   const key = getCacheKey(PROJ, dataset, table);
   const cached = getFromCache(key);
   if (cached) return cached;
@@ -50,15 +51,22 @@ export async function fetchSchema(
 // ─── Project-level: list all datasets ─────────────────────────────────────────
 
 async function fetchProjectSchema(project: string): Promise<SchemaResult> {
-  const client = getClient(project);
-  const [datasets] = await client.getDatasets();
-  const columns: SchemaColumn[] = datasets.map((ds) => ({
-    name: ds.id ?? '',
+  const res = await fetch(`${BQ_BASE}/projects/${project}/datasets`, {
+    headers: getHeaders()
+  });
+  const data = await res.json();
+  checkResponse(res, data);
+  if (data.error) throw new Error(data.error.message);
+
+  const datasets = data.datasets || [];
+  const columns: SchemaColumn[] = datasets.map((ds: any) => ({
+    name: ds.datasetReference?.datasetId ?? '',
     type: 'DATASET',
     mode: 'NULLABLE' as const,
     description: null,
     fields: [],
   }));
+
   return {
     skill: 'schema', scope: 'PROJECT', project, dataset: null, table: null,
     columns, tableConstraints: { primaryKey: [], foreignKeys: [] },
@@ -69,16 +77,22 @@ async function fetchProjectSchema(project: string): Promise<SchemaResult> {
 // ─── Dataset-level: list all tables ───────────────────────────────────────────
 
 async function fetchDatasetSchema(project: string, dataset: string): Promise<SchemaResult> {
-  const client = getClient(project);
-  const bqDataset = client.dataset(dataset);
-  const [tables] = await bqDataset.getTables();
-  const columns: SchemaColumn[] = tables.map((t) => ({
-    name: t.id ?? '',
-    type: (t.metadata?.type as string) ?? 'TABLE',
+  const res = await fetch(`${BQ_BASE}/projects/${project}/datasets/${dataset}/tables`, {
+    headers: getHeaders()
+  });
+  const data = await res.json();
+  checkResponse(res, data);
+  if (data.error) throw new Error(data.error.message);
+
+  const tables = data.tables || [];
+  const columns: SchemaColumn[] = tables.map((t: any) => ({
+    name: t.tableReference?.tableId ?? '',
+    type: t.type ?? 'TABLE',
     mode: 'NULLABLE' as const,
-    description: t.metadata?.friendlyName ?? null,
+    description: t.friendlyName ?? null,
     fields: [],
   }));
+
   return {
     skill: 'schema', scope: 'DATASET', project, dataset, table: null,
     columns, tableConstraints: { primaryKey: [], foreignKeys: [] },
@@ -93,10 +107,16 @@ async function fetchTableSchema(
   dataset: string,
   table: string,
 ): Promise<SchemaResult> {
-  const client = getClient(project);
-  const [metadata] = await client.dataset(dataset).table(table).getMetadata();
+  const res = await fetch(`${BQ_BASE}/projects/${project}/datasets/${dataset}/tables/${table}`, {
+    headers: getHeaders()
+  });
+  const metadata = await res.json();
+  checkResponse(res, metadata);
+  if (metadata.error) throw new Error(metadata.error.message);
+
   const columns = (metadata.schema?.fields ?? []).map(mapField);
   const constraints = await fetchTableConstraints(project, dataset, table);
+
   return {
     skill: 'schema', scope: 'TABLE', project, dataset, table,
     description: metadata.description ?? null,
@@ -159,8 +179,22 @@ async function fetchTableConstraints(
       WHERE tc.TABLE_NAME = '${table}'
       ORDER BY tc.CONSTRAINT_TYPE, kcu.ORDINAL_POSITION
     `;
-    const client = getClient(project);
-    const [rows] = await client.query({ query, location: 'US' });
+
+    const res = await fetch(`${BQ_BASE}/projects/${project}/queries`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ query, useLegacySql: false })
+    });
+    const data = await res.json();
+    checkResponse(res, data);
+    if (data.error) throw new Error(data.error.message);
+
+    const rows = data.rows || [];
+    const fields = data.schema?.fields || [];
+    const getVal = (row: any, fieldName: string) => {
+      const idx = fields.findIndex((f: any) => f.name === fieldName);
+      return idx !== -1 ? row.f[idx]?.v : null;
+    };
 
     const primaryKey: string[] = [];
     const foreignKeyMap = new Map<
@@ -169,18 +203,25 @@ async function fetchTableConstraints(
     >();
 
     for (const row of rows) {
-      if (row.CONSTRAINT_TYPE === 'PRIMARY KEY' && row.COLUMN_NAME) {
-        primaryKey.push(row.COLUMN_NAME);
-      } else if (row.CONSTRAINT_TYPE === 'FOREIGN KEY' && row.COLUMN_NAME) {
-        const refTable = `${row.ref_project}.${row.ref_dataset}.${row.ref_table}`;
-        const existing = foreignKeyMap.get(refTable) ?? {
+      const constraintType = getVal(row, 'CONSTRAINT_TYPE');
+      const columnName = getVal(row, 'COLUMN_NAME');
+      const refProject = getVal(row, 'ref_project');
+      const refDataset = getVal(row, 'ref_dataset');
+      const refTable = getVal(row, 'ref_table');
+      const refColumn = getVal(row, 'ref_column');
+
+      if (constraintType === 'PRIMARY KEY' && columnName) {
+        primaryKey.push(columnName);
+      } else if (constraintType === 'FOREIGN KEY' && columnName) {
+        const fullRefTable = `${refProject}.${refDataset}.${refTable}`;
+        const existing = foreignKeyMap.get(fullRefTable) ?? {
           columns: [],
-          refTable,
+          refTable: fullRefTable,
           refColumns: [],
         };
-        existing.columns.push(row.COLUMN_NAME);
-        if (row.ref_column) existing.refColumns.push(row.ref_column);
-        foreignKeyMap.set(refTable, existing);
+        existing.columns.push(columnName);
+        if (refColumn) existing.refColumns.push(refColumn);
+        foreignKeyMap.set(fullRefTable, existing);
       }
     }
 

@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/auth-context';
 import { AnimatedCrystalBall } from '@/components/AnimatedCrystalBall';
 
 export function SignedOutPage() {
-  const { signIn, isLoading } = useAuth();
+  const { signIn, isLoading, error } = useAuth();
 
   return (
     <div className="so-shell">
@@ -48,6 +48,19 @@ export function SignedOutPage() {
               </svg>
               Sign in with Google
             </button>
+
+            {error && (
+              <div style={{
+                color: '#ea4335',
+                fontSize: 12,
+                marginTop: 12,
+                textAlign: 'center',
+                maxWidth: 280,
+                lineHeight: 1.4,
+              }}>
+                {error}
+              </div>
+            )}
 
             <p className="so-footer-note">
               Your Google account determines which BigQuery projects are available

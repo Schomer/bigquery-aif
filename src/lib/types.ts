@@ -292,3 +292,24 @@ export interface DiscoveryResult {
     changedColumns: Array<{ name: string; fromType: string; toType: string }>
   } | null
 }
+
+// ─── Table Preview Types ──────────────────────────────────────────────────────
+
+export interface PreviewColumn {
+  name: string;
+  type: string;
+  nullPct: number | null;
+  distinctCount: number | null;
+  min: string | null;
+  max: string | null;
+  topValues: Array<{ value: string; count: number }>;
+}
+
+export interface PreviewResponse {
+  sample: {
+    columns: string[];
+    rows: unknown[][];
+    rowCount: number;
+  };
+  profile: PreviewColumn[];
+}

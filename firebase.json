@@ -7,8 +7,8 @@
     }
   ],
   "hosting": {
-    "site": "bigquery-aif-schomer",
-    "public": "public",
+    "site": "bigqueryaif",
+    "public": "out",
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -17,10 +17,7 @@
     "rewrites": [
       {
         "source": "**",
-        "function": {
-          "functionId": "ssrbigqueryaifschomer",
-          "region": "us-central1"
-        }
+        "destination": "/index.html"
       }
     ]
   }

@@ -1,7 +1,7 @@
 'use client';
 
-import type { SchemaResult, SchemaColumn } from '@/lib/types';
-import type { PreviewResponse, PreviewColumn } from '@/app/api/preview/route';
+import type { SchemaResult, SchemaColumn, PreviewResponse, PreviewColumn } from '@/lib/types';
+import { fetchTablePreview } from '@/lib/preview-client';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
@@ -81,27 +81,14 @@ function TableSchemaView({ result, onSendMessage }: { result: SchemaResult; onSe
 
     async function fetchPreview() {
       try {
-        const res = await fetch('/api/preview', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tableRef,
-            columns: result.columns.map((c) => ({ name: c.name, type: c.type })),
-            token: accessToken ?? undefined,
-            project: activeProject || result.project,
-          }),
-        });
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ error: 'Unknown error' }));
-          if (!cancelled) setPreviewError(err.error ?? 'Failed to load preview');
-          return;
-        }
-
-        const data: PreviewResponse = await res.json();
+        const data = await fetchTablePreview(
+          tableRef,
+          result.columns.map((c) => ({ name: c.name, type: c.type })),
+          activeProject || result.project
+        );
         if (!cancelled) setPreview(data);
       } catch (e) {
-        if (!cancelled) setPreviewError(e instanceof Error ? e.message : 'Network error');
+        if (!cancelled) setPreviewError(e instanceof Error ? e.message : 'Failed to load preview');
       }
     }
 

@@ -15,9 +15,9 @@ interface ShellLayoutProps {
 
 export function ShellLayout({ children }: ShellLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
-  const { user } = useAuth();
+  const { user, bqAuthorized } = useAuth();
 
-  if (!user) {
+  if (!user || !bqAuthorized) {
     return <SignedOutPage />;
   }
 

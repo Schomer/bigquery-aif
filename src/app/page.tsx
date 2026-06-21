@@ -7,9 +7,11 @@ import { CrystalBallOracle } from '@/components/CrystalBallOracle';
 import { useAuth } from '@/lib/auth-context';
 import { useConversation } from '@/lib/conversation-context';
 import { usePage } from '@/lib/page-context';
-import type { ChatMessage, CompositionEnvelope } from '@/lib/types';
+import type { ChatMessage, CompositionEnvelope, SkillName, DataManagementResult } from '@/lib/types';
+import { ChatOrchestrator } from '@/lib/chat-orchestrator';
 import { ArtifactCard } from '@/components/ArtifactCard';
 import { PromptsLibrary } from '@/components/PromptsLibrary';
+import { SettingsPage } from '@/components/SettingsPage';
 import {
   saveConversation,
   getConversations,
@@ -81,7 +83,7 @@ export default function Home() {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
   const [context, setContext] = useState<{
-    lastSkill?: string;
+    lastSkill?: SkillName;
     lastResultRef?: string;
     lastTable?: string;
     dataset?: string;
@@ -172,18 +174,11 @@ export default function Home() {
     };
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: text,
-          history: historyBefore,
-          context: { ...context, project: activeProject || context.project },
-        }),
+      const data = await ChatOrchestrator.processMessage({
+        message: text,
+        history: historyBefore,
+        context: { ...context, project: activeProject || context.project },
       });
-      const data = await res.json();
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
       const newAssistantMsg: ChatMessage = {
         role: 'assistant',
@@ -231,19 +226,11 @@ export default function Home() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: userText,
-          history: historyUpTo.slice(0, -1),
-          context: { ...context, project: activeProject || context.project },
-        }),
+      const data = await ChatOrchestrator.processMessage({
+        message: userText,
+        history: historyUpTo.slice(0, -1),
+        context: { ...context, project: activeProject || context.project },
       });
-
-      const data = await res.json();
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
       const newAssistantMsg: ChatMessage = {
         role: 'assistant',
@@ -284,43 +271,12 @@ export default function Home() {
     setMessages(updatedMsgs);
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: text,
-          history: messages,
-          context: { ...context, project: activeProject || context.project },
-        }),
+      const data = await ChatOrchestrator.processMessage({
+        message: text,
+        history: messages,
+        context: { ...context, project: activeProject || context.project },
       });
 
-      if (res.status === 401) {
-        const errorMsg: ChatMessage = {
-          role: 'assistant',
-          content: 'BigQuery authentication failed. If running locally, please run `/Users/schomer/google-cloud-sdk/bin/gcloud auth application-default login` in your terminal to authenticate your local environment. If hosted, verify that your service account has BigQuery permissions.',
-          timestamp: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, errorMsg]);
-        setLoading(false);
-        return;
-      }
-
-
-      if (res.status === 429) {
-        const errorMsg: ChatMessage = {
-          role: 'assistant',
-          content: 'The AI model is a bit busy right now. Wait a few seconds and try again.',
-          timestamp: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, errorMsg]);
-        setLoading(false);
-        return;
-      }
-
-
-      const data = await res.json();
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
 
       const assistantMsg: ChatMessage = {
@@ -351,13 +307,24 @@ export default function Home() {
       // Persist to Firestore — fire and forget, never surface Firestore errors to the user
       persistConversation(finalMsgs).catch((e) => console.warn('[persist]', e));
 
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      const msg = err?.message || String(err);
+      
+      let errorText = `Something went wrong. Details: ${msg}`;
+      if (msg.includes('Gemini API failed')) {
+        errorText = `Gemini API call failed. Details: ${msg.replace('Gemini API failed: ', '')}. If your Gemini API Key (starts with AQ.) has expired, please generate a fresh key and update NEXT_PUBLIC_GEMINI_API_KEY in your .env.local file.`;
+      } else if (msg.includes('access token') || msg.includes('credentials') || msg.includes('access_denied') || msg.includes('UNAUTHENTICATED') || msg.includes('authorized')) {
+        errorText = `BigQuery authentication failed. Details: ${msg}. If running locally, please run \`/Users/schomer/google-cloud-sdk/bin/gcloud auth application-default login\` in your terminal to authenticate your local environment. If hosted, verify that your service account has BigQuery permissions.`;
+      } else if (msg.includes('quota') || msg.includes('rate limit') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('429')) {
+        errorText = `The AI model is a bit busy right now. Wait a few seconds and try again. Details: ${msg}`;
+      }
+
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: 'Something went wrong. Please try again.',
+          content: errorText,
           timestamp: new Date().toISOString(),
         },
       ]);
@@ -370,18 +337,11 @@ export default function Home() {
   async function handleConfirm(envelope: CompositionEnvelope) {
     setLoading(true);
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: 'confirm',
-          history: messages,
-          context: { ...context, project: activeProject || context.project, confirmedPayload: envelope.primaryArtifact.data },
-        }),
+      const data = await ChatOrchestrator.processMessage({
+        message: 'confirm',
+        history: messages,
+        context: { ...context, project: activeProject || context.project, confirmedPayload: envelope.primaryArtifact.data as DataManagementResult },
       });
-      const data = await res.json();
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
       const assistantMsg: ChatMessage = { role: 'assistant', content: '', envelopes, timestamp: new Date().toISOString() };
       const finalMsgs = [...messages, assistantMsg];
@@ -420,6 +380,11 @@ export default function Home() {
 
   return (
     <>
+      {/* ── Settings page ── */}
+      {activePage === 'settings' && (
+        <SettingsPage />
+      )}
+
       {/* ── Prompts page (full inline view) ── */}
       {activePage === 'prompts' && (
         <PromptsLibrary
@@ -431,7 +396,7 @@ export default function Home() {
       )}
 
       {/* ── Chat view ── */}
-      <div style={{ display: activePage === 'prompts' ? 'none' : 'flex', flexDirection: 'column', height: '100%', background: 'var(--chat-bg)' }}>
+      <div style={{ display: (activePage === 'prompts' || activePage === 'settings') ? 'none' : 'flex', flexDirection: 'column', height: '100%', background: 'var(--chat-bg)' }}>
 
         {/* ── EMPTY STATE: centered hero + prompt ── */}
         {!hasChat && (
@@ -454,6 +419,7 @@ export default function Home() {
 
 
 
+            {/* Centered prompt field */}
             {/* Centered prompt field */}
             <div style={{
               width: '100%',

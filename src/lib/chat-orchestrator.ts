@@ -1,18 +1,11 @@
-// src/app/api/chat/route.ts
-// Per-turn orchestration: receive message → router → skill dispatch → compose → return envelopes
+// src/lib/chat-orchestrator.ts
+// Per-turn client-side orchestration: receive message → router → skill dispatch → compose → return envelopes
+// Runs entirely in the browser using the Gemini API REST endpoint via the configured API key.
 
-import { NextRequest, NextResponse } from 'next/server';
-import { readFileSync } from 'fs';
-import { join } from 'path';
-import { google } from '@ai-sdk/google';
-import { generateObject } from 'ai';
-import { z } from 'zod';
-
-import { classifyIntent, resolveReferences } from '@/lib/router';
-import { fetchSchema } from '@/lib/skills/schema';
-import { compose } from '@/lib/composer';
-import { invalidateCache } from '@/lib/schema-cache';
-import { dryRun, executeQuery, executeDml } from '@/lib/bigquery-client';
+import { classifyIntent, resolveReferences } from './router';
+import { fetchSchema } from './skills/schema';
+import { compose } from './composer';
+import { dryRun, executeQuery, executeDml } from './bigquery-client';
 import type {
   ChatMessage,
   CompositionEnvelope,
@@ -26,76 +19,194 @@ import type {
   DataLoadingResult,
   SkillName,
   QueryResult,
-} from '@/lib/types';
+} from './types';
 
-// ─── Load skill docs ──────────────────────────────────────────────────────────
+// ─── Load skill docs from public assets ───────────────────────────────────────
 
-function loadSkillDoc(skillName: string): string {
+async function loadSkillDoc(skillName: string): Promise<string> {
   try {
-    const path = join(process.cwd(), 'skills', `${skillName}.md`);
-    return readFileSync(path, 'utf-8');
+    const res = await fetch(`/skills/${skillName}.md`);
+    if (!res.ok) throw new Error();
+    return await res.text();
   } catch {
     return `You are the ${skillName} skill. Help the user with their data request.`;
   }
 }
 
-// ─── LLM response schemas ─────────────────────────────────────────────────────
+// ─── Gemini API Client-Side REST Helper ────────────────────────────────────────
 
-const SchemaResponseSchema = z.object({
-  scope: z.enum(['PROJECT', 'DATASET', 'TABLE']),
-  dataset: z.string().optional().nullable(),
-  table: z.string().optional().nullable(),
-});
+interface CallGeminiArgs {
+  systemInstruction?: string;
+  prompt?: string;
+  messages?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  schema: any;
+}
 
-const QueryResponseSchema = z.object({
-  sql: z.string(),
-  suggestedVisualization: z.enum(['TABLE', 'LINE_CHART', 'BAR_CHART', 'AREA_CHART', 'SCATTER', 'PIE_CHART', 'KPI_CARD']),
-  xAxis: z.string().optional().nullable(),
-  yAxis: z.array(z.string()).optional().nullable(),
-  notableFindings: z.string().optional().nullable(),
-});
+async function callGemini({
+  systemInstruction,
+  prompt,
+  messages,
+  schema
+}: CallGeminiArgs): Promise<any> {
+  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('Gemini API key is not configured in .env.local.');
+  }
 
-const DataManagementResponseSchema = z.object({
-  operation: z.enum(['DEDUPE', 'DELETE', 'UPDATE', 'FILL_NULLS', 'CREATE_TABLE', 'ALTER_TABLE', 'CREATE_VIEW', 'RENAME', 'COPY_TABLE']),
-  dataset: z.string(),
-  table: z.string(),
-  previewSql: z.string(),
-  executionSql: z.string(),
-  tiebreakerColumn: z.string().optional().nullable(),
-  tiebreakerDirection: z.enum(['KEEP_LATEST', 'KEEP_EARLIEST']).optional().nullable(),
-});
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
-const DiscoveryResponseSchema = z.object({
-  discoveryType: z.enum(['SEARCH', 'COMPARISON']),
-  query: z.string(),
-  secondTable: z.string().optional().nullable(),
-});
+  const contents = [];
+  if (messages) {
+    for (const m of messages) {
+      contents.push({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      });
+    }
+  }
+  if (prompt) {
+    contents.push({
+      role: 'user',
+      parts: [{ text: prompt }]
+    });
+  }
 
-// ─── POST /api/chat ────────────────────────────────────────────────────────────
+  const requestBody: any = {
+    contents,
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: schema,
+      temperature: 0.1,
+    }
+  };
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json() as {
-      message: string;
-      history: ChatMessage[];
-      context?: {
-        lastSkill?: SkillName;
-        lastResultRef?: string;
-        lastTable?: string;
-        project?: string;
-        dataset?: string;
-        confirmedPayload?: DataManagementResult;
-      };
+  if (systemInstruction) {
+    requestBody.systemInstruction = {
+      parts: [{ text: systemInstruction }]
     };
+  }
 
-    const { message, history, context } = body;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(requestBody)
+  });
 
+  const data = await res.json();
+  if (data.error) {
+    throw new Error(`Gemini API failed: ${data.error.message}`);
+  }
+
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) {
+    throw new Error('Gemini API returned an empty response.');
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    throw new Error(`Failed to parse Gemini API response: ${text}`);
+  }
+}
+
+// ─── Gemini Response Schemas (OpenAPI 3.0 Uppercase Format) ────────────────────
+
+const SchemaResponseSchema = {
+  type: 'OBJECT',
+  properties: {
+    scope: { type: 'STRING', enum: ['PROJECT', 'DATASET', 'TABLE'] },
+    dataset: { type: 'STRING' },
+    table: { type: 'STRING' }
+  },
+  required: ['scope']
+};
+
+const QueryResponseSchema = {
+  type: 'OBJECT',
+  properties: {
+    sql: { type: 'STRING' },
+    suggestedVisualization: { type: 'STRING', enum: ['TABLE', 'LINE_CHART', 'BAR_CHART', 'AREA_CHART', 'SCATTER', 'PIE_CHART', 'KPI_CARD'] },
+    xAxis: { type: 'STRING' },
+    yAxis: { type: 'ARRAY', items: { type: 'STRING' } },
+    notableFindings: { type: 'STRING' }
+  },
+  required: ['sql', 'suggestedVisualization']
+};
+
+const DataManagementResponseSchema = {
+  type: 'OBJECT',
+  properties: {
+    operation: { type: 'STRING', enum: ['DEDUPE', 'DELETE', 'UPDATE', 'FILL_NULLS', 'CREATE_TABLE', 'ALTER_TABLE', 'CREATE_VIEW', 'RENAME', 'COPY_TABLE'] },
+    dataset: { type: 'STRING' },
+    table: { type: 'STRING' },
+    previewSql: { type: 'STRING' },
+    executionSql: { type: 'STRING' },
+    tiebreakerColumn: { type: 'STRING' },
+    tiebreakerDirection: { type: 'STRING', enum: ['KEEP_LATEST', 'KEEP_EARLIEST'] }
+  },
+  required: ['operation', 'dataset', 'table', 'previewSql', 'executionSql']
+};
+
+const DiscoveryResponseSchema = {
+  type: 'OBJECT',
+  properties: {
+    discoveryType: { type: 'STRING', enum: ['SEARCH', 'COMPARISON'] },
+    query: { type: 'STRING' },
+    secondTable: { type: 'STRING' }
+  },
+  required: ['discoveryType', 'query']
+};
+
+const DqIntentSchema = {
+  type: 'OBJECT',
+  properties: {
+    checkType: { type: 'STRING', enum: ['PROFILE', 'NULLS', 'DUPLICATES', 'FRESHNESS'] },
+    table: { type: 'STRING' },
+    dataset: { type: 'STRING' }
+  },
+  required: ['checkType']
+};
+
+const DataLoadingIntentSchema = {
+  type: 'OBJECT',
+  properties: {
+    operationType: { type: 'STRING', enum: ['EXPORT_CSV', 'EXPORT_SHEETS', 'SCHEDULE'] },
+    tableName: { type: 'STRING' },
+    sql: { type: 'STRING' }
+  },
+  required: ['operationType']
+};
+
+// ─── Orchestrator client class ────────────────────────────────────────────────
+
+export interface ProcessMessageArgs {
+  message: string;
+  history: ChatMessage[];
+  context?: {
+    lastSkill?: SkillName;
+    lastResultRef?: string;
+    lastTable?: string;
+    dataset?: string;
+    project?: string;
+    confirmedPayload?: DataManagementResult;
+  };
+}
+
+export interface OrchestrationResult {
+  envelopes: CompositionEnvelope[];
+  skill?: SkillName;
+}
+
+export class ChatOrchestrator {
+  static async processMessage({ message, history, context }: ProcessMessageArgs): Promise<OrchestrationResult> {
     // ── Handle confirmation responses ───────────────────────────────────────
     if (context?.confirmedPayload && 'executionSql' in context.confirmedPayload) {
       const confirmed = context.confirmedPayload;
-      const project = context?.project || process.env.GOOGLE_PROJECT_ID || '';
+      const project = context?.project || process.env.NEXT_PUBLIC_GOOGLE_PROJECT_ID || 'malloy-data';
       const envelopes = await executeConfirmedOperation(confirmed, project);
-      return NextResponse.json({ envelopes });
+      return { envelopes };
     }
 
     // ── Resolve referential language ─────────────────────────────────────────
@@ -134,29 +245,7 @@ export async function POST(req: NextRequest) {
         envelopes = await handleQuery(resolvedMessage, history, context);
     }
 
-    return NextResponse.json({ envelopes, skill });
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error('[chat/route] Error:', msg);
-    // Surface token/auth/permission errors as 401
-    if (msg.includes('access token') || msg.includes('credentials') || msg.includes('access_denied') || msg.includes('UNAUTHENTICATED')) {
-      return NextResponse.json(
-        { error: 'Not authenticated', detail: msg },
-        { status: 401 }
-      );
-    }
-    // Surface quota/rate-limit errors as 429
-    if (msg.includes('quota') || msg.includes('rate limit') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('429')) {
-      console.error('[chat/route] Rate limit detail:', msg);
-      return NextResponse.json(
-        { error: 'Rate limited', detail: `Gemini API rate limit: ${msg}` },
-        { status: 429 }
-      );
-    }
-    return NextResponse.json(
-      { error: 'Failed to process request', detail: msg },
-      { status: 500 }
-    );
+    return { envelopes, skill };
   }
 }
 
@@ -166,12 +255,11 @@ async function handleSchema(
   message: string,
   context?: { project?: string; dataset?: string }
 ): Promise<CompositionEnvelope[]> {
-  const skillDoc = loadSkillDoc('schema');
-  const project = context?.project || process.env.GOOGLE_PROJECT_ID || '';
+  const skillDoc = await loadSkillDoc('schema');
+  const project = context?.project || process.env.NEXT_PUBLIC_GOOGLE_PROJECT_ID || 'malloy-data';
 
-  const { object: intent } = await generateObject({ maxRetries: 2,
-    model: google('gemini-3.5-flash'),
-    system: `${skillDoc}\n\nExtract the requested scope from the user's message. Dataset and table should be the BigQuery identifiers mentioned. If none mentioned, return null. The active project is: ${project}${context?.dataset ? `. The active dataset context is: ${context.dataset}` : ''}.`,
+  const intent = await callGemini({
+    systemInstruction: `${skillDoc}\n\nExtract the requested scope from the user's message. Dataset and table should be the BigQuery identifiers mentioned. If none mentioned, return null. The active project is: ${project}${context?.dataset ? `. The active dataset context is: ${context.dataset}` : ''}.`,
     prompt: message,
     schema: SchemaResponseSchema,
   });
@@ -193,18 +281,17 @@ async function handleQuery(
   history: ChatMessage[],
   context?: { project?: string; dataset?: string; lastTable?: string }
 ): Promise<CompositionEnvelope[]> {
-  const skillDoc = loadSkillDoc('query');
-  const project = context?.project ?? process.env.GOOGLE_PROJECT_ID ?? '';
-  const dataset = context?.dataset ?? process.env.BQ_DATASET ?? '';
+  const skillDoc = await loadSkillDoc('query');
+  const project = context?.project || process.env.NEXT_PUBLIC_GOOGLE_PROJECT_ID || 'malloy-data';
+  const dataset = context?.dataset || process.env.NEXT_PUBLIC_BQ_DATASET || 'ecomm';
 
   const messages = history.slice(-6).map((m) => ({
     role: m.role as 'user' | 'assistant',
     content: m.content,
   }));
 
-  const { object: queryPlan } = await generateObject({ maxRetries: 2,
-    model: google('gemini-3.5-flash'),
-    system: `${skillDoc}
+  const queryPlan = await callGemini({
+    systemInstruction: `${skillDoc}
 
 The BigQuery project is: ${project}
 The default dataset is: ${dataset}
@@ -265,18 +352,17 @@ async function handleDataManagement(
   history: ChatMessage[],
   context?: { project?: string; dataset?: string }
 ): Promise<CompositionEnvelope[]> {
-  const skillDoc = loadSkillDoc('data-management');
-  const project = context?.project ?? process.env.GOOGLE_PROJECT_ID ?? '';
-  const dataset = context?.dataset ?? process.env.BQ_DATASET ?? '';
+  const skillDoc = await loadSkillDoc('data-management');
+  const project = context?.project || process.env.NEXT_PUBLIC_GOOGLE_PROJECT_ID || 'malloy-data';
+  const dataset = context?.dataset || process.env.NEXT_PUBLIC_BQ_DATASET || 'ecomm';
 
   const messages = history.slice(-6).map((m) => ({
     role: m.role as 'user' | 'assistant',
     content: m.content,
   }));
 
-  const { object: plan } = await generateObject({ maxRetries: 2,
-    model: google('gemini-3.5-flash'),
-    system: `${skillDoc}
+  const plan = await callGemini({
+    systemInstruction: `${skillDoc}
 
 The BigQuery project is: ${project}
 The default dataset is: ${dataset}
@@ -314,7 +400,7 @@ Always use fully qualified table references: \`${project}.${dataset}.tablename\`
     `;
 
     try {
-      const exampleResult = await executeQuery(exampleSql);
+      const exampleResult = await executeQuery(exampleSql, project);
       if (exampleResult.rows.length > 0) {
         const toObj = (row: unknown[]) =>
           Object.fromEntries(exampleResult.columns.map((c, i) => [c, row[i]]));
@@ -339,6 +425,7 @@ Always use fully qualified table references: \`${project}.${dataset}.tablename\`
     try {
       const groupResult = await executeQuery(
         `SELECT COUNT(*) as group_count FROM (${groupCountSql})`,
+        project,
       );
       affectedGroupCount = Number(groupResult.rows[0]?.[0] ?? 0);
     } catch { /* ignore */ }
@@ -403,7 +490,7 @@ async function handleMonitoring(
   _message: string,
   context?: { project?: string }
 ): Promise<CompositionEnvelope[]> {
-  const project = context?.project ?? process.env.GOOGLE_PROJECT_ID ?? '';
+  const project = context?.project || process.env.NEXT_PUBLIC_GOOGLE_PROJECT_ID || 'malloy-data';
   const sql = `SELECT job_id, user_email, statement_type, state, creation_time, total_bytes_processed, error_result, referenced_tables FROM \`region-us\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR) ORDER BY creation_time DESC LIMIT 50`;
 
   const executed = await executeQuery(sql, project);
@@ -482,22 +569,15 @@ async function handleMonitoring(
 
 // ─── Data Quality handler ──────────────────────────────────────────────────────
 
-const DqIntentSchema = z.object({
-  checkType: z.enum(['PROFILE', 'NULLS', 'DUPLICATES', 'FRESHNESS']),
-  table: z.string().nullable().optional(),
-  dataset: z.string().nullable().optional(),
-});
-
 async function handleDataQuality(
   message: string,
   context?: { project?: string; dataset?: string; lastTable?: string }
 ): Promise<CompositionEnvelope[]> {
-  const project = context?.project ?? process.env.GOOGLE_PROJECT_ID ?? '';
-  const dataset = context?.dataset ?? process.env.BQ_DATASET ?? '';
+  const project = context?.project || process.env.NEXT_PUBLIC_GOOGLE_PROJECT_ID || 'malloy-data';
+  const dataset = context?.dataset || process.env.NEXT_PUBLIC_BQ_DATASET || 'ecomm';
 
-  const { object: intent } = await generateObject({ maxRetries: 2,
-    model: google('gemini-3.5-flash'),
-    system: `You classify BigQuery data quality requests. Extract check type and table name. Available check types: PROFILE (general stats), NULLS (null analysis), DUPLICATES (find duplicate rows), FRESHNESS (when was the table last updated). The active project is ${project}, default dataset is ${dataset}.`,
+  const intent = await callGemini({
+    systemInstruction: `You classify BigQuery data quality requests. Extract check type and table name. Available check types: PROFILE (general stats), NULLS (null analysis), DUPLICATES (find duplicate rows), FRESHNESS (when was the table last updated). The active project is ${project}, default dataset is ${dataset}.`,
     prompt: message,
     schema: DqIntentSchema,
   });
@@ -613,26 +693,17 @@ async function handleDataQuality(
   return [compose('data-quality', result)];
 }
 
-
-
 // ─── Data Loading handler ──────────────────────────────────────────────────────
-
-const DataLoadingIntentSchema = z.object({
-  operationType: z.enum(['EXPORT_CSV', 'EXPORT_SHEETS', 'SCHEDULE']),
-  tableName: z.string().nullable().optional(),
-  sql: z.string().nullable().optional(),
-});
 
 async function handleDataLoading(
   message: string,
   context?: { project?: string; dataset?: string; lastTable?: string }
 ): Promise<CompositionEnvelope[]> {
-  const project = context?.project ?? process.env.GOOGLE_PROJECT_ID ?? '';
-  const dataset = context?.dataset ?? process.env.BQ_DATASET ?? '';
+  const project = context?.project || process.env.NEXT_PUBLIC_GOOGLE_PROJECT_ID || 'malloy-data';
+  const dataset = context?.dataset || process.env.NEXT_PUBLIC_BQ_DATASET || 'ecomm';
 
-  const { object: intent } = await generateObject({ maxRetries: 2,
-    model: google('gemini-3.5-flash'),
-    system: `Classify a BigQuery data loading request. EXPORT_CSV = download as CSV. EXPORT_SHEETS = send to Google Sheets. SCHEDULE = schedule a recurring query. Extract the table name or SQL to use. Project: ${project}, dataset: ${dataset}`,
+  const intent = await callGemini({
+    systemInstruction: `Classify a BigQuery data loading request. EXPORT_CSV = download as CSV. EXPORT_SHEETS = send to Google Sheets. SCHEDULE = schedule a recurring query. Extract the table name or SQL to use. Project: ${project}, dataset: ${dataset}`,
     prompt: message,
     schema: DataLoadingIntentSchema,
   });
@@ -702,11 +773,10 @@ async function handleDiscovery(
   message: string,
   context?: { project?: string; dataset?: string }
 ): Promise<CompositionEnvelope[]> {
-  const project = context?.project ?? process.env.GOOGLE_PROJECT_ID ?? '';
+  const project = context?.project || process.env.NEXT_PUBLIC_GOOGLE_PROJECT_ID || 'malloy-data';
 
-  const { object: intent } = await generateObject({ maxRetries: 2,
-    model: google('gemini-3.5-flash'),
-    system: `You are a BigQuery discovery assistant. Classify the user's request as either SEARCH (find tables/views matching a term) or COMPARISON (compare two specific tables' schemas). Extract the search term or first table name into 'query'. For COMPARISON, extract the second table into 'secondTable'.`,
+  const intent = await callGemini({
+    systemInstruction: `You are a BigQuery discovery assistant. Classify the user's request as either SEARCH (find tables/views matching a term) or COMPARISON (compare two specific tables' schemas). Extract the search term or first table name into 'query'. For COMPARISON, extract the second table into 'secondTable'.`,
     prompt: message,
     schema: DiscoveryResponseSchema,
   });

@@ -22,6 +22,9 @@
 # token cache written by the running app (keep private!)
 .token-cache.json
 
+# firebase
+/.firebase/
+
 # next.js
 /.next/
 /out/
