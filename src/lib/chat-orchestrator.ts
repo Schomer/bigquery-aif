@@ -838,13 +838,9 @@ VISUALIZATION SELECTION: Pick the suggestedVisualization that best matches both 
     project,
   });
 
-  // Run dry-run and execution in parallel -- if the dry run says the query
-  // needs confirmation (tier 3+), we discard the execution result.
+  // Run dry-run first for cost check
   onStatus?.('Executing query...');
-  const [costResult, executed] = await Promise.all([
-    dryRun(queryPlan.sql, project),
-    executeQuery(queryPlan.sql, project),
-  ]);
+  const costResult = await dryRun(queryPlan.sql, project);
 
   if (costResult.requiresConfirmation) {
     const result: QueryResult = {
@@ -867,9 +863,61 @@ VISUALIZATION SELECTION: Pick the suggestedVisualization that best matches both 
     return [compose('query', result)];
   }
 
+  // Execute query with auto-retry: if BigQuery returns a query-content error
+  // (syntax, unsupported type, etc.), send the error back to Gemini to fix the
+  // SQL and retry once.
+  let finalSql = queryPlan.sql;
+  let executed: Awaited<ReturnType<typeof executeQuery>>;
+  try {
+    executed = await executeQuery(finalSql, project);
+  } catch (firstErr: unknown) {
+    const errMsg = firstErr instanceof Error ? firstErr.message : String(firstErr);
+    // Only auto-fix query-content errors, not auth/quota/network issues
+    const isQueryError = errMsg.includes('query failed') || errMsg.includes('Syntax error');
+    if (!isQueryError) throw firstErr;
+
+    onStatus?.('Fixing query...');
+    try {
+      const fixResult = await callGemini({
+        systemInstruction: `You are a BigQuery SQL repair agent. The user ran a query and BigQuery returned an error. Your job is to fix the SQL so it runs successfully. Return ONLY valid GoogleSQL. Do not change the intent of the query -- only fix the error.
+
+Common fixes:
+- GEOGRAPHY columns cannot be used with DISTINCT, GROUP BY, or ORDER BY. Cast to ST_ASTEXT() or exclude them.
+- STRUCT/ARRAY/JSON columns cannot be used with DISTINCT. Exclude or flatten them.
+- Ambiguous column names need table aliases.
+- Backtick-wrap project/dataset names containing hyphens.
+
+Return the corrected SQL and a short explanation of what you changed.`,
+        prompt: `Original SQL:\n\`\`\`sql\n${finalSql}\n\`\`\`\n\nBigQuery error:\n${errMsg}`,
+        schema: {
+          type: 'OBJECT',
+          properties: {
+            sql: { type: 'STRING' },
+            explanation: { type: 'STRING' },
+          },
+          required: ['sql'],
+        },
+        project,
+      });
+
+      if (fixResult?.sql) {
+        finalSql = fixResult.sql;
+        onStatus?.('Retrying query...');
+        executed = await executeQuery(finalSql, project);
+      } else {
+        throw firstErr;
+      }
+    } catch (fixErr: unknown) {
+      // If the fix attempt itself fails, throw the original error
+      const fixErrMsg = fixErr instanceof Error ? fixErr.message : String(fixErr);
+      if (fixErrMsg === errMsg || fixErrMsg.includes('Gemini')) throw firstErr;
+      throw fixErr;
+    }
+  }
+
   const result: QueryResult = {
     skill: 'query',
-    sql: queryPlan.sql,
+    sql: finalSql,
     requiresConfirmation: false,
     costConfirm: null,
     columns: executed.columns,
@@ -1286,8 +1334,21 @@ async function handleDataQuality(
 
   sql = `SELECT COUNT(*) AS __total_rows, ${exprs.join(', ')} FROM ${fqTable}`;
   onStatus?.('Running quality checks...');
-  onStatus?.('Preparing export...');
-  const executed = await executeQuery(sql, project);
+
+  let executed: Awaited<ReturnType<typeof executeQuery>>;
+  try {
+    executed = await executeQuery(sql, project);
+  } catch (err) {
+    // Auto-retry with safe query: null counts only (no DISTINCT/MIN/MAX)
+    console.warn('[data-quality] Full profile query failed, retrying safe version:', err);
+    onStatus?.('Retrying with simplified checks...');
+    const safeExprs = columns.map((col) =>
+      `COUNTIF(${col.name} IS NULL) AS \`${col.name}__nulls\``
+    );
+    sql = `SELECT COUNT(*) AS __total_rows, ${safeExprs.join(', ')} FROM ${fqTable}`;
+    executed = await executeQuery(sql, project);
+  }
+
   const row = executed.rows[0] ?? [];
   const colMap = Object.fromEntries(executed.columns.map((c, i) => [c, row[i]]));
   const totalRows = Number(colMap['__total_rows'] ?? 0);
@@ -1299,8 +1360,12 @@ async function handleDataQuality(
     findings.push({ column: col.name, metric: 'null_rate', value: parseFloat(nullRate.toFixed(4)), severity: nullSeverity });
 
     if (intent.checkType === 'PROFILE') {
-      const distinct = Number(colMap[`${col.name}__distinct`] ?? 0);
-      findings.push({ column: col.name, metric: 'distinct_count', value: distinct, severity: 'INFO' });
+      const distinctKey = `${col.name}__distinct`;
+      // Only add distinct count if the column exists in the result (may be absent in safe mode)
+      if (distinctKey in colMap) {
+        const distinct = Number(colMap[distinctKey] ?? 0);
+        findings.push({ column: col.name, metric: 'distinct_count', value: distinct, severity: 'INFO' });
+      }
     }
   }
 

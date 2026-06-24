@@ -4,35 +4,37 @@
 import { executeQuery } from './bigquery-client';
 import type { PreviewResponse, PreviewColumn } from './types';
 
-export async function fetchTablePreview(
+// Column types where DISTINCT / MIN / MAX are unsupported in BigQuery
+const NO_DISTINCT_TYPES = new Set(['GEOGRAPHY', 'STRUCT', 'RECORD', 'ARRAY', 'JSON']);
+
+function buildProfileSql(
   tableRef: string,
   columns: Array<{ name: string; type: string }>,
-  project?: string
-): Promise<PreviewResponse> {
-  const sampleSql = `SELECT * FROM \`${tableRef}\` LIMIT 20`;
-
-  // Build a single-pass profile query with per-column aggregations
-  const profileSelects = columns.map((col) => {
+  safeMode: boolean
+): string {
+  const selects = columns.map((col) => {
     const q = `\`${col.name}\``;
     const isNumeric = ['INTEGER', 'INT64', 'FLOAT', 'FLOAT64', 'NUMERIC', 'BIGNUMERIC'].includes(col.type.toUpperCase());
     const isString = ['STRING', 'BYTES'].includes(col.type.toUpperCase());
-
-    const noDistinctTypes = ['GEOGRAPHY', 'STRUCT', 'RECORD', 'ARRAY', 'JSON'];
-    const supportsDistinct = !noDistinctTypes.includes(col.type.toUpperCase());
+    const canDistinct = !NO_DISTINCT_TYPES.has(col.type.toUpperCase());
 
     const parts: string[] = [
       `COUNTIF(${q} IS NULL) AS \`__null_${col.name}\``,
-      supportsDistinct
-        ? `COUNT(DISTINCT ${q}) AS \`__distinct_${col.name}\``
-        : `NULL AS \`__distinct_${col.name}\``,
     ];
 
-    if (isNumeric) {
+    // In safe mode, skip DISTINCT entirely to avoid unexpected type errors
+    if (!safeMode && canDistinct) {
+      parts.push(`COUNT(DISTINCT ${q}) AS \`__distinct_${col.name}\``);
+    } else {
+      parts.push(`NULL AS \`__distinct_${col.name}\``);
+    }
+
+    if (!safeMode && isNumeric) {
       parts.push(
         `CAST(MIN(${q}) AS STRING) AS \`__min_${col.name}\``,
         `CAST(MAX(${q}) AS STRING) AS \`__max_${col.name}\``,
       );
-    } else if (isString) {
+    } else if (!safeMode && isString) {
       parts.push(
         `MIN(${q}) AS \`__min_${col.name}\``,
         `MAX(${q}) AS \`__max_${col.name}\``,
@@ -47,8 +49,15 @@ export async function fetchTablePreview(
     return parts.join(',\n  ');
   });
 
-  const totalCountSelect = `COUNT(*) AS __total_rows`;
-  const profileSql = `SELECT\n  ${totalCountSelect},\n  ${profileSelects.join(',\n  ')}\nFROM \`${tableRef}\``;
+  return `SELECT\n  COUNT(*) AS __total_rows,\n  ${selects.join(',\n  ')}\nFROM \`${tableRef}\``;
+}
+
+export async function fetchTablePreview(
+  tableRef: string,
+  columns: Array<{ name: string; type: string }>,
+  project?: string
+): Promise<PreviewResponse> {
+  const sampleSql = `SELECT * FROM \`${tableRef}\` LIMIT 20`;
 
   // Build top-values queries for string columns (up to 6 columns to keep cost low)
   const stringCols = columns
@@ -62,12 +71,46 @@ export async function fetchTablePreview(
        WHERE \`${col.name}\` IS NOT NULL
        GROUP BY 1 ORDER BY 2 DESC LIMIT 5`,
       project,
-    )
+    ).catch(() => null)
   );
 
-  const [sampleResult, profileResult, ...topValueResults] = await Promise.all([
-    executeQuery(sampleSql, project),
-    executeQuery(profileSql, project),
+  // Run sample query independently so it always succeeds
+  const samplePromise = executeQuery(sampleSql, project);
+
+  // Profile query: try the full version first, fall back to safe mode on error
+  let profileResult: Awaited<ReturnType<typeof executeQuery>>;
+  try {
+    profileResult = await executeQuery(buildProfileSql(tableRef, columns, false), project);
+  } catch (err) {
+    console.warn('[preview] Full profile query failed, retrying in safe mode:', err);
+    try {
+      profileResult = await executeQuery(buildProfileSql(tableRef, columns, true), project);
+    } catch (fallbackErr) {
+      console.warn('[preview] Safe-mode profile also failed:', fallbackErr);
+      // Construct an empty profile so sample rows still render
+      const sampleResult = await samplePromise;
+      const emptyProfile: PreviewColumn[] = columns.map((col) => ({
+        name: col.name,
+        type: col.type,
+        nullPct: null,
+        distinctCount: null,
+        min: null,
+        max: null,
+        topValues: [],
+      }));
+      return {
+        sample: {
+          columns: sampleResult.columns,
+          rows: sampleResult.rows,
+          rowCount: sampleResult.rowCount,
+        },
+        profile: emptyProfile,
+      };
+    }
+  }
+
+  const [sampleResult, ...topValueResults] = await Promise.all([
+    samplePromise,
     ...topValueQueries,
   ]);
 
@@ -76,7 +119,7 @@ export async function fetchTablePreview(
   const profileCols = profileResult.columns;
   const totalRows = Number(profileRow[profileCols.indexOf('__total_rows')] ?? 0);
 
-  const profile: PreviewColumn[] = columns.map((col, i) => {
+  const profile: PreviewColumn[] = columns.map((col) => {
     const nullIdx = profileCols.indexOf(`__null_${col.name}`);
     const distinctIdx = profileCols.indexOf(`__distinct_${col.name}`);
     const minIdx = profileCols.indexOf(`__min_${col.name}`);
