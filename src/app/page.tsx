@@ -896,7 +896,7 @@ export default function Home() {
               {messages.map((msg, i) => (
                 <div key={i} className={i > 0 ? 'fade-up' : ''}>
                   {msg.role === 'user' ? (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginBottom: 4 }}>
                       {editingIdx === i ? (
                         /* -- Edit mode -- */
                         <div style={{
