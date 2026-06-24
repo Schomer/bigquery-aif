@@ -67,7 +67,7 @@ function toGoogleUser(fbUser: User): GoogleUser {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<GoogleUser | null>(null);
-  const [accessToken, setAccessTokenState] = useState<string | null>(null);
+  const [accessToken, setAccessTokenState] = useState<string | null>(() => getAccessToken());
   const [activeProject, setActiveProjectState] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +83,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsub = onAuthStateChanged(auth, (fbUser) => {
       if (fbUser) {
         setUser(toGoogleUser(fbUser));
+        // Restore token from sessionStorage if available
+        const storedToken = getAccessToken();
+        if (storedToken) {
+          setAccessTokenState(storedToken);
+        }
       } else {
         setUser(null);
         setAccessToken(null);
