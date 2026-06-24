@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { AnimatedCrystalBall } from '@/components/AnimatedCrystalBall';
 import { SparkSpinner } from '@/components/SparkSpinner';
 import { CrystalBallOracle } from '@/components/CrystalBallOracle';
@@ -93,11 +93,22 @@ export default function Home() {
   }>({});
   const [statusText, setStatusText] = useState<string | null>(null);
   const [lastError, setLastError] = useState<{ message: string; type: string; sql?: string; retryFn?: () => void } | null>(null);
+  const [thinkingSteps, setThinkingSteps] = useState<Record<number, string[]>>({});
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('hdn_sidebar_width');
+      if (stored) return Math.max(280, Math.min(600, parseInt(stored, 10)));
+    }
+    return 380;
+  });
+  const [isDragging, setIsDragging] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const titleSetRef = useRef(false);
+  const resultsPanelRef = useRef<HTMLDivElement>(null);
+  const pendingStepsRef = useRef<string[]>([]);
 
   // Auto-focus and auto-size the edit textarea when it opens
   useEffect(() => {
@@ -174,7 +185,8 @@ export default function Home() {
     if (!text || loading) return;
     setEditingIdx(null);
     setLoading(true);
-    setRerunningIdx(userIdx + 1); // show spinner on the assistant msg below
+    setRerunningIdx(userIdx + 1);
+    pendingStepsRef.current = [];
 
     const historyBefore = messages.slice(0, userIdx);
     const editedUserMsg: ChatMessage = {
@@ -188,7 +200,7 @@ export default function Home() {
         message: text,
         history: historyBefore,
         context: { ...context, project: activeProject || context.project },
-        onStatus: (s: string) => setStatusText(s),
+        onStatus: (s: string) => { setStatusText(s); pendingStepsRef.current.push(s); },
       });
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
       const newAssistantMsg: ChatMessage = {
@@ -209,6 +221,10 @@ export default function Home() {
         ...(nextAssistantOffset >= 0 ? tail.slice(nextAssistantOffset + 1) : []),
       ];
       setMessages(updatedMsgs);
+      const newAssistantIdx = updatedMsgs.findIndex((m) => m === newAssistantMsg);
+      if (newAssistantIdx >= 0) {
+        setThinkingSteps((prev) => ({ ...prev, [newAssistantIdx]: [...pendingStepsRef.current] }));
+      }
       persistConversation(updatedMsgs).catch((e) => console.warn('[persist]', e));
     } catch (err) {
       console.error(err);
@@ -223,6 +239,7 @@ export default function Home() {
   async function rerunMessage(assistantIdx: number) {
     if (loading) return;
     setRerunningIdx(assistantIdx);
+    pendingStepsRef.current = [];
     // Find the most recent user message before assistantIdx
     let userText = '';
     for (let i = assistantIdx - 1; i >= 0; i--) {
@@ -242,7 +259,7 @@ export default function Home() {
         message: userText,
         history: historyUpTo.slice(0, -1),
         context: { ...context, project: activeProject || context.project },
-        onStatus: (s: string) => setStatusText(s),
+        onStatus: (s: string) => { setStatusText(s); pendingStepsRef.current.push(s); },
       });
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
       const newAssistantMsg: ChatMessage = {
@@ -259,6 +276,7 @@ export default function Home() {
         ...messages.slice(assistantIdx + 1),
       ];
       setMessages(updatedMsgs);
+      setThinkingSteps((prev) => ({ ...prev, [assistantIdx]: [...pendingStepsRef.current] }));
       persistConversation(updatedMsgs).catch((e) => console.warn('[persist]', e));
     } catch (err) {
       console.error(err);
@@ -275,6 +293,7 @@ export default function Home() {
 
     setInput('');
     setLoading(true);
+    pendingStepsRef.current = [];
 
     const userMsg: ChatMessage = {
       role: 'user',
@@ -289,7 +308,7 @@ export default function Home() {
         message: text,
         history: messages,
         context: { ...context, project: activeProject || context.project },
-        onStatus: (s: string) => setStatusText(s),
+        onStatus: (s: string) => { setStatusText(s); pendingStepsRef.current.push(s); },
       });
 
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
@@ -303,6 +322,8 @@ export default function Home() {
 
       const finalMsgs = [...updatedMsgs, assistantMsg];
       setMessages(finalMsgs);
+      const assistantIdx = finalMsgs.length - 1;
+      setThinkingSteps((prev) => ({ ...prev, [assistantIdx]: [...pendingStepsRef.current] }));
 
       if (envelopes.length > 0) {
         const last = envelopes[envelopes.length - 1];
@@ -509,8 +530,85 @@ export default function Home() {
   }
 
 
+
   const hasChat = messages.length > 0;
   const isSplit = layout === 'chat-left' || layout === 'chat-right';
+
+  // Map artifact types to Material Symbols icon names
+  const artifactIcon = useCallback((type: string): string => {
+    if (type === 'TABLE') return 'table_chart';
+    if (type === 'SCHEMA_VIEW') return 'schema';
+    if (type === 'KPI_CARD') return 'speed';
+    if (type === 'DATA_QUALITY_VIEW') return 'verified';
+    if (type === 'DISCOVERY_VIEW') return 'explore';
+    if (type === 'MONITORING_VIEW') return 'monitoring';
+    if (type === 'CONFIRMATION_CARD' || type === 'COST_CONFIRM_CARD') return 'check_circle';
+    if (type === 'COMPLETION_CARD') return 'task_alt';
+    if (type === 'DATA_LOADING_VIEW') return 'download';
+    if (type === 'MULTISTEP_VIEW') return 'account_tree';
+    // All chart types
+    return 'bar_chart';
+  }, []);
+
+  const artifactLabel = useCallback((type: string): string => {
+    if (type === 'TABLE') return 'Table';
+    if (type === 'SCHEMA_VIEW') return 'Schema';
+    if (type === 'KPI_CARD') return 'KPI';
+    if (type === 'DATA_QUALITY_VIEW') return 'Quality';
+    if (type === 'DISCOVERY_VIEW') return 'Discovery';
+    if (type === 'MONITORING_VIEW') return 'Monitor';
+    if (type === 'CONFIRMATION_CARD' || type === 'COST_CONFIRM_CARD') return 'Confirm';
+    if (type === 'COMPLETION_CARD') return 'Done';
+    if (type === 'DATA_LOADING_VIEW') return 'Export';
+    if (type === 'MULTISTEP_VIEW') return 'Workflow';
+    return 'Chart';
+  }, []);
+
+  // Scroll the results panel to a specific envelope card
+  const scrollToResult = useCallback((envelopeId: string) => {
+    const panel = resultsPanelRef.current;
+    if (!panel) return;
+    const card = panel.querySelector(`[data-envelope-id="${envelopeId}"]`);
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      card.classList.remove('result-card-highlight');
+      // Force reflow to restart the animation
+      void (card as HTMLElement).offsetWidth;
+      card.classList.add('result-card-highlight');
+    }
+  }, []);
+
+  // Drag handle for resizing sidebar
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+    const isRight = layout === 'chat-right';
+
+    const onMove = (ev: MouseEvent) => {
+      const delta = ev.clientX - startX;
+      // If sidebar is on the right, dragging left increases width
+      const newWidth = isRight ? startWidth - delta : startWidth + delta;
+      setSidebarWidth(Math.max(280, Math.min(600, newWidth)));
+    };
+    const onUp = () => {
+      setIsDragging(false);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [sidebarWidth, layout]);
+
+  // Persist sidebar width
+  useEffect(() => {
+    localStorage.setItem('hdn_sidebar_width', String(sidebarWidth));
+  }, [sidebarWidth]);
 
   // In split mode, collect all envelopes from all assistant messages for the results panel
   const allEnvelopes = (() => {
@@ -956,7 +1054,7 @@ export default function Home() {
           style={{ display: (activePage === 'prompts' || activePage === 'settings') ? 'none' : 'flex', height: '100%' }}
         >
           {/* -- Chat sidebar -- */}
-          <div className="chat-sidebar">
+          <div className="chat-sidebar" style={{ width: sidebarWidth, minWidth: 280, maxWidth: 600 }}>
             <div className="chat-sidebar-messages">
               {!hasChat && (
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
@@ -984,6 +1082,115 @@ export default function Home() {
                           {typeof msg.content === 'string' ? msg.content : String(msg.content)}
                         </div>
                       )}
+
+                      {/* Artifact link buttons */}
+                      {msg.envelopes && msg.envelopes.length > 0 && (
+                        <div className="chat-sidebar-artifact-links">
+                          {msg.envelopes.map((env) => (
+                            <button
+                              key={env.id}
+                              className="chat-sidebar-artifact-link"
+                              onClick={() => scrollToResult(env.id)}
+                              title={`View ${artifactLabel(env.primaryArtifact.type)}`}
+                            >
+                              <span className="material-symbols-outlined">{artifactIcon(env.primaryArtifact.type)}</span>
+                              {artifactLabel(env.primaryArtifact.type)}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Show thinking (collapsible) */}
+                      {(thinkingSteps[i]?.length || (msg.envelopes && msg.envelopes.some((e) => e.provenance.sql))) && (
+                        <details className="chat-sidebar-thinking">
+                          <summary>
+                            <span className="material-symbols-outlined">chevron_right</span>
+                            Show thinking
+                          </summary>
+                          <div className="chat-sidebar-thinking-body">
+                            {/* Processing steps timeline */}
+                            {thinkingSteps[i] && thinkingSteps[i].length > 0 && (
+                              <>
+                                <div className="thinking-section-label">Processing steps</div>
+                                {thinkingSteps[i].map((step, si) => (
+                                  <div key={si} className="thinking-step">
+                                    <span className="material-symbols-outlined thinking-step-icon">
+                                      {step.includes('Classifying') ? 'psychology'
+                                        : step.includes('Routing') ? 'alt_route'
+                                        : step.includes('schema') || step.includes('Schema') ? 'schema'
+                                        : step.includes('SQL') || step.includes('query') || step.includes('Query') ? 'code'
+                                        : step.includes('Executing') || step.includes('Running') ? 'play_arrow'
+                                        : step.includes('Fixing') || step.includes('Retrying') ? 'refresh'
+                                        : step.includes('cost') || step.includes('Cost') ? 'payments'
+                                        : 'check_circle'}
+                                    </span>
+                                    <span>{step}</span>
+                                  </div>
+                                ))}
+                              </>
+                            )}
+
+                            {/* Skill + provenance from each envelope */}
+                            {msg.envelopes && msg.envelopes.map((env) => (
+                              <div key={env.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {/* Skill identification */}
+                                <div className="thinking-section-label">
+                                  Skill: {env.skill}
+                                </div>
+
+                                {/* SQL generated */}
+                                {env.provenance.sql && (
+                                  <>
+                                    <div className="thinking-section-label">Generated SQL</div>
+                                    <div className="thinking-sql">{env.provenance.sql}</div>
+                                  </>
+                                )}
+
+                                {/* Cost & performance metadata */}
+                                {(env.provenance.cost || env.provenance.freshness) && (
+                                  <div className="thinking-meta">
+                                    {env.provenance.cost && (
+                                      <>
+                                        <span>
+                                          <span className="material-symbols-outlined" style={{ fontSize: 12 }}>database</span>
+                                          {formatBytesCompact(env.provenance.cost.totalBytesProcessed)} processed
+                                        </span>
+                                        <span>
+                                          <span className="material-symbols-outlined" style={{ fontSize: 12 }}>speed</span>
+                                          Tier {env.provenance.cost.tier}
+                                        </span>
+                                      </>
+                                    )}
+                                    {env.provenance.freshness && (
+                                      <span>
+                                        <span className="material-symbols-outlined" style={{ fontSize: 12 }}>schedule</span>
+                                        {env.provenance.freshness}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Data identified */}
+                                {env.primaryArtifact.type === 'TABLE' && (env.primaryArtifact.data as any)?.rows && (
+                                  <div className="thinking-meta">
+                                    <span>
+                                      <span className="material-symbols-outlined" style={{ fontSize: 12 }}>grid_on</span>
+                                      {(env.primaryArtifact.data as any).rows.length} rows returned
+                                    </span>
+                                    {(env.primaryArtifact.data as any).columns && (
+                                      <span>
+                                        <span className="material-symbols-outlined" style={{ fontSize: 12 }}>view_column</span>
+                                        {(env.primaryArtifact.data as any).columns.length} columns
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      )}
+
                       {/* Error card in sidebar */}
                       {!msg.envelopes && !msg.content && lastError && i === messages.length - 1 && renderErrorCard()}
                       {renderRegenerate(i)}
@@ -1021,8 +1228,14 @@ export default function Home() {
             </div>
           </div>
 
+          {/* -- Drag handle -- */}
+          <div
+            className={`layout-drag-handle${isDragging ? ' layout-drag-handle--active' : ''}`}
+            onMouseDown={handleDragStart}
+          />
+
           {/* -- Results panel -- */}
-          <div className="results-panel">
+          <div className="results-panel" ref={resultsPanelRef}>
             {!hasChat ? (
               <div className="results-panel-empty">
                 <CrystalBallOracle ballSize={88} />
@@ -1054,14 +1267,15 @@ export default function Home() {
             ) : allEnvelopes.length > 0 ? (
               <div className="results-panel-inner">
                 {allEnvelopes.map((env) => (
-                  <ArtifactCard
-                    key={env.id}
-                    envelope={env}
-                    onConfirm={() => handleConfirm(env)}
-                    onCancel={() => handleCancel(env)}
-                    onChipClick={handleChipClick}
-                    onInlineClick={handleInlineClick}
-                  />
+                  <div key={env.id} data-envelope-id={env.id}>
+                    <ArtifactCard
+                      envelope={env}
+                      onConfirm={() => handleConfirm(env)}
+                      onCancel={() => handleCancel(env)}
+                      onChipClick={handleChipClick}
+                      onInlineClick={handleInlineClick}
+                    />
+                  </div>
                 ))}
               </div>
             ) : (
@@ -1081,3 +1295,10 @@ export default function Home() {
   );
 }
 
+function formatBytesCompact(bytes: number): string {
+  if (bytes >= 1_099_511_627_776) return `${(bytes / 1_099_511_627_776).toFixed(1)} TB`;
+  if (bytes >= 1_073_741_824) return `${(bytes / 1_073_741_824).toFixed(1)} GB`;
+  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(0)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${bytes} B`;
+}

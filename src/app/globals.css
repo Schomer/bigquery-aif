@@ -879,9 +879,7 @@
 
 /* Chat sidebar (used in chat-left and chat-right) */
 .chat-sidebar {
-  width: 380px;
-  min-width: 380px;
-  flex-shrink: 0;
+  flex: none;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -891,13 +889,17 @@
   background: var(--chat-bg);
 }
 .layout-chat-right .chat-sidebar {
-  order: 2;
+  order: 3;
   border-left-width: 1px;
 }
 .layout-chat-left .chat-sidebar {
   order: 1;
   border-right-width: 1px;
 }
+.layout-chat-right .layout-drag-handle { order: 2; }
+.layout-chat-left .layout-drag-handle { order: 2; }
+.layout-chat-right .results-panel { order: 1; }
+.layout-chat-left .results-panel { order: 3; }
 
 /* Messages scroll area inside sidebar */
 .chat-sidebar-messages {
@@ -987,3 +989,165 @@
   padding: 4px 0;
 }
 
+/* ═══════════════════════════════════════════════════════
+   CHAT SIDEBAR: THINKING SECTION
+   ═══════════════════════════════════════════════════════ */
+
+.chat-sidebar-thinking {
+  margin-top: 4px;
+}
+.chat-sidebar-thinking summary {
+  font-size: 11px;
+  color: var(--text-dim);
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 0;
+  user-select: none;
+  transition: color 0.15s;
+}
+.chat-sidebar-thinking summary:hover {
+  color: var(--text-muted);
+}
+.chat-sidebar-thinking summary .material-symbols-outlined {
+  font-size: 14px;
+  transition: transform 0.15s;
+}
+.chat-sidebar-thinking[open] summary .material-symbols-outlined {
+  transform: rotate(90deg);
+}
+.chat-sidebar-thinking-body {
+  padding: 8px 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.thinking-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+.thinking-step-icon {
+  font-size: 12px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.thinking-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+  margin-bottom: 2px;
+}
+.thinking-sql {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 6px 8px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.thinking-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+.thinking-meta span {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* ═══════════════════════════════════════════════════════
+   CHAT SIDEBAR: ARTIFACT LINK BUTTONS
+   ═══════════════════════════════════════════════════════ */
+
+.chat-sidebar-artifact-links {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.chat-sidebar-artifact-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 5px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.chat-sidebar-artifact-link:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.chat-sidebar-artifact-link .material-symbols-outlined {
+  font-size: 14px;
+}
+
+/* Scroll highlight animation on target card */
+@keyframes result-highlight {
+  0% { box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.4); }
+  100% { box-shadow: 0 0 0 0px rgba(26, 115, 232, 0); }
+}
+.result-card-highlight {
+  animation: result-highlight 1.5s ease-out;
+}
+
+/* ═══════════════════════════════════════════════════════
+   RESIZABLE SIDEBAR DRAG HANDLE
+   ═══════════════════════════════════════════════════════ */
+
+.layout-drag-handle {
+  width: 6px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  z-index: 10;
+  transition: background 0.15s;
+}
+.layout-drag-handle:hover,
+.layout-drag-handle--active {
+  background: rgba(26, 115, 232, 0.15);
+}
+.layout-drag-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 32px;
+  border-radius: 1px;
+  background: var(--text-dim);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.layout-drag-handle:hover::after,
+.layout-drag-handle--active::after {
+  opacity: 0.5;
+}
