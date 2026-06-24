@@ -91,7 +91,7 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
             padding: '12px 16px',
             background: '#f5f3ff',
             border: '1px solid #ddd6fe',
-            borderLeft: '4px solid #7c3aed',
+
             borderRadius: 8,
           }}>
             <div style={{
