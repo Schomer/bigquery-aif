@@ -1089,23 +1089,26 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px 3px 5px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  background: var(--surface-2);
-  color: var(--text-muted);
+  padding: 3px 9px 3px 6px;
+  border: 1px solid #bfdbfe;
+  border-radius: 14px;
+  background: #eff6ff;
+  color: #1e40af;
   font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;
 }
 .chat-sidebar-artifact-link:hover {
-  border-color: #93c5fd;
-  background: #eff6ff;
+  border-color: #60a5fa;
+  background: #dbeafe;
   color: #1d4ed8;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.15);
 }
 .chat-sidebar-artifact-link .material-symbols-outlined {
-  font-size: 14px;
+  font-size: 13px;
+  color: #3b82f6;
 }
 
 /* Scroll highlight animation on target card */

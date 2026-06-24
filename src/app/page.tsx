@@ -550,18 +550,40 @@ export default function Home() {
     return 'bar_chart';
   }, []);
 
-  const artifactLabel = useCallback((type: string): string => {
-    if (type === 'TABLE') return 'Table';
-    if (type === 'SCHEMA_VIEW') return 'Schema';
+  // Generate a meaningful label from the envelope's actual data
+  const envelopeLabel = useCallback((env: CompositionEnvelope): string => {
+    const { type, data } = env.primaryArtifact;
+    if (type === 'SCHEMA_VIEW') {
+      const d = data as any;
+      if (d?.scope === 'DATASET' && d?.columns?.length) return `${d.columns.length} tables`;
+      if (d?.scope === 'TABLE' && d?.table) return d.table;
+      if (d?.scope === 'PROJECT') return 'Datasets';
+      return 'Schema';
+    }
+    if (type === 'TABLE') {
+      const d = data as any;
+      if (d?.rows?.length !== undefined) return `${d.rows.length} rows`;
+      return 'Table';
+    }
     if (type === 'KPI_CARD') return 'KPI';
-    if (type === 'DATA_QUALITY_VIEW') return 'Quality';
+    if (type === 'DATA_QUALITY_VIEW') {
+      const d = data as any;
+      return d?.table ? `Quality: ${d.table}` : 'Quality';
+    }
     if (type === 'DISCOVERY_VIEW') return 'Discovery';
     if (type === 'MONITORING_VIEW') return 'Monitor';
     if (type === 'CONFIRMATION_CARD' || type === 'COST_CONFIRM_CARD') return 'Confirm';
     if (type === 'COMPLETION_CARD') return 'Done';
     if (type === 'DATA_LOADING_VIEW') return 'Export';
     if (type === 'MULTISTEP_VIEW') return 'Workflow';
-    return 'Chart';
+    // Charts: use a readable name
+    const chartNames: Record<string, string> = {
+      LINE_CHART: 'Line chart', BAR_CHART: 'Bar chart', AREA_CHART: 'Area chart',
+      PIE_CHART: 'Pie chart', DONUT_CHART: 'Donut chart', COLUMN_CHART: 'Column chart',
+      SCATTER: 'Scatter plot', HISTOGRAM: 'Histogram', HEATMAP: 'Heatmap',
+      FUNNEL: 'Funnel', TREEMAP: 'Treemap', GAUGE: 'Gauge',
+    };
+    return chartNames[type] || 'Chart';
   }, []);
 
   // Scroll the results panel to a specific envelope card
@@ -1091,102 +1113,114 @@ export default function Home() {
                               key={env.id}
                               className="chat-sidebar-artifact-link"
                               onClick={() => scrollToResult(env.id)}
-                              title={`View ${artifactLabel(env.primaryArtifact.type)}`}
+                              title={`View in results panel`}
                             >
                               <span className="material-symbols-outlined">{artifactIcon(env.primaryArtifact.type)}</span>
-                              {artifactLabel(env.primaryArtifact.type)}
+                              {envelopeLabel(env)}
                             </button>
                           ))}
                         </div>
                       )}
 
                       {/* Show thinking (collapsible) */}
-                      {(thinkingSteps[i]?.length || (msg.envelopes && msg.envelopes.some((e) => e.provenance.sql))) && (
+                      {(thinkingSteps[i]?.length || (msg.envelopes && msg.envelopes.some((e) => e.provenance.sql || e.skill))) && (
                         <details className="chat-sidebar-thinking">
                           <summary>
                             <span className="material-symbols-outlined">chevron_right</span>
                             Show thinking
                           </summary>
                           <div className="chat-sidebar-thinking-body">
-                            {/* Processing steps timeline */}
+                            {/* Processing steps as simple numbered list */}
                             {thinkingSteps[i] && thinkingSteps[i].length > 0 && (
                               <>
-                                <div className="thinking-section-label">Processing steps</div>
+                                <div className="thinking-section-label">Steps</div>
                                 {thinkingSteps[i].map((step, si) => (
                                   <div key={si} className="thinking-step">
-                                    <span className="material-symbols-outlined thinking-step-icon">
-                                      {step.includes('Classifying') ? 'psychology'
-                                        : step.includes('Routing') ? 'alt_route'
-                                        : step.includes('schema') || step.includes('Schema') ? 'schema'
-                                        : step.includes('SQL') || step.includes('query') || step.includes('Query') ? 'code'
-                                        : step.includes('Executing') || step.includes('Running') ? 'play_arrow'
-                                        : step.includes('Fixing') || step.includes('Retrying') ? 'refresh'
-                                        : step.includes('cost') || step.includes('Cost') ? 'payments'
-                                        : 'check_circle'}
-                                    </span>
-                                    <span>{step}</span>
+                                    {si + 1}. {step}
                                   </div>
                                 ))}
                               </>
                             )}
 
-                            {/* Skill + provenance from each envelope */}
-                            {msg.envelopes && msg.envelopes.map((env) => (
-                              <div key={env.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                {/* Skill identification */}
-                                <div className="thinking-section-label">
-                                  Skill: {env.skill}
+                            {/* Details from each envelope */}
+                            {msg.envelopes && msg.envelopes.map((env) => {
+                              const d = env.primaryArtifact.data as any;
+                              const type = env.primaryArtifact.type;
+                              return (
+                                <div key={env.id} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                  <div className="thinking-section-label">
+                                    Task: {env.skill} / {type.toLowerCase().replace(/_/g, ' ')}
+                                  </div>
+
+                                  {/* Schema details */}
+                                  {type === 'SCHEMA_VIEW' && d && (
+                                    <div className="thinking-step" style={{ flexDirection: 'column', gap: 2 }}>
+                                      {d.scope === 'DATASET' && d.dataset && (
+                                        <div>Dataset: <strong>{d.dataset}</strong> ({d.columns?.length || 0} tables)</div>
+                                      )}
+                                      {d.scope === 'TABLE' && (
+                                        <>
+                                          <div>Table: <strong>{d.dataset ? `${d.dataset}.` : ''}{d.table}</strong></div>
+                                          {d.columns?.length > 0 && (
+                                            <div>Fields: {d.columns.map((c: any) => `${c.name} (${c.type})`).slice(0, 8).join(', ')}{d.columns.length > 8 ? ` +${d.columns.length - 8} more` : ''}</div>
+                                          )}
+                                          {d.rowCount != null && <div>Row count: {Number(d.rowCount).toLocaleString()}</div>}
+                                          {d.partitioning && <div>Partitioned by: {d.partitioning.field} ({d.partitioning.type})</div>}
+                                          {d.clustering?.length > 0 && <div>Clustered by: {d.clustering.join(', ')}</div>}
+                                        </>
+                                      )}
+                                      {d.scope === 'PROJECT' && <div>Project: {d.project}</div>}
+                                    </div>
+                                  )}
+
+                                  {/* Query/Table details */}
+                                  {(type === 'TABLE' || type.includes('CHART') || type === 'SCATTER' || type === 'HISTOGRAM' || type === 'HEATMAP' || type === 'KPI_CARD') && d && (
+                                    <div className="thinking-step" style={{ flexDirection: 'column', gap: 2 }}>
+                                      {d.columns?.length > 0 && (
+                                        <div>Columns: {d.columns.slice(0, 10).join(', ')}{d.columns.length > 10 ? ` +${d.columns.length - 10} more` : ''}</div>
+                                      )}
+                                      {d.rows?.length !== undefined && <div>Rows returned: {d.rows.length}</div>}
+                                      {d.totalBytesProcessed > 0 && <div>Data scanned: {formatBytesCompact(d.totalBytesProcessed)}</div>}
+                                    </div>
+                                  )}
+
+                                  {/* Data quality details */}
+                                  {type === 'DATA_QUALITY_VIEW' && d && (
+                                    <div className="thinking-step" style={{ flexDirection: 'column', gap: 2 }}>
+                                      <div>Table checked: <strong>{d.table}</strong></div>
+                                      <div>Check type: {d.checkType}</div>
+                                      {d.summary && <div>Rows scanned: {d.summary.rowsScanned?.toLocaleString()}, Issues: {d.summary.issuesFound}</div>}
+                                    </div>
+                                  )}
+
+                                  {/* Data management details */}
+                                  {(type === 'CONFIRMATION_CARD' || type === 'COMPLETION_CARD') && d && (
+                                    <div className="thinking-step" style={{ flexDirection: 'column', gap: 2 }}>
+                                      {d.operation && <div>Operation: {d.operation}</div>}
+                                      {d.affectedRowCount != null && <div>Rows affected: {d.affectedRowCount.toLocaleString()}</div>}
+                                      {d.rowsAffected != null && <div>Rows affected: {d.rowsAffected.toLocaleString()}</div>}
+                                    </div>
+                                  )}
+
+                                  {/* SQL */}
+                                  {env.provenance.sql && (
+                                    <>
+                                      <div className="thinking-section-label">SQL</div>
+                                      <div className="thinking-sql">{env.provenance.sql}</div>
+                                    </>
+                                  )}
+
+                                  {/* Cost */}
+                                  {env.provenance.cost && (
+                                    <div className="thinking-meta">
+                                      <span>{formatBytesCompact(env.provenance.cost.totalBytesProcessed)} processed</span>
+                                      <span>Tier {env.provenance.cost.tier}</span>
+                                      {env.provenance.freshness && <span>{env.provenance.freshness}</span>}
+                                    </div>
+                                  )}
                                 </div>
-
-                                {/* SQL generated */}
-                                {env.provenance.sql && (
-                                  <>
-                                    <div className="thinking-section-label">Generated SQL</div>
-                                    <div className="thinking-sql">{env.provenance.sql}</div>
-                                  </>
-                                )}
-
-                                {/* Cost & performance metadata */}
-                                {(env.provenance.cost || env.provenance.freshness) && (
-                                  <div className="thinking-meta">
-                                    {env.provenance.cost && (
-                                      <>
-                                        <span>
-                                          <span className="material-symbols-outlined" style={{ fontSize: 12 }}>database</span>
-                                          {formatBytesCompact(env.provenance.cost.totalBytesProcessed)} processed
-                                        </span>
-                                        <span>
-                                          <span className="material-symbols-outlined" style={{ fontSize: 12 }}>speed</span>
-                                          Tier {env.provenance.cost.tier}
-                                        </span>
-                                      </>
-                                    )}
-                                    {env.provenance.freshness && (
-                                      <span>
-                                        <span className="material-symbols-outlined" style={{ fontSize: 12 }}>schedule</span>
-                                        {env.provenance.freshness}
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-
-                                {/* Data identified */}
-                                {env.primaryArtifact.type === 'TABLE' && (env.primaryArtifact.data as any)?.rows && (
-                                  <div className="thinking-meta">
-                                    <span>
-                                      <span className="material-symbols-outlined" style={{ fontSize: 12 }}>grid_on</span>
-                                      {(env.primaryArtifact.data as any).rows.length} rows returned
-                                    </span>
-                                    {(env.primaryArtifact.data as any).columns && (
-                                      <span>
-                                        <span className="material-symbols-outlined" style={{ fontSize: 12 }}>view_column</span>
-                                        {(env.primaryArtifact.data as any).columns.length} columns
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </details>
                       )}
