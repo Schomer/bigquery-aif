@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { useLayout, type ChatLayout } from '@/lib/layout-context';
 
 interface TopBarProps {
   onNavToggle: () => void;
@@ -24,6 +25,13 @@ function saveFavorites(favs: Set<string>) {
 
 export function TopBar({ onNavToggle }: TopBarProps) {
   const { user, accessToken, projects, activeProject, isLoading, signIn, signOut, setActiveProject } = useAuth();
+  const { layout, setLayout } = useLayout();
+
+  const LAYOUT_OPTIONS: { value: ChatLayout; icon: string; label: string }[] = [
+    { value: 'unified', icon: 'view_stream', label: 'Unified' },
+    { value: 'chat-left', icon: 'side_navigation', label: 'Chat left' },
+    { value: 'chat-right', icon: 'right_panel_open', label: 'Chat right' },
+  ];
 
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
@@ -321,21 +329,24 @@ export function TopBar({ onNavToggle }: TopBarProps) {
         </div>
       </div>
 
-      {/* ── Center: search ── */}
-      {/* <div className="gc-top-bar-center">
-        <div className="gc-search-bar">
-          <input
-            type="text"
-            className="gc-search-input"
-            placeholder="Search (/) for resources, docs, products, and more"
-            aria-label="Search"
-          />
-          <button className="gc-search-btn">
-            <span className="material-symbols-outlined">search</span>
-            Search
-          </button>
+      {/* ── Center: layout switcher ── */}
+      <div className="gc-top-bar-center">
+        <div className="layout-seg" role="radiogroup" aria-label="Chat layout">
+          {LAYOUT_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              role="radio"
+              aria-checked={layout === opt.value}
+              aria-label={opt.label}
+              data-tooltip={opt.label}
+              className={`layout-seg-btn${layout === opt.value ? ' layout-seg-btn--active' : ''}`}
+              onClick={() => setLayout(opt.value)}
+            >
+              <span className="material-symbols-outlined">{opt.icon}</span>
+            </button>
+          ))}
         </div>
-      </div> */}
+      </div>
 
       {/* ── Right: utility icons + auth ── */}
       <div className="gc-top-bar-end">

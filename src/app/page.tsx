@@ -7,6 +7,7 @@ import { CrystalBallOracle } from '@/components/CrystalBallOracle';
 import { useAuth } from '@/lib/auth-context';
 import { useConversation } from '@/lib/conversation-context';
 import { usePage } from '@/lib/page-context';
+import { useLayout } from '@/lib/layout-context';
 import type { ChatMessage, CompositionEnvelope, SkillName, DataManagementResult, HandoffEnvelope } from '@/lib/types';
 import { ChatOrchestrator } from '@/lib/chat-orchestrator';
 import { ArtifactCard } from '@/components/ArtifactCard';
@@ -76,6 +77,7 @@ export default function Home() {
   const { activeProject, user } = useAuth();
   const { conversationId, newConversation } = useConversation();
   const { activePage, setActivePage } = usePage();
+  const { layout } = useLayout();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);

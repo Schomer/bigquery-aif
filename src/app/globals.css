@@ -797,3 +797,192 @@
   opacity: 0.8;
 }
 
+/* ═══════════════════════════════════════════════════════
+   LAYOUT SEGMENTED CONTROL
+   ═══════════════════════════════════════════════════════ */
+
+.layout-seg {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: #e8eaed;
+  border-radius: 10px;
+  padding: 3px;
+  height: 36px;
+}
+
+.layout-seg-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--gc-text-secondary);
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+  padding: 0;
+  position: relative;
+}
+.layout-seg-btn:hover:not(.layout-seg-btn--active) {
+  background: rgba(0, 0, 0, 0.06);
+}
+.layout-seg-btn--active {
+  background: #fff;
+  color: #1a73e8;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.layout-seg-btn .material-symbols-outlined {
+  font-size: 20px;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+}
+.layout-seg-btn--active .material-symbols-outlined {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+}
+
+/* Tooltip */
+.layout-seg-btn::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  background: #3c4043;
+  color: #fff;
+  font-size: 11px;
+  font-family: 'Google Sans', sans-serif;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 200;
+}
+.layout-seg-btn:hover::after {
+  opacity: 1;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SPLIT LAYOUT (SIDEBAR + RESULTS)
+   ═══════════════════════════════════════════════════════ */
+
+.layout-split {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Chat sidebar (used in chat-left and chat-right) */
+.chat-sidebar {
+  width: 380px;
+  min-width: 380px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-color: var(--border);
+  border-style: solid;
+  border-width: 0;
+  background: var(--chat-bg);
+}
+.layout-chat-right .chat-sidebar {
+  order: 2;
+  border-left-width: 1px;
+}
+.layout-chat-left .chat-sidebar {
+  order: 1;
+  border-right-width: 1px;
+}
+
+/* Messages scroll area inside sidebar */
+.chat-sidebar-messages {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Input bar docked to bottom of sidebar */
+.chat-sidebar-input {
+  flex-shrink: 0;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--chat-bg);
+}
+.chat-sidebar-input-inner {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 8px 8px 16px;
+}
+
+/* Results panel */
+.results-panel {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+}
+.layout-chat-right .results-panel {
+  order: 1;
+}
+.layout-chat-left .results-panel {
+  order: 2;
+}
+
+/* Results inner content */
+.results-panel-inner {
+  flex: 1;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Empty state centered in results panel */
+.results-panel-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* User bubble in sidebar mode -- more compact */
+.chat-sidebar .chat-sidebar-user-msg {
+  max-width: 100%;
+  background: var(--accent-dim);
+  border: 1px solid #c5d8fb;
+  border-radius: 14px 14px 4px 14px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #1557b0;
+  line-height: 1.45;
+  align-self: flex-end;
+  word-break: break-word;
+}
+
+/* Assistant text in sidebar mode */
+.chat-sidebar .chat-sidebar-assistant-text {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+  padding: 4px 0;
+}
+

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { ConversationProvider } from '@/lib/conversation-context';
 import { PageProvider } from '@/lib/page-context';
+import { LayoutProvider } from '@/lib/layout-context';
 import { TopBar } from './TopBar';
 import { SideNav } from './SideNav';
 import { SignedOutPage } from './SignedOutPage';
@@ -24,17 +25,19 @@ export function ShellLayout({ children }: ShellLayoutProps) {
   return (
     <ConversationProvider>
       <PageProvider>
-        <GlobalSearch />
-        <TopBar onNavToggle={() => setCollapsed((c) => !c)} />
-        <div className="gc-shell">
-          <SideNav collapsed={collapsed} />
-          <main
-            className={`gc-content${collapsed ? ' gc-content--nav-collapsed' : ''}`}
-            id="content"
-          >
-            {children}
-          </main>
-        </div>
+        <LayoutProvider>
+          <GlobalSearch />
+          <TopBar onNavToggle={() => setCollapsed((c) => !c)} />
+          <div className="gc-shell">
+            <SideNav collapsed={collapsed} />
+            <main
+              className={`gc-content${collapsed ? ' gc-content--nav-collapsed' : ''}`}
+              id="content"
+            >
+              {children}
+            </main>
+          </div>
+        </LayoutProvider>
       </PageProvider>
     </ConversationProvider>
   );
