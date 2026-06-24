@@ -1196,13 +1196,6 @@ export default function Home() {
                                     </div>
                                   )}
 
-                                  {/* SQL */}
-                                  {env.provenance.sql && (
-                                    <>
-                                      <div className="thinking-section-label">SQL</div>
-                                      <div className="thinking-sql">{env.provenance.sql}</div>
-                                    </>
-                                  )}
 
                                   {/* Cost */}
                                   {env.provenance.cost && (
