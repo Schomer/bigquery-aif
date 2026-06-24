@@ -69,7 +69,7 @@
   padding: 3px 10px;
   border: none;
   border-radius: 12px;
-  background: #dbeafe;
+  background: #eff6ff;
   color: #1e40af;
   font-size: 11px;
   font-weight: 500;
@@ -79,7 +79,7 @@
   line-height: 1.4;
 }
 .chip:hover {
-  background: #bfdbfe;
+  background: #dbeafe;
   color: #1e3a8a;
 }
 
