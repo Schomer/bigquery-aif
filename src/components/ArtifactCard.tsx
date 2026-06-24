@@ -165,13 +165,18 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
             <details style={{ margin: 0 }}>
               <summary style={{
                 fontSize: 11,
-                color: 'var(--text-dim)',
+                color: 'var(--text-muted)',
                 cursor: 'pointer',
                 listStyle: 'none',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 4,
                 userSelect: 'none',
+                padding: '3px 8px',
+                borderRadius: 4,
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border-subtle)',
+                fontWeight: 500,
               }}>
                 <span className="provenance-arrow">&#9654;</span>
                 SQL

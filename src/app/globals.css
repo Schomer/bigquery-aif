@@ -71,6 +71,9 @@
 details[open] > summary .provenance-arrow {
   transform: rotate(90deg);
 }
+/* Hide default disclosure marker across browsers */
+details > summary::-webkit-details-marker { display: none; }
+details > summary::marker { content: ''; }
 
 /* Chip / next-action buttons */
 .chip {
