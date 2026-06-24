@@ -760,7 +760,7 @@ export default function Home() {
 
   // Regenerate button renderer
   const renderRegenerate = (i: number) => (
-    <div style={{ display: 'flex', alignItems: 'center', marginTop: 2 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginTop: 2 }}>
       {rerunningIdx === i ? (
         <CrystalBallThinking />
       ) : (
@@ -986,6 +986,8 @@ export default function Home() {
                           {typeof msg.content === 'string' ? msg.content : String(msg.content ?? '')}
                         </div>
                       )}
+                      {/* Regenerate button under user prompt */}
+                      {i + 1 < messages.length && messages[i + 1].role === 'assistant' && renderRegenerate(i + 1)}
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1006,8 +1008,6 @@ export default function Home() {
                       )}
                       {/* Error card */}
                       {!msg.envelopes && !msg.content && lastError && i === messages.length - 1 && renderErrorCard()}
-                      {/* Regenerate button / inline spinner */}
-                      {renderRegenerate(i)}
                     </div>
                   )}
                 </div>
@@ -1080,10 +1080,12 @@ export default function Home() {
               {messages.map((msg, i) => (
                 <div key={i}>
                   {msg.role === 'user' ? (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                       <div className="chat-sidebar-user-msg">
                         {typeof msg.content === 'string' ? msg.content : String(msg.content ?? '')}
                       </div>
+                      {/* Regenerate button under user prompt */}
+                      {i + 1 < messages.length && messages[i + 1].role === 'assistant' && renderRegenerate(i + 1)}
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1214,7 +1216,6 @@ export default function Home() {
 
                       {/* Error card in sidebar */}
                       {!msg.envelopes && !msg.content && lastError && i === messages.length - 1 && renderErrorCard()}
-                      {renderRegenerate(i)}
                     </div>
                   )}
                 </div>
