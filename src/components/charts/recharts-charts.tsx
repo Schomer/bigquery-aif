@@ -109,22 +109,30 @@ export function LineChartRenderer({ result, onSendMessage }: ChartProps) {
 // ---------------------------------------------------------------------------
 // 2. BarChartRenderer (horizontal bars)
 // ---------------------------------------------------------------------------
+const BAR_ROW_HEIGHT = 32;
+const BAR_CHART_MAX_VISIBLE = 400;
+const BAR_CHART_MIN_HEIGHT = 200;
+
 export function BarChartRenderer({ result, onSendMessage }: ChartProps) {
   const { data, xKey, yKeys } = useChartSetup(result);
+  const chartHeight = Math.max(BAR_CHART_MIN_HEIGHT, data.length * BAR_ROW_HEIGHT);
+  const needsScroll = chartHeight > BAR_CHART_MAX_VISIBLE;
   return (
     <div>
-      <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-        <BarChart data={data} layout="vertical" margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage)}>
-          <CartesianGrid {...GRID_STYLE} />
-          <XAxis type="number" {...AXIS_STYLE} />
-          <YAxis type="category" dataKey={xKey} {...AXIS_STYLE} width={100} />
-          <Tooltip {...TOOLTIP_STYLE} />
-          {yKeys.map((k, i) => (
-            <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} />
-          ))}
-          {yKeys.length > 1 && <Legend iconSize={8} />}
-        </BarChart>
-      </ResponsiveContainer>
+      <div style={needsScroll ? { maxHeight: BAR_CHART_MAX_VISIBLE, overflowY: 'auto' } : undefined}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
+          <BarChart data={data} layout="vertical" margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage)}>
+            <CartesianGrid {...GRID_STYLE} />
+            <XAxis type="number" {...AXIS_STYLE} />
+            <YAxis type="category" dataKey={xKey} {...AXIS_STYLE} width={100} />
+            <Tooltip {...TOOLTIP_STYLE} />
+            {yKeys.map((k, i) => (
+              <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} />
+            ))}
+            {yKeys.length > 1 && <Legend iconSize={8} />}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
       <ChartTip />
     </div>
   );
