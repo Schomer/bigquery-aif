@@ -460,11 +460,35 @@ function composeDiscovery(result: DiscoveryResult): CompositionEnvelope {
 function vizTypeToArtifactType(viz: QueryResult['suggestedVisualization']): ArtifactType {
   const map: Record<string, ArtifactType> = {
     TABLE: 'TABLE',
+    // Recharts native
     LINE_CHART: 'LINE_CHART',
     BAR_CHART: 'BAR_CHART',
     AREA_CHART: 'AREA_CHART',
     SCATTER: 'SCATTER',
     PIE_CHART: 'PIE_CHART',
+    DONUT_CHART: 'DONUT_CHART',
+    COLUMN_CHART: 'COLUMN_CHART',
+    HISTOGRAM: 'HISTOGRAM',
+    SPARKLINE: 'SPARKLINE',
+    RADAR: 'RADAR',
+    FUNNEL: 'FUNNEL',
+    TREEMAP: 'TREEMAP',
+    SANKEY: 'SANKEY',
+    COMPOSED_CHART: 'COMPOSED_CHART',
+    // Custom SVG
+    GAUGE: 'GAUGE',
+    HEATMAP: 'HEATMAP',
+    BOXPLOT: 'BOXPLOT',
+    CANDLESTICK: 'CANDLESTICK',
+    VIOLIN: 'VIOLIN',
+    DENSITY_PLOT: 'DENSITY_PLOT',
+    RIDGELINE: 'RIDGELINE',
+    NETWORK_GRAPH: 'NETWORK_GRAPH',
+    TILE_MAP: 'TILE_MAP',
+    // Maps
+    GEO_POINT_MAP: 'GEO_POINT_MAP',
+    USA_MAP: 'USA_MAP',
+    WORLD_MAP: 'WORLD_MAP',
     KPI_CARD: 'KPI_CARD',
   };
   return map[viz] ?? 'TABLE';

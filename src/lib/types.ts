@@ -45,11 +45,16 @@ export type HeadlineBasis =
 
 export type ArtifactType =
   | 'TABLE'
-  | 'LINE_CHART'
-  | 'BAR_CHART'
-  | 'AREA_CHART'
-  | 'SCATTER'
-  | 'PIE_CHART'
+  // Recharts native
+  | 'LINE_CHART' | 'BAR_CHART' | 'AREA_CHART' | 'SCATTER' | 'PIE_CHART'
+  | 'DONUT_CHART' | 'COLUMN_CHART' | 'HISTOGRAM' | 'SPARKLINE'
+  | 'RADAR' | 'FUNNEL' | 'TREEMAP' | 'SANKEY' | 'COMPOSED_CHART'
+  // Custom SVG
+  | 'GAUGE' | 'HEATMAP' | 'BOXPLOT' | 'CANDLESTICK'
+  | 'VIOLIN' | 'DENSITY_PLOT' | 'RIDGELINE' | 'NETWORK_GRAPH' | 'TILE_MAP'
+  // Maps
+  | 'GEO_POINT_MAP' | 'USA_MAP' | 'WORLD_MAP'
+  // Non-chart artifact types
   | 'KPI_CARD'
   | 'SCHEMA_VIEW'
   | 'CONFIRMATION_CARD'
@@ -128,11 +133,15 @@ export interface SchemaResult {
 
 export type VisualizationType =
   | 'TABLE'
-  | 'LINE_CHART'
-  | 'BAR_CHART'
-  | 'AREA_CHART'
-  | 'SCATTER'
-  | 'PIE_CHART'
+  // Recharts native
+  | 'LINE_CHART' | 'BAR_CHART' | 'AREA_CHART' | 'SCATTER' | 'PIE_CHART'
+  | 'DONUT_CHART' | 'COLUMN_CHART' | 'HISTOGRAM' | 'SPARKLINE'
+  | 'RADAR' | 'FUNNEL' | 'TREEMAP' | 'SANKEY' | 'COMPOSED_CHART'
+  // Custom SVG
+  | 'GAUGE' | 'HEATMAP' | 'BOXPLOT' | 'CANDLESTICK'
+  | 'VIOLIN' | 'DENSITY_PLOT' | 'RIDGELINE' | 'NETWORK_GRAPH' | 'TILE_MAP'
+  // Maps
+  | 'GEO_POINT_MAP' | 'USA_MAP' | 'WORLD_MAP'
   | 'KPI_CARD';
 
 export interface QueryResult {

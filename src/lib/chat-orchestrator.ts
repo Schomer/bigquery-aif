@@ -199,7 +199,18 @@ const QueryResponseSchema = {
   type: 'OBJECT',
   properties: {
     sql: { type: 'STRING' },
-    suggestedVisualization: { type: 'STRING', enum: ['TABLE', 'LINE_CHART', 'BAR_CHART', 'AREA_CHART', 'SCATTER', 'PIE_CHART', 'KPI_CARD'] },
+    suggestedVisualization: { type: 'STRING', enum: [
+      'TABLE', 'KPI_CARD',
+      // Recharts native
+      'LINE_CHART', 'BAR_CHART', 'AREA_CHART', 'SCATTER', 'PIE_CHART',
+      'DONUT_CHART', 'COLUMN_CHART', 'HISTOGRAM', 'SPARKLINE',
+      'RADAR', 'FUNNEL', 'TREEMAP', 'SANKEY', 'COMPOSED_CHART',
+      // Custom SVG
+      'GAUGE', 'HEATMAP', 'BOXPLOT', 'CANDLESTICK',
+      'VIOLIN', 'DENSITY_PLOT', 'RIDGELINE', 'NETWORK_GRAPH', 'TILE_MAP',
+      // Maps
+      'GEO_POINT_MAP', 'USA_MAP', 'WORLD_MAP',
+    ] },
     xAxis: { type: 'STRING' },
     yAxis: { type: 'ARRAY', items: { type: 'STRING' } },
     notableFindings: { type: 'STRING' },
@@ -791,7 +802,37 @@ The available datasets in project ${project} are: ${available.join(', ')}
 ${schemaContext}
 Always wrap fully qualified table references in literal backticks: \`${project}.DATASET.tablename\` (e.g. \`${project}.ecomm.orders\`). This is CRITICAL to prevent syntax errors when project names contain dashes/hyphens.
 Today's date is: ${new Date().toISOString().split('T')[0]}
-Also generate a resultSummary field: a brief, contextual one-line summary of what the query results likely show (e.g., 'Revenue by month for the last 12 months' or 'Top 10 customers by order count'). This will be used as the headline shown to the user.`,
+Also generate a resultSummary field: a brief, contextual one-line summary of what the query results likely show (e.g., 'Revenue by month for the last 12 months' or 'Top 10 customers by order count'). This will be used as the headline shown to the user.
+
+VISUALIZATION SELECTION: Pick the suggestedVisualization that best matches both the data shape AND the user's explicit request. If the user asks for a specific chart type, always honor that request. Otherwise use these guidelines:
+- TABLE: default for raw data, lists, or when no chart fits.
+- KPI_CARD: single aggregate value (count, sum, average).
+- LINE_CHART: trends over time, time series.
+- BAR_CHART: horizontal comparison of categories.
+- COLUMN_CHART: vertical comparison of 5-15 discrete categories.
+- AREA_CHART: volume/magnitude changes over time, stacked areas.
+- SCATTER: correlation between two numeric variables.
+- PIE_CHART: part-to-whole composition (3-7 slices).
+- DONUT_CHART: part-to-whole with a summary metric in the center.
+- HISTOGRAM: frequency distribution of a single numeric column. Query should return individual values or pre-binned ranges.
+- SPARKLINE: tiny inline trend for a single metric over time.
+- RADAR: multivariate comparison across 3-8 dimensions.
+- FUNNEL: sequential stage drop-off (pipeline, conversion).
+- TREEMAP: hierarchical part-to-whole by area.
+- SANKEY: flow/transition between categories. Query must return source, target, and value columns.
+- COMPOSED_CHART: mixed series types (e.g., bars + lines on same axes).
+- GAUGE: single KPI value against a target or range.
+- HEATMAP: intensity across two categorical dimensions. Query must return row_label, column_label, and value.
+- BOXPLOT: distribution comparison showing median, quartiles, outliers.
+- CANDLESTICK: OHLC financial data. Query must return date, open, high, low, close columns.
+- VIOLIN: distribution shape comparison across categories.
+- DENSITY_PLOT: continuous probability distribution of a single variable.
+- RIDGELINE: multiple distributions stacked for comparison across groups.
+- NETWORK_GRAPH: entity relationships. Query must return source and target columns.
+- TILE_MAP: abstract geographic grid with colored tiles.
+- GEO_POINT_MAP: data points on a map. Query must return latitude and longitude columns.
+- USA_MAP: US state-level data. Query must return a state name or abbreviation column.
+- WORLD_MAP: country-level data. Query must return a country name or code column.`,
     messages: [...messages, { role: 'user' as const, content: message }],
     schema: QueryResponseSchema,
     project,

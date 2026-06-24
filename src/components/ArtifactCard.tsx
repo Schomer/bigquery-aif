@@ -222,6 +222,27 @@ function Artifact({
     case 'AREA_CHART':
     case 'SCATTER':
     case 'PIE_CHART':
+    case 'DONUT_CHART':
+    case 'COLUMN_CHART':
+    case 'HISTOGRAM':
+    case 'SPARKLINE':
+    case 'RADAR':
+    case 'FUNNEL':
+    case 'TREEMAP':
+    case 'SANKEY':
+    case 'COMPOSED_CHART':
+    case 'GAUGE':
+    case 'HEATMAP':
+    case 'BOXPLOT':
+    case 'CANDLESTICK':
+    case 'VIOLIN':
+    case 'DENSITY_PLOT':
+    case 'RIDGELINE':
+    case 'NETWORK_GRAPH':
+    case 'TILE_MAP':
+    case 'GEO_POINT_MAP':
+    case 'USA_MAP':
+    case 'WORLD_MAP':
       return <ChartWithToggle result={data as import('@/lib/types').QueryResult} chartType={type} onSendMessage={onSendMessage} />;
     case 'KPI_CARD':
       return <KpiCard result={data as import('@/lib/types').QueryResult} />;
@@ -250,8 +271,14 @@ function Artifact({
   }
 }
 
-// ─── Chart ↔ Table toggle ─────────────────────────────────────────────────
-type ChartToggleType = 'LINE_CHART' | 'BAR_CHART' | 'AREA_CHART' | 'SCATTER' | 'PIE_CHART';
+// ─── Chart <-> Table toggle ─────────────────────────────────────────────────
+type ChartToggleType =
+  | 'LINE_CHART' | 'BAR_CHART' | 'AREA_CHART' | 'SCATTER' | 'PIE_CHART'
+  | 'DONUT_CHART' | 'COLUMN_CHART' | 'HISTOGRAM' | 'SPARKLINE'
+  | 'RADAR' | 'FUNNEL' | 'TREEMAP' | 'SANKEY' | 'COMPOSED_CHART'
+  | 'GAUGE' | 'HEATMAP' | 'BOXPLOT' | 'CANDLESTICK'
+  | 'VIOLIN' | 'DENSITY_PLOT' | 'RIDGELINE' | 'NETWORK_GRAPH' | 'TILE_MAP'
+  | 'GEO_POINT_MAP' | 'USA_MAP' | 'WORLD_MAP';
 
 function ChartWithToggle({
   result,
