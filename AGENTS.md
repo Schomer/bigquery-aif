@@ -38,3 +38,14 @@ This project uses server-side rendering (no static export). To validate that edi
 1. `npm run build`
 <!-- END:auto-build -->
 
+<!-- BEGIN:auto-deploy -->
+# REQUIRED: Always deploy after changes
+
+After a successful build, always commit and push to deploy via Firebase App Hosting:
+1. `git add -A && git commit -m "<descriptive message>" && git push`
+
+The user tests on the deployed app, not locally. Skipping this step means they cannot see changes.
+
+Use `source "$HOME/.nvm/nvm.sh"` before any npm/node/git commands in the terminal.
+<!-- END:auto-deploy -->
+
