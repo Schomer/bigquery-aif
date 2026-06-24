@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import {
   COLORS, AXIS_STYLE, TOOLTIP_STYLE, GRID_STYLE, CHART_HEIGHT, CHART_MARGIN,
-  buildChartData, resolveAxes,
+  buildChartData, resolveAxes, drillDownMessage,
 } from './chart-utils';
 
 interface ChartProps {
@@ -26,14 +26,12 @@ function makeClickHandler(xKey: string, onSendMessage: (msg: string) => void) {
       const clickedData = state.activePayload[0].payload;
       const xValue = clickedData[xKey];
       if (xValue !== null && xValue !== undefined) {
-        const formattedValue = typeof xValue === 'number' ? xValue : `'${xValue}'`;
-        onSendMessage(`Filter the last query where \`${xKey}\` = ${formattedValue}`);
+        onSendMessage(drillDownMessage(xKey, xValue));
       }
     } else if (state?.activeLabel !== undefined) {
       const xValue = state.activeLabel;
       if (xValue !== null && xValue !== undefined) {
-        const formattedValue = typeof xValue === 'number' ? xValue : `'${xValue}'`;
-        onSendMessage(`Filter the last query where \`${xKey}\` = ${formattedValue}`);
+        onSendMessage(drillDownMessage(xKey, xValue));
       }
     }
   };
@@ -45,8 +43,7 @@ function makePieClickHandler(xKey: string, onSendMessage: (msg: string) => void)
     const payload = clickedEntry.payload || clickedEntry;
     const xValue = payload[xKey];
     if (xValue !== null && xValue !== undefined) {
-      const formattedValue = typeof xValue === 'number' ? xValue : `'${xValue}'`;
-      onSendMessage(`Filter the last query where \`${xKey}\` = ${formattedValue}`);
+      onSendMessage(drillDownMessage(xKey, xValue));
     }
   };
 }
@@ -521,8 +518,7 @@ export function TreemapRenderer({ result, onSendMessage }: ChartProps) {
           onClick={(node: any) => {
             if (!onSendMessage || !node?.name) return;
             const xValue = node.name;
-            const formattedValue = typeof xValue === 'number' ? xValue : `'${xValue}'`;
-            onSendMessage(`Filter the last query where \`${xKey}\` = ${formattedValue}`);
+            onSendMessage(drillDownMessage(xKey, xValue));
           }}
         />
       </ResponsiveContainer>
@@ -584,8 +580,7 @@ export function SankeyRenderer({ result, onSendMessage }: ChartProps) {
           onClick={(node: any) => {
             if (!onSendMessage || !node?.name) return;
             const xValue = node.name;
-            const formattedValue = typeof xValue === 'number' ? xValue : `'${xValue}'`;
-            onSendMessage(`Filter the last query where \`${sourceCol}\` = ${formattedValue}`);
+            onSendMessage(drillDownMessage(sourceCol, xValue));
           }}
         >
           <Tooltip {...TOOLTIP_STYLE} />
