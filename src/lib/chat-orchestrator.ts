@@ -390,7 +390,7 @@ export class ChatOrchestrator {
           content: m.content,
         }));
 
-        onStatus?.('Classifying request...');
+        onStatus?.(`Classifying intent for: "${resolvedMessage.slice(0, 80)}${resolvedMessage.length > 80 ? '...' : ''}"`);
 
         const routingRef = await loadSkillDoc('intent-routing');
 
@@ -467,7 +467,7 @@ Available datasets: ${available.join(', ')}`;
       'discovery': 'discovery search',
       'data-loading': 'data export',
     };
-    onStatus?.(`Routing to ${skillLabels[skill] || skill}...`);
+    onStatus?.(`Matched skill: ${skillLabels[skill] || skill}`);
 
     // ── Dispatch to skill ─────────────────────────────────────────────────────
     let envelopes: CompositionEnvelope[] = [];
@@ -667,7 +667,7 @@ async function handleSchema(
   } else {
     // Fall back to Gemini for ambiguous messages
     const skillDoc = await loadSkillDoc('schema');
-    onStatus?.('Analyzing request...');
+    onStatus?.(`Analyzing schema request using LLM (project: ${project}${context?.dataset ? `, dataset: ${context.dataset}` : ''})...`);
     const intent = await callGemini({
       systemInstruction: `${skillDoc}\n\nExtract the requested scope from the user's message. Dataset and table should be the BigQuery identifiers mentioned. If none mentioned, return null. The active project is: ${project}${context?.dataset ? `. The active dataset context is: ${context.dataset}` : ''}.`,
       prompt: message,
@@ -695,7 +695,7 @@ async function handleSchema(
   // Enriched listing: when the user asks for more than a basic list,
   // generate a custom INFORMATION_SCHEMA query that honors their instructions.
   if (!table && ENRICHMENT_PATTERNS.some((p) => p.test(message))) {
-    onStatus?.('Building enriched query...');
+    onStatus?.(`Building enriched query for ${resolvedDataset ? `dataset ${resolvedDataset}` : `project ${project}`}...`);
 
     const scope = resolvedDataset ? 'DATASET' : 'PROJECT';
     const dsRef = resolvedDataset
@@ -730,7 +730,7 @@ Rules:
       project,
     });
 
-    onStatus?.('Running query...');
+    onStatus?.(`Running enriched INFORMATION_SCHEMA query against ${resolvedDataset || project}...`);
     const executed = await executeQuery(plan.sql, project);
 
     const queryResult: QueryResult = {
@@ -751,7 +751,12 @@ Rules:
     return [compose('query', queryResult)];
   }
 
-  onStatus?.('Fetching schema...');
+  onStatus?.(table
+    ? `Fetching schema for table ${resolvedDataset ? `${resolvedDataset}.` : ''}${table}...`
+    : resolvedDataset
+      ? `Listing tables in dataset ${resolvedDataset}...`
+      : `Listing datasets in project ${project}...`
+  );
 
   // For table-level lookups, if the table isn't found in the assumed dataset,
   // search across all datasets. Handles "tell me more about X" when the table
@@ -762,7 +767,7 @@ Rules:
       return [compose('schema', result)];
     } catch (err: any) {
       if (err.message?.includes('Not found')) {
-        onStatus?.('Searching other datasets...');
+        onStatus?.(`Table ${table} not found in ${resolvedDataset}, searching other datasets...`);
         const allDatasets = await getAvailableDatasets(project);
         for (const ds of allDatasets) {
           if (ds === resolvedDataset) continue;
@@ -840,7 +845,7 @@ Rules:
 - For highlightColumns and deemphasizeColumns, use exact column names from the data.`;
 
   try {
-    onStatus?.('Reviewing output...');
+    onStatus?.('Reviewing output quality and visualization fit...');
     const review = await callGemini({
       systemInstruction: reviewPrompt,
       prompt: `User's question: "${userMessage}"
@@ -933,7 +938,7 @@ async function handleQuery(
 
   const schemaContext = await buildSchemaContext(project, dataset);
 
-  onStatus?.('Building SQL query...');
+  onStatus?.(`Building SQL for dataset ${dataset} in project ${project}...`);
   const datasetLine = dataset
     ? `The active dataset is: ${dataset}`
     : 'No dataset is pre-selected. Infer the correct dataset from the user\'s prompt and the available datasets listed below.';
@@ -983,7 +988,7 @@ VISUALIZATION SELECTION: Pick the suggestedVisualization that best matches both 
   });
 
   // Run dry-run first for cost check
-  onStatus?.('Executing query...');
+  onStatus?.(`Dry-running query to estimate cost (${dataset})...`);
   const costResult = await dryRun(queryPlan.sql, project);
 
   if (costResult.requiresConfirmation) {
@@ -1020,7 +1025,7 @@ VISUALIZATION SELECTION: Pick the suggestedVisualization that best matches both 
     const isQueryError = errMsg.includes('query failed') || errMsg.includes('Syntax error');
     if (!isQueryError) throw firstErr;
 
-    onStatus?.('Fixing query...');
+    onStatus?.(`Query failed, asking LLM to fix SQL error...`);
     try {
       const fixResult = await callGemini({
         systemInstruction: `You are a BigQuery SQL repair agent. The user ran a query and BigQuery returned an error. Your job is to fix the SQL so it runs successfully. Return ONLY valid GoogleSQL. Do not change the intent of the query -- only fix the error.
@@ -1046,7 +1051,7 @@ Return the corrected SQL and a short explanation of what you changed.`,
 
       if (fixResult?.sql) {
         finalSql = fixResult.sql;
-        onStatus?.('Retrying query...');
+        onStatus?.(`Retrying with corrected SQL...`);
         executed = await executeQuery(finalSql, project);
       } else {
         throw firstErr;
@@ -1105,7 +1110,7 @@ async function handleDataManagement(
 
   const schemaContext = await buildSchemaContext(project, dataset);
 
-  onStatus?.('Planning operation...');
+  onStatus?.(`Planning data management operation on dataset ${dataset}...`);
   const dmDatasetLine = dataset
     ? `The active dataset is: ${dataset}`
     : 'No dataset is pre-selected. Infer the correct dataset from the user\'s prompt and the available datasets listed below.';
@@ -1130,7 +1135,7 @@ Always wrap fully qualified table references in literal backticks: \`${project}.
   // DIRECT_EXECUTE: no preview, no confirmation. Used for operations that
   // create new objects or are inherently safe (CREATE TABLE, CREATE VIEW, etc.).
   if (strategy === 'DIRECT_EXECUTE') {
-    onStatus?.('Executing...');
+    onStatus?.(`Executing ${plan.operation} directly on ${plan.table || dataset}...`);
     const dmlResult = await executeDml(plan.executionSql, project);
     const completeResult: DataManagementResult = {
       skill: 'data-management',
@@ -1149,7 +1154,7 @@ Always wrap fully qualified table references in literal backticks: \`${project}.
 
   // PREVIEW_AND_CONFIRM_DEDUPE: preview + example group + group count + confirmation.
   if (strategy === 'PREVIEW_AND_CONFIRM_DEDUPE') {
-    onStatus?.('Running preview...');
+    onStatus?.(`Running dedupe preview on ${plan.table || dataset}...`);
     const previewResult = await executeQuery(plan.previewSql, project);
     const rawCount = Number(previewResult.rows[0]?.[0]);
     const affectedRowCount = Number.isFinite(rawCount) ? Math.round(rawCount) : 0;
@@ -1206,7 +1211,7 @@ Always wrap fully qualified table references in literal backticks: \`${project}.
       } catch { /* ignore */ }
     }
 
-    onStatus?.('Estimating cost...');
+    onStatus?.(`Estimating cost for ${plan.operation} on ${plan.table || dataset}...`);
     const costResult = await dryRun(plan.executionSql, project);
 
     const confirmResult: DataManagementResult = {
@@ -1228,12 +1233,12 @@ Always wrap fully qualified table references in literal backticks: \`${project}.
 
   // PREVIEW_AND_CONFIRM (default): preview affected rows + confirmation card.
   // Used for DELETE, UPDATE, FILL_NULLS, destructive ALTER TABLE, etc.
-  onStatus?.('Running preview...');
+  onStatus?.(`Running preview for ${plan.operation} on ${plan.table || dataset}...`);
   const previewResult = await executeQuery(plan.previewSql, project);
   const rawCount = Number(previewResult.rows[0]?.[0]);
   const affectedRowCount = Number.isFinite(rawCount) ? Math.round(rawCount) : 0;
 
-  onStatus?.('Estimating cost...');
+  onStatus?.(`Estimating cost for ${plan.operation} on ${plan.table || dataset}...`);
   const costResult = await dryRun(plan.executionSql, project);
 
   const confirmResult: DataManagementResult = {
@@ -1291,7 +1296,7 @@ async function handleMonitoring(
   const project = context?.project || '';
   const sql = `SELECT job_id, user_email, statement_type, state, creation_time, total_bytes_processed, error_result, referenced_tables FROM \`region-us\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR) ORDER BY creation_time DESC LIMIT 50`;
 
-  onStatus?.('Fetching job history...');
+  onStatus?.(`Fetching last 24h of job history for project ${project}...`);
   const executed = await executeQuery(sql, project);
 
   // Map column indices
@@ -1379,7 +1384,7 @@ async function handleDataQuality(
   const available = context?.availableDatasets ?? await getAvailableDatasets(project);
   const dataset = context?.resolvedDataset ?? resolveDefaultDatasetFromList(available, context?.dataset, project);
 
-  onStatus?.('Classifying check type...');
+  onStatus?.(`Classifying quality check type for: "${message.slice(0, 60)}${message.length > 60 ? '...' : ''}"`);
   const intent = await callGemini({
     systemInstruction: `You classify BigQuery data quality requests. Extract check type and table name. Available check types: PROFILE (general stats), NULLS (null analysis), DUPLICATES (find duplicate rows), FRESHNESS (when was the table last updated). The active project is ${project}, default dataset is ${dataset}, available datasets are: ${available.join(', ')}.`,
     prompt: message,
@@ -1441,7 +1446,7 @@ async function handleDataQuality(
       return [compose('data-quality', { skill: 'data-quality', checkType: 'DUPLICATES', table: fqTable, sql: '', findings: [], summary: { rowsScanned: 0, issuesFound: 0, checkedAt } } as DataQualityResult)];
     }
     sql = `SELECT ${keyCol}, COUNT(*) as duplicate_count FROM ${fqTable} GROUP BY ${keyCol} HAVING COUNT(*) > 1 ORDER BY duplicate_count DESC LIMIT 50`;
-    onStatus?.('Running quality checks...');
+    onStatus?.(`Checking for duplicates in ${fqTable} using key column ${keyCol}...`);
     const executed = await executeQuery(sql, project);
     const dupCount = executed.rowCount;
     if (dupCount > 0) {
@@ -1479,7 +1484,7 @@ async function handleDataQuality(
   });
 
   sql = `SELECT COUNT(*) AS __total_rows, ${exprs.join(', ')} FROM ${fqTable}`;
-  onStatus?.('Running quality checks...');
+  onStatus?.(`Profiling ${columns.length} columns in ${fqTable}...`);
 
   let executed: Awaited<ReturnType<typeof executeQuery>>;
   try {
@@ -1487,7 +1492,7 @@ async function handleDataQuality(
   } catch (err) {
     // Auto-retry with safe query: null counts only (no DISTINCT/MIN/MAX)
     console.warn('[data-quality] Full profile query failed, retrying safe version:', err);
-    onStatus?.('Retrying with simplified checks...');
+    onStatus?.(`Full profile query failed, retrying with null-counts only on ${fqTable}...`);
     const safeExprs = columns.map((col) =>
       `COUNTIF(${col.name} IS NULL) AS \`${col.name}__nulls\``
     );
@@ -1538,7 +1543,7 @@ async function handleDataLoading(
     dataset = '';
   }
 
-  onStatus?.('Analyzing search request...');
+  onStatus?.(`Analyzing export request (project: ${project}, dataset: ${dataset || 'none'})...`);
   const intent = await callGemini({
     systemInstruction: `Classify a BigQuery data loading request. EXPORT_CSV = download as CSV. EXPORT_SHEETS = send to Google Sheets. SCHEDULE = schedule a recurring query. Extract the table name or SQL to use. Project: ${project}, dataset: ${dataset}`,
     prompt: message,
@@ -1684,7 +1689,7 @@ async function handleDiscovery(
   const term = intent.query.toLowerCase();
   const resultsMap = new Map<string, DiscoverySearchResult>();
 
-  onStatus?.('Searching across datasets...');
+  onStatus?.(`Searching for \"${term}\" across ${datasets.length} datasets in ${project}...`);
   await Promise.all(
     datasets.map(async (dataset) => {
       try {
