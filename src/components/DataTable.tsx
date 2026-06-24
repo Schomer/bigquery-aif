@@ -158,10 +158,7 @@ export function DataTable({ result, onSendMessage }: Props) {
       </div>
 
       {/* Row count footer */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--text-dim)' }}>
-        <span style={{ fontStyle: 'italic' }}>
-          Tip: Click any cell to explore further.
-        </span>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', fontSize: 11, color: 'var(--text-dim)' }}>
         <span>
           {filtered.length < rows.length
             ? `${filtered.length} of ${rows.length} rows`

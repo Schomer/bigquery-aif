@@ -123,45 +123,10 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
             </p>
           </div>
         )}
-      </div>
 
-      {/* Provenance: cost shown inline, SQL behind collapsible toggle */}
-      {(envelope.provenance.sql || envelope.provenance.cost || envelope.provenance.jobId) && (
-        <div style={{
-          borderTop: '1px solid var(--border-subtle)',
-          padding: '8px 20px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 6,
-        }}>
-          {envelope.provenance.cost && (
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 16, alignItems: 'center' }}>
-              <span>{formatBytes(envelope.provenance.cost.totalBytesProcessed)} processed</span>
-              <span>Tier {envelope.provenance.cost.tier}</span>
-              {envelope.provenance.freshness && <span>{envelope.provenance.freshness}</span>}
-              {envelope.provenance.jobId && envelope.provenance.project && (
-                <a
-                  href={`https://console.cloud.google.com/bigquery?project=${encodeURIComponent(envelope.provenance.project)}&j=bq:US:${encodeURIComponent(envelope.provenance.jobId)}&page=queryresults`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    color: '#4f7fff',
-                    textDecoration: 'none',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 3,
-                    marginLeft: 'auto',
-                  }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = 'underline'; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = 'none'; }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: 13 }}>open_in_new</span>
-                  BigQuery
-                </a>
-              )}
-            </div>
-          )}
-          {envelope.provenance.sql && (
+        {/* Provenance: SQL toggle (inline, no border) */}
+        {envelope.provenance.sql && (
+          <div style={{ marginTop: 10 }}>
             <details style={{ margin: 0 }}>
               <summary style={{
                 fontSize: 11,
@@ -172,10 +137,7 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
                 alignItems: 'center',
                 gap: 4,
                 userSelect: 'none',
-                padding: '3px 8px',
-                borderRadius: 4,
-                background: 'var(--surface-2)',
-                border: '1px solid var(--border-subtle)',
+                padding: '3px 0',
                 fontWeight: 500,
               }}>
                 <span className="provenance-arrow">&#9654;</span>
@@ -185,46 +147,77 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
                 <div className="sql-block">{envelope.provenance.sql}</div>
               </div>
             </details>
-          )}
-        </div>
-      )}
+          </div>
+        )}
 
-      {/* Next actions */}
-      {!envelope.requiresConfirmation && envelope.nextActions.length > 0 && (
-        <div style={{
-          padding: '12px 20px 16px',
-          display: 'flex',
-          gap: 8,
-          flexWrap: 'wrap',
-          borderTop: '1px solid var(--border-subtle)',
-        }}>
-          {envelope.nextActions.slice(0, 5).map((action, i) => (
+        {/* Cost / BigQuery link (inline) */}
+        {(envelope.provenance.cost || envelope.provenance.jobId) && (
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 16, alignItems: 'center', marginTop: 6 }}>
+            {envelope.provenance.cost && (
+              <>
+                <span>{formatBytes(envelope.provenance.cost.totalBytesProcessed)} processed</span>
+                <span>Tier {envelope.provenance.cost.tier}</span>
+                {envelope.provenance.freshness && <span>{envelope.provenance.freshness}</span>}
+              </>
+            )}
+            {envelope.provenance.jobId && envelope.provenance.project && (
+              <a
+                href={`https://console.cloud.google.com/bigquery?project=${encodeURIComponent(envelope.provenance.project)}&j=bq:US:${encodeURIComponent(envelope.provenance.jobId)}&page=queryresults`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: '#4f7fff',
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  marginLeft: 'auto',
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = 'underline'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = 'none'; }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 13 }}>open_in_new</span>
+                BigQuery
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* Next actions */}
+        {!envelope.requiresConfirmation && envelope.nextActions.length > 0 && (
+          <div style={{
+            marginTop: 12,
+            display: 'flex',
+            gap: 8,
+            flexWrap: 'wrap',
+          }}>
+            {envelope.nextActions.slice(0, 5).map((action, i) => (
+              <button
+                key={i}
+                className="chip"
+                onClick={() => onChipClick?.(action)}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Fallback: suggest next steps */}
+        {!envelope.requiresConfirmation && envelope.nextActions.length === 0 && (
+          <div style={{ marginTop: 8 }}>
             <button
-              key={i}
               className="chip"
-              onClick={() => onChipClick?.(action)}
+              style={{ opacity: 0.7, fontSize: 11 }}
+              onClick={() => handleInlineClick('What can I do next with these results?')}
             >
-              {action.label}
+              Suggest next steps
             </button>
-          ))}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
-      {/* Fallback: no next actions and not a confirmation — offer to suggest */}
-      {!envelope.requiresConfirmation && envelope.nextActions.length === 0 && (
-        <div style={{
-          padding: '8px 20px 12px',
-          borderTop: '1px solid var(--border-subtle)',
-        }}>
-          <button
-            className="chip"
-            style={{ opacity: 0.7, fontSize: 11 }}
-            onClick={() => handleInlineClick('What can I do next with these results?')}
-          >
-            Suggest next steps →
-          </button>
-        </div>
-      )}
+
     </div>
   );
 }
