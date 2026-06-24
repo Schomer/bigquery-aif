@@ -237,6 +237,7 @@ const SelfReviewResponseSchema = {
     improvedYAxis: { type: 'ARRAY', items: { type: 'STRING' } },
     highlightColumns: { type: 'ARRAY', items: { type: 'STRING' } },
     deemphasizeColumns: { type: 'ARRAY', items: { type: 'STRING' } },
+    designNotes: { type: 'STRING' },
   },
   required: [],
 };
@@ -499,6 +500,19 @@ Available datasets: ${available.join(', ')}`;
         break;
       default:
         envelopes = await handleQuery(resolvedMessage, history, enrichedContext, onStatus);
+    }
+
+    // ── Self-review: run for all skills ──────────────────────────────────────
+    if (envelopes.length > 0) {
+      onStatus?.('Reviewing output quality...');
+      const reviewed = await Promise.all(
+        envelopes.map((env) =>
+          env.requiresConfirmation
+            ? Promise.resolve(env) // skip review for confirmation cards
+            : selfReviewEnvelope(env, resolvedMessage, project, onStatus)
+        )
+      );
+      envelopes = reviewed;
     }
 
     return { envelopes, skill };
@@ -793,59 +807,114 @@ Rules:
   return [envelope];
 }
 // ─── Self-review refinement ───────────────────────────────────────────────────
-// A single Gemini pass that reviews the composed query output from the user's
-// perspective and optionally improves headline, insight, visualization, or
-// column emphasis before the envelope reaches the UI.
+// A single Gemini pass that reviews any composed output from the user's
+// perspective across comprehension, completeness, presentation, and visual
+// design -- then optionally improves it before the envelope reaches the UI.
+
+function buildReviewSnapshot(envelope: CompositionEnvelope): Record<string, unknown> {
+  const data = envelope.primaryArtifact.data as Record<string, unknown> | null;
+  const snapshot: Record<string, unknown> = {
+    skill: envelope.skill,
+    artifactType: envelope.primaryArtifact.type,
+    headline: envelope.headline.text,
+    headlineTone: envelope.headline.tone,
+    insight: envelope.insight ?? null,
+    nextActions: envelope.nextActions.map((a) => a.label),
+  };
+
+  if (!data) return snapshot;
+
+  // Query-specific fields
+  if ('rows' in data && 'columns' in data) {
+    const qd = data as unknown as QueryResult;
+    snapshot.visualization = qd.suggestedVisualization;
+    snapshot.columns = qd.columns;
+    snapshot.rowCount = qd.rowCount;
+    snapshot.sampleRows = qd.rows.slice(0, 5).map((row) =>
+      Object.fromEntries(qd.columns.map((col, i) => [col, (row as unknown[])[i]]))
+    );
+    snapshot.xAxis = qd.xAxis ?? null;
+    snapshot.yAxis = qd.yAxis ?? null;
+    snapshot.notableFindings = qd.notableFindings ?? null;
+  }
+
+  // Schema-specific fields
+  if ('scope' in data && 'columns' in data && data.skill === 'schema') {
+    snapshot.scope = data.scope;
+    snapshot.dataset = data.dataset ?? null;
+    snapshot.table = data.table ?? null;
+    const cols = data.columns as Array<{ name: string; type: string }>;
+    snapshot.columnCount = cols.length;
+    snapshot.columnSample = cols.slice(0, 10).map((c) => `${c.name} (${c.type})`);
+  }
+
+  // Data quality fields
+  if ('findings' in data && data.skill === 'data-quality') {
+    const dq = data as unknown as DataQualityResult;
+    snapshot.checkType = dq.checkType;
+    snapshot.table = dq.table;
+    snapshot.issuesFound = dq.summary.issuesFound;
+    snapshot.rowsScanned = dq.summary.rowsScanned;
+    snapshot.findingSample = dq.findings.slice(0, 8).map((f) =>
+      `${f.column}: ${f.metric}=${f.value} (${f.severity})`
+    );
+  }
+
+  // Monitoring fields
+  if ('items' in data && data.skill === 'monitoring') {
+    const mon = data as unknown as MonitoringResult;
+    snapshot.totalJobs = mon.summary.totalJobs;
+    snapshot.errorCount = mon.summary.errorCount;
+    snapshot.totalBytesProcessed = mon.summary.totalBytesProcessed;
+  }
+
+  // Discovery fields
+  if ('results' in data && data.skill === 'discovery') {
+    const disc = data as unknown as DiscoveryResult;
+    snapshot.discoveryType = disc.discoveryType;
+    snapshot.resultCount = disc.results.length;
+    snapshot.resultSample = disc.results.slice(0, 5).map((r) => `${r.type}: ${r.ref}`);
+  }
+
+  return snapshot;
+}
 
 async function selfReviewEnvelope(
   envelope: CompositionEnvelope,
   userMessage: string,
   project: string,
-  onStatus?: (status: string) => void,
+  _onStatus?: (status: string) => void,
 ): Promise<CompositionEnvelope> {
-  // Only review query-type envelopes with actual data
-  const data = envelope.primaryArtifact.data as QueryResult | null;
-  if (!data || !('rows' in data) || data.rows.length === 0) return envelope;
-
-  // Build a compact snapshot for the reviewer (no full row dump)
-  const sampleRows = data.rows.slice(0, 5).map((row) =>
-    Object.fromEntries(data.columns.map((col, i) => [col, row[i]]))
-  );
-
-  const snapshot = {
-    headline: envelope.headline.text,
-    visualization: data.suggestedVisualization,
-    columns: data.columns,
-    rowCount: data.rowCount,
-    sampleRows,
-    xAxis: data.xAxis ?? null,
-    yAxis: data.yAxis ?? null,
-    notableFindings: data.notableFindings ?? null,
-    insight: envelope.insight ?? null,
-    nextActions: envelope.nextActions.map((a) => a.label),
-  };
+  const snapshot = buildReviewSnapshot(envelope);
 
   const reviewPrompt = `You are a senior data analyst, expert graphic designer, and UI designer reviewing output from a BigQuery data assistant. A user asked a question and the assistant produced a result. Your job is to review the output and decide if anything should be improved BEFORE it reaches the user.
 
+The output's skill type is: ${envelope.skill}
+The artifact type is: ${envelope.primaryArtifact.type}
+
 Evaluate these four dimensions:
 
-1. COMPREHENSION: Is the headline clear and informative? Does it tell the user what they are looking at in plain language? If not, write a better one. A good headline leads with the key finding or answers the user's question directly -- not just "N rows from table".
+1. COMPREHENSION: Is the headline clear and informative? Does it tell the user what they are looking at in plain language? If not, write a better one. A good headline leads with the key finding or answers the user's question directly -- not just "N rows from table" or generic status text.
 
-2. COMPLETENESS: Would a user naturally want additional context? For example: percentage changes, comparisons to baselines, time range annotations, totals, or callouts about outliers. If so, write a short additionalInsight (1-2 sentences) that adds this context.
+2. COMPLETENESS: Would a user naturally want additional context? For example: percentage changes, comparisons to baselines, time range annotations, totals, callouts about outliers, or a note about what they should look at first. If so, write a short additionalInsight (1-2 sentences) that adds this context.
 
-3. PRESENTATION: Is the visualization type the best fit for this data shape and the user's intent? Consider: number of rows, number of columns, whether there is a time axis, whether values are categorical vs numeric, part-to-whole relationships, distributions, etc. Only suggest a change if a different type would genuinely communicate the data more effectively.
+3. PRESENTATION: Is the artifact type / visualization the best fit for this data and the user's intent? For query results, consider number of rows, columns, time axes, categorical vs numeric data, part-to-whole relationships, etc. For schema/monitoring/discovery/data-quality results, consider whether the current view type communicates the most important information effectively. Only suggest a betterVisualization if a different type would genuinely improve comprehension -- this field only applies to query skill results.
 
-4. VISUAL DESIGN & LAYOUT: From an expert graphic designer and UI designer viewpoint -- which columns or series should be visually emphasized to draw the user's eye to what matters? Which columns are supporting detail that should be de-emphasized? Consider data hierarchy, information density, and visual weight.
+4. VISUAL DESIGN & LAYOUT: Think as an expert graphic designer and UI designer. Evaluate the overall presentation quality:
+   - Is the headline written in a way that feels polished and professional, not generic or robotic?
+   - Would the output feel like it came from a premium, highly-designed application?
+   - For data with columns: which columns/series are the most important to the user's question and should be visually emphasized? Which are supporting detail that should be de-emphasized so the layout feels clean and focused?
+   - Write a designNotes field with brief, actionable guidance on spacing, hierarchy, or emphasis that would elevate the visual quality (e.g., "Lead with the total revenue KPI, group the breakdown below", "De-emphasize the ID columns to reduce clutter").
 
 Rules:
 - Only return fields where you have an actual improvement. Leave fields empty/null if the current output is already good.
 - Do not repeat what is already there -- only override if you can make it measurably better.
-- Keep headlines under 120 characters.
+- Keep headlines under 120 characters. Write them as a human analyst would speak, not as a system status message.
 - Keep insights under 200 characters.
-- For highlightColumns and deemphasizeColumns, use exact column names from the data.`;
+- designNotes should be under 200 characters.
+- For highlightColumns and deemphasizeColumns, use exact column names from the data (only applies to query results with columns).`;
 
   try {
-    onStatus?.('Reviewing output quality and visualization fit...');
     const review = await callGemini({
       systemInstruction: reviewPrompt,
       prompt: `User's question: "${userMessage}"
@@ -871,34 +940,37 @@ ${JSON.stringify(snapshot, null, 2)}`,
       updated.insight = review.additionalInsight;
     }
 
-    if (review.betterVisualization && review.betterVisualization !== data.suggestedVisualization) {
-      const updatedData = { ...data, suggestedVisualization: review.betterVisualization };
-      if (review.improvedXAxis) updatedData.xAxis = review.improvedXAxis;
-      if (review.improvedYAxis && review.improvedYAxis.length > 0) updatedData.yAxis = review.improvedYAxis;
-      // Re-compose with the updated visualization
-      const recomposed = compose('query', updatedData);
-      // Preserve the improved headline and insight
-      if (review.improvedHeadline) recomposed.headline.text = review.improvedHeadline;
-      if (review.additionalInsight) recomposed.insight = review.additionalInsight;
-      // Apply emphasis from visual design review
-      if (review.highlightColumns?.length || review.deemphasizeColumns?.length) {
-        recomposed.primaryArtifact.emphasis = {
-          highlight: review.highlightColumns ?? [],
-          deemphasize: review.deemphasizeColumns ?? [],
-        };
+    // Visualization override only applies to query-skill envelopes
+    const data = envelope.primaryArtifact.data as Record<string, unknown> | null;
+    if (envelope.skill === 'query' && data && 'rows' in data) {
+      const qd = data as unknown as QueryResult;
+
+      if (review.betterVisualization && review.betterVisualization !== qd.suggestedVisualization) {
+        const updatedData = { ...qd, suggestedVisualization: review.betterVisualization };
+        if (review.improvedXAxis) updatedData.xAxis = review.improvedXAxis;
+        if (review.improvedYAxis && review.improvedYAxis.length > 0) updatedData.yAxis = review.improvedYAxis;
+        const recomposed = compose('query', updatedData);
+        if (review.improvedHeadline) recomposed.headline.text = review.improvedHeadline;
+        if (review.additionalInsight) recomposed.insight = review.additionalInsight;
+        if (review.highlightColumns?.length || review.deemphasizeColumns?.length) {
+          recomposed.primaryArtifact.emphasis = {
+            highlight: review.highlightColumns ?? [],
+            deemphasize: review.deemphasizeColumns ?? [],
+          };
+        }
+        return recomposed;
       }
-      return recomposed;
+
+      // Apply axis overrides without changing visualization type
+      if (review.improvedXAxis || (review.improvedYAxis && review.improvedYAxis.length > 0)) {
+        const updatedData = { ...qd };
+        if (review.improvedXAxis) updatedData.xAxis = review.improvedXAxis;
+        if (review.improvedYAxis && review.improvedYAxis.length > 0) updatedData.yAxis = review.improvedYAxis;
+        updated.primaryArtifact = { ...updated.primaryArtifact, data: updatedData };
+      }
     }
 
-    // Apply axis overrides without changing visualization type
-    if (review.improvedXAxis || (review.improvedYAxis && review.improvedYAxis.length > 0)) {
-      const updatedData = { ...data };
-      if (review.improvedXAxis) updatedData.xAxis = review.improvedXAxis;
-      if (review.improvedYAxis && review.improvedYAxis.length > 0) updatedData.yAxis = review.improvedYAxis;
-      updated.primaryArtifact = { ...updated.primaryArtifact, data: updatedData };
-    }
-
-    // Apply visual emphasis
+    // Apply visual emphasis (query results with columns)
     if (review.highlightColumns?.length || review.deemphasizeColumns?.length) {
       updated.primaryArtifact.emphasis = {
         highlight: review.highlightColumns ?? [],
@@ -1081,9 +1153,7 @@ Return the corrected SQL and a short explanation of what you changed.`,
     resultSummary: queryPlan.resultSummary ?? null,
   };
 
-  const envelope = compose('query', result);
-  const reviewed = await selfReviewEnvelope(envelope, message, project, onStatus);
-  return [reviewed];
+  return [compose('query', result)];
 }
 
 // ─── Data Management handler ───────────────────────────────────────────────────
