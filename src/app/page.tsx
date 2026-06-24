@@ -508,16 +508,191 @@ export default function Home() {
     }
   }
 
+
   const hasChat = messages.length > 0;
+  const isSplit = layout === 'chat-left' || layout === 'chat-right';
+
+  // In split mode, collect envelopes from the most recent assistant message for the results panel
+  const latestEnvelopes = (() => {
+    if (!isSplit) return [];
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'assistant' && messages[i].envelopes?.length) {
+        return messages[i].envelopes!;
+      }
+    }
+    return [];
+  })();
+
+  // Shared send button
+  const sendButton = (
+    <button
+      onClick={() => sendMessage()}
+      disabled={loading || !input.trim() || !activeProject}
+      style={{
+        width: 34,
+        height: 34,
+        flexShrink: 0,
+        borderRadius: '50%',
+        background: input.trim() ? '#bfdbfe' : 'var(--surface)',
+        border: `1px solid ${input.trim() ? '#93c5fd' : 'var(--border)'}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: input.trim() ? 'pointer' : 'default',
+        transition: 'all 0.15s',
+        padding: 0,
+      }}
+    >
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 13V3M8 3L3.5 7.5M8 3L12.5 7.5" stroke={input.trim() ? '#1d4ed8' : 'var(--text-muted)'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    </button>
+  );
+
+  // Shared textarea props builder
+  const inputTextarea = (placeholder: string) => (
+    <textarea
+      ref={inputRef}
+      value={input}
+      onChange={(e) => { setInput(e.target.value); autoResize(e.target); }}
+      onKeyDown={handleKeyDown}
+      placeholder={placeholder}
+      disabled={!activeProject}
+      rows={1}
+      style={{
+        flex: 1,
+        background: 'transparent',
+        border: 'none',
+        outline: 'none',
+        color: 'var(--text)',
+        fontSize: 14,
+        resize: 'none',
+        lineHeight: 1.5,
+        fontFamily: 'inherit',
+        alignSelf: 'center',
+        opacity: activeProject ? 1 : 0.5,
+        cursor: activeProject ? 'text' : 'not-allowed',
+      }}
+    />
+  );
+
+  // Error card renderer (used in both unified and split modes)
+  const renderErrorCard = () => {
+    if (!lastError) return null;
+    return (
+      <div style={{
+        background: lastError.type === 'auth' ? '#fff7ed' : lastError.type === 'rate_limit' ? '#fffbeb' : '#fef2f2',
+        border: `1px solid ${lastError.type === 'auth' ? '#fed7aa' : lastError.type === 'rate_limit' ? '#fde68a' : '#fecaca'}`,
+        borderRadius: 12,
+        padding: '16px 20px',
+        display: 'flex',
+        flexDirection: 'column' as const,
+        gap: 10,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="material-symbols-outlined" style={{
+            fontSize: 18,
+            color: lastError.type === 'auth' ? '#c2410c' : lastError.type === 'rate_limit' ? '#b45309' : '#dc2626',
+          }}>
+            {lastError.type === 'auth' ? 'lock' : lastError.type === 'rate_limit' ? 'schedule' : lastError.type === 'sql' ? 'code_off' : 'warning'}
+          </span>
+          <span style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: lastError.type === 'auth' ? '#c2410c' : lastError.type === 'rate_limit' ? '#b45309' : '#dc2626',
+          }}>
+            {lastError.type === 'auth' ? 'Session Expired'
+              : lastError.type === 'rate_limit' ? 'Temporarily Busy'
+              : lastError.type === 'sql' ? 'Query Error'
+              : lastError.type === 'gemini' ? 'AI Service Error'
+              : 'Something Went Wrong'}
+          </span>
+        </div>
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+          {typeof lastError.message === 'string' ? lastError.message : String(lastError.message ?? '')}
+        </p>
+        {lastError.sql && (
+          <div className="sql-block" style={{ fontSize: 11, marginTop: 4 }}>{lastError.sql}</div>
+        )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          {lastError.retryFn && (
+            <button
+              onClick={() => { setLastError(null); lastError.retryFn?.(); }}
+              style={{
+                padding: '5px 14px',
+                borderRadius: 6,
+                border: '1px solid var(--border)',
+                background: 'var(--surface-2)',
+                color: 'var(--text)',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              Try again
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Regenerate button renderer
+  const renderRegenerate = (i: number) => (
+    <div style={{ display: 'flex', alignItems: 'center', marginTop: 2 }}>
+      {rerunningIdx === i ? (
+        <CrystalBallThinking />
+      ) : (
+        <button
+          id={`regenerate-btn-${i}`}
+          onClick={() => rerunMessage(i)}
+          disabled={loading}
+          title="Regenerate response"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            background: 'none',
+            border: '1px solid transparent',
+            borderRadius: 6,
+            padding: '3px 8px 3px 4px',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            color: 'var(--text-muted)',
+            fontSize: 12,
+            opacity: loading ? 0.4 : 0.6,
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={(e) => {
+            if (!loading) {
+              (e.currentTarget as HTMLButtonElement).style.opacity = '1';
+              (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
+              (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface-2)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.opacity = '0.6';
+            (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent';
+            (e.currentTarget as HTMLButtonElement).style.background = 'none';
+          }}
+        >
+          <span
+            className="material-symbols-outlined"
+            style={{ fontSize: 14, lineHeight: 1, fontVariationSettings: `'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20` }}
+          >redo</span>
+          Regenerate
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <>
-      {/* ── Settings page ── */}
+      {/* -- Settings page -- */}
       {activePage === 'settings' && (
         <SettingsPage />
       )}
 
-      {/* ── Prompts page (full inline view) ── */}
+      {/* -- Prompts page (full inline view) -- */}
       {activePage === 'prompts' && (
         <PromptsLibrary
           open
@@ -527,55 +702,232 @@ export default function Home() {
         />
       )}
 
-      {/* ── Chat view ── */}
-      <div style={{ display: (activePage === 'prompts' || activePage === 'settings') ? 'none' : 'flex', flexDirection: 'column', height: '100%', background: 'var(--chat-bg)' }}>
+      {/* ============================================================
+         UNIFIED LAYOUT (original single-pane)
+         ============================================================ */}
+      {!isSplit && (
+        <div style={{ display: (activePage === 'prompts' || activePage === 'settings') ? 'none' : 'flex', flexDirection: 'column', height: '100%', background: 'var(--chat-bg)' }}>
 
-        {/* ── EMPTY STATE: centered hero + prompt ── */}
-        {!hasChat && (
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '24px',
-          }}>
-            <CrystalBallOracle ballSize={88} />
-              <h1 style={{ fontSize: 22, fontWeight: 500, color: 'var(--text)', margin: '20px 0 6px', letterSpacing: '-0.2px' }}>
-                BigQuery AIF
-              </h1>
-              <p style={{ color: 'var(--text-muted)', margin: '0 0 32px', fontSize: 14 }}>
-                Ask anything about your data
-              </p>
+          {/* -- EMPTY STATE: centered hero + prompt -- */}
+          {!hasChat && (
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '24px',
+            }}>
+              <CrystalBallOracle ballSize={88} />
+                <h1 style={{ fontSize: 22, fontWeight: 500, color: 'var(--text)', margin: '20px 0 6px', letterSpacing: '-0.2px' }}>
+                  BigQuery AIF
+                </h1>
+                <p style={{ color: 'var(--text-muted)', margin: '0 0 32px', fontSize: 14 }}>
+                  Ask anything about your data
+                </p>
 
-              {!activeProject && (
+                {!activeProject && (
+                  <div style={{
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 12,
+                    padding: '14px 20px',
+                    marginBottom: 20,
+                    maxWidth: 640,
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    color: 'var(--text-muted)',
+                    fontSize: 13,
+                  }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#f59e0b' }}>info</span>
+                    Select a GCP project from the sidebar to get started.
+                  </div>
+                )}
+
+              {/* Centered prompt field */}
+              <div style={{
+                width: '100%',
+                maxWidth: 640,
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border)',
+                borderRadius: 999,
+                padding: '10px 10px 10px 20px',
+                display: 'flex',
+                alignItems: 'flex-end',
+                gap: 10,
+                boxShadow: '0 4px 32px rgba(0,0,0,0.10)',
+              }}>
+                {inputTextarea(activeProject ? 'Ask about your data...' : 'Select a project first...')}
+                {sendButton}
+              </div>
+            </div>
+          )}
+
+          {/* -- ACTIVE CHAT: scrollable message thread -- */}
+          {hasChat && (
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '24px 24px 140px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '24px',
+            }}>
+              {messages.map((msg, i) => (
+                <div key={i} className={i > 0 ? 'fade-up' : ''}>
+                  {msg.role === 'user' ? (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+                      {editingIdx === i ? (
+                        /* -- Edit mode -- */
+                        <div style={{
+                          maxWidth: '70%',
+                          width: '100%',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 8,
+                          alignItems: 'flex-end',
+                        }}>
+                          <textarea
+                            ref={editTextareaRef}
+                            value={editText}
+                            onChange={(e) => { setEditText(e.target.value); autoResizeEl(e.target); }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitEdit(i); }
+                              if (e.key === 'Escape') { setEditingIdx(null); }
+                            }}
+                            rows={1}
+                            style={{
+                              width: '100%',
+                              background: 'var(--surface)',
+                              border: '1.5px solid #93c5fd',
+                              borderRadius: '12px 12px 4px 12px',
+                              padding: '10px 14px',
+                              fontSize: 14,
+                              color: 'var(--text)',
+                              lineHeight: 1.5,
+                              resize: 'none',
+                              outline: 'none',
+                              fontFamily: 'inherit',
+                              boxShadow: '0 0 0 3px rgba(147,197,253,0.25)',
+                              transition: 'border-color 0.15s',
+                            }}
+                          />
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              onClick={() => setEditingIdx(null)}
+                              style={{
+                                padding: '4px 12px',
+                                borderRadius: 6,
+                                border: '1px solid var(--border)',
+                                background: 'var(--surface-2)',
+                                color: 'var(--text-muted)',
+                                fontSize: 12,
+                                cursor: 'pointer',
+                              }}
+                            >Cancel</button>
+                            <button
+                              onClick={() => submitEdit(i)}
+                              disabled={!editText.trim() || loading}
+                              style={{
+                                padding: '4px 14px',
+                                borderRadius: 6,
+                                border: '1px solid #93c5fd',
+                                background: '#bfdbfe',
+                                color: '#1d4ed8',
+                                fontSize: 12,
+                                fontWeight: 500,
+                                cursor: !editText.trim() || loading ? 'not-allowed' : 'pointer',
+                                opacity: !editText.trim() || loading ? 0.5 : 1,
+                              }}
+                            >Save</button>
+                          </div>
+                        </div>
+                      ) : (
+                        /* -- View mode -- */
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          title="Click to edit"
+                          onClick={() => { if (!loading) { setEditingIdx(i); setEditText(msg.content); } }}
+                          onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !loading) { setEditingIdx(i); setEditText(msg.content); } }}
+                          style={{
+                            maxWidth: '70%',
+                            background: 'var(--accent-dim)',
+                            border: '1px solid #c5d8fb',
+                            borderRadius: '16px 16px 4px 16px',
+                            padding: '10px 16px',
+                            fontSize: 14,
+                            color: '#1557b0',
+                            lineHeight: 1.5,
+                            cursor: loading ? 'default' : 'text',
+                            userSelect: 'text',
+                          }}
+                        >
+                          {typeof msg.content === 'string' ? msg.content : String(msg.content ?? '')}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {msg.envelopes?.map((env) => (
+                        <ArtifactCard
+                          key={env.id}
+                          envelope={env}
+                          onConfirm={() => handleConfirm(env)}
+                          onCancel={() => handleCancel(env)}
+                          onChipClick={handleChipClick}
+                          onInlineClick={handleInlineClick}
+                        />
+                      ))}
+                      {!msg.envelopes && msg.content && (
+                        <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>
+                          {typeof msg.content === 'string' ? msg.content : String(msg.content)}
+                        </div>
+                      )}
+                      {/* Error card */}
+                      {!msg.envelopes && !msg.content && lastError && i === messages.length - 1 && renderErrorCard()}
+                      {/* Regenerate button / inline spinner */}
+                      {renderRegenerate(i)}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {loading && rerunningIdx === null && (
                 <div style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 12,
-                  padding: '14px 20px',
-                  marginBottom: 20,
-                  maxWidth: 640,
-                  width: '100%',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 10,
-                  color: 'var(--text-muted)',
-                  fontSize: 13,
+                  padding: '6px 0 8px',
                 }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#f59e0b' }}>info</span>
-                  Select a GCP project from the sidebar to get started.
+                  <SparkSpinner size={24} />
+                  <span style={{
+                    fontSize: 13,
+                    fontStyle: 'italic',
+                    color: 'var(--text-muted)',
+                    fontFamily: "'Google Sans', 'Inter', sans-serif",
+                    letterSpacing: '0.01em',
+                    transition: 'opacity 0.4s ease',
+                  }}>
+                    {statusText || 'Processing...'}
+                  </span>
                 </div>
               )}
+              <div ref={bottomRef} />
+            </div>
+          )}
 
-
-
-
-            {/* Centered prompt field */}
-            {/* Centered prompt field */}
+          {/* -- Floating prompt bar (active chat only) -- */}
+          {hasChat && (
             <div style={{
-              width: '100%',
-              maxWidth: 640,
+              position: 'fixed',
+              bottom: 28,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              marginLeft: 110,
+              width: 'min(680px, calc(100vw - 268px))',
               background: 'var(--surface-2)',
               border: '1px solid var(--border)',
               borderRadius: 999,
@@ -583,377 +935,148 @@ export default function Home() {
               display: 'flex',
               alignItems: 'flex-end',
               gap: 10,
-              boxShadow: '0 4px 32px rgba(0,0,0,0.10)',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+              backdropFilter: 'blur(12px)',
+              zIndex: 50,
             }}>
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => { setInput(e.target.value); autoResize(e.target); }}
-                onKeyDown={handleKeyDown}
-                placeholder={activeProject ? 'Ask about your data…' : 'Select a project first…'}
-                disabled={!activeProject}
-                rows={1}
-                style={{
-                  flex: 1,
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  color: 'var(--text)',
-                  fontSize: 14,
-                  resize: 'none',
-                  lineHeight: 1.5,
-                  fontFamily: 'inherit',
-                  alignSelf: 'center',
-                  opacity: activeProject ? 1 : 0.5,
-                  cursor: activeProject ? 'text' : 'not-allowed',
-                }}
-              />
-              <button
-                onClick={() => sendMessage()}
-                disabled={loading || !input.trim() || !activeProject}
-                style={{
-                  width: 34,
-                  height: 34,
-                  flexShrink: 0,
-                  borderRadius: '50%',
-                  background: input.trim() ? '#bfdbfe' : 'var(--surface)',
-                  border: `1px solid ${input.trim() ? '#93c5fd' : 'var(--border)'}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: input.trim() ? 'pointer' : 'default',
-                  transition: 'all 0.15s',
-                  padding: 0,
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M8 13V3M8 3L3.5 7.5M8 3L12.5 7.5" stroke={input.trim() ? '#1d4ed8' : 'var(--text-muted)'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
+              {inputTextarea(activeProject ? 'Ask a follow-up...' : 'Select a project first...')}
+              {sendButton}
             </div>
-          </div>
-        )}
+          )}
+        </div>
+      )}
 
-        {/* ── ACTIVE CHAT: scrollable message thread ── */}
-        {hasChat && (
-          <div style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: '24px 24px 140px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '24px',
-          }}>
-            {messages.map((msg, i) => (
-              <div key={i} className={i > 0 ? 'fade-up' : ''}>
-                {msg.role === 'user' ? (
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
-                    {editingIdx === i ? (
-                      /* ── Edit mode ── */
-                      <div style={{
-                        maxWidth: '70%',
-                        width: '100%',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 8,
-                        alignItems: 'flex-end',
-                      }}>
-                        <textarea
-                          ref={editTextareaRef}
-                          value={editText}
-                          onChange={(e) => { setEditText(e.target.value); autoResizeEl(e.target); }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitEdit(i); }
-                            if (e.key === 'Escape') { setEditingIdx(null); }
-                          }}
-                          rows={1}
-                          style={{
-                            width: '100%',
-                            background: 'var(--surface)',
-                            border: '1.5px solid #93c5fd',
-                            borderRadius: '12px 12px 4px 12px',
-                            padding: '10px 14px',
-                            fontSize: 14,
-                            color: 'var(--text)',
-                            lineHeight: 1.5,
-                            resize: 'none',
-                            outline: 'none',
-                            fontFamily: 'inherit',
-                            boxShadow: '0 0 0 3px rgba(147,197,253,0.25)',
-                            transition: 'border-color 0.15s',
-                          }}
-                        />
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button
-                            onClick={() => setEditingIdx(null)}
-                            style={{
-                              padding: '4px 12px',
-                              borderRadius: 6,
-                              border: '1px solid var(--border)',
-                              background: 'var(--surface-2)',
-                              color: 'var(--text-muted)',
-                              fontSize: 12,
-                              cursor: 'pointer',
-                            }}
-                          >Cancel</button>
-                          <button
-                            onClick={() => submitEdit(i)}
-                            disabled={!editText.trim() || loading}
-                            style={{
-                              padding: '4px 14px',
-                              borderRadius: 6,
-                              border: '1px solid #93c5fd',
-                              background: '#bfdbfe',
-                              color: '#1d4ed8',
-                              fontSize: 12,
-                              fontWeight: 500,
-                              cursor: !editText.trim() || loading ? 'not-allowed' : 'pointer',
-                              opacity: !editText.trim() || loading ? 0.5 : 1,
-                            }}
-                          >Save</button>
-                        </div>
-                      </div>
-                    ) : (
-                      /* ── View mode ── */
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        title="Click to edit"
-                        onClick={() => { if (!loading) { setEditingIdx(i); setEditText(msg.content); } }}
-                        onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !loading) { setEditingIdx(i); setEditText(msg.content); } }}
-                        style={{
-                          maxWidth: '70%',
-                          background: 'var(--accent-dim)',
-                          border: '1px solid #c5d8fb',
-                          borderRadius: '16px 16px 4px 16px',
-                          padding: '10px 16px',
-                          fontSize: 14,
-                          color: '#1557b0',
-                          lineHeight: 1.5,
-                          cursor: loading ? 'default' : 'text',
-                          userSelect: 'text',
-                        }}
-                      >
+      {/* ============================================================
+         SPLIT LAYOUT (chat sidebar + results panel)
+         ============================================================ */}
+      {isSplit && (
+        <div
+          className={`layout-split ${layout === 'chat-right' ? 'layout-chat-right' : 'layout-chat-left'}`}
+          style={{ display: (activePage === 'prompts' || activePage === 'settings') ? 'none' : 'flex', height: '100%' }}
+        >
+          {/* -- Chat sidebar -- */}
+          <div className="chat-sidebar">
+            <div className="chat-sidebar-messages">
+              {!hasChat && (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                  Start a conversation...
+                </div>
+              )}
+              {messages.map((msg, i) => (
+                <div key={i}>
+                  {msg.role === 'user' ? (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <div className="chat-sidebar-user-msg">
                         {typeof msg.content === 'string' ? msg.content : String(msg.content ?? '')}
                       </div>
-                    )}
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {msg.envelopes?.map((env) => (
-                      <ArtifactCard
-                        key={env.id}
-                        envelope={env}
-                        onConfirm={() => handleConfirm(env)}
-                        onCancel={() => handleCancel(env)}
-                        onChipClick={handleChipClick}
-                        onInlineClick={handleInlineClick}
-                      />
-                    ))}
-                    {!msg.envelopes && msg.content && (
-                      <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>
-                        {typeof msg.content === 'string' ? msg.content : String(msg.content)}
-                      </div>
-                    )}
-                    {/* Error card */}
-                    {!msg.envelopes && !msg.content && lastError && i === messages.length - 1 && (
-                      <div style={{
-                        background: lastError.type === 'auth' ? '#fff7ed' : lastError.type === 'rate_limit' ? '#fffbeb' : '#fef2f2',
-                        border: `1px solid ${lastError.type === 'auth' ? '#fed7aa' : lastError.type === 'rate_limit' ? '#fde68a' : '#fecaca'}`,
-                        borderRadius: 12,
-                        padding: '16px 20px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 10,
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span className="material-symbols-outlined" style={{
-                            fontSize: 18,
-                            color: lastError.type === 'auth' ? '#c2410c' : lastError.type === 'rate_limit' ? '#b45309' : '#dc2626',
-                          }}>
-                            {lastError.type === 'auth' ? 'lock' : lastError.type === 'rate_limit' ? 'schedule' : lastError.type === 'sql' ? 'code_off' : 'warning'}
-                          </span>
-                          <span style={{
-                            fontSize: 13,
-                            fontWeight: 600,
-                            color: lastError.type === 'auth' ? '#c2410c' : lastError.type === 'rate_limit' ? '#b45309' : '#dc2626',
-                          }}>
-                            {lastError.type === 'auth' ? 'Session Expired'
-                              : lastError.type === 'rate_limit' ? 'Temporarily Busy'
-                              : lastError.type === 'sql' ? 'Query Error'
-                              : lastError.type === 'gemini' ? 'AI Service Error'
-                              : 'Something Went Wrong'}
-                          </span>
-                        </div>
-                        <p style={{ margin: 0, fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
-                          {typeof lastError.message === 'string' ? lastError.message : String(lastError.message ?? '')}
-                        </p>
-                        {lastError.sql && (
-                          <div className="sql-block" style={{ fontSize: 11, marginTop: 4 }}>{lastError.sql}</div>
-                        )}
-                        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                          {lastError.retryFn && (
-                            <button
-                              onClick={() => { setLastError(null); lastError.retryFn?.(); }}
-                              style={{
-                                padding: '5px 14px',
-                                borderRadius: 6,
-                                border: '1px solid var(--border)',
-                                background: 'var(--surface-2)',
-                                color: 'var(--text)',
-                                fontSize: 12,
-                                fontWeight: 500,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              Try again
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    {/* Regenerate button / inline spinner */}
-                    <div style={{ display: 'flex', alignItems: 'center', marginTop: 2 }}>
-                      {rerunningIdx === i ? (
-                        <CrystalBallThinking />
-                      ) : (
-                        <button
-                          id={`regenerate-btn-${i}`}
-                          onClick={() => rerunMessage(i)}
-                          disabled={loading}
-                          title="Regenerate response"
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            background: 'none',
-                            border: '1px solid transparent',
-                            borderRadius: 6,
-                            padding: '3px 8px 3px 4px',
-                            cursor: loading ? 'not-allowed' : 'pointer',
-                            color: 'var(--text-muted)',
-                            fontSize: 12,
-                            opacity: loading ? 0.4 : 0.6,
-                            transition: 'all 0.15s',
-                          }}
-                          onMouseEnter={(e) => {
-                            if (!loading) {
-                              (e.currentTarget as HTMLButtonElement).style.opacity = '1';
-                              (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
-                              (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface-2)';
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.opacity = '0.6';
-                            (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent';
-                            (e.currentTarget as HTMLButtonElement).style.background = 'none';
-                          }}
-                        >
-                          <span
-                            className="material-symbols-outlined"
-                            style={{ fontSize: 14, lineHeight: 1, fontVariationSettings: `'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20` }}
-                          >redo</span>
-                          Regenerate
-                        </button>
-                      )}
                     </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {/* Show text summary in sidebar */}
+                      {msg.envelopes && msg.envelopes.length > 0 && (
+                        <div className="chat-sidebar-assistant-text" style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                          {msg.envelopes.map((env) => env.headline.text).join(' ')}
+                        </div>
+                      )}
+                      {!msg.envelopes && msg.content && (
+                        <div className="chat-sidebar-assistant-text">
+                          {typeof msg.content === 'string' ? msg.content : String(msg.content)}
+                        </div>
+                      )}
+                      {/* Error card in sidebar */}
+                      {!msg.envelopes && !msg.content && lastError && i === messages.length - 1 && renderErrorCard()}
+                      {renderRegenerate(i)}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {loading && rerunningIdx === null && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '4px 0',
+                }}>
+                  <SparkSpinner size={20} />
+                  <span style={{
+                    fontSize: 12,
+                    fontStyle: 'italic',
+                    color: 'var(--text-muted)',
+                    fontFamily: "'Google Sans', 'Inter', sans-serif",
+                  }}>
+                    {statusText || 'Processing...'}
+                  </span>
+                </div>
+              )}
+              <div ref={bottomRef} />
+            </div>
+
+            {/* Input bar docked at bottom of sidebar */}
+            <div className="chat-sidebar-input">
+              <div className="chat-sidebar-input-inner">
+                {inputTextarea(activeProject ? 'Ask about your data...' : 'Select a project first...')}
+                {sendButton}
+              </div>
+            </div>
+          </div>
+
+          {/* -- Results panel -- */}
+          <div className="results-panel">
+            {!hasChat ? (
+              <div className="results-panel-empty">
+                <CrystalBallOracle ballSize={88} />
+                <h1 style={{ fontSize: 22, fontWeight: 500, color: 'var(--text)', margin: '20px 0 6px', letterSpacing: '-0.2px' }}>
+                  BigQuery AIF
+                </h1>
+                <p style={{ color: 'var(--text-muted)', margin: '0 0 16px', fontSize: 14 }}>
+                  Ask anything about your data
+                </p>
+                {!activeProject && (
+                  <div style={{
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 12,
+                    padding: '14px 20px',
+                    maxWidth: 480,
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    color: 'var(--text-muted)',
+                    fontSize: 13,
+                  }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#f59e0b' }}>info</span>
+                    Select a GCP project from the sidebar to get started.
                   </div>
                 )}
               </div>
-            ))}
-
-            {loading && rerunningIdx === null && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '6px 0 8px',
-              }}>
-                <SparkSpinner size={24} />
-                <span style={{
-                  fontSize: 13,
-                  fontStyle: 'italic',
-                  color: 'var(--text-muted)',
-                  fontFamily: "'Google Sans', 'Inter', sans-serif",
-                  letterSpacing: '0.01em',
-                  transition: 'opacity 0.4s ease',
-                }}>
-                  {statusText || 'Processing...'}
+            ) : latestEnvelopes.length > 0 ? (
+              <div className="results-panel-inner">
+                {latestEnvelopes.map((env) => (
+                  <ArtifactCard
+                    key={env.id}
+                    envelope={env}
+                    onConfirm={() => handleConfirm(env)}
+                    onCancel={() => handleCancel(env)}
+                    onChipClick={handleChipClick}
+                    onInlineClick={handleInlineClick}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="results-panel-empty">
+                <span className="material-symbols-outlined" style={{ fontSize: 48, color: 'var(--text-dim)', marginBottom: 12 }}>
+                  query_stats
                 </span>
+                <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0 }}>
+                  Results will appear here
+                </p>
               </div>
             )}
-            <div ref={bottomRef} />
           </div>
-        )}
-
-        {/* ── Floating prompt bar (active chat only) ── */}
-        {hasChat && (
-          <div style={{
-            position: 'fixed',
-            bottom: 28,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            marginLeft: 110,
-            width: 'min(680px, calc(100vw - 268px))',
-            background: 'var(--surface-2)',
-            border: '1px solid var(--border)',
-            borderRadius: 999,
-            padding: '10px 10px 10px 20px',
-            display: 'flex',
-            alignItems: 'flex-end',
-            gap: 10,
-            boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-            backdropFilter: 'blur(12px)',
-            zIndex: 50,
-          }}>
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => { setInput(e.target.value); autoResize(e.target); }}
-              onKeyDown={handleKeyDown}
-              placeholder={activeProject ? 'Ask a follow-up…' : 'Select a project first…'}
-              disabled={!activeProject}
-              rows={1}
-              style={{
-                flex: 1,
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                color: 'var(--text)',
-                fontSize: 14,
-                resize: 'none',
-                lineHeight: 1.5,
-                fontFamily: 'inherit',
-                alignSelf: 'center',
-                opacity: activeProject ? 1 : 0.5,
-                cursor: activeProject ? 'text' : 'not-allowed',
-              }}
-            />
-            <button
-              onClick={() => sendMessage()}
-              disabled={loading || !input.trim() || !activeProject}
-              style={{
-                width: 34,
-                height: 34,
-                flexShrink: 0,
-                borderRadius: '50%',
-                background: input.trim() ? '#bfdbfe' : 'var(--surface)',
-                border: `1px solid ${input.trim() ? '#93c5fd' : 'var(--border)'}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: input.trim() ? 'pointer' : 'default',
-                transition: 'all 0.15s',
-                padding: 0,
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M8 13V3M8 3L3.5 7.5M8 3L12.5 7.5" stroke={input.trim() ? '#1d4ed8' : 'var(--text-muted)'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </>
   );
 }
+
