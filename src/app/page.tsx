@@ -512,15 +512,16 @@ export default function Home() {
   const hasChat = messages.length > 0;
   const isSplit = layout === 'chat-left' || layout === 'chat-right';
 
-  // In split mode, collect envelopes from the most recent assistant message for the results panel
-  const latestEnvelopes = (() => {
+  // In split mode, collect all envelopes from all assistant messages for the results panel
+  const allEnvelopes = (() => {
     if (!isSplit) return [];
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === 'assistant' && messages[i].envelopes?.length) {
-        return messages[i].envelopes!;
+    const result: CompositionEnvelope[] = [];
+    for (const msg of messages) {
+      if (msg.role === 'assistant' && msg.envelopes?.length) {
+        result.push(...msg.envelopes);
       }
     }
-    return [];
+    return result;
   })();
 
   // Shared send button
@@ -1050,9 +1051,9 @@ export default function Home() {
                   </div>
                 )}
               </div>
-            ) : latestEnvelopes.length > 0 ? (
+            ) : allEnvelopes.length > 0 ? (
               <div className="results-panel-inner">
-                {latestEnvelopes.map((env) => (
+                {allEnvelopes.map((env) => (
                   <ArtifactCard
                     key={env.id}
                     envelope={env}
