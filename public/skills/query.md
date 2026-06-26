@@ -77,7 +77,85 @@ Pick `suggestedVisualization` based on result shape:
 
 ## Next actions to offer
 
-- "Break down by [dimension]" (→ Query)
-- "Export this" (→ DataLoading)
-- "Check for data quality issues" (→ DataQuality) — especially if null values or anomalies appear
-- "Remove these rows" / "Fix these values" — only if user has indicated a problem (→ DataManagement)
+- "Break down by [dimension]" (-> Query)
+- "Export this" (-> DataLoading)
+- "Check for data quality issues" (-> DataQuality) -- especially if null values or anomalies appear
+- "Remove these rows" / "Fix these values" -- only if user has indicated a problem (-> DataManagement)
+
+## ML & AI SQL Functions
+
+When the user asks for ML/AI tasks, use BigQuery's built-in AI functions. These run as standard SELECT queries -- no separate model training step needed for zero-shot tasks.
+
+### Text Classification & Sentiment
+
+```sql
+SELECT
+  text_column,
+  AI.GENERATE(
+    MODEL `project.model_name`,
+    CONCAT('Classify this text as positive, negative, or neutral: ', text_column)
+  ) AS classification
+FROM `project.dataset.table`
+```
+
+For sentiment scoring, use `AI.GENERATE_DOUBLE` to get a numeric score.
+
+### Anomaly Detection
+
+```sql
+SELECT *
+FROM AI.DETECT_ANOMALIES(
+  MODEL `project.dataset.anomaly_model`,
+  STRUCT(0.95 AS contamination),
+  TABLE `project.dataset.table`
+)
+WHERE is_anomaly = TRUE
+```
+
+### Time Series Forecasting
+
+```sql
+SELECT *
+FROM AI.FORECAST(
+  MODEL `project.dataset.forecast_model`,
+  STRUCT(30 AS horizon, 0.9 AS confidence_level)
+)
+```
+
+For zero-shot forecasting with TimesFM, the table needs a timestamp column and a numeric value column.
+
+### BQML Model Training
+
+When the user wants to train a model:
+```sql
+CREATE OR REPLACE MODEL `project.dataset.model_name`
+OPTIONS(model_type='LOGISTIC_REG', input_label_cols=['label_column'])
+AS SELECT feature1, feature2, label_column
+FROM `project.dataset.training_data`
+```
+
+Then predict:
+```sql
+SELECT * FROM ML.PREDICT(
+  MODEL `project.dataset.model_name`,
+  TABLE `project.dataset.new_data`
+)
+```
+
+### Translation (Data Enrichment)
+
+For translating text columns:
+```sql
+SELECT
+  original_text,
+  AI.GENERATE(
+    MODEL `project.model_name`,
+    CONCAT('Translate the following text to Spanish: ', original_text)
+  ) AS translated_text
+FROM `project.dataset.table`
+```
+
+### Geocoding Note
+
+Geocoding (converting addresses to lat/lng) requires a Cloud Function or remote function connected to the Google Maps Geocoding API. This is not a built-in BigQuery function. If the user asks to geocode, explain the setup requirement and suggest using a remote function pattern.
+

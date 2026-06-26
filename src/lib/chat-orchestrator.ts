@@ -278,6 +278,16 @@ const DqIntentSchema = {
   required: ['checkType']
 };
 
+const MonitoringIntentSchema = {
+  type: 'OBJECT',
+  properties: {
+    monitoringType: { type: 'STRING', enum: ['JOBS', 'STORAGE', 'SLOTS', 'QUERY_PLAN'] },
+    jobId: { type: 'STRING' },
+    table: { type: 'STRING' }
+  },
+  required: ['monitoringType']
+};
+
 const DataLoadingIntentSchema = {
   type: 'OBJECT',
   properties: {
@@ -1506,11 +1516,110 @@ async function executeConfirmedOperation(
 // ─── Monitoring handler ────────────────────────────────────────────────────────
 
 async function handleMonitoring(
-  _message: string,
+  message: string,
   context?: { project?: string },
   onStatus?: (status: string) => void
 ): Promise<CompositionEnvelope[]> {
   const project = context?.project || '';
+
+  // Classify monitoring sub-type via Gemini
+  onStatus?.(`Classifying monitoring request...`);
+  const intent = await callGemini({
+    systemInstruction: `You classify BigQuery monitoring requests. Available types: JOBS (job history, recent queries, errors, failed jobs), STORAGE (table sizes, storage usage, row counts), SLOTS (slot utilization, resource usage over time), QUERY_PLAN (query execution plan, dry run, explain). Extract a jobId if the user mentions a specific job. Extract a table name if relevant.`,
+    prompt: message,
+    schema: MonitoringIntentSchema,
+    project,
+  });
+
+  const monitoringType = intent.monitoringType || 'JOBS';
+
+  // STORAGE — query INFORMATION_SCHEMA.TABLE_STORAGE
+  if (monitoringType === 'STORAGE') {
+    const storageSql = `SELECT table_schema, table_name, total_rows, total_logical_bytes, active_logical_bytes FROM \`region-us\`.INFORMATION_SCHEMA.TABLE_STORAGE WHERE project_id = '${project}' ORDER BY total_logical_bytes DESC LIMIT 50`;
+    onStatus?.(`Fetching storage usage for project ${project}...`);
+    const executed = await executeQuery(storageSql, project);
+
+    const items: MonitoringJob[] = executed.rows.map((row) => ({
+      jobId: `${row[0]}.${row[1]}`,
+      userEmail: '',
+      statementType: 'STORAGE',
+      status: 'DONE' as const,
+      createTime: new Date().toISOString(),
+      totalBytesProcessed: Number(row[3] ?? 0),
+      errorMessage: null,
+      referencedTables: [`${project}.${row[0]}.${row[1]}`],
+    }));
+
+    const now = new Date();
+    const result: MonitoringResult = {
+      skill: 'monitoring',
+      monitoringType: 'JOB_LIST',
+      timeRange: { start: now.toISOString(), end: now.toISOString() },
+      items,
+      summary: {
+        totalJobs: items.length,
+        totalBytesProcessed: items.reduce((acc, j) => acc + j.totalBytesProcessed, 0),
+        errorCount: 0,
+      },
+    };
+    return [compose('monitoring', result)];
+  }
+
+  // SLOTS — query INFORMATION_SCHEMA.JOBS_TIMELINE for slot usage
+  if (monitoringType === 'SLOTS') {
+    const slotsSql = `SELECT period_start, SUM(period_slot_ms) AS total_slot_ms, COUNT(DISTINCT job_id) AS concurrent_jobs FROM \`region-us\`.INFORMATION_SCHEMA.JOBS_TIMELINE_BY_PROJECT WHERE period_start > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR) GROUP BY period_start ORDER BY period_start DESC LIMIT 100`;
+    onStatus?.(`Fetching slot utilization for project ${project}...`);
+    const executed = await executeQuery(slotsSql, project);
+
+    const items: MonitoringJob[] = executed.rows.map((row) => ({
+      jobId: String(row[0] ?? ''),
+      userEmail: '',
+      statementType: 'SLOT_USAGE',
+      status: 'DONE' as const,
+      createTime: String(row[0] ?? ''),
+      totalBytesProcessed: Number(row[1] ?? 0),
+      errorMessage: `${row[2] ?? 0} concurrent jobs`,
+      referencedTables: [],
+    }));
+
+    const now = new Date();
+    const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const result: MonitoringResult = {
+      skill: 'monitoring',
+      monitoringType: 'JOB_LIST',
+      timeRange: { start: start.toISOString(), end: now.toISOString() },
+      items,
+      summary: {
+        totalJobs: items.length,
+        totalBytesProcessed: items.reduce((acc, j) => acc + j.totalBytesProcessed, 0),
+        errorCount: 0,
+      },
+    };
+    return [compose('monitoring', result)];
+  }
+
+  // QUERY_PLAN — placeholder guidance
+  if (monitoringType === 'QUERY_PLAN') {
+    const result: MonitoringResult = {
+      skill: 'monitoring',
+      monitoringType: 'JOB_LIST',
+      timeRange: { start: new Date().toISOString(), end: new Date().toISOString() },
+      items: [{
+        jobId: 'query_plan_info',
+        userEmail: '',
+        statementType: 'INFO',
+        status: 'DONE',
+        createTime: new Date().toISOString(),
+        totalBytesProcessed: 0,
+        errorMessage: 'To analyze a query plan: use the dry-run feature by prefixing your query request with "dry run" or "explain". The system will show estimated bytes processed and cost tier without executing the query. For detailed execution plans, use the BigQuery Console Query Plan tab after running a query.',
+        referencedTables: [],
+      }],
+      summary: { totalJobs: 0, totalBytesProcessed: 0, errorCount: 0 },
+    };
+    return [compose('monitoring', result)];
+  }
+
+  // JOBS (default) — existing INFORMATION_SCHEMA.JOBS query
   const sql = `SELECT job_id, user_email, statement_type, state, creation_time, total_bytes_processed, error_result, referenced_tables FROM \`region-us\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR) ORDER BY creation_time DESC LIMIT 50`;
 
   onStatus?.(`Fetching last 24h of job history for project ${project}...`);
@@ -1677,6 +1786,272 @@ async function handleDataQuality(
     return [compose('data-quality', result)];
   }
 
+  // COMPLETENESS — compute null rate across all columns, then aggregate
+  if (intent.checkType === 'COMPLETENESS') {
+    const nullExprs = columns.map((col) =>
+      `COUNTIF(${col.name} IS NULL) AS \`${col.name}__nulls\``
+    );
+    sql = `SELECT COUNT(*) AS __total_rows, ${nullExprs.join(', ')} FROM ${fqTable}`;
+    onStatus?.(`Computing completeness across ${columns.length} columns in ${fqTable}...`);
+    const executed = await executeQuery(sql, project);
+    const row = executed.rows[0] ?? [];
+    const colMap = Object.fromEntries(executed.columns.map((c, i) => [c, row[i]]));
+    const totalRows = Number(colMap['__total_rows'] ?? 0);
+
+    let totalCells = 0;
+    let totalFilled = 0;
+    for (const col of columns) {
+      const nullCount = Number(colMap[`${col.name}__nulls`] ?? 0);
+      const fillRate = totalRows > 0 ? (totalRows - nullCount) / totalRows : 1;
+      totalCells += totalRows;
+      totalFilled += totalRows - nullCount;
+      const severity: DqFinding['severity'] = fillRate < 0.5 ? 'ISSUE' : fillRate < 0.9 ? 'WARNING' : 'INFO';
+      findings.push({ column: col.name, metric: 'fill_rate', value: parseFloat(fillRate.toFixed(4)), severity });
+    }
+    const overallCompleteness = totalCells > 0 ? totalFilled / totalCells : 1;
+    findings.unshift({
+      column: '_table',
+      metric: 'overall_completeness',
+      value: parseFloat(overallCompleteness.toFixed(4)),
+      severity: overallCompleteness < 0.8 ? 'ISSUE' : overallCompleteness < 0.95 ? 'WARNING' : 'INFO',
+    });
+
+    const issueCount = findings.filter((f) => f.severity !== 'INFO').length;
+    const result: DataQualityResult = {
+      skill: 'data-quality', checkType: 'COMPLETENESS', table: fqTable, sql,
+      findings,
+      summary: { rowsScanned: totalRows, issuesFound: issueCount, checkedAt },
+    };
+    return [compose('data-quality', result)];
+  }
+
+  // RANGE_VALIDATION — check numeric columns for min/max out-of-range values
+  if (intent.checkType === 'RANGE_VALIDATION') {
+    const numericCols = columns.filter((c) =>
+      ['INT64', 'FLOAT64', 'NUMERIC', 'BIGNUMERIC', 'INTEGER', 'FLOAT'].includes(c.type)
+    );
+    if (numericCols.length === 0) {
+      const result: DataQualityResult = {
+        skill: 'data-quality', checkType: 'RANGE_VALIDATION', table: fqTable, sql: '',
+        findings: [{ column: '_table', metric: 'info', value: 'No numeric columns found for range validation', severity: 'INFO' }],
+        summary: { rowsScanned: 0, issuesFound: 0, checkedAt },
+      };
+      return [compose('data-quality', result)];
+    }
+
+    // Ask Gemini for expected ranges
+    const RangeSchema = {
+      type: 'OBJECT' as const,
+      properties: {
+        ranges: {
+          type: 'ARRAY' as const,
+          items: {
+            type: 'OBJECT' as const,
+            properties: {
+              column: { type: 'STRING' as const },
+              min: { type: 'NUMBER' as const },
+              max: { type: 'NUMBER' as const },
+            },
+            required: ['column', 'min', 'max'],
+          },
+        },
+      },
+      required: ['ranges'],
+    };
+    const rangeResult = await callGemini({
+      systemInstruction: `Given a BigQuery table ${fqTable} with numeric columns: ${numericCols.map((c) => `${c.name} (${c.type})`).join(', ')}, suggest reasonable expected min/max ranges for each column based on the column name and type. Be practical -- use domain knowledge (e.g. age: 0-150, percentage: 0-100, price: 0-1000000).`,
+      prompt: `Return expected ranges for these numeric columns: ${numericCols.map((c) => c.name).join(', ')}`,
+      schema: RangeSchema,
+      project,
+    });
+
+    const ranges: Array<{ column: string; min: number; max: number }> = rangeResult?.ranges ?? [];
+    if (ranges.length === 0) {
+      // Fallback: just report min/max stats
+      const statsExprs = numericCols.flatMap((col) => [
+        `MIN(CAST(${col.name} AS FLOAT64)) AS \`${col.name}__min\``,
+        `MAX(CAST(${col.name} AS FLOAT64)) AS \`${col.name}__max\``,
+      ]);
+      sql = `SELECT COUNT(*) AS __total_rows, ${statsExprs.join(', ')} FROM ${fqTable}`;
+      onStatus?.(`Checking value ranges for ${numericCols.length} numeric columns in ${fqTable}...`);
+      const executed = await executeQuery(sql, project);
+      const row = executed.rows[0] ?? [];
+      const colMap = Object.fromEntries(executed.columns.map((c, i) => [c, row[i]]));
+      const totalRows = Number(colMap['__total_rows'] ?? 0);
+      for (const col of numericCols) {
+        findings.push({ column: col.name, metric: 'min_value', value: Number(colMap[`${col.name}__min`] ?? 0), severity: 'INFO' });
+        findings.push({ column: col.name, metric: 'max_value', value: Number(colMap[`${col.name}__max`] ?? 0), severity: 'INFO' });
+      }
+      const result: DataQualityResult = {
+        skill: 'data-quality', checkType: 'RANGE_VALIDATION', table: fqTable, sql,
+        findings,
+        summary: { rowsScanned: totalRows, issuesFound: 0, checkedAt },
+      };
+      return [compose('data-quality', result)];
+    }
+
+    // Build query to check ranges
+    const rangeExprs = ranges.flatMap((r) => [
+      `MIN(CAST(${r.column} AS FLOAT64)) AS \`${r.column}__min\``,
+      `MAX(CAST(${r.column} AS FLOAT64)) AS \`${r.column}__max\``,
+      `COUNTIF(CAST(${r.column} AS FLOAT64) < ${r.min} OR CAST(${r.column} AS FLOAT64) > ${r.max}) AS \`${r.column}__out_of_range\``,
+    ]);
+    sql = `SELECT COUNT(*) AS __total_rows, ${rangeExprs.join(', ')} FROM ${fqTable}`;
+    onStatus?.(`Validating value ranges for ${ranges.length} columns in ${fqTable}...`);
+    const executed = await executeQuery(sql, project);
+    const row = executed.rows[0] ?? [];
+    const colMap = Object.fromEntries(executed.columns.map((c, i) => [c, row[i]]));
+    const totalRows = Number(colMap['__total_rows'] ?? 0);
+
+    for (const r of ranges) {
+      const outOfRange = Number(colMap[`${r.column}__out_of_range`] ?? 0);
+      const actualMin = Number(colMap[`${r.column}__min`] ?? 0);
+      const actualMax = Number(colMap[`${r.column}__max`] ?? 0);
+      const severity: DqFinding['severity'] = outOfRange > 0 ? 'ISSUE' : 'INFO';
+      findings.push({ column: r.column, metric: 'expected_range', value: `${r.min} - ${r.max}`, severity: 'INFO' });
+      findings.push({ column: r.column, metric: 'actual_range', value: `${actualMin} - ${actualMax}`, severity: 'INFO' });
+      findings.push({ column: r.column, metric: 'out_of_range_count', value: outOfRange, severity });
+    }
+
+    const issueCount = findings.filter((f) => f.severity !== 'INFO').length;
+    const result: DataQualityResult = {
+      skill: 'data-quality', checkType: 'RANGE_VALIDATION', table: fqTable, sql,
+      findings,
+      summary: { rowsScanned: totalRows, issuesFound: issueCount, checkedAt },
+    };
+    return [compose('data-quality', result)];
+  }
+
+  // REFERENTIAL_INTEGRITY — check FK relationships for orphaned rows
+  if (intent.checkType === 'REFERENTIAL_INTEGRITY') {
+    // Ask Gemini to identify likely FK relationships
+    const FkSchema = {
+      type: 'OBJECT' as const,
+      properties: {
+        relationships: {
+          type: 'ARRAY' as const,
+          items: {
+            type: 'OBJECT' as const,
+            properties: {
+              fkColumn: { type: 'STRING' as const },
+              referencedTable: { type: 'STRING' as const },
+              referencedColumn: { type: 'STRING' as const },
+            },
+            required: ['fkColumn', 'referencedTable', 'referencedColumn'],
+          },
+        },
+      },
+      required: ['relationships'],
+    };
+    const fkResult = await callGemini({
+      systemInstruction: `Given a BigQuery table ${fqTable} in project ${project} dataset ${ds} with columns: ${columns.map((c) => `${c.name} (${c.type})`).join(', ')}, identify likely foreign key relationships. Look for columns ending in _id, _key, or matching common patterns. For referencedTable, use the format \`${project}.${ds}.table_name\`. If no likely FK relationships exist, return an empty array.`,
+      prompt: `Identify foreign key relationships for ${fqTable}`,
+      schema: FkSchema,
+      project,
+    });
+
+    const relationships: Array<{ fkColumn: string; referencedTable: string; referencedColumn: string }> = fkResult?.relationships ?? [];
+    if (relationships.length === 0) {
+      const result: DataQualityResult = {
+        skill: 'data-quality', checkType: 'REFERENTIAL_INTEGRITY', table: fqTable, sql: '',
+        findings: [{ column: '_table', metric: 'info', value: 'No foreign key relationships identified', severity: 'INFO' }],
+        summary: { rowsScanned: 0, issuesFound: 0, checkedAt },
+      };
+      return [compose('data-quality', result)];
+    }
+
+    // Check each relationship with LEFT JOIN ... WHERE IS NULL
+    onStatus?.(`Checking ${relationships.length} FK relationships for orphaned rows in ${fqTable}...`);
+    let totalOrphans = 0;
+    const queries: string[] = [];
+    for (const rel of relationships) {
+      const refTable = rel.referencedTable.includes('.') ? `\`${rel.referencedTable}\`` : `\`${project}.${ds}.${rel.referencedTable}\``;
+      const checkSql = `SELECT COUNT(*) AS orphan_count FROM ${fqTable} a LEFT JOIN ${refTable} b ON a.${rel.fkColumn} = b.${rel.referencedColumn} WHERE b.${rel.referencedColumn} IS NULL AND a.${rel.fkColumn} IS NOT NULL`;
+      queries.push(checkSql);
+      try {
+        const executed = await executeQuery(checkSql, project);
+        const orphanCount = Number(executed.rows[0]?.[0] ?? 0);
+        totalOrphans += orphanCount;
+        const severity: DqFinding['severity'] = orphanCount > 0 ? 'ISSUE' : 'INFO';
+        findings.push({
+          column: rel.fkColumn,
+          metric: 'orphaned_rows',
+          value: orphanCount,
+          severity,
+        });
+        findings.push({
+          column: rel.fkColumn,
+          metric: 'references',
+          value: `${rel.referencedTable}.${rel.referencedColumn}`,
+          severity: 'INFO',
+        });
+      } catch {
+        findings.push({
+          column: rel.fkColumn,
+          metric: 'check_error',
+          value: `Could not verify against ${rel.referencedTable}`,
+          severity: 'WARNING',
+        });
+      }
+    }
+
+    sql = queries.join(';\n');
+    const issueCount = findings.filter((f) => f.severity !== 'INFO').length;
+    const result: DataQualityResult = {
+      skill: 'data-quality', checkType: 'REFERENTIAL_INTEGRITY', table: fqTable, sql,
+      findings,
+      summary: { rowsScanned: totalOrphans, issuesFound: issueCount, checkedAt },
+    };
+    return [compose('data-quality', result)];
+  }
+
+  // SCHEMA_DRIFT — show current schema profile (no stored baseline yet)
+  if (intent.checkType === 'SCHEMA_DRIFT') {
+    sql = `SELECT column_name, data_type, is_nullable, ordinal_position FROM \`${project}.${ds}\`.INFORMATION_SCHEMA.COLUMNS WHERE table_name = '${tableName}' ORDER BY ordinal_position`;
+    onStatus?.(`Fetching current schema for ${fqTable} to check for drift...`);
+    const executed = await executeQuery(sql, project);
+
+    for (const row of executed.rows) {
+      const colName = String(row[0] ?? '');
+      const dataType = String(row[1] ?? '');
+      const nullable = String(row[2] ?? '');
+      const position = Number(row[3] ?? 0);
+      findings.push({
+        column: colName,
+        metric: 'data_type',
+        value: dataType,
+        severity: 'INFO',
+      });
+      findings.push({
+        column: colName,
+        metric: 'nullable',
+        value: nullable,
+        severity: 'INFO',
+      });
+      findings.push({
+        column: colName,
+        metric: 'ordinal_position',
+        value: position,
+        severity: 'INFO',
+      });
+    }
+
+    // Add a note that no baseline is stored yet
+    findings.unshift({
+      column: '_table',
+      metric: 'baseline_status',
+      value: 'No stored baseline -- showing current schema as profile. Future runs can compare against this snapshot.',
+      severity: 'INFO',
+    });
+
+    const result: DataQualityResult = {
+      skill: 'data-quality', checkType: 'SCHEMA_DRIFT', table: fqTable, sql,
+      findings,
+      summary: { rowsScanned: executed.rowCount, issuesFound: 0, checkedAt },
+    };
+    return [compose('data-quality', result)];
+  }
+
   // PROFILE or NULLS — build a single batched query
   const exprs = columns.flatMap((col) => {
     const base = [
@@ -1762,7 +2137,7 @@ async function handleDataLoading(
 
   onStatus?.(`Analyzing export request (project: ${project}, dataset: ${dataset || 'none'})...`);
   const intent = await callGemini({
-    systemInstruction: `Classify a BigQuery data loading request. EXPORT_CSV = download as CSV. EXPORT_SHEETS = send to Google Sheets. SCHEDULE = schedule a recurring query. Extract the table name or SQL to use. Project: ${project}, dataset: ${dataset}`,
+    systemInstruction: `Classify a BigQuery data loading request. EXPORT_CSV = download as CSV. EXPORT_SHEETS = send to Google Sheets. SCHEDULE = schedule a recurring query. SAVED_QUERY = save a query for later reuse. Extract the table name or SQL to use. Project: ${project}, dataset: ${dataset}`,
     prompt: message,
     schema: DataLoadingIntentSchema,
     project,
@@ -1775,6 +2150,17 @@ async function handleDataLoading(
       operationType: 'SCHEDULE_INFO',
       message: 'Scheduling requires the BigQuery Data Transfer API. Copy the SQL below into BigQuery → Scheduled Queries in the Google Cloud Console.',
       sql,
+    };
+    return [compose('data-loading', result)];
+  }
+
+  if (intent.operationType === 'SAVED_QUERY') {
+    const sqlToSave = intent.sql ?? (intent.tableName ? `SELECT * FROM \`${project}.${dataset}.${intent.tableName}\`` : '');
+    const result: DataLoadingResult = {
+      skill: 'data-loading',
+      operationType: 'SCHEDULE_INFO',
+      message: 'To save this query for reuse: open the BigQuery Console, paste the SQL below into the editor, and click "Save Query" in the toolbar. Saved queries can be shared with team members and used in scheduled queries.',
+      sql: sqlToSave,
     };
     return [compose('data-loading', result)];
   }

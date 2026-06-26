@@ -98,9 +98,107 @@ If `rowsAffected` ≠ `rowsExpected` (mismatch): set `mismatch: true` and `misma
 
 After ANY successful DDL operation (ADD COLUMN, DROP COLUMN, CREATE TABLE, ALTER TABLE, RENAME), you MUST include the affected table/dataset in `schemaInvalidated`. The harness uses this to evict and re-fetch the cache entry.
 
+## MERGE (Upsert) Operations
+
+When the user asks to merge, upsert, or sync data from one table into another:
+- Set `operation: "MERGE"` and `executionStrategy: "PREVIEW_AND_CONFIRM"`
+- Generate a `MERGE` statement:
+  ```sql
+  MERGE `project.dataset.target` T
+  USING `project.dataset.source` S
+  ON T.key_column = S.key_column
+  WHEN MATCHED THEN UPDATE SET T.col1 = S.col1, T.col2 = S.col2
+  WHEN NOT MATCHED THEN INSERT (key_column, col1, col2) VALUES (S.key_column, S.col1, S.col2)
+  ```
+- For `previewSql`, count how many rows would be matched and how many inserted:
+  ```sql
+  SELECT
+    COUNTIF(T.key_column IS NOT NULL) AS rows_to_update,
+    COUNTIF(T.key_column IS NULL) AS rows_to_insert
+  FROM `project.dataset.source` S
+  LEFT JOIN `project.dataset.target` T ON T.key_column = S.key_column
+  ```
+
+## PARTITION_TABLE Operations
+
+When the user asks to partition or repartition a table:
+- Set `operation: "PARTITION_TABLE"` and `executionStrategy: "PREVIEW_AND_CONFIRM"`
+- This is a table rebuild via CTAS (you cannot alter partitioning in place):
+  ```sql
+  CREATE OR REPLACE TABLE `project.dataset.table`
+  PARTITION BY DATE(partition_column)
+  AS SELECT * FROM `project.dataset.table`
+  ```
+- For `previewSql`, return the row count: `SELECT COUNT(*) FROM \`project.dataset.table\``
+- Include `completionMessage` noting the table was rebuilt with the new partitioning scheme
+- Always include the table in `schemaInvalidated`
+
 ## Next actions after completion
 
-- "Show me the cleaned table" → Query
-- "Profile it now" → DataQuality  
-- "Export this" → DataLoading
-- After dedup: "Set up an alert if duplicates appear again" → DataLoading (Tier 0 saved check)
+- "Show me the cleaned table" -> Query
+- "Profile it now" -> DataQuality  
+- "Export this" -> DataLoading
+- After dedup: "Set up an alert if duplicates appear again" -> DataLoading (Tier 0 saved check)
+
+## MERGE Operation
+
+Use `MERGE` when the user wants to upsert data from a source table into a target table. Always use `PREVIEW_AND_CONFIRM` strategy since MERGE modifies existing data.
+
+### SQL pattern
+
+```sql
+MERGE `project.dataset.target` T
+USING `project.dataset.source` S
+ON T.id = S.id
+WHEN MATCHED THEN
+  UPDATE SET T.col1 = S.col1, T.col2 = S.col2
+WHEN NOT MATCHED THEN
+  INSERT (id, col1, col2) VALUES (S.id, S.col1, S.col2)
+```
+
+### Preview SQL
+
+For the preview, show the count of rows that would be matched (updated) vs not matched (inserted):
+
+```sql
+SELECT
+  COUNTIF(T.id IS NOT NULL) AS rows_to_update,
+  COUNTIF(T.id IS NULL) AS rows_to_insert
+FROM `project.dataset.source` S
+LEFT JOIN `project.dataset.target` T ON T.id = S.id
+```
+
+Set `operation: "MERGE"` and `executionStrategy: "PREVIEW_AND_CONFIRM"`.
+
+## PARTITION_TABLE Operation
+
+Use `PARTITION_TABLE` when the user wants to partition an existing table by a date/timestamp column, or create a partitioned copy. This rebuilds the table, so always use `PREVIEW_AND_CONFIRM` strategy.
+
+### SQL pattern
+
+```sql
+CREATE OR REPLACE TABLE `project.dataset.table_partitioned`
+PARTITION BY DATE(timestamp_column)
+AS SELECT * FROM `project.dataset.original_table`
+```
+
+For integer range partitioning:
+
+```sql
+CREATE OR REPLACE TABLE `project.dataset.table_partitioned`
+PARTITION BY RANGE_BUCKET(int_column, GENERATE_ARRAY(0, 1000000, 10000))
+AS SELECT * FROM `project.dataset.original_table`
+```
+
+### Preview SQL
+
+Show the row count and partition key distribution:
+
+```sql
+SELECT COUNT(*) AS total_rows, MIN(partition_column) AS min_key, MAX(partition_column) AS max_key,
+  COUNT(DISTINCT DATE(partition_column)) AS distinct_partitions
+FROM `project.dataset.original_table`
+```
+
+Set `operation: "PARTITION_TABLE"` and `executionStrategy: "PREVIEW_AND_CONFIRM"`. Include the affected table in `schemaInvalidated` since this creates a new table structure.
+
