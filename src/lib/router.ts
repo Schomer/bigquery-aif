@@ -313,12 +313,14 @@ export function classifyIntent(
     };
   }
 
-  // ── Filter / equality pattern → Query ──────────────────────────────────
+  // ── Filter / equality pattern -> Query ──────────────────────────────────
   // Messages like "show me more about `col` = 'VALUE'" or "filter where col = 42"
   // contain an equality comparison and should go to the query skill.
-  const hasFilterPattern = /[`']?\w+[`']?\s*=\s*(?:'[^']*'|\d+)/i.test(message)
-    || lower.includes('filter') || lower.includes('where');
-  if (hasFilterPattern) {
+  // NOTE: bare "where" is too broad ("where does this come from" is discovery).
+  const hasEqualityPattern = /[`']?\w+[`']?\s*=\s*(?:'[^']*'|\d+)/i.test(message);
+  const hasFilterPhrase = /\bfilter\s+(where|by|the|this|that)\b/i.test(lower)
+    || /\bwhere\s+\w+\s*(=|>|<|!=|like|in\s*\()/i.test(lower);
+  if (hasEqualityPattern || hasFilterPhrase) {
     return {
       skill: 'query',
       confidence: 'high',

@@ -46,11 +46,15 @@ export function buildChartData(
   return rows.map((row) => {
     const obj: Record<string, unknown> = {};
     columns.forEach((col, i) => {
-      obj[col] = row[i];
+      const v = row[i];
+      // Coerce object values (BigQuery STRUCT/RECORD, Timestamp objects) to
+      // strings so chart components never try to render a raw object in JSX.
+      obj[col] = (v !== null && typeof v === 'object') ? JSON.stringify(v) : v;
     });
     return obj;
   });
 }
+
 
 /**
  * Resolves which column is the x-axis and which columns are y-axes.
