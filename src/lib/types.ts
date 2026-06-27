@@ -307,7 +307,7 @@ export interface DiscoverySearchResult {
 
 export interface DiscoveryResult {
   skill: 'discovery'
-  discoveryType: 'SEARCH' | 'COMPARISON'
+  discoveryType: 'SEARCH' | 'COMPARISON' | 'LINEAGE'
   query: string
   results: DiscoverySearchResult[]
   comparison?: {
@@ -316,6 +316,11 @@ export interface DiscoveryResult {
     addedColumns: Array<{ name: string; type: string }>
     removedColumns: Array<{ name: string; type: string }>
     changedColumns: Array<{ name: string; fromType: string; toType: string }>
+  } | null
+  lineage?: {
+    tableName: string;
+    readsFrom: string[];
+    writtenBy: string[];
   } | null
 }
 

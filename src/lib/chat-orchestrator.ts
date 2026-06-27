@@ -261,9 +261,10 @@ const DataManagementResponseSchema = {
 const DiscoveryResponseSchema = {
   type: 'OBJECT',
   properties: {
-    discoveryType: { type: 'STRING', enum: ['SEARCH', 'COMPARISON'] },
+    discoveryType: { type: 'STRING', enum: ['SEARCH', 'COMPARISON', 'LINEAGE'] },
     query: { type: 'STRING' },
-    secondTable: { type: 'STRING' }
+    secondTable: { type: 'STRING' },
+    tableName: { type: 'STRING' }
   },
   required: ['discoveryType', 'query']
 };
@@ -281,7 +282,7 @@ const DqIntentSchema = {
 const MonitoringIntentSchema = {
   type: 'OBJECT',
   properties: {
-    monitoringType: { type: 'STRING', enum: ['JOBS', 'STORAGE', 'SLOTS', 'QUERY_PLAN'] },
+    monitoringType: { type: 'STRING', enum: ['JOBS', 'STORAGE', 'SLOTS', 'QUERY_PLAN', 'ALERT'] },
     jobId: { type: 'STRING' },
     table: { type: 'STRING' }
   },
@@ -1525,7 +1526,7 @@ async function handleMonitoring(
   // Classify monitoring sub-type via Gemini
   onStatus?.(`Classifying monitoring request...`);
   const intent = await callGemini({
-    systemInstruction: `You classify BigQuery monitoring requests. Available types: JOBS (job history, recent queries, errors, failed jobs), STORAGE (table sizes, storage usage, row counts), SLOTS (slot utilization, resource usage over time), QUERY_PLAN (query execution plan, dry run, explain). Extract a jobId if the user mentions a specific job. Extract a table name if relevant.`,
+    systemInstruction: `You classify BigQuery monitoring requests. Available types: JOBS (job history, recent queries, errors, failed jobs), STORAGE (table sizes, storage usage, row counts), SLOTS (slot utilization, resource usage over time), QUERY_PLAN (query execution plan, dry run, explain), ALERT (set up alerts, watch a metric, threshold notifications). Extract a jobId if the user mentions a specific job. Extract a table name if relevant.`,
     prompt: message,
     schema: MonitoringIntentSchema,
     project,
@@ -1612,6 +1613,27 @@ async function handleMonitoring(
         createTime: new Date().toISOString(),
         totalBytesProcessed: 0,
         errorMessage: 'To analyze a query plan: use the dry-run feature by prefixing your query request with "dry run" or "explain". The system will show estimated bytes processed and cost tier without executing the query. For detailed execution plans, use the BigQuery Console Query Plan tab after running a query.',
+        referencedTables: [],
+      }],
+      summary: { totalJobs: 0, totalBytesProcessed: 0, errorCount: 0 },
+    };
+    return [compose('monitoring', result)];
+  }
+
+  // ALERT -- return actionable gcloud commands
+  if (monitoringType === 'ALERT') {
+    const result: MonitoringResult = {
+      skill: 'monitoring',
+      monitoringType: 'JOB_LIST',
+      timeRange: { start: new Date().toISOString(), end: new Date().toISOString() },
+      items: [{
+        jobId: 'alert_info',
+        userEmail: '',
+        statementType: 'INFO',
+        status: 'DONE',
+        createTime: new Date().toISOString(),
+        totalBytesProcessed: 0,
+        errorMessage: `To set up a BigQuery alert, use these approaches:\n\n1. Cost alert (bytes processed):\ngcloud alpha monitoring policies create --notification-channels=CHANNEL_ID --display-name="BQ Cost Alert" --condition-display-name="High bytes processed" --condition-filter='resource.type="bigquery.googleapis.com/Project" AND metric.type="bigquery.googleapis.com/query/scanned_bytes"' --condition-threshold-value=1000000000000 --condition-comparison=COMPARISON_GT\n\n2. Job failure alert:\ngcloud alpha monitoring policies create --display-name="BQ Job Failures" --condition-filter='resource.type="bigquery.googleapis.com/Project" AND metric.type="bigquery.googleapis.com/job/num_in_flight"' --condition-threshold-value=0\n\n3. For data-condition alerts (e.g., row count thresholds), create a scheduled query in the BigQuery Console that runs periodically and sends email notifications.`,
         referencedTables: [],
       }],
       summary: { totalJobs: 0, totalBytesProcessed: 0, errorCount: 0 },
@@ -2145,10 +2167,11 @@ async function handleDataLoading(
 
   if (intent.operationType === 'SCHEDULE') {
     const sql = intent.sql ?? (intent.tableName ? `SELECT * FROM \`${project}.${dataset}.${intent.tableName}\`` : '');
+    const scheduleMsg = `To schedule this query, run:\n\nbq query --schedule="every 24 hours" --display_name="Scheduled Query" --destination_table=${project}:${dataset || 'dataset'}.scheduled_results --replace "${sql.replace(/"/g, '\\"')}"\n\nOr use the BigQuery Console: open bigquery.cloud.google.com, paste the SQL into the editor, and click More > Schedule.`;
     const result: DataLoadingResult = {
       skill: 'data-loading',
       operationType: 'SCHEDULE_INFO',
-      message: 'Scheduling requires the BigQuery Data Transfer API. Copy the SQL below into BigQuery → Scheduled Queries in the Google Cloud Console.',
+      message: scheduleMsg,
       sql,
     };
     return [compose('data-loading', result)];
@@ -2159,7 +2182,7 @@ async function handleDataLoading(
     const result: DataLoadingResult = {
       skill: 'data-loading',
       operationType: 'SCHEDULE_INFO',
-      message: 'To save this query for reuse: open the BigQuery Console, paste the SQL below into the editor, and click "Save Query" in the toolbar. Saved queries can be shared with team members and used in scheduled queries.',
+      message: 'To save this query:\n\n1. Open the BigQuery Console at bigquery.cloud.google.com\n2. Paste the SQL below into the query editor\n3. Click "Save" > "Save query" in the toolbar\n4. Name it and optionally share with your team\n\nSaved queries appear under "Saved Queries" in the BigQuery Console sidebar.',
       sql: sqlToSave,
     };
     return [compose('data-loading', result)];
@@ -2169,7 +2192,7 @@ async function handleDataLoading(
     const result: DataLoadingResult = {
       skill: 'data-loading',
       operationType: 'SCHEDULE_INFO',
-      message: 'Google Sheets export requires additional OAuth scopes (spreadsheets) that are not yet configured. Use CSV export instead, or connect to Sheets manually from the Google Cloud Console.',
+      message: 'To export to Google Sheets:\n\n1. Run the query in the BigQuery Console\n2. Click "Explore Data" > "Explore with Sheets" in the results toolbar\n3. This opens a connected Sheet that stays linked to the query\n\nFor automated exports, use the Sheets API:\nbq extract --destination_format=CSV ${project}:${dataset || "dataset"}.table_name gs://bucket/file.csv\nThen import the CSV into Sheets.\n\nNote: Direct Sheets export is limited to 10 million cells.',
       sql: intent.sql ?? null,
     };
     return [compose('data-loading', result)];
@@ -2224,11 +2247,70 @@ async function handleDiscovery(
   const available = await getAvailableDatasets(project);
 
   const intent = await callGemini({
-    systemInstruction: `You are a BigQuery discovery assistant. Classify the user's request as either SEARCH (find tables/views matching a term) or COMPARISON (compare two specific tables' schemas). Extract the search term or first table name into 'query'. For COMPARISON, extract the second table into 'secondTable'. The active project is ${project}, available datasets are: ${available.join(', ')}.`,
+    systemInstruction: `You are a BigQuery discovery assistant. Classify the user's request as either SEARCH (find tables/views matching a term), COMPARISON (compare two specific tables' schemas), or LINEAGE (trace where data comes from or what depends on a table). Extract the search term or table name into 'query'. For COMPARISON, extract the second table into 'secondTable'. For LINEAGE, extract the table name into 'tableName'. The active project is ${project}, available datasets are: ${available.join(', ')}.`,
     prompt: message,
     schema: DiscoveryResponseSchema,
     project,
   });
+
+  // LINEAGE: trace upstream and downstream dependencies via INFORMATION_SCHEMA.JOBS
+  if (intent.discoveryType === 'LINEAGE') {
+    const tableName = intent.tableName || intent.query;
+    const tableLower = tableName.toLowerCase().replace(/`/g, '');
+    onStatus?.(`Tracing lineage for "${tableName}"...`);
+
+    const lineageSql = `SELECT job_id, user_email, statement_type, creation_time, destination_table, referenced_tables FROM \`region-us\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY) AND (LOWER(CAST(destination_table AS STRING)) LIKE '%${tableLower}%' OR LOWER(CAST(referenced_tables AS STRING)) LIKE '%${tableLower}%') ORDER BY creation_time DESC LIMIT 30`;
+
+    let readsFrom: string[] = [];
+    let writtenBy: string[] = [];
+
+    try {
+      const executed = await executeQuery(lineageSql, project);
+      const iDest = executed.columns.indexOf('destination_table');
+      const iRefs = executed.columns.indexOf('referenced_tables');
+
+      const upstreamSet = new Set<string>();
+      const downstreamSet = new Set<string>();
+
+      for (const row of executed.rows) {
+        const destStr = String(row[iDest] ?? '').toLowerCase();
+        const refsStr = String(row[iRefs] ?? '').toLowerCase();
+
+        const destMatchesTarget = destStr.includes(tableLower);
+        const refsMatchTarget = refsStr.includes(tableLower);
+
+        if (destMatchesTarget && refsStr) {
+          // This table is the destination; referenced tables are upstream
+          const refs = refsStr.match(/[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]+/g);
+          if (refs) refs.forEach(r => upstreamSet.add(r));
+        }
+        if (refsMatchTarget && destStr) {
+          // This table is referenced; destination is downstream
+          const dests = destStr.match(/[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]+/g);
+          if (dests) dests.forEach(d => downstreamSet.add(d));
+        }
+      }
+
+      // Remove self-references
+      upstreamSet.delete(tableLower);
+      downstreamSet.delete(tableLower);
+
+      readsFrom = Array.from(upstreamSet);
+      writtenBy = Array.from(downstreamSet);
+    } catch {
+      // INFORMATION_SCHEMA.JOBS access may fail -- return empty lineage
+    }
+
+    const result: DiscoveryResult = {
+      skill: 'discovery',
+      discoveryType: 'LINEAGE',
+      query: intent.query,
+      results: [],
+      comparison: null,
+      lineage: { tableName, readsFrom, writtenBy },
+    };
+    return [compose('discovery', result)];
+  }
 
   if (intent.discoveryType === 'COMPARISON') {
     const leftRef = intent.query;

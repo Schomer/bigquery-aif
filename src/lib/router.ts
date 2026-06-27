@@ -175,6 +175,11 @@ const MONITORING_SIGNALS: Array<{ phrase: string; weight: number }> = [
   { phrase: 'diagnose', weight: 2 },
   { phrase: 'query plan', weight: 3 },
   { phrase: 'optimize', weight: 2 },
+  { phrase: 'alert', weight: 2 },
+  { phrase: 'threshold', weight: 2 },
+  { phrase: 'notify', weight: 2 },
+  { phrase: 'notification', weight: 2 },
+  { phrase: 'watch', weight: 2 },
 ];
 
 const DATA_LOADING_SIGNALS: Array<{ phrase: string; weight: number }> = [

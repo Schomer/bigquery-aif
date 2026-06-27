@@ -374,7 +374,14 @@ function composeDiscovery(result: DiscoveryResult): CompositionEnvelope {
   let tone: Tone = 'NEUTRAL';
   const basis: HeadlineBasis = 'STATUS';
 
-  if (result.discoveryType === 'COMPARISON') {
+  if (result.discoveryType === 'LINEAGE') {
+    const lin = result.lineage;
+    if (!lin) {
+      headlineText = 'Lineage data unavailable';
+    } else {
+      headlineText = `Lineage for \`${lin.tableName}\`: ${lin.readsFrom.length} upstream, ${lin.writtenBy.length} downstream`;
+    }
+  } else if (result.discoveryType === 'COMPARISON') {
     const cmp = result.comparison;
     if (!cmp) {
       headlineText = 'Schema comparison unavailable';
