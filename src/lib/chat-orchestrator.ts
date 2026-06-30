@@ -1948,8 +1948,10 @@ async function handleMonitoring(
   if (monitoringType === 'STORAGE_BREAKDOWN') {
     const storageSql = `SELECT table_schema, table_name, total_rows, total_logical_bytes FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.TABLE_STORAGE ORDER BY total_logical_bytes DESC LIMIT 200`;
     onStatus?.(`Fetching storage breakdown for project ${project}...`);
+    console.log('[STORAGE_BREAKDOWN] region:', region, 'sql:', storageSql);
     try {
       const executed = await executeQuery(storageSql, project);
+      console.log('[STORAGE_BREAKDOWN] rows returned:', executed.rows.length);
       const datasetMap = new Map<string, { sizeBytes: number; rowCount: number; tables: Array<{ ref: string; label: string; sizeBytes: number; rowCount: number }> }>();
       for (const row of executed.rows) {
         const ds = String(row[0] ?? '');
@@ -1978,7 +1980,8 @@ async function handleMonitoring(
         items,
       };
       return [compose('monitoring', result as unknown as MonitoringResult)];
-    } catch {
+    } catch (err) {
+      console.error('[STORAGE_BREAKDOWN] query failed:', err);
       const result: import('./types').StorageBreakdownResult = {
         skill: 'monitoring', monitoringType: 'STORAGE_BREAKDOWN',
         project, totalBytes: 0, items: [],
