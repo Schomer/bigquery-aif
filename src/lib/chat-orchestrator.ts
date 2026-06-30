@@ -1749,7 +1749,7 @@ async function handleMonitoring(
 
   // SLOTS — query INFORMATION_SCHEMA.JOBS_TIMELINE for slot usage
   if (monitoringType === 'SLOTS') {
-    const slotsSql = `SELECT period_start, SUM(period_slot_ms) AS total_slot_ms, COUNT(DISTINCT job_id) AS concurrent_jobs FROM \`region-${region}\`.INFORMATION_SCHEMA.JOBS_TIMELINE_BY_PROJECT WHERE period_start > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR) GROUP BY period_start ORDER BY period_start DESC LIMIT 100`;
+    const slotsSql = `SELECT period_start, SUM(period_slot_ms) AS total_slot_ms, COUNT(DISTINCT job_id) AS concurrent_jobs FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.JOBS_TIMELINE_BY_PROJECT WHERE period_start > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR) GROUP BY period_start ORDER BY period_start DESC LIMIT 100`;
     onStatus?.(`Fetching slot utilization for project ${project}...`);
     const executed = await executeQuery(slotsSql, project);
 
@@ -1867,7 +1867,7 @@ async function handleMonitoring(
 
     // --- JOB_SPECIFIC: author SQL check against INFORMATION_SCHEMA.JOBS ---
     if (alertCategory === 'JOB_SPECIFIC') {
-      const checkSql = `SELECT COUNT(*) as violation_count\nFROM \`region-${region}\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT\nWHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)\n  AND ${metric ? `${metric} ${threshold || '> 0'}` : `error_result IS NOT NULL`}`;
+      const checkSql = `SELECT COUNT(*) as violation_count\nFROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT\nWHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)\n  AND ${metric ? `${metric} ${threshold || '> 0'}` : `error_result IS NOT NULL`}`;
 
       const result: AlertResult = {
         skill: 'monitoring',
@@ -1991,7 +1991,7 @@ async function handleMonitoring(
 
   // ACCESS_PATTERNS -- who queries which tables
   if (monitoringType === 'ACCESS_PATTERNS') {
-    const accessSql = `SELECT user_email, referenced_tables, COUNT(*) AS query_count, SUM(total_bytes_processed) AS total_bytes, MAX(creation_time) AS last_accessed FROM \`region-${region}\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) AND statement_type = 'SELECT' AND referenced_tables IS NOT NULL GROUP BY user_email, referenced_tables ORDER BY query_count DESC LIMIT 200`;
+    const accessSql = `SELECT user_email, referenced_tables, COUNT(*) AS query_count, SUM(total_bytes_processed) AS total_bytes, MAX(creation_time) AS last_accessed FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) AND statement_type = 'SELECT' AND referenced_tables IS NOT NULL GROUP BY user_email, referenced_tables ORDER BY query_count DESC LIMIT 200`;
     onStatus?.(`Analyzing access patterns for project ${project}...`);
     try {
       const executed = await executeQuery(accessSql, project);
@@ -2037,7 +2037,7 @@ async function handleMonitoring(
 
   // COST_ANALYSIS -- query costs over time by user
   if (monitoringType === 'COST_ANALYSIS') {
-    const costSql = `SELECT DATE(creation_time) AS period, user_email, SUM(total_bytes_processed) AS total_bytes, COUNT(*) AS job_count FROM \`region-${region}\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) AND total_bytes_processed > 0 GROUP BY period, user_email ORDER BY period DESC, total_bytes DESC LIMIT 500`;
+    const costSql = `SELECT DATE(creation_time) AS period, user_email, SUM(total_bytes_processed) AS total_bytes, COUNT(*) AS job_count FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) AND total_bytes_processed > 0 GROUP BY period, user_email ORDER BY period DESC, total_bytes DESC LIMIT 500`;
     onStatus?.(`Analyzing query costs for project ${project}...`);
     try {
       const executed = await executeQuery(costSql, project);
@@ -2117,7 +2117,7 @@ async function handleMonitoring(
   }
 
   // JOBS (default) — existing INFORMATION_SCHEMA.JOBS query
-  const sql = `SELECT job_id, user_email, statement_type, state, creation_time, total_bytes_processed, error_result, referenced_tables FROM \`region-${region}\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR) ORDER BY creation_time DESC LIMIT 50`;
+  const sql = `SELECT job_id, user_email, statement_type, state, creation_time, total_bytes_processed, error_result, referenced_tables FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR) ORDER BY creation_time DESC LIMIT 50`;
 
   onStatus?.(`Fetching last 24h of job history for project ${project}...`);
   const executed = await executeQuery(sql, project);
@@ -2937,7 +2937,7 @@ async function handleDiscovery(
     onStatus?.(`Tracing lineage for "${tableName}"...`);
 
     const lineageRegion = await detectBqRegion(project);
-    const lineageSql = `SELECT job_id, user_email, statement_type, creation_time, destination_table, referenced_tables FROM \`region-${lineageRegion}\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) AND (LOWER(CAST(destination_table AS STRING)) LIKE '%${tableLower}%' OR LOWER(CAST(referenced_tables AS STRING)) LIKE '%${tableLower}%') ORDER BY creation_time DESC LIMIT 50`;
+    const lineageSql = `SELECT job_id, user_email, statement_type, creation_time, destination_table, referenced_tables FROM \`${project}\`.\`region-${lineageRegion}\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) AND (LOWER(CAST(destination_table AS STRING)) LIKE '%${tableLower}%' OR LOWER(CAST(referenced_tables AS STRING)) LIKE '%${tableLower}%') ORDER BY creation_time DESC LIMIT 50`;
 
     let readsFrom: string[] = [];
     let writtenBy: string[] = [];
