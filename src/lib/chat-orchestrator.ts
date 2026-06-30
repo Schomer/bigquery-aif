@@ -264,7 +264,7 @@ const DataManagementResponseSchema = {
 const DiscoveryResponseSchema = {
   type: 'OBJECT',
   properties: {
-    discoveryType: { type: 'STRING', enum: ['SEARCH', 'COMPARISON', 'LINEAGE'] },
+    discoveryType: { type: 'STRING', enum: ['SEARCH', 'COMPARISON', 'LINEAGE', 'ER_DIAGRAM'] },
     query: { type: 'STRING' },
     secondTable: { type: 'STRING' },
     tableName: { type: 'STRING' }
@@ -285,9 +285,10 @@ const DqIntentSchema = {
 const MonitoringIntentSchema = {
   type: 'OBJECT',
   properties: {
-    monitoringType: { type: 'STRING', enum: ['JOBS', 'STORAGE', 'SLOTS', 'QUERY_PLAN', 'ALERT'] },
+    monitoringType: { type: 'STRING', enum: ['JOBS', 'STORAGE', 'SLOTS', 'QUERY_PLAN', 'ALERT', 'STORAGE_BREAKDOWN', 'ACCESS_PATTERNS', 'COST_ANALYSIS', 'FRESHNESS'] },
     jobId: { type: 'STRING' },
-    table: { type: 'STRING' }
+    table: { type: 'STRING' },
+    dataset: { type: 'STRING' }
   },
   required: ['monitoringType']
 };
@@ -1692,9 +1693,11 @@ async function handleMonitoring(
   let monitoringType: string;
   if (hc?.monitoringHint && typeof hc.monitoringHint === 'string') {
     const hintMap: Record<string, string> = {
-      'JOB_LIST': 'JOBS', 'COST_ANALYSIS': 'JOBS', 'DIAGNOSE_FAILURES': 'JOBS',
+      'JOB_LIST': 'JOBS', 'COST_ANALYSIS': 'COST_ANALYSIS', 'DIAGNOSE_FAILURES': 'JOBS',
       'STORAGE_ANALYSIS': 'STORAGE', 'STORAGE': 'STORAGE',
       'SLOTS': 'SLOTS', 'QUERY_PLAN': 'QUERY_PLAN', 'ALERT': 'ALERT',
+      'STORAGE_BREAKDOWN': 'STORAGE_BREAKDOWN', 'ACCESS_PATTERNS': 'ACCESS_PATTERNS',
+      'FRESHNESS': 'FRESHNESS',
     };
     monitoringType = hintMap[hc.monitoringHint as string] || 'JOBS';
     onStatus?.(`Running ${monitoringType} analysis (from handoff)...`);
@@ -1702,7 +1705,7 @@ async function handleMonitoring(
     // Classify monitoring sub-type via Gemini
     onStatus?.(`Classifying monitoring request...`);
     const intent = await callGemini({
-      systemInstruction: `You classify BigQuery monitoring requests. Available types: JOBS (job history, recent queries, errors, failed jobs), STORAGE (table sizes, storage usage, row counts), SLOTS (slot utilization, resource usage over time), QUERY_PLAN (query execution plan, dry run, explain), ALERT (set up alerts, watch a metric, threshold notifications). Extract a jobId if the user mentions a specific job. Extract a table name if relevant.`,
+      systemInstruction: `You classify BigQuery monitoring requests. Available types: JOBS (job history, recent queries, errors, failed jobs), STORAGE (table sizes, storage usage, row counts), SLOTS (slot utilization, resource usage over time), QUERY_PLAN (query execution plan, dry run, explain), ALERT (set up alerts, watch a metric, threshold notifications), STORAGE_BREAKDOWN (storage treemap, disk usage breakdown, largest tables), ACCESS_PATTERNS (who queries which tables, table usage patterns, most queried), COST_ANALYSIS (query cost over time, spending breakdown, how much am I spending), FRESHNESS (data freshness, stale tables, when was a table last updated, outdated tables). Extract a jobId if the user mentions a specific job. Extract a table name if relevant. Extract a dataset name if relevant.`,
       prompt: message,
       schema: MonitoringIntentSchema,
       project,
