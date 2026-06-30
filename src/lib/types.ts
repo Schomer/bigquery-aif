@@ -65,7 +65,14 @@ export type ArtifactType =
   | 'MONITORING_VIEW'
   | 'DISCOVERY_VIEW'
   | 'ALERT_VIEW'
-  | 'MULTISTEP_VIEW';
+  | 'MULTISTEP_VIEW'
+  // Data views
+  | 'LINEAGE_DAG_VIEW'
+  | 'ER_DIAGRAM_VIEW'
+  | 'STORAGE_VIEW'
+  | 'ACCESS_PATTERN_VIEW'
+  | 'COST_ANALYSIS_VIEW'
+  | 'FRESHNESS_VIEW';
 
 export interface CompositionEnvelope {
   id: string; // unique per response, used as sourceResultRef
@@ -291,7 +298,7 @@ export interface MonitoringJob {
 
 export interface MonitoringResult {
   skill: 'monitoring'
-  monitoringType: 'JOB_LIST' | 'JOB_STATUS' | 'ALERT'
+  monitoringType: 'JOB_LIST' | 'JOB_STATUS' | 'ALERT' | 'STORAGE_BREAKDOWN' | 'ACCESS_PATTERNS' | 'COST_ANALYSIS' | 'FRESHNESS'
   timeRange: { start: string; end: string }
   items: MonitoringJob[]
   summary: {
@@ -340,7 +347,7 @@ export interface DiscoverySearchResult {
 
 export interface DiscoveryResult {
   skill: 'discovery'
-  discoveryType: 'SEARCH' | 'COMPARISON' | 'LINEAGE'
+  discoveryType: 'SEARCH' | 'COMPARISON' | 'LINEAGE' | 'ER_DIAGRAM'
   query: string
   results: DiscoverySearchResult[]
   comparison?: {
@@ -354,7 +361,10 @@ export interface DiscoveryResult {
     tableName: string;
     readsFrom: string[];
     writtenBy: string[];
+    nodes?: LineageNode[];
+    edges?: LineageEdge[];
   } | null
+  erDiagram?: ErDiagramData | null
 }
 
 // ─── Table Preview Types ──────────────────────────────────────────────────────
@@ -376,4 +386,116 @@ export interface PreviewResponse {
     rowCount: number;
   };
   profile: PreviewColumn[];
+}
+
+// ─── Lineage DAG types ────────────────────────────────────────────────────────
+
+export interface LineageNode {
+  id: string;         // fully-qualified table ref
+  label: string;      // short name
+  type: 'TABLE' | 'VIEW' | 'EXTERNAL' | 'TARGET';
+  dataset: string;
+  rowCount?: number | null;
+  lastModified?: string | null;
+}
+
+export interface LineageEdge {
+  source: string;     // node id
+  target: string;     // node id
+  jobCount: number;   // how many jobs created this edge
+  lastSeen: string;   // timestamp of most recent job
+  statementTypes: string[];  // INSERT, MERGE, CREATE_TABLE_AS_SELECT, etc.
+}
+
+// ─── ER Diagram types ─────────────────────────────────────────────────────────
+
+export interface ErTableInfo {
+  name: string;
+  columns: Array<{ name: string; type: string; isPk: boolean }>;
+}
+
+export interface ErRelationship {
+  fromTable: string;
+  fromColumns: string[];
+  toTable: string;
+  toColumns: string[];
+  type: 'FOREIGN_KEY' | 'INFERRED';
+}
+
+export interface ErDiagramData {
+  dataset: string;
+  tables: ErTableInfo[];
+  relationships: ErRelationship[];
+}
+
+// ─── Storage Breakdown types ──────────────────────────────────────────────────
+
+export interface StorageItem {
+  ref: string;
+  label: string;
+  sizeBytes: number;
+  rowCount: number;
+  type: 'DATASET' | 'TABLE';
+  children?: StorageItem[];
+}
+
+export interface StorageBreakdownResult {
+  skill: 'monitoring';
+  monitoringType: 'STORAGE_BREAKDOWN';
+  project: string;
+  totalBytes: number;
+  items: StorageItem[];
+}
+
+// ─── Access Pattern types ─────────────────────────────────────────────────────
+
+export interface AccessPatternEntry {
+  tableRef: string;
+  userEmail: string;
+  queryCount: number;
+  totalBytesProcessed: number;
+  lastAccessed: string;
+}
+
+export interface AccessPatternResult {
+  skill: 'monitoring';
+  monitoringType: 'ACCESS_PATTERNS';
+  timeRange: { start: string; end: string };
+  entries: AccessPatternEntry[];
+}
+
+// ─── Cost Analysis types ──────────────────────────────────────────────────────
+
+export interface CostBucket {
+  period: string;
+  user: string;
+  bytesProcessed: number;
+  estimatedCostUsd: number;
+  jobCount: number;
+}
+
+export interface CostAnalysisResult {
+  skill: 'monitoring';
+  monitoringType: 'COST_ANALYSIS';
+  timeRange: { start: string; end: string };
+  totalEstimatedCostUsd: number;
+  buckets: CostBucket[];
+}
+
+// ─── Data Freshness types ─────────────────────────────────────────────────────
+
+export interface FreshnessEntry {
+  tableRef: string;
+  lastModified: string;
+  ageHours: number;
+  rowCount: number;
+  status: 'FRESH' | 'STALE' | 'VERY_STALE';
+}
+
+export interface FreshnessResult {
+  skill: 'monitoring';
+  monitoringType: 'FRESHNESS';
+  dataset: string;
+  entries: FreshnessEntry[];
+  thresholds: { freshHours: number; staleHours: number };
 }

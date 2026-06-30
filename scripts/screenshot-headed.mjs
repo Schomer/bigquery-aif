@@ -18,48 +18,85 @@ const APP_URL = 'https://bigqueryaif.web.app';
 
 const TESTS = [
   { id: '01_dq_profile', prompt: 'profile the order_items table in ecomm', wait: 120000 },
-  { id: '02_dq_nulls_clean', prompt: 'check null rates in the users table in ecomm', wait: 120000 },
-  { id: '03_monitoring_jobs', prompt: 'show my recent BigQuery job history', wait: 120000 },
-  { id: '04_discovery_search', prompt: 'search for tables related to orders in ecomm', wait: 120000 },
-  { id: '05_data_loading', prompt: 'export the users table in ecomm to Google Sheets', wait: 120000 },
+  { id: '02_monitoring_jobs', prompt: 'show my recent BigQuery job history', wait: 120000 },
+  { id: '03_alert_data', prompt: 'alert me if duplicates appear in the order_items table in ecomm', wait: 120000 },
+  { id: '04_alert_project', prompt: 'alert me if my BigQuery costs exceed 100GB per day', wait: 120000 },
+  { id: '05_discovery_search', prompt: 'search for tables related to orders in ecomm', wait: 120000 },
 ];
 
 async function waitForResponse(page, timeoutMs) {
-  // Wait until:
-  // 1. The follow-up textarea placeholder says "Ask a follow-up..." (response done)
-  // 2. OR a "Regenerate" button appears
-  // 3. AND no spinners/status text visible
+  // Strategy: wait until ACTUAL response content appears in the chat.
+  // Response content includes: data tables, cards, headings, insight boxes, or alert views.
+  // We also check that status/progress text has stopped appearing.
   const start = Date.now();
+  let lastStatusText = '';
+  let stableCount = 0;
+
   while (Date.now() - start < timeoutMs) {
-    const done = await page.evaluate(() => {
-      // Check for follow-up textarea (appears after response is complete)
-      const textareas = document.querySelectorAll('textarea');
-      const hasFollowUp = Array.from(textareas).some(
-        ta => ta.placeholder && ta.placeholder.toLowerCase().includes('follow')
-      );
+    const state = await page.evaluate(() => {
+      // Count real content elements that indicate a response has rendered
+      const tables = document.querySelectorAll('table');
+      const hasTable = tables.length > 0;
 
-      // Check for Regenerate button
-      const buttons = document.querySelectorAll('button');
-      const hasRegen = Array.from(buttons).some(
-        btn => btn.textContent && btn.textContent.includes('Regenerate')
+      // Check for response cards/containers (artifact cards, alert views, schema views, etc.)
+      const cards = document.querySelectorAll(
+        '[class*="artifact"], [class*="Artifact"], [class*="card"], [class*="Card"]'
       );
+      const hasCards = cards.length > 0;
 
-      // Check spinners are gone
-      const hasSpinner = document.querySelector(
-        '[class*="spinner"], [class*="Spinner"], [class*="loading"], [class*="Loading"]'
+      // Check for response headings (h2, h3 inside chat area)
+      const headings = document.querySelectorAll('h2, h3');
+      const hasHeadings = headings.length > 0;
+
+      // Check for action chips (pill buttons at bottom of responses)
+      const chips = document.querySelectorAll('button');
+      const actionChips = Array.from(chips).filter(
+        btn => btn.textContent && (
+          btn.textContent.includes('Save as check') ||
+          btn.textContent.includes('Schedule') ||
+          btn.textContent.includes('Fix nulls') ||
+          btn.textContent.includes('Sample') ||
+          btn.textContent.includes('Show most') ||
+          btn.textContent.includes('Diagnose') ||
+          btn.textContent.includes('View schema') ||
+          btn.textContent.includes('Run it now') ||
+          btn.textContent.includes('Show current')
+        )
       );
+      const hasActionChips = actionChips.length > 0;
 
-      // Check status text is gone
-      const statusEls = document.querySelectorAll('[class*="statusText"], [class*="StatusText"], [class*="status-text"]');
-      const hasStatus = Array.from(statusEls).some(
-        el => el.textContent && el.textContent.trim().length > 0
-      );
+      // Get current status/progress text (the animated dots text)
+      const allText = document.body.innerText || '';
+      const statusMatch = allText.match(/(Classifying|Fetching|Running|Analyzing|Reviewing|Querying|Profiling|Checking|Saving|Creating|Matched skill)[^\n]*/i);
+      const statusText = statusMatch ? statusMatch[0] : '';
 
-      return (hasFollowUp || hasRegen) && !hasSpinner && !hasStatus;
+      // Check for the send button being enabled (not disabled) -- indicates input ready
+      const sendBtns = document.querySelectorAll('button[type="submit"], button[aria-label*="send"], button[aria-label*="Send"]');
+      const sendEnabled = Array.from(sendBtns).some(btn => !btn.disabled);
+
+      const hasContent = hasTable || hasCards || hasHeadings || hasActionChips;
+
+      return { hasContent, statusText, sendEnabled, tableCount: tables.length, chipCount: actionChips.length };
     });
 
-    if (done) return true;
-    await page.waitForTimeout(2000);
+    // If we have real content AND no status text is changing, we're done
+    if (state.hasContent && !state.statusText) {
+      stableCount++;
+      if (stableCount >= 2) {
+        return true;
+      }
+    } else if (state.hasContent && state.statusText === lastStatusText) {
+      // Status text stopped changing but content is there -- might be a lingering element
+      stableCount++;
+      if (stableCount >= 3) {
+        return true;
+      }
+    } else {
+      stableCount = 0;
+    }
+
+    lastStatusText = state.statusText;
+    await page.waitForTimeout(3000);
   }
   return false;
 }
@@ -85,7 +122,9 @@ async function main() {
   });
 
   const page = await context.newPage();
-  await page.goto(APP_URL, { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForTimeout(1000);
+  await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.waitForTimeout(3000);
 
   // Wait for the user to sign in
   console.log('Waiting for sign-in (looking for chat textarea)...');
@@ -100,7 +139,74 @@ async function main() {
     process.exit(1);
   }
 
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(3000);
+
+  // Select a project if none is active
+  const needsProject = await page.evaluate(() => {
+    const ta = document.querySelector('textarea');
+    return ta && ta.disabled;
+  });
+
+  if (needsProject) {
+    console.log('No project selected. Selecting project...');
+    // Click the project picker button in the top bar
+    const projectBtn = await page.$('button.gc-env-chip');
+    if (projectBtn) {
+      await projectBtn.click();
+      await page.waitForTimeout(2000);
+
+      // Wait for the dropdown to appear and click the first project
+      const clicked = await page.evaluate(() => {
+        const items = document.querySelectorAll('[role="listbox"] [role="option"], .gc-project-dropdown button, .gc-project-dropdown [role="option"]');
+        for (const item of items) {
+          const text = item.textContent || '';
+          if (text.includes('malloy-data') || text.includes('Malloy')) {
+            item.click();
+            return text.trim();
+          }
+        }
+        // If no specific match, click the first available project
+        if (items.length > 0) {
+          items[0].click();
+          return items[0].textContent?.trim() || 'first item';
+        }
+        return null;
+      });
+
+      if (clicked) {
+        console.log(`  Selected project: ${clicked}`);
+      } else {
+        console.log('  Could not find a project in dropdown. Trying text click...');
+        // Try clicking any element that contains "malloy" text
+        const malloyEl = await page.$('text=malloy-data');
+        if (malloyEl) {
+          await malloyEl.click();
+          console.log('  Clicked malloy-data text element.');
+        }
+      }
+
+      await page.waitForTimeout(3000);
+    }
+
+    // Wait for textarea to become enabled
+    try {
+      await page.waitForFunction(
+        () => {
+          const ta = document.querySelector('textarea');
+          return ta && !ta.disabled;
+        },
+        { timeout: 30000 }
+      );
+      console.log('Project loaded. Textarea enabled.\n');
+    } catch {
+      console.log('WARNING: Textarea still disabled after project selection.\n');
+    }
+  }
+
+  // Take auth state screenshot
+  const authPath = join(SCREENSHOTS_DIR, '00_auth_state.png');
+  await page.screenshot({ path: authPath, fullPage: false, type: 'png' });
+  console.log(`Auth state saved: ${authPath}\n`);
 
   // Run each test on the same page
   for (let i = 0; i < TESTS.length; i++) {
@@ -110,28 +216,50 @@ async function main() {
     try {
       // For tests after the first, click "+ New" to start fresh
       if (i > 0) {
-        // Click the "+ New" button in the sidebar
         const newBtn = await page.$('text=New');
         if (newBtn) {
           await newBtn.click();
-          await page.waitForTimeout(2000);
+          await page.waitForTimeout(3000);
           console.log('  Started new conversation.');
         } else {
-          // Fallback: navigate directly
           await page.goto(APP_URL, { waitUntil: 'networkidle', timeout: 20000 });
           await page.waitForTimeout(3000);
         }
       }
 
-      // Find and fill textarea
-      const ta = await page.waitForSelector('textarea', { timeout: 30000 });
+      // Wait for textarea to be enabled (project must be loaded)
+      await page.waitForFunction(
+        () => {
+          const ta = document.querySelector('textarea');
+          return ta && !ta.disabled;
+        },
+        { timeout: 60000 }
+      );
+      console.log('  Textarea enabled (project loaded).');
+
+      const ta = await page.$('textarea');
       if (!ta) {
         console.log('  No textarea found, skipping');
         continue;
       }
 
-      await ta.click();
-      await ta.fill(test.prompt);
+      // Use evaluate to set value and trigger React state update
+      await page.evaluate((prompt) => {
+        const ta = document.querySelector('textarea');
+        if (!ta) return;
+        // Set value via native setter to trigger React's onChange
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+          window.HTMLTextAreaElement.prototype, 'value'
+        ).set;
+        nativeInputValueSetter.call(ta, prompt);
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+        ta.dispatchEvent(new Event('change', { bubbles: true }));
+      }, test.prompt);
+
+      await page.waitForTimeout(500);
+
+      // Submit via Enter key
+      await ta.focus();
       await page.keyboard.press('Enter');
       console.log('  Prompt submitted, waiting for response...');
 
@@ -143,8 +271,15 @@ async function main() {
         console.log('  Response timeout -- capturing current state.');
       }
 
-      // Extra time for animations
-      await page.waitForTimeout(3000);
+      // Extra settle time for animations/rendering
+      await page.waitForTimeout(4000);
+
+      // Scroll to bottom of chat to capture the full response
+      await page.evaluate(() => {
+        const chatArea = document.querySelector('[class*="chatMessages"], [class*="ChatMessages"], main, [role="main"]');
+        if (chatArea) chatArea.scrollTop = chatArea.scrollHeight;
+      });
+      await page.waitForTimeout(1000);
 
       // Take screenshot
       const path = join(SCREENSHOTS_DIR, `${test.id}.png`);
@@ -161,8 +296,8 @@ async function main() {
       } catch {}
     }
 
-    // Brief pause between tests
-    await new Promise(r => setTimeout(r, 2000));
+    // Pause between tests
+    await new Promise(r => setTimeout(r, 3000));
   }
 
   await browser.close();
@@ -173,4 +308,3 @@ main().catch(err => {
   console.error('Fatal:', err);
   process.exit(1);
 });
-

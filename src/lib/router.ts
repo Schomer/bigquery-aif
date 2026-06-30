@@ -139,6 +139,13 @@ const DISCOVERY_SIGNALS: Array<{ phrase: string; weight: number }> = [
   { phrase: 'where does this come from', weight: 3 },
   { phrase: 'what depends on', weight: 3 },
   { phrase: 'related to', weight: 2 },
+  { phrase: 'er diagram', weight: 3 },
+  { phrase: 'entity relationship', weight: 3 },
+  { phrase: 'table relationships', weight: 3 },
+  { phrase: 'how are tables related', weight: 3 },
+  { phrase: 'relationships between', weight: 3 },
+  { phrase: 'foreign keys in', weight: 3 },
+  { phrase: 'show relationships', weight: 3 },
 ];
 
 const MONITORING_SIGNALS: Array<{ phrase: string; weight: number }> = [
@@ -180,6 +187,26 @@ const MONITORING_SIGNALS: Array<{ phrase: string; weight: number }> = [
   { phrase: 'notify', weight: 2 },
   { phrase: 'notification', weight: 2 },
   { phrase: 'watch', weight: 2 },
+  { phrase: 'storage breakdown', weight: 3 },
+  { phrase: 'disk usage', weight: 3 },
+  { phrase: 'largest tables', weight: 3 },
+  { phrase: 'storage treemap', weight: 3 },
+  { phrase: 'which tables are largest', weight: 3 },
+  { phrase: 'access patterns', weight: 3 },
+  { phrase: 'who uses', weight: 3 },
+  { phrase: 'most queried', weight: 3 },
+  { phrase: 'who queries', weight: 3 },
+  { phrase: 'table usage', weight: 3 },
+  { phrase: 'cost analysis', weight: 3 },
+  { phrase: 'how much am i spending', weight: 3 },
+  { phrase: 'query costs over time', weight: 3 },
+  { phrase: 'cost breakdown', weight: 3 },
+  { phrase: 'spending', weight: 2 },
+  { phrase: 'freshness', weight: 3 },
+  { phrase: 'stale tables', weight: 3 },
+  { phrase: 'when was table last updated', weight: 3 },
+  { phrase: 'data freshness', weight: 3 },
+  { phrase: 'outdated tables', weight: 3 },
 ];
 
 const DATA_LOADING_SIGNALS: Array<{ phrase: string; weight: number }> = [
