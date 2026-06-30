@@ -208,6 +208,38 @@ export function StorageBreakdownView({ result, onSendMessage }: Props) {
     setTooltip(null);
   }
 
+  // Empty state: no data found
+  if (items.length === 0) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', gap: 12, padding: '40px 24px',
+        background: 'var(--surface-2)', borderRadius: 8,
+        border: '1px solid var(--border)', minHeight: 200,
+      }}>
+        <span style={{ fontSize: 14, color: 'var(--text)', fontWeight: 500 }}>
+          No storage data found for project &lsquo;{project}&rsquo;
+        </span>
+        <span style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', maxWidth: 400 }}>
+          This can happen if the project has no datasets, or if your account does not have
+          permission to view storage metadata. Try &ldquo;list my datasets&rdquo; to confirm access.
+        </span>
+        {onSendMessage && (
+          <button
+            onClick={() => onSendMessage('list my datasets')}
+            style={{
+              marginTop: 8, padding: '6px 16px', fontSize: 12, fontWeight: 500,
+              background: 'var(--accent)', color: '#fff', border: 'none',
+              borderRadius: 6, cursor: 'pointer',
+            }}
+          >
+            List datasets
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Summary bar */}
