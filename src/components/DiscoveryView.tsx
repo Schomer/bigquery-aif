@@ -29,9 +29,43 @@ export function DiscoveryView({ result, onSendMessage }: Props) {
 function SearchView({ result, onSendMessage }: { result: DiscoveryResult; onSendMessage: (msg: string) => void }) {
   if (result.results.length === 0) {
     return (
-      <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, padding: '8px 0' }}>
-        No tables found matching your query
-      </p>
+      <div style={{ padding: '8px 0' }}>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 12px' }}>
+          No tables found matching &quot;{result.query}&quot;
+        </p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            onClick={() => onSendMessage(`show me the schema for ${result.query}`)}
+            style={{
+              padding: '6px 14px', borderRadius: 18,
+              border: '1px solid var(--accent, #4285f4)', background: 'transparent',
+              color: 'var(--accent, #4285f4)', fontSize: 13, cursor: 'pointer',
+            }}
+          >
+            Try as schema lookup
+          </button>
+          <button
+            onClick={() => onSendMessage('list my datasets')}
+            style={{
+              padding: '6px 14px', borderRadius: 18,
+              border: '1px solid var(--accent, #4285f4)', background: 'transparent',
+              color: 'var(--accent, #4285f4)', fontSize: 13, cursor: 'pointer',
+            }}
+          >
+            List datasets
+          </button>
+          <button
+            onClick={() => onSendMessage(`profile the ${result.query} table`)}
+            style={{
+              padding: '6px 14px', borderRadius: 18,
+              border: '1px solid var(--accent, #4285f4)', background: 'transparent',
+              color: 'var(--accent, #4285f4)', fontSize: 13, cursor: 'pointer',
+            }}
+          >
+            Profile {result.query}
+          </button>
+        </div>
+      </div>
     );
   }
 

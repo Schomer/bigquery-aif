@@ -176,9 +176,27 @@ function composeQuery(result: QueryResult): CompositionEnvelope {
   }
 
   // Normal result
-  const tone: Tone = 'NEUTRAL';
-  const basis: HeadlineBasis = 'STATUS';
-  const headlineText = (result as any).resultSummary || buildQueryHeadline(result.rowCount, result.sql);
+  let tone: Tone = 'NEUTRAL';
+  let basis: HeadlineBasis = 'STATUS';
+  let headlineText = '';
+
+  // Prefer LLM-generated summary (direct answer pattern)
+  if ((result as any).resultSummary) {
+    headlineText = (result as any).resultSummary;
+    basis = 'DIRECT_ANSWER';
+  } else {
+    headlineText = buildQueryHeadline(result.rowCount, result.sql);
+  }
+
+  // Set tone based on result characteristics
+  if (result.rowCount === 0) {
+    tone = 'ATTENTION';
+    basis = 'STATUS';
+  } else if (result.notableFindings) {
+    tone = 'ATTENTION';
+    basis = 'DEVIATION';
+  }
+
   const insight = result.notableFindings ?? null;
 
   const artifactType = vizTypeToArtifactType(result.suggestedVisualization);
