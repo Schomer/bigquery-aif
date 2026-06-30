@@ -888,9 +888,8 @@ async function handleSchema(
 
   // Enriched listing: when the user asks for more than a basic list,
   // try a fast-path first (direct SQL), then fall back to Gemini for unusual requests.
-  // Skip enrichment for project-scope (dataset listing) -- fetchProjectSchema already
-  // includes table counts and all metadata the user needs, so SQL is unnecessary.
-  if (!table && resolvedDataset && ENRICHMENT_PATTERNS.some((p) => p.test(message))) {
+  // This applies to both project-scope (datasets with sizes/rows) and dataset-scope.
+  if (!table && ENRICHMENT_PATTERNS.some((p) => p.test(message))) {
     // Fast-path: generate SQL directly for common enrichment patterns
     const bqRegion = await detectBqRegion(project);
     const fastResult = tryFastEnrichment(message, project, resolvedDataset, bqRegion);
