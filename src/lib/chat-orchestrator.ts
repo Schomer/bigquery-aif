@@ -6,7 +6,7 @@ import { classifyIntent, resolveReferences } from './router';
 import { fetchSchema } from './skills/schema';
 import { compose } from './composer';
 import { dryRun, executeQuery, executeDml, exportToSheets, createScheduledQuery } from './bigquery-client';
-import { saveQuery as firestoreSaveQuery } from './firestore-service';
+import { saveQuery as firestoreSaveQuery, saveCheck } from './firestore-service';
 import type {
   ChatMessage,
   CompositionEnvelope,
@@ -19,6 +19,7 @@ import type {
   DiscoveryResult,
   DiscoverySearchResult,
   DataLoadingResult,
+  SavedCheck,
   SkillName,
   QueryResult,
 } from './types';
@@ -1582,11 +1583,110 @@ async function executeConfirmedOperation(
 
 async function handleMonitoring(
   message: string,
-  context?: { project?: string; handoffContext?: Record<string, unknown> },
+  context?: { project?: string; uid?: string; handoffContext?: Record<string, unknown> },
   onStatus?: (status: string) => void
 ): Promise<CompositionEnvelope[]> {
   const project = context?.project || '';
+  const uid = context?.uid;
   const hc = context?.handoffContext;
+
+  // --- Handle save_check / schedule_check actions from alert chips ---
+  if (hc?.action === 'save_check' && hc?.checkSql && uid) {
+    const checkId = `chk_${Date.now()}`;
+    const check: SavedCheck = {
+      id: checkId,
+      createdAt: new Date().toISOString(),
+      label: `dq_check: ${String(hc.conditionDescription || 'Unnamed check')}`,
+      sql: String(hc.checkSql),
+      conditionDescription: String(hc.conditionDescription || ''),
+      tier: 'TIER_0',
+    };
+    onStatus?.('Saving check...');
+    try {
+      await saveCheck(uid, check);
+      const result: AlertResult = {
+        skill: 'monitoring',
+        monitoringType: 'ALERT',
+        alertCategory: (hc.alertCategory as AlertResult['alertCategory']) || 'DATA_CONDITION',
+        conditionDescription: `Check saved: ${check.label}`,
+        savedCheckId: checkId,
+        tier: 'TIER_0',
+        guidance: `Saved as a reusable check (Tier 0). You can find it in your saved prompts and re-run it anytime.\n\nCheck ID: ${checkId}`,
+        nextActions: [
+          { label: 'Run it now', action: String(hc.checkSql) },
+          { label: 'Schedule with email alert', action: 'schedule_check' },
+        ],
+      };
+      return [compose('monitoring', result)];
+    } catch (err) {
+      const result: AlertResult = {
+        skill: 'monitoring',
+        monitoringType: 'ALERT',
+        alertCategory: 'DATA_CONDITION',
+        conditionDescription: 'Failed to save check',
+        guidance: `Could not save the check: ${err instanceof Error ? err.message : String(err)}`,
+      };
+      return [compose('monitoring', result)];
+    }
+  }
+
+  if (hc?.action === 'schedule_check' && hc?.checkSql) {
+    const label = String(hc.conditionDescription || 'Scheduled check');
+    const conditionSql = String(hc.checkSql);
+    // Wrap in IF/ERROR pattern for failure-email alerting
+    const wrappedSql = `DECLARE violation_count INT64;\nSET violation_count = (${conditionSql});\nIF violation_count > 0 THEN\n  SELECT ERROR(CONCAT('Alert: ', '${label.replace(/'/g, "''")}', ' -- ', CAST(violation_count AS STRING), ' violations found'));\nEND IF;`;
+    const schedule = 'every 24 hours';
+    onStatus?.('Creating scheduled check with failure email...');
+    try {
+      const { transferConfigName } = await createScheduledQuery(
+        project,
+        `Alert: ${label}`,
+        wrappedSql,
+        schedule,
+        true, // enableFailureEmail
+      );
+      const checkId = `chk_${Date.now()}`;
+      if (uid) {
+        const check: SavedCheck = {
+          id: checkId,
+          createdAt: new Date().toISOString(),
+          label: `dq_check: ${label}`,
+          sql: conditionSql,
+          conditionDescription: label,
+          tier: 'TIER_1',
+          schedule,
+          transferConfigName,
+        };
+        await saveCheck(uid, check);
+      }
+      const result: AlertResult = {
+        skill: 'monitoring',
+        monitoringType: 'ALERT',
+        alertCategory: (hc.alertCategory as AlertResult['alertCategory']) || 'DATA_CONDITION',
+        conditionDescription: `Scheduled alert: ${label}`,
+        savedCheckId: checkId,
+        tier: 'TIER_1',
+        guidance: `Scheduled check created (Tier 1). It will run ${schedule} and send an email notification when the condition is violated.\n\nTransfer config: ${transferConfigName}`,
+        nextActions: [
+          { label: 'Run it now', action: conditionSql },
+          { label: 'Show job history', action: 'show my recent BigQuery job history' },
+        ],
+      };
+      return [compose('monitoring', result)];
+    } catch (err) {
+      const result: AlertResult = {
+        skill: 'monitoring',
+        monitoringType: 'ALERT',
+        alertCategory: 'DATA_CONDITION',
+        conditionDescription: 'Failed to create scheduled check',
+        guidance: `Could not create the scheduled check: ${err instanceof Error ? err.message : String(err)}\n\nYou may need to ensure the BigQuery Data Transfer API is enabled for project ${project}.`,
+        nextActions: [
+          { label: 'Save as check instead', action: 'save_check' },
+        ],
+      };
+      return [compose('monitoring', result)];
+    }
+  }
 
   // If handoff context carries a pre-classified monitoring type, skip LLM
   let monitoringType: string;

@@ -390,7 +390,12 @@ function composeAlert(result: AlertResult): CompositionEnvelope {
       nextActions.push({
         targetSkill: 'monitoring',
         label: na.label,
-        context: { action: na.action },
+        context: {
+          action: na.action,
+          checkSql: result.checkSql,
+          conditionDescription: result.conditionDescription,
+          alertCategory: result.alertCategory,
+        },
         sourceSkill: 'monitoring',
         sourceResultRef: id,
       });
