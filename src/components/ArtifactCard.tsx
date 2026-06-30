@@ -14,6 +14,12 @@ import { MonitoringView } from './MonitoringView';
 import AlertView from './AlertView';
 import { DataLoadingView } from './DataLoadingView';
 import { MultistepView } from './MultistepView';
+import { LineageDagView } from './LineageDagView';
+import { ErDiagramView } from './ErDiagramView';
+import { StorageBreakdownView } from './StorageBreakdownView';
+import { AccessPatternView } from './AccessPatternView';
+import { CostAnalysisView } from './CostAnalysisView';
+import { FreshnessView } from './FreshnessView';
 import { useState } from 'react';
 
 interface Props {
@@ -298,6 +304,21 @@ function Artifact({
       return <DataLoadingView result={data as import('@/lib/types').DataLoadingResult} />;
     case 'MULTISTEP_VIEW':
       return <MultistepView envelope={envelope} onSendMessage={onSendMessage} />;
+    case 'LINEAGE_DAG_VIEW':
+      return <LineageDagView result={data as import('@/lib/types').DiscoveryResult} onSendMessage={onSendMessage} />;
+    case 'ER_DIAGRAM_VIEW': {
+      const erData = (data as import('@/lib/types').DiscoveryResult).erDiagram;
+      if (!erData) return <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No ER diagram data available</p>;
+      return <ErDiagramView data={erData} onSendMessage={onSendMessage} />;
+    }
+    case 'STORAGE_VIEW':
+      return <StorageBreakdownView result={data as import('@/lib/types').StorageBreakdownResult} onSendMessage={onSendMessage} />;
+    case 'ACCESS_PATTERN_VIEW':
+      return <AccessPatternView result={data as import('@/lib/types').AccessPatternResult} onSendMessage={onSendMessage} />;
+    case 'COST_ANALYSIS_VIEW':
+      return <CostAnalysisView result={data as import('@/lib/types').CostAnalysisResult} onSendMessage={onSendMessage} />;
+    case 'FRESHNESS_VIEW':
+      return <FreshnessView result={data as import('@/lib/types').FreshnessResult} onSendMessage={onSendMessage} />;
     default:
       return (
         <pre style={{ fontSize: 11, color: 'var(--text-muted)', overflowX: 'auto' }}>

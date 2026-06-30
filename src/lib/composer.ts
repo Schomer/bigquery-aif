@@ -22,6 +22,10 @@ import type {
   DiscoveryResult,
   DataQualityResult,
   DataLoadingResult,
+  StorageBreakdownResult,
+  AccessPatternResult,
+  CostAnalysisResult,
+  FreshnessResult,
   Tone,
   HeadlineBasis,
   ArtifactType,
@@ -33,7 +37,7 @@ import type {
 
 export function compose(
   skill: SkillName,
-  result: SchemaResult | QueryResult | DataManagementResult | MonitoringResult | AlertResult | DiscoveryResult | DataQualityResult | DataLoadingResult
+  result: SchemaResult | QueryResult | DataManagementResult | MonitoringResult | AlertResult | DiscoveryResult | DataQualityResult | DataLoadingResult | StorageBreakdownResult | AccessPatternResult | CostAnalysisResult | FreshnessResult
 ): CompositionEnvelope {
   switch (skill) {
     case 'schema':
@@ -43,8 +47,15 @@ export function compose(
     case 'data-management':
       return composeDataManagement(result as DataManagementResult);
     case 'monitoring': {
-      const monRes = result as MonitoringResult | AlertResult;
+      const monRes = result as MonitoringResult | AlertResult | StorageBreakdownResult | AccessPatternResult | CostAnalysisResult | FreshnessResult;
       if ('alertCategory' in monRes) return composeAlert(monRes as AlertResult);
+      if ('monitoringType' in monRes) {
+        const mt = (monRes as { monitoringType: string }).monitoringType;
+        if (mt === 'STORAGE_BREAKDOWN') return composeStorageBreakdown(monRes as StorageBreakdownResult);
+        if (mt === 'ACCESS_PATTERNS') return composeAccessPatterns(monRes as AccessPatternResult);
+        if (mt === 'COST_ANALYSIS') return composeCostAnalysis(monRes as CostAnalysisResult);
+        if (mt === 'FRESHNESS') return composeFreshness(monRes as FreshnessResult);
+      }
       return composeMonitoring(monRes as MonitoringResult);
     }
     case 'discovery':
@@ -429,6 +440,14 @@ function composeDiscovery(result: DiscoveryResult): CompositionEnvelope {
     } else {
       headlineText = `Lineage for \`${lin.tableName}\`: ${lin.readsFrom.length} upstream, ${lin.writtenBy.length} downstream`;
     }
+  } else if (result.discoveryType === 'ER_DIAGRAM') {
+    const er = result.erDiagram;
+    if (!er || er.tables.length === 0) {
+      headlineText = 'No tables found for ER diagram';
+    } else {
+      const relCount = er.relationships.length;
+      headlineText = `${er.tables.length} tables in \`${er.dataset}\`${relCount > 0 ? `, ${relCount} relationship${relCount !== 1 ? 's' : ''}` : ''}`;
+    }
   } else if (result.discoveryType === 'COMPARISON') {
     const cmp = result.comparison;
     if (!cmp) {
@@ -502,13 +521,104 @@ function composeDiscovery(result: DiscoveryResult): CompositionEnvelope {
     }
   }
 
+  // Choose artifact type based on discovery subtype
+  let artifactType: ArtifactType = 'DISCOVERY_VIEW';
+  if (result.discoveryType === 'LINEAGE') artifactType = 'LINEAGE_DAG_VIEW';
+  if (result.discoveryType === 'ER_DIAGRAM') artifactType = 'ER_DIAGRAM_VIEW';
+
   return {
     id,
     skill: 'discovery',
     headline: { text: headlineText, tone, basis },
-    primaryArtifact: { type: 'DISCOVERY_VIEW', data: result },
+    primaryArtifact: { type: artifactType, data: result },
     provenance: { visibility: 'COLLAPSED' },
     nextActions,
+  };
+}
+// ─── Storage Breakdown composition ────────────────────────────────────────────
+
+function composeStorageBreakdown(result: StorageBreakdownResult): CompositionEnvelope {
+  const id = randomUUID();
+  const dsCount = result.items.length;
+  const headlineText = `Storage breakdown for ${result.project}: ${formatBytes(result.totalBytes)} across ${dsCount} dataset${dsCount !== 1 ? 's' : ''}`;
+
+  return {
+    id,
+    skill: 'monitoring',
+    headline: { text: headlineText, tone: 'NEUTRAL', basis: 'STATUS' },
+    primaryArtifact: { type: 'STORAGE_VIEW', data: result },
+    provenance: { visibility: 'COLLAPSED' },
+    nextActions: [
+      { targetSkill: 'monitoring', label: 'Data freshness', context: { monitoringHint: 'FRESHNESS' }, sourceSkill: 'monitoring', sourceResultRef: id },
+      { targetSkill: 'monitoring', label: 'Cost analysis', context: { monitoringHint: 'COST_ANALYSIS' }, sourceSkill: 'monitoring', sourceResultRef: id },
+    ],
+  };
+}
+
+// ─── Access Patterns composition ──────────────────────────────────────────────
+
+function composeAccessPatterns(result: AccessPatternResult): CompositionEnvelope {
+  const id = randomUUID();
+  const uniqueTables = new Set(result.entries.map(e => e.tableRef)).size;
+  const uniqueUsers = new Set(result.entries.map(e => e.userEmail)).size;
+  const headlineText = `Access patterns: ${uniqueUsers} user${uniqueUsers !== 1 ? 's' : ''} across ${uniqueTables} table${uniqueTables !== 1 ? 's' : ''} (last 30 days)`;
+
+  return {
+    id,
+    skill: 'monitoring',
+    headline: { text: headlineText, tone: 'NEUTRAL', basis: 'STATUS' },
+    primaryArtifact: { type: 'ACCESS_PATTERN_VIEW', data: result },
+    provenance: { visibility: 'COLLAPSED' },
+    nextActions: [
+      { targetSkill: 'monitoring', label: 'Cost analysis', context: { monitoringHint: 'COST_ANALYSIS' }, sourceSkill: 'monitoring', sourceResultRef: id },
+      { targetSkill: 'monitoring', label: 'Storage breakdown', context: { monitoringHint: 'STORAGE_BREAKDOWN' }, sourceSkill: 'monitoring', sourceResultRef: id },
+    ],
+  };
+}
+
+// ─── Cost Analysis composition ────────────────────────────────────────────────
+
+function composeCostAnalysis(result: CostAnalysisResult): CompositionEnvelope {
+  const id = randomUUID();
+  const costStr = `$${result.totalEstimatedCostUsd.toFixed(2)}`;
+  const tone: Tone = result.totalEstimatedCostUsd > 10 ? 'ATTENTION' : 'NEUTRAL';
+  const headlineText = `Estimated query cost: ${costStr} over the last 30 days`;
+
+  return {
+    id,
+    skill: 'monitoring',
+    headline: { text: headlineText, tone, basis: 'STATUS' },
+    primaryArtifact: { type: 'COST_ANALYSIS_VIEW', data: result },
+    provenance: { visibility: 'COLLAPSED' },
+    nextActions: [
+      { targetSkill: 'monitoring', label: 'Access patterns', context: { monitoringHint: 'ACCESS_PATTERNS' }, sourceSkill: 'monitoring', sourceResultRef: id },
+      { targetSkill: 'monitoring', label: 'Job history', context: { monitoringHint: 'JOB_LIST' }, sourceSkill: 'monitoring', sourceResultRef: id },
+    ],
+  };
+}
+
+// ─── Freshness composition ────────────────────────────────────────────────────
+
+function composeFreshness(result: FreshnessResult): CompositionEnvelope {
+  const id = randomUUID();
+  const staleCount = result.entries.filter(e => e.status === 'STALE').length;
+  const veryStaleCount = result.entries.filter(e => e.status === 'VERY_STALE').length;
+  const issueCount = staleCount + veryStaleCount;
+  const tone: Tone = veryStaleCount > 0 ? 'ATTENTION' : issueCount > 0 ? 'NEUTRAL' : 'POSITIVE';
+  const headlineText = issueCount > 0
+    ? `${result.entries.length} tables in ${result.dataset}: ${issueCount} stale (${veryStaleCount} critical)`
+    : `All ${result.entries.length} tables in ${result.dataset} are fresh`;
+
+  return {
+    id,
+    skill: 'monitoring',
+    headline: { text: headlineText, tone, basis: 'STATUS' },
+    primaryArtifact: { type: 'FRESHNESS_VIEW', data: result },
+    provenance: { visibility: 'COLLAPSED' },
+    nextActions: [
+      { targetSkill: 'monitoring', label: 'Storage breakdown', context: { monitoringHint: 'STORAGE_BREAKDOWN' }, sourceSkill: 'monitoring', sourceResultRef: id },
+      { targetSkill: 'monitoring', label: 'Access patterns', context: { monitoringHint: 'ACCESS_PATTERNS' }, sourceSkill: 'monitoring', sourceResultRef: id },
+    ],
   };
 }
 

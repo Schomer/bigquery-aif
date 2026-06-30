@@ -1941,6 +1941,177 @@ async function handleMonitoring(
     return s;
   }
 
+  // STORAGE_BREAKDOWN -- hierarchical treemap of storage by dataset and table
+  if (monitoringType === 'STORAGE_BREAKDOWN') {
+    const storageSql = `SELECT table_schema, table_name, total_rows, total_logical_bytes FROM \`region-us\`.INFORMATION_SCHEMA.TABLE_STORAGE WHERE project_id = '${project}' ORDER BY total_logical_bytes DESC LIMIT 200`;
+    onStatus?.(`Fetching storage breakdown for project ${project}...`);
+    try {
+      const executed = await executeQuery(storageSql, project);
+      const datasetMap = new Map<string, { sizeBytes: number; rowCount: number; tables: Array<{ ref: string; label: string; sizeBytes: number; rowCount: number }> }>();
+      for (const row of executed.rows) {
+        const ds = String(row[0] ?? '');
+        const tbl = String(row[1] ?? '');
+        const rows = Number(row[2] ?? 0);
+        const bytes = Number(row[3] ?? 0);
+        if (!datasetMap.has(ds)) datasetMap.set(ds, { sizeBytes: 0, rowCount: 0, tables: [] });
+        const entry = datasetMap.get(ds)!;
+        entry.sizeBytes += bytes;
+        entry.rowCount += rows;
+        entry.tables.push({ ref: `${project}.${ds}.${tbl}`, label: tbl, sizeBytes: bytes, rowCount: rows });
+      }
+      const items: import('./types').StorageItem[] = Array.from(datasetMap.entries()).map(([ds, data]) => ({
+        ref: `${project}.${ds}`,
+        label: ds,
+        sizeBytes: data.sizeBytes,
+        rowCount: data.rowCount,
+        type: 'DATASET' as const,
+        children: data.tables.map(t => ({ ref: t.ref, label: t.label, sizeBytes: t.sizeBytes, rowCount: t.rowCount, type: 'TABLE' as const })),
+      })).sort((a, b) => b.sizeBytes - a.sizeBytes);
+      const result: import('./types').StorageBreakdownResult = {
+        skill: 'monitoring',
+        monitoringType: 'STORAGE_BREAKDOWN',
+        project,
+        totalBytes: items.reduce((acc, i) => acc + i.sizeBytes, 0),
+        items,
+      };
+      return [compose('monitoring', result as unknown as MonitoringResult)];
+    } catch {
+      const result: MonitoringResult = {
+        skill: 'monitoring', monitoringType: 'STORAGE_BREAKDOWN',
+        timeRange: { start: new Date().toISOString(), end: new Date().toISOString() },
+        items: [], summary: { totalJobs: 0, totalBytesProcessed: 0, errorCount: 0 },
+      };
+      return [compose('monitoring', result)];
+    }
+  }
+
+  // ACCESS_PATTERNS -- who queries which tables
+  if (monitoringType === 'ACCESS_PATTERNS') {
+    const accessSql = `SELECT user_email, referenced_tables, COUNT(*) AS query_count, SUM(total_bytes_processed) AS total_bytes, MAX(creation_time) AS last_accessed FROM \`region-us\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) AND statement_type = 'SELECT' AND referenced_tables IS NOT NULL GROUP BY user_email, referenced_tables ORDER BY query_count DESC LIMIT 200`;
+    onStatus?.(`Analyzing access patterns for project ${project}...`);
+    try {
+      const executed = await executeQuery(accessSql, project);
+      const entries: import('./types').AccessPatternEntry[] = [];
+      for (const row of executed.rows) {
+        const email = String(row[0] ?? '');
+        const refsRaw = row[1];
+        const qCount = Number(row[2] ?? 0);
+        const totalBytes = Number(row[3] ?? 0);
+        const lastAccessed = String(row[4] ?? '');
+        let tables: string[] = [];
+        try {
+          const parsed = typeof refsRaw === 'string' ? JSON.parse(refsRaw) : refsRaw;
+          if (Array.isArray(parsed)) {
+            tables = parsed.map((t: { projectId?: string; datasetId?: string; tableId?: string }) =>
+              [t.projectId, t.datasetId, t.tableId].filter(Boolean).join('.')
+            );
+          }
+        } catch { /* non-fatal */ }
+        for (const tableRef of tables) {
+          entries.push({ tableRef, userEmail: email, queryCount: qCount, totalBytesProcessed: totalBytes, lastAccessed });
+        }
+      }
+      const now = new Date();
+      const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const result: import('./types').AccessPatternResult = {
+        skill: 'monitoring',
+        monitoringType: 'ACCESS_PATTERNS',
+        timeRange: { start: start.toISOString(), end: now.toISOString() },
+        entries,
+      };
+      return [compose('monitoring', result as unknown as MonitoringResult)];
+    } catch {
+      const now = new Date();
+      const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const result: import('./types').AccessPatternResult = {
+        skill: 'monitoring', monitoringType: 'ACCESS_PATTERNS',
+        timeRange: { start: start.toISOString(), end: now.toISOString() }, entries: [],
+      };
+      return [compose('monitoring', result as unknown as MonitoringResult)];
+    }
+  }
+
+  // COST_ANALYSIS -- query costs over time by user
+  if (monitoringType === 'COST_ANALYSIS') {
+    const costSql = `SELECT DATE(creation_time) AS period, user_email, SUM(total_bytes_processed) AS total_bytes, COUNT(*) AS job_count FROM \`region-us\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) AND total_bytes_processed > 0 GROUP BY period, user_email ORDER BY period DESC, total_bytes DESC LIMIT 500`;
+    onStatus?.(`Analyzing query costs for project ${project}...`);
+    try {
+      const executed = await executeQuery(costSql, project);
+      const costPerTb = 6.25; // BigQuery on-demand pricing per TB
+      const buckets: import('./types').CostBucket[] = executed.rows.map(row => {
+        const bytes = Number(row[2] ?? 0);
+        return {
+          period: String(row[0] ?? ''),
+          user: String(row[1] ?? ''),
+          bytesProcessed: bytes,
+          estimatedCostUsd: (bytes / 1e12) * costPerTb,
+          jobCount: Number(row[3] ?? 0),
+        };
+      });
+      const totalCost = buckets.reduce((acc, b) => acc + b.estimatedCostUsd, 0);
+      const now = new Date();
+      const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const result: import('./types').CostAnalysisResult = {
+        skill: 'monitoring',
+        monitoringType: 'COST_ANALYSIS',
+        timeRange: { start: start.toISOString(), end: now.toISOString() },
+        totalEstimatedCostUsd: totalCost,
+        buckets,
+      };
+      return [compose('monitoring', result as unknown as MonitoringResult)];
+    } catch {
+      const now = new Date();
+      const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const result: import('./types').CostAnalysisResult = {
+        skill: 'monitoring', monitoringType: 'COST_ANALYSIS',
+        timeRange: { start: start.toISOString(), end: now.toISOString() },
+        totalEstimatedCostUsd: 0, buckets: [],
+      };
+      return [compose('monitoring', result as unknown as MonitoringResult)];
+    }
+  }
+
+  // FRESHNESS -- data freshness by table in a dataset
+  if (monitoringType === 'FRESHNESS') {
+    const dataset = (hc?.dataset as string) || '';
+    const freshnessSql = dataset
+      ? `SELECT table_schema, table_name, TIMESTAMP_MILLIS(last_modified_time) AS last_modified, total_rows FROM \`${project}.${dataset}\`.INFORMATION_SCHEMA.TABLES ORDER BY last_modified_time ASC LIMIT 100`
+      : `SELECT table_schema, table_name, TIMESTAMP_MILLIS(last_modified_time) AS last_modified, total_rows FROM \`region-us\`.INFORMATION_SCHEMA.TABLE_STORAGE WHERE project_id = '${project}' ORDER BY last_modified_time ASC LIMIT 100`;
+    onStatus?.(`Checking data freshness${dataset ? ` for ${dataset}` : ''}...`);
+    try {
+      const executed = await executeQuery(freshnessSql, project);
+      const now = Date.now();
+      const freshHours = 24;
+      const staleHours = 72;
+      const entries: import('./types').FreshnessEntry[] = executed.rows.map(row => {
+        const ds = String(row[0] ?? '');
+        const tbl = String(row[1] ?? '');
+        const lastMod = String(row[2] ?? '');
+        const rowCount = Number(row[3] ?? 0);
+        const modTime = new Date(lastMod).getTime();
+        const ageHours = Math.max(0, (now - modTime) / (1000 * 60 * 60));
+        const status: import('./types').FreshnessEntry['status'] =
+          ageHours <= freshHours ? 'FRESH' : ageHours <= staleHours ? 'STALE' : 'VERY_STALE';
+        return { tableRef: `${project}.${ds}.${tbl}`, lastModified: lastMod, ageHours, rowCount, status };
+      });
+      const result: import('./types').FreshnessResult = {
+        skill: 'monitoring',
+        monitoringType: 'FRESHNESS',
+        dataset: dataset || project,
+        entries,
+        thresholds: { freshHours, staleHours },
+      };
+      return [compose('monitoring', result as unknown as MonitoringResult)];
+    } catch {
+      const result: import('./types').FreshnessResult = {
+        skill: 'monitoring', monitoringType: 'FRESHNESS',
+        dataset: dataset || project, entries: [],
+        thresholds: { freshHours: 24, staleHours: 72 },
+      };
+      return [compose('monitoring', result as unknown as MonitoringResult)];
+    }
+  }
+
   // JOBS (default) — existing INFORMATION_SCHEMA.JOBS query
   const sql = `SELECT job_id, user_email, statement_type, state, creation_time, total_bytes_processed, error_result, referenced_tables FROM \`region-us\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR) ORDER BY creation_time DESC LIMIT 50`;
 
@@ -2748,7 +2919,7 @@ async function handleDiscovery(
     onStatus?.(`Running ${intent.discoveryType} (from handoff)...`);
   } else {
     intent = await callGemini({
-      systemInstruction: `You are a BigQuery discovery assistant. Classify the user's request as either SEARCH (find tables/views matching a term), COMPARISON (compare two specific tables' schemas), or LINEAGE (trace where data comes from or what depends on a table). Extract the search term or table name into 'query'. For COMPARISON, extract the second table into 'secondTable'. For LINEAGE, extract the table name into 'tableName'. The active project is ${project}, available datasets are: ${available.join(', ')}.`,
+      systemInstruction: `You are a BigQuery discovery assistant. Classify the user's request as either SEARCH (find tables/views matching a term), COMPARISON (compare two specific tables' schemas), LINEAGE (trace where data comes from or what depends on a table), or ER_DIAGRAM (show entity relationships, foreign keys, table relationships in a dataset). Extract the search term or table name into 'query'. For COMPARISON, extract the second table into 'secondTable'. For LINEAGE, extract the table name into 'tableName'. For ER_DIAGRAM, extract the dataset name into 'query'. The active project is ${project}, available datasets are: ${available.join(', ')}.`,
       prompt: message,
       schema: DiscoveryResponseSchema,
       project,
@@ -2761,15 +2932,41 @@ async function handleDiscovery(
     const tableLower = tableName.toLowerCase().replace(/`/g, '');
     onStatus?.(`Tracing lineage for "${tableName}"...`);
 
-    const lineageSql = `SELECT job_id, user_email, statement_type, creation_time, destination_table, referenced_tables FROM \`region-us\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY) AND (LOWER(CAST(destination_table AS STRING)) LIKE '%${tableLower}%' OR LOWER(CAST(referenced_tables AS STRING)) LIKE '%${tableLower}%') ORDER BY creation_time DESC LIMIT 30`;
+    const lineageSql = `SELECT job_id, user_email, statement_type, creation_time, destination_table, referenced_tables FROM \`region-us\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) AND (LOWER(CAST(destination_table AS STRING)) LIKE '%${tableLower}%' OR LOWER(CAST(referenced_tables AS STRING)) LIKE '%${tableLower}%') ORDER BY creation_time DESC LIMIT 50`;
 
     let readsFrom: string[] = [];
     let writtenBy: string[] = [];
+    const nodes: import('./types').LineageNode[] = [];
+    const edgeMap = new Map<string, import('./types').LineageEdge>();
+    const nodeSet = new Set<string>();
+
+    const ensureNode = (id: string, type: import('./types').LineageNode['type'] = 'TABLE') => {
+      const lower = id.toLowerCase();
+      if (nodeSet.has(lower)) return;
+      nodeSet.add(lower);
+      const parts = id.split('.');
+      const ds = parts.length >= 2 ? parts[parts.length - 2] : '';
+      nodes.push({ id: lower, label: parts[parts.length - 1] || id, type, dataset: ds });
+    };
+
+    const addEdge = (source: string, target: string, stmtType: string, time: string) => {
+      const key = `${source}->${target}`;
+      const existing = edgeMap.get(key);
+      if (existing) {
+        existing.jobCount++;
+        if (time > existing.lastSeen) existing.lastSeen = time;
+        if (!existing.statementTypes.includes(stmtType)) existing.statementTypes.push(stmtType);
+      } else {
+        edgeMap.set(key, { source, target, jobCount: 1, lastSeen: time, statementTypes: [stmtType] });
+      }
+    };
 
     try {
       const executed = await executeQuery(lineageSql, project);
       const iDest = executed.columns.indexOf('destination_table');
       const iRefs = executed.columns.indexOf('referenced_tables');
+      const iStmt = executed.columns.indexOf('statement_type');
+      const iTime = executed.columns.indexOf('creation_time');
 
       const upstreamSet = new Set<string>();
       const downstreamSet = new Set<string>();
@@ -2777,31 +2974,44 @@ async function handleDiscovery(
       for (const row of executed.rows) {
         const destStr = String(row[iDest] ?? '').toLowerCase();
         const refsStr = String(row[iRefs] ?? '').toLowerCase();
+        const stmtType = String(row[iStmt] ?? '');
+        const timeStr = String(row[iTime] ?? '');
 
         const destMatchesTarget = destStr.includes(tableLower);
         const refsMatchTarget = refsStr.includes(tableLower);
 
         if (destMatchesTarget && refsStr) {
-          // This table is the destination; referenced tables are upstream
           const refs = refsStr.match(/[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]+/g);
-          if (refs) refs.forEach(r => upstreamSet.add(r));
+          if (refs) {
+            refs.forEach(r => {
+              upstreamSet.add(r);
+              ensureNode(r, 'TABLE');
+              addEdge(r, tableLower, stmtType, timeStr);
+            });
+          }
         }
         if (refsMatchTarget && destStr) {
-          // This table is referenced; destination is downstream
           const dests = destStr.match(/[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]+/g);
-          if (dests) dests.forEach(d => downstreamSet.add(d));
+          if (dests) {
+            dests.forEach(d => {
+              downstreamSet.add(d);
+              ensureNode(d, 'TABLE');
+              addEdge(tableLower, d, stmtType, timeStr);
+            });
+          }
         }
       }
 
-      // Remove self-references
       upstreamSet.delete(tableLower);
       downstreamSet.delete(tableLower);
-
       readsFrom = Array.from(upstreamSet);
       writtenBy = Array.from(downstreamSet);
     } catch {
       // INFORMATION_SCHEMA.JOBS access may fail -- return empty lineage
     }
+
+    // Ensure the target node exists
+    ensureNode(tableLower, 'TARGET');
 
     const result: DiscoveryResult = {
       skill: 'discovery',
@@ -2809,9 +3019,103 @@ async function handleDiscovery(
       query: intent.query,
       results: [],
       comparison: null,
-      lineage: { tableName, readsFrom, writtenBy },
+      lineage: {
+        tableName,
+        readsFrom,
+        writtenBy,
+        nodes,
+        edges: Array.from(edgeMap.values()),
+      },
     };
     return [compose('discovery', result)];
+  }
+
+  // ER_DIAGRAM: show foreign key relationships in a dataset
+  if (intent.discoveryType === 'ER_DIAGRAM') {
+    const datasetName = intent.query || intent.tableName || '';
+    onStatus?.(`Building ER diagram for "${datasetName}"...`);
+
+    try {
+      // Fetch all tables and their columns with constraints
+      const colsSql = `SELECT table_name, column_name, data_type, ordinal_position FROM \`${project}.${datasetName}\`.INFORMATION_SCHEMA.COLUMNS ORDER BY table_name, ordinal_position`;
+      const constraintsSql = `SELECT ccu.table_name AS from_table, ccu.column_name AS from_column, kcu.table_name AS to_table, kcu.column_name AS to_column FROM \`${project}.${datasetName}\`.INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu JOIN \`${project}.${datasetName}\`.INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu ON ccu.constraint_name = kcu.constraint_name WHERE ccu.table_name != kcu.table_name`;
+      const pkSql = `SELECT kcu.table_name, kcu.column_name FROM \`${project}.${datasetName}\`.INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu JOIN \`${project}.${datasetName}\`.INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc ON kcu.constraint_name = tc.constraint_name WHERE tc.constraint_type = 'PRIMARY KEY'`;
+
+      const [colsResult, pkResult] = await Promise.all([
+        executeQuery(colsSql, project),
+        executeQuery(pkSql, project).catch(() => ({ columns: [], rows: [] as unknown[][] })),
+      ]);
+
+      // Build table/column map
+      const tableMap = new Map<string, Array<{ name: string; type: string; isPk: boolean }>>();
+      const pkSet = new Set<string>();
+      for (const row of pkResult.rows) {
+        pkSet.add(`${row[0]}.${row[1]}`);
+      }
+      for (const row of colsResult.rows) {
+        const tbl = String(row[0] ?? '');
+        const col = String(row[1] ?? '');
+        const type = String(row[2] ?? '');
+        if (!tableMap.has(tbl)) tableMap.set(tbl, []);
+        tableMap.get(tbl)!.push({ name: col, type, isPk: pkSet.has(`${tbl}.${col}`) });
+      }
+
+      const tables: import('./types').ErTableInfo[] = Array.from(tableMap.entries()).map(([name, columns]) => ({
+        name,
+        columns,
+      }));
+
+      // Fetch FK relationships
+      let relationships: import('./types').ErRelationship[] = [];
+      try {
+        const fkResult = await executeQuery(constraintsSql, project);
+        const fkMap = new Map<string, import('./types').ErRelationship>();
+        for (const row of fkResult.rows) {
+          const fromTable = String(row[0] ?? '');
+          const fromCol = String(row[1] ?? '');
+          const toTable = String(row[2] ?? '');
+          const toCol = String(row[3] ?? '');
+          const key = `${fromTable}->${toTable}`;
+          if (!fkMap.has(key)) {
+            fkMap.set(key, { fromTable, fromColumns: [], toTable, toColumns: [], type: 'FOREIGN_KEY' });
+          }
+          const rel = fkMap.get(key)!;
+          if (!rel.fromColumns.includes(fromCol)) rel.fromColumns.push(fromCol);
+          if (!rel.toColumns.includes(toCol)) rel.toColumns.push(toCol);
+        }
+        relationships = Array.from(fkMap.values());
+      } catch {
+        // Constraints query may fail -- return tables without relationships
+      }
+
+      const erData: import('./types').ErDiagramData = {
+        dataset: datasetName,
+        tables,
+        relationships,
+      };
+
+      const result: DiscoveryResult = {
+        skill: 'discovery',
+        discoveryType: 'ER_DIAGRAM',
+        query: datasetName,
+        results: [],
+        comparison: null,
+        lineage: null,
+        erDiagram: erData,
+      };
+      return [compose('discovery', result)];
+    } catch {
+      const result: DiscoveryResult = {
+        skill: 'discovery',
+        discoveryType: 'ER_DIAGRAM',
+        query: datasetName,
+        results: [],
+        comparison: null,
+        lineage: null,
+        erDiagram: { dataset: datasetName, tables: [], relationships: [] },
+      };
+      return [compose('discovery', result)];
+    }
   }
 
   if (intent.discoveryType === 'COMPARISON') {

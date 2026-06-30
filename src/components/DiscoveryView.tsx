@@ -1,6 +1,8 @@
 'use client';
 
 import type { DiscoveryResult, DiscoverySearchResult } from '@/lib/types';
+import { LineageDagView } from './LineageDagView';
+import { ErDiagramView } from './ErDiagramView';
 import { useState } from 'react';
 
 interface Props {
@@ -11,73 +13,15 @@ interface Props {
 export function DiscoveryView({ result, onSendMessage }: Props) {
   const send = onSendMessage ?? (() => {});
   if (result.discoveryType === 'LINEAGE') {
-    return <LineageView result={result} onSendMessage={send} />;
+    return <LineageDagView result={result} onSendMessage={send} />;
+  }
+  if (result.discoveryType === 'ER_DIAGRAM' && result.erDiagram) {
+    return <ErDiagramView data={result.erDiagram} onSendMessage={send} />;
   }
   if (result.discoveryType === 'COMPARISON') {
     return <ComparisonView result={result} onSendMessage={send} />;
   }
   return <SearchView result={result} onSendMessage={send} />;
-}
-
-// ─── Lineage view ──────────────────────────────────────────────────────────────
-
-function LineageView({ result, onSendMessage }: { result: DiscoveryResult; onSendMessage: (msg: string) => void }) {
-  const lin = result.lineage;
-  if (!lin) {
-    return (
-      <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, padding: '8px 0' }}>
-        No lineage data available
-      </p>
-    );
-  }
-
-  const sectionStyle: React.CSSProperties = { marginBottom: 16 };
-  const labelStyle: React.CSSProperties = {
-    fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',
-    textTransform: 'uppercase' as const, letterSpacing: '0.04em', marginBottom: 6,
-  };
-  const itemStyle: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', gap: 8,
-    padding: '6px 12px', background: 'var(--surface-2)',
-    borderRadius: 6, border: '1px solid var(--border-subtle)',
-    cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-mono)',
-    color: 'var(--text)', transition: 'border-color 0.12s',
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div style={sectionStyle}>
-        <div style={labelStyle}>Reads from (upstream)</div>
-        {lin.readsFrom.length === 0 ? (
-          <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: 0 }}>No upstream tables found in the last 7 days</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {lin.readsFrom.map((t, i) => (
-              <div key={i} style={itemStyle} onClick={() => onSendMessage(`Tell me more about ${t}`)}>
-                <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--text-dim)' }}>arrow_back</span>
-                {t}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      <div style={sectionStyle}>
-        <div style={labelStyle}>Written by (downstream)</div>
-        {lin.writtenBy.length === 0 ? (
-          <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: 0 }}>No downstream tables found in the last 7 days</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {lin.writtenBy.map((t, i) => (
-              <div key={i} style={itemStyle} onClick={() => onSendMessage(`Tell me more about ${t}`)}>
-                <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--text-dim)' }}>arrow_forward</span>
-                {t}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
 }
 
 // ─── Search results ────────────────────────────────────────────────────────────
