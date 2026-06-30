@@ -1064,8 +1064,8 @@ function buildReviewSnapshot(envelope: CompositionEnvelope): Record<string, unkn
     );
   }
 
-  // Monitoring fields
-  if ('items' in data && data.skill === 'monitoring') {
+  // Monitoring fields (only for MonitoringResult, not specialized subtypes like StorageBreakdownResult)
+  if ('items' in data && data.skill === 'monitoring' && 'summary' in data) {
     const mon = data as unknown as MonitoringResult;
     snapshot.totalJobs = mon.summary.totalJobs;
     snapshot.errorCount = mon.summary.errorCount;
