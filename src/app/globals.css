@@ -870,36 +870,37 @@ details > summary::marker { content: ''; }
 .layout-seg {
   display: flex;
   align-items: center;
-  gap: 0;
-  background: #e8eaed;
-  border-radius: 8px;
-  padding: 2px;
+  gap: 2px;
+  background: transparent;
+  border: 1.5px solid #c8ccd2;
+  border-radius: 24px;
+  padding: 4px;
   margin-right: 4px;
-  height: 32px;
+  height: 38px;
 }
 
 .layout-seg-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border: none;
-  border-radius: 6px;
+  border-radius: 50%;
   background: transparent;
-  color: var(--gc-text-secondary);
+  color: #5f6368;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.18s, color 0.18s;
   padding: 0;
   position: relative;
 }
 .layout-seg-btn:hover:not(.layout-seg-btn--active) {
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(0, 0, 0, 0.04);
 }
 .layout-seg-btn--active {
-  background: #fff;
-  color: #1a73e8;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  background: #d3e3fd;
+  color: #1a4077;
+  box-shadow: none;
 }
 .layout-seg-btn .material-symbols-outlined {
   font-size: 18px;
