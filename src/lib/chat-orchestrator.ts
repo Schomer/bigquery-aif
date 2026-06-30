@@ -1718,7 +1718,7 @@ async function handleMonitoring(
 
   // STORAGE — query INFORMATION_SCHEMA.TABLE_STORAGE
   if (monitoringType === 'STORAGE') {
-    const storageSql = `SELECT table_schema, table_name, total_rows, total_logical_bytes, active_logical_bytes FROM \`region-${region}\`.INFORMATION_SCHEMA.TABLE_STORAGE WHERE project_id = '${project}' ORDER BY total_logical_bytes DESC LIMIT 50`;
+    const storageSql = `SELECT table_schema, table_name, total_rows, total_logical_bytes, active_logical_bytes FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.TABLE_STORAGE ORDER BY total_logical_bytes DESC LIMIT 50`;
     onStatus?.(`Fetching storage usage for project ${project}...`);
     const executed = await executeQuery(storageSql, project);
 
@@ -1946,7 +1946,7 @@ async function handleMonitoring(
 
   // STORAGE_BREAKDOWN -- hierarchical treemap of storage by dataset and table
   if (monitoringType === 'STORAGE_BREAKDOWN') {
-    const storageSql = `SELECT table_schema, table_name, total_rows, total_logical_bytes FROM \`region-${region}\`.INFORMATION_SCHEMA.TABLE_STORAGE WHERE project_id = '${project}' ORDER BY total_logical_bytes DESC LIMIT 200`;
+    const storageSql = `SELECT table_schema, table_name, total_rows, total_logical_bytes FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.TABLE_STORAGE ORDER BY total_logical_bytes DESC LIMIT 200`;
     onStatus?.(`Fetching storage breakdown for project ${project}...`);
     try {
       const executed = await executeQuery(storageSql, project);
@@ -2078,7 +2078,7 @@ async function handleMonitoring(
     const dataset = (hc?.dataset as string) || '';
     const freshnessSql = dataset
       ? `SELECT table_schema, table_name, TIMESTAMP_MILLIS(last_modified_time) AS last_modified, total_rows FROM \`${project}.${dataset}\`.INFORMATION_SCHEMA.TABLES ORDER BY last_modified_time ASC LIMIT 100`
-      : `SELECT table_schema, table_name, TIMESTAMP_MILLIS(last_modified_time) AS last_modified, total_rows FROM \`region-${region}\`.INFORMATION_SCHEMA.TABLE_STORAGE WHERE project_id = '${project}' ORDER BY last_modified_time ASC LIMIT 100`;
+      : `SELECT table_schema, table_name, TIMESTAMP_MILLIS(last_modified_time) AS last_modified, total_rows FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.TABLE_STORAGE ORDER BY last_modified_time ASC LIMIT 100`;
     onStatus?.(`Checking data freshness${dataset ? ` for ${dataset}` : ''}...`);
     try {
       const executed = await executeQuery(freshnessSql, project);
