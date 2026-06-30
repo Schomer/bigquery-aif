@@ -166,6 +166,84 @@ export async function saveUserPreferences(uid: string, prefs: Partial<UserPrefer
   }
 }
 
+// ── Recent Datasets / Tables ─────────────────────────────────────────────────
+
+export interface RecentItem {
+  type: 'dataset' | 'table';
+  name: string;
+  dataset?: string;       // parent dataset (for tables)
+  lastUsed: string;       // ISO timestamp
+}
+
+/**
+ * Mine recent dataset/table references from saved conversations.
+ * Walks each conversation's assistant envelopes to extract dataset and
+ * table names from primaryArtifact.data and provenance.sql.
+ * Returns up to `limit` deduplicated items, most-recently-used first.
+ */
+export async function getRecentDatasets(uid: string, limit = 8): Promise<RecentItem[]> {
+  const convs = await getConversations(uid);
+  // Map key -> RecentItem (key deduplicates)
+  const seen = new Map<string, RecentItem>();
+
+  for (const conv of convs) {
+    const ts = conv.updatedAt || conv.createdAt;
+    for (const msg of conv.messages) {
+      if (msg.role !== 'assistant' || !msg.envelopes) continue;
+      for (const env of msg.envelopes) {
+        const data = env.primaryArtifact?.data as Record<string, unknown> | null;
+
+        // Extract dataset from artifact data
+        if (data?.dataset && typeof data.dataset === 'string') {
+          const key = `dataset:${data.dataset}`;
+          if (!seen.has(key)) {
+            seen.set(key, { type: 'dataset', name: data.dataset, lastUsed: ts });
+          }
+        }
+
+        // Extract table from artifact data
+        if (data?.table && typeof data.table === 'string') {
+          const raw = (data.table as string).replace(/`/g, '');
+          const parts = raw.split('.');
+          const tableName = parts[parts.length - 1];
+          const parentDataset = parts.length >= 2 ? parts[parts.length - 2] : (data.dataset as string | undefined);
+          const key = `table:${parentDataset || ''}:${tableName}`;
+          if (!seen.has(key)) {
+            seen.set(key, { type: 'table', name: tableName, dataset: parentDataset, lastUsed: ts });
+          }
+        }
+
+        // Extract from SQL FROM clauses
+        const sql = env.provenance?.sql || (data?.sql as string | undefined);
+        if (sql && typeof sql === 'string') {
+          const fromRe = /\bFROM\s+`?([A-Za-z0-9_.-]+)`?/gi;
+          let match: RegExpExecArray | null;
+          while ((match = fromRe.exec(sql)) !== null) {
+            const parts = match[1].split('.');
+            if (parts.length >= 2) {
+              const tableName = parts[parts.length - 1];
+              const parentDs = parts[parts.length - 2];
+              const key = `table:${parentDs}:${tableName}`;
+              if (!seen.has(key)) {
+                seen.set(key, { type: 'table', name: tableName, dataset: parentDs, lastUsed: ts });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Sort by lastUsed descending, tables before datasets at equal time, limit
+  return Array.from(seen.values())
+    .sort((a, b) => {
+      const cmp = b.lastUsed.localeCompare(a.lastUsed);
+      if (cmp !== 0) return cmp;
+      return a.type === 'table' ? -1 : 1;
+    })
+    .slice(0, limit);
+}
+
 // ── Utilities ────────────────────────────────────────────────────────────────
 
 export function generateId(): string {

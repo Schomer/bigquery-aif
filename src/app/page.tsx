@@ -17,9 +17,11 @@ import { SettingsPage } from '@/components/SettingsPage';
 import {
   saveConversation,
   getConversations,
+  getRecentDatasets,
   autoTitle,
   nowISO,
 } from '@/lib/firestore-service';
+import type { RecentItem } from '@/lib/firestore-service';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
@@ -103,6 +105,7 @@ export default function Home() {
     return 380;
   });
   const [isDragging, setIsDragging] = useState(false);
+  const [recentItems, setRecentItems] = useState<RecentItem[]>([]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -152,6 +155,12 @@ export default function Home() {
       }
     }).catch(() => {});
   }, [conversationId, user]);
+
+  // Load recently-used datasets/tables once on mount
+  useEffect(() => {
+    if (!user) return;
+    getRecentDatasets(user.uid).then(setRecentItems).catch(() => {});
+  }, [user]);
 
 
 
@@ -868,6 +877,38 @@ export default function Home() {
                   </div>
                 )}
 
+                {/* Recently-used datasets / tables */}
+                {activeProject && recentItems.length > 0 && (
+                  <div className="recent-items-section">
+                    <div className="recent-items-label">Recent</div>
+                    <div className="recent-items">
+                      {recentItems.map((item, idx) => (
+                        <button
+                          key={`${item.type}-${item.name}-${idx}`}
+                          className="recent-item-chip"
+                          onClick={() => {
+                            if (item.type === 'table' && item.dataset) {
+                              sendMessage(`Show me the schema for ${item.dataset}.${item.name}`);
+                            } else if (item.type === 'table') {
+                              sendMessage(`Show me the schema for ${item.name}`);
+                            } else {
+                              sendMessage(`What tables are in the ${item.name} dataset?`);
+                            }
+                          }}
+                        >
+                          <span className="material-symbols-outlined">
+                            {item.type === 'table' ? 'table_chart' : 'dataset'}
+                          </span>
+                          {item.name}
+                          {item.type === 'table' && item.dataset && (
+                            <span className="recent-item-chip-sub">{item.dataset}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
               {/* Centered prompt field */}
               <div className="mystic-prompt-container" style={{
                 width: '100%',
@@ -1284,6 +1325,36 @@ export default function Home() {
                   }}>
                     <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#f59e0b' }}>info</span>
                     Select a GCP project from the sidebar to get started.
+                  </div>
+                )}
+                {activeProject && recentItems.length > 0 && (
+                  <div className="recent-items-section" style={{ maxWidth: 480 }}>
+                    <div className="recent-items-label">Recent</div>
+                    <div className="recent-items">
+                      {recentItems.map((item, idx) => (
+                        <button
+                          key={`${item.type}-${item.name}-${idx}`}
+                          className="recent-item-chip"
+                          onClick={() => {
+                            if (item.type === 'table' && item.dataset) {
+                              sendMessage(`Show me the schema for ${item.dataset}.${item.name}`);
+                            } else if (item.type === 'table') {
+                              sendMessage(`Show me the schema for ${item.name}`);
+                            } else {
+                              sendMessage(`What tables are in the ${item.name} dataset?`);
+                            }
+                          }}
+                        >
+                          <span className="material-symbols-outlined">
+                            {item.type === 'table' ? 'table_chart' : 'dataset'}
+                          </span>
+                          {item.name}
+                          {item.type === 'table' && item.dataset && (
+                            <span className="recent-item-chip-sub">{item.dataset}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

@@ -767,9 +767,14 @@ function extractSchemaIdentifiers(
 
   // DATASET scope: listing tables -- try to extract dataset name
   if (TABLE_LIST_SIGNALS.some((s) => lower.includes(s))) {
-    // "tables in ecomm", "list tables in my_dataset"
-    const dsMatch = message.match(/\btables?\s+(?:in|of|from)\s+[`]?(\w[\w-]*)[`]?/i);
-    return { scope: 'DATASET', dataset: dsMatch?.[1] ?? contextDataset };
+    // "tables in ecomm", "list tables in my_dataset", "tables in the formula_1 dataset"
+    const dsMatch = message.match(/\btables?\s+(?:in|of|from)\s+(?:the\s+|a\s+|an\s+)?[`]?(\w[\w-]*)[`]?/i);
+    const extracted = dsMatch?.[1];
+    // Validate against known datasets; fall back to context dataset if not recognized
+    if (extracted && availableDatasets?.some((ds) => ds.toLowerCase() === extracted.toLowerCase())) {
+      return { scope: 'DATASET', dataset: extracted };
+    }
+    return { scope: 'DATASET', dataset: extracted ?? contextDataset };
   }
 
   // TABLE scope: describing a specific table
