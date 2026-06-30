@@ -118,7 +118,10 @@ async function main() {
   console.log('A Chrome window will open. Please sign in with Google when prompted.');
   console.log('After sign-in, the script will run prompts automatically.\n');
 
-  const browser = await chromium.launch({
+  const userDataDir = join(ROOT, 'test-results', '.chrome-profile');
+  if (!existsSync(userDataDir)) mkdirSync(userDataDir, { recursive: true });
+
+  const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
     channel: 'chrome',
     ignoreDefaultArgs: ['--enable-automation'],
@@ -126,9 +129,6 @@ async function main() {
       '--start-maximized',
       '--disable-blink-features=AutomationControlled',
     ],
-  });
-
-  const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 2,
   });
@@ -147,7 +147,7 @@ async function main() {
     console.log('Sign-in complete. Chat interface detected.\n');
   } catch {
     console.log('Timed out waiting for sign-in. Exiting.');
-    await browser.close();
+    await context.close();
     process.exit(1);
   }
 
@@ -324,7 +324,7 @@ async function main() {
     await new Promise(r => setTimeout(r, 3000));
   }
 
-  await browser.close();
+  await context.close();
   console.log(`\nAll done. Screenshots in:\n  ${SCREENSHOTS_DIR}\n`);
 }
 
