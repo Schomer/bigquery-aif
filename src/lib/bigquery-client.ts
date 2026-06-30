@@ -362,3 +362,52 @@ export async function createScheduledQuery(
 
   return { transferConfigName: data.name || displayName };
 }
+
+// ─── Extract Job (Server-side export to GCS) ──────────────────────────────────
+
+export type ExportFormat = 'CSV' | 'NEWLINE_DELIMITED_JSON' | 'AVRO' | 'PARQUET';
+
+export async function createExtractJob(
+  project: string,
+  datasetId: string,
+  tableId: string,
+  destinationUri: string,
+  format: ExportFormat = 'CSV',
+): Promise<{ jobId: string; destinationUri: string }> {
+  const token = getAccessToken();
+  if (!token) throw new Error('Not authenticated. Please sign in again.');
+
+  const url = `${BQ_BASE}/${encodeURIComponent(project)}/jobs`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      configuration: {
+        extract: {
+          sourceTable: {
+            projectId: project,
+            datasetId,
+            tableId,
+          },
+          destinationUris: [destinationUri],
+          destinationFormat: format,
+          compression: format === 'CSV' || format === 'NEWLINE_DELIMITED_JSON' ? 'GZIP' : 'NONE',
+          ...(format === 'CSV' ? { printHeader: true, fieldDelimiter: ',' } : {}),
+        },
+      },
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const msg = data?.error?.message || `HTTP ${res.status}`;
+    throw new Error(`Failed to create extract job: ${msg}`);
+  }
+
+  return {
+    jobId: data.jobReference?.jobId || '',
+    destinationUri,
+  };
+}

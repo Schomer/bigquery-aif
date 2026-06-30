@@ -17,11 +17,16 @@ if (!existsSync(SCREENSHOTS_DIR)) mkdirSync(SCREENSHOTS_DIR, { recursive: true }
 const APP_URL = 'https://bigqueryaif.web.app';
 
 const TESTS = [
-  { id: '01_dq_profile', prompt: 'profile the order_items table in ecomm', wait: 120000 },
-  { id: '02_monitoring_jobs', prompt: 'show my recent BigQuery job history', wait: 120000 },
-  { id: '03_alert_data', prompt: 'alert me if duplicates appear in the order_items table in ecomm', wait: 120000 },
-  { id: '04_alert_project', prompt: 'alert me if my BigQuery costs exceed 100GB per day', wait: 120000 },
-  { id: '05_discovery_search', prompt: 'search for tables related to orders in ecomm', wait: 120000 },
+  { id: '01_storage_breakdown', prompt: 'show me a storage breakdown for this project', wait: 120000 },
+  { id: '02_access_patterns', prompt: 'who has been querying my data in the last 30 days', wait: 120000 },
+  { id: '03_cost_analysis', prompt: 'analyze my BigQuery query costs over the last month', wait: 120000 },
+  { id: '04_freshness', prompt: 'which tables have not been updated recently', wait: 120000 },
+  { id: '05_completeness', prompt: 'check the completeness of the order_items table in ecomm', wait: 120000 },
+  { id: '06_range_validation', prompt: 'validate the sale_price column in ecomm.order_items is between 0 and 10000', wait: 120000 },
+  { id: '07_schema_drift', prompt: 'check for schema drift on the order_items table in ecomm', wait: 120000 },
+  { id: '08_er_diagram', prompt: 'show me an ER diagram of the ecomm dataset', wait: 120000 },
+  { id: '09_lineage', prompt: 'show lineage for the order_items table in ecomm', wait: 120000 },
+  { id: '10_comparison', prompt: 'compare the order_items and users tables in the ecomm dataset', wait: 120000 },
 ];
 
 async function waitForResponse(page, timeoutMs) {
@@ -60,7 +65,14 @@ async function waitForResponse(page, timeoutMs) {
           btn.textContent.includes('Diagnose') ||
           btn.textContent.includes('View schema') ||
           btn.textContent.includes('Run it now') ||
-          btn.textContent.includes('Show current')
+          btn.textContent.includes('Show current') ||
+          btn.textContent.includes('Suggest') ||
+          btn.textContent.includes('Explore') ||
+          btn.textContent.includes('Query') ||
+          btn.textContent.includes('Compare') ||
+          btn.textContent.includes('Profile') ||
+          btn.textContent.includes('next step') ||
+          btn.textContent.includes('details')
         )
       );
       const hasActionChips = actionChips.length > 0;

@@ -3260,6 +3260,19 @@ async function handleDiscovery(
     .filter((name) => name && name.toLowerCase() !== project.toLowerCase());
 
   const term = intent.query.toLowerCase();
+  // Build search variants for basic plural/singular stemming
+  const searchTerms = new Set<string>([term]);
+  if (term.endsWith('ies')) searchTerms.add(term.slice(0, -3) + 'y');
+  if (term.endsWith('es')) searchTerms.add(term.slice(0, -2));
+  if (term.endsWith('s') && !term.endsWith('ss')) searchTerms.add(term.slice(0, -1));
+  // Also add plural of singular
+  if (!term.endsWith('s')) searchTerms.add(term + 's');
+  const likeConditions = Array.from(searchTerms)
+    .map((t) => `LOWER(t.table_name) LIKE '%${t}%'`)
+    .join(' OR ');
+  const colLikeConditions = Array.from(searchTerms)
+    .map((t) => `LOWER(column_name) LIKE '%${t}%'`)
+    .join(' OR ');
   const resultsMap = new Map<string, DiscoverySearchResult>();
 
   onStatus?.(`Searching for \"${term}\" across ${datasets.length} datasets in ${project}...`);
@@ -3272,7 +3285,7 @@ async function handleDiscovery(
           `FROM \`${project}.${dataset}\`.INFORMATION_SCHEMA.TABLES t`,
           `LEFT JOIN \`${project}.${dataset}\`.INFORMATION_SCHEMA.TABLE_OPTIONS o`,
           `  ON t.table_name = o.table_name AND o.option_name = 'description'`,
-          `WHERE LOWER(t.table_name) LIKE '%${term}%'`,
+          `WHERE ${likeConditions}`,
         ].join(' ');
 
         const tablesResult = await executeQuery(tablesSql, project).catch(() => null);
@@ -3298,7 +3311,7 @@ async function handleDiscovery(
         const colsSql = [
           `SELECT DISTINCT table_name`,
           `FROM \`${project}.${dataset}\`.INFORMATION_SCHEMA.COLUMNS`,
-          `WHERE LOWER(column_name) LIKE '%${term}%'`,
+          `WHERE ${colLikeConditions}`,
         ].join(' ');
 
         const colsResult = await executeQuery(colsSql, project).catch(() => null);
