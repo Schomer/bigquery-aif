@@ -607,9 +607,9 @@ details > summary::marker { content: ''; }
 .gc-nav-group-header {
   display: flex; align-items: center; justify-content: space-between;
   width: 100%; padding: 0 12px 0 14px; height: 36px;
-  font-size: 13px; font-weight: 600; color: #202124;
+  font-size: 13px; font-weight: 500; color: #202124;
   background: none; border: none; cursor: pointer;
-  font-family: 'Google Sans', sans-serif;
+  font-family: 'Google Sans Text', 'Google Sans', sans-serif;
   transition: background .15s;
 }
 .gc-nav-group-header:hover { background: rgba(0,0,0,.04); border-radius: 0 12px 12px 0; }
