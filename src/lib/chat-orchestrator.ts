@@ -1704,15 +1704,30 @@ async function handleMonitoring(
     monitoringType = hintMap[hc.monitoringHint as string] || 'JOBS';
     onStatus?.(`Running ${monitoringType} analysis (from handoff)...`);
   } else {
-    // Classify monitoring sub-type via Gemini
-    onStatus?.(`Classifying monitoring request...`);
-    const intent = await callGemini({
-      systemInstruction: `You classify BigQuery monitoring requests. Available types: JOBS (job history, recent queries, errors, failed jobs), STORAGE (table sizes, storage usage, row counts), SLOTS (slot utilization, resource usage over time), QUERY_PLAN (query execution plan, dry run, explain), ALERT (set up alerts, watch a metric, threshold notifications), STORAGE_BREAKDOWN (storage treemap, disk usage breakdown, largest tables), ACCESS_PATTERNS (who queries which tables, table usage patterns, most queried), COST_ANALYSIS (query cost over time, spending breakdown, how much am I spending), FRESHNESS (data freshness, stale tables, when was a table last updated, outdated tables). Extract a jobId if the user mentions a specific job. Extract a table name if relevant. Extract a dataset name if relevant.`,
-      prompt: message,
-      schema: MonitoringIntentSchema,
-      project,
-    });
-    monitoringType = intent.monitoringType || 'JOBS';
+    // Keyword-based fast path for types the LLM sometimes misroutes to JOBS
+    const lower = message.toLowerCase();
+    const costKeywords = ['cost', 'spending', 'spend', 'expensive', 'cheapest', 'billing', 'price', 'pricing'];
+    const freshnessKeywords = ['fresh', 'stale', 'outdated', 'last updated', 'not been updated', 'most recent update', 'when was .* updated'];
+    const isCost = costKeywords.some(k => lower.includes(k)) && !lower.includes('job') && !lower.includes('history');
+    const isFresh = freshnessKeywords.some(k => new RegExp(k).test(lower)) && !lower.includes('job') && !lower.includes('history');
+
+    if (isCost) {
+      monitoringType = 'COST_ANALYSIS';
+      onStatus?.(`Running cost analysis (keyword match)...`);
+    } else if (isFresh) {
+      monitoringType = 'FRESHNESS';
+      onStatus?.(`Running freshness check (keyword match)...`);
+    } else {
+      // Classify monitoring sub-type via Gemini
+      onStatus?.(`Classifying monitoring request...`);
+      const intent = await callGemini({
+        systemInstruction: `You classify BigQuery monitoring requests. Available types: JOBS (job history, recent queries, errors, failed jobs), STORAGE (table sizes, storage usage, row counts), SLOTS (slot utilization, resource usage over time), QUERY_PLAN (query execution plan, dry run, explain), ALERT (set up alerts, watch a metric, threshold notifications), STORAGE_BREAKDOWN (storage treemap, disk usage breakdown, largest tables), ACCESS_PATTERNS (who queries which tables, table usage patterns, most queried), COST_ANALYSIS (query cost over time, spending breakdown, how much am I spending), FRESHNESS (data freshness, stale tables, when was a table last updated, outdated tables). Extract a jobId if the user mentions a specific job. Extract a table name if relevant. Extract a dataset name if relevant.`,
+        prompt: message,
+        schema: MonitoringIntentSchema,
+        project,
+      });
+      monitoringType = intent.monitoringType || 'JOBS';
+    }
   }
 
   // STORAGE — query INFORMATION_SCHEMA.TABLE_STORAGE
