@@ -328,13 +328,13 @@ const IntentClassifierSchema = {
   type: 'OBJECT',
   properties: {
     isMultistep: { type: 'BOOLEAN' },
-    skill: { type: 'STRING', enum: ['schema', 'query', 'data-management', 'data-quality', 'discovery', 'monitoring', 'data-loading'] },
+    skill: { type: 'STRING', enum: ['schema', 'query', 'data-management', 'data-quality', 'discovery', 'monitoring', 'data-loading', 'task'] },
     steps: {
       type: 'ARRAY',
       items: {
         type: 'OBJECT',
         properties: {
-          skill: { type: 'STRING', enum: ['schema', 'query', 'data-management', 'data-quality', 'discovery', 'monitoring', 'data-loading'] },
+          skill: { type: 'STRING', enum: ['schema', 'query', 'data-management', 'data-quality', 'discovery', 'monitoring', 'data-loading', 'task'] },
           description: { type: 'STRING' },
           prompt: { type: 'STRING' }
         },
@@ -546,6 +546,7 @@ Available datasets: ${available.join(', ')}`;
       'monitoring': 'monitoring',
       'discovery': 'discovery search',
       'data-loading': 'data export',
+      'task': 'task resolver',
     };
     onStatus?.(`Matched skill: ${skillLabels[skill] || skill}`);
 
@@ -576,6 +577,9 @@ Available datasets: ${available.join(', ')}`;
         break;
       case 'data-loading':
         envelopes = await handleDataLoading(resolvedMessage, enrichedContext, onStatus);
+        break;
+      case 'task':
+        envelopes = await handleTask(resolvedMessage, enrichedContext, onStatus);
         break;
       default:
         envelopes = await handleQuery(resolvedMessage, history, enrichedContext, onStatus);
@@ -641,14 +645,26 @@ Available datasets: ${available.join(', ')}`;
   }
 }
 
-async function buildSchemaContext(project: string, dataset: string): Promise<string> {
+async function buildSchemaContext(project: string, dataset: string, priorityTable?: string): Promise<string> {
   if (!dataset) return '';
   try {
     const datasetSchema = await fetchSchema(dataset, undefined, project);
     const tables = datasetSchema.columns.map((col) => col.name);
     if (!tables.length) return '';
 
-    const schemaPromises = tables.slice(0, 5).map(async (tableId) => {
+    // Ensure the priority table (the one the user is asking about) is always
+    // included in the schema context sent to the LLM, even if the dataset has
+    // many tables and the target would otherwise be outside the top-5 slice.
+    let tablesToFetch: string[];
+    if (priorityTable && tables.some((t) => t.toLowerCase() === priorityTable.toLowerCase())) {
+      const canonical = tables.find((t) => t.toLowerCase() === priorityTable.toLowerCase())!;
+      const rest = tables.filter((t) => t.toLowerCase() !== priorityTable.toLowerCase());
+      tablesToFetch = [canonical, ...rest.slice(0, 4)];
+    } else {
+      tablesToFetch = tables.slice(0, 5);
+    }
+
+    const schemaPromises = tablesToFetch.map(async (tableId) => {
       try {
         const tableSchema = await fetchSchema(dataset, tableId, project);
         const colString = tableSchema.columns
@@ -1292,6 +1308,41 @@ async function handleQuery(
     dataset = extractDatasetFromMessage(message, available) ?? '';
   }
 
+  // ── Extract target table from message or context ──────────────────────────
+  // When the user explicitly references a table name ("filter liquor_backup",
+  // "show sales from orders"), we must ensure the LLM knows EXACTLY which table
+  // to query. Without this, the LLM may hallucinate a different table entirely.
+  let targetTable: string | undefined = context?.lastTable;
+  if (!targetTable) {
+    // Try to extract a table name from the user's message.
+    // Look for backtick-quoted refs first, then bare table names that match
+    // known patterns like project.dataset.table or just a table identifier.
+    const fqMatch = message.match(/`([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_]+)`/);
+    if (fqMatch) {
+      targetTable = fqMatch[3];
+      if (!dataset) dataset = fqMatch[2];
+    } else if (dataset) {
+      // Try to match a table name from the dataset's tables list.
+      // Fetch the dataset's tables if we have a dataset context.
+      try {
+        const dsSchema = await fetchSchema(dataset, undefined, project);
+        const dsTableNames = dsSchema.columns.map((c) => c.name);
+        // Sort by length descending so longer names match first
+        const sorted = [...dsTableNames].sort((a, b) => b.length - a.length);
+        for (const tbl of sorted) {
+          const escaped = tbl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const re = new RegExp(`\\b${escaped}\\b`, 'i');
+          if (re.test(message)) {
+            targetTable = tbl;
+            break;
+          }
+        }
+      } catch {
+        // Ignore -- will proceed without target table
+      }
+    }
+  }
+
   const messages = history.slice(-6).map((m) => ({
     role: m.role as 'user' | 'assistant',
     content: m.content,
@@ -1310,23 +1361,26 @@ async function handleQuery(
       yAxis: cachedPlan.entry.yAxis ?? undefined,
     };
   } else {
-  const schemaContext = await buildSchemaContext(project, dataset);
+  const schemaContext = await buildSchemaContext(project, dataset, targetTable);
 
   onStatus?.(stepWithLink(
-    `Building SQL for dataset ${dataset} in project ${project}...`,
-    { project, dataset },
-    'Open dataset in BigQuery'
+    `Building SQL for ${targetTable ? `table ${targetTable} in ` : ''}dataset ${dataset} in project ${project}...`,
+    { project, dataset, table: targetTable },
+    targetTable ? 'Open table in BigQuery' : 'Open dataset in BigQuery'
   ));
   const datasetLine = dataset
     ? `The active dataset is: ${dataset}`
     : 'No dataset is pre-selected. Infer the correct dataset from the user\'s prompt and the available datasets listed below.';
+  const targetTableLine = targetTable
+    ? `\nCRITICAL: The user is asking about table \`${project}.${dataset}.${targetTable}\`. You MUST use this exact table in your SQL query. Do NOT use any other table.`
+    : '';
   queryPlan = await callGemini({
     systemInstruction: `${skillDoc}
 
 The BigQuery project is: ${project}
 ${datasetLine}
 The available datasets in project ${project} are: ${available.join(', ')}
-${schemaContext}
+${schemaContext}${targetTableLine}
 Always wrap fully qualified table references in literal backticks: \`${project}.DATASET.tablename\` (e.g. \`${project}.ecomm.orders\`). This is CRITICAL to prevent syntax errors when project names contain dashes/hyphens.
 Today's date is: ${new Date().toISOString().split('T')[0]}
 Also generate a resultSummary field: a brief, contextual one-line summary of what the query results likely show (e.g., 'Revenue by month for the last 12 months' or 'Top 10 customers by order count'). This will be used as the headline shown to the user.
@@ -1529,23 +1583,50 @@ async function handleDataManagement(
     content: m.content,
   }));
 
-  const schemaContext = await buildSchemaContext(project, dataset);
+  // Extract target table from handoff context or message
+  let dmTargetTable: string | undefined;
+  if (hc?.table && typeof hc.table === 'string') {
+    const parts = (hc.table as string).replace(/`/g, '').split('.');
+    dmTargetTable = parts[parts.length - 1];
+  }
+  if (!dmTargetTable && dataset) {
+    try {
+      const dsSchema = await fetchSchema(dataset, undefined, project);
+      const dsTableNames = dsSchema.columns.map((c) => c.name);
+      const sorted = [...dsTableNames].sort((a, b) => b.length - a.length);
+      for (const tbl of sorted) {
+        const escaped = tbl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp(`\\b${escaped}\\b`, 'i');
+        if (re.test(enrichedMessage)) {
+          dmTargetTable = tbl;
+          break;
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  const schemaContext = await buildSchemaContext(project, dataset, dmTargetTable);
 
   onStatus?.(stepWithLink(
-    `Planning data management operation on dataset ${dataset}...`,
-    { project, dataset },
-    'Open dataset in BigQuery'
+    `Planning data management operation on ${dmTargetTable ? `table ${dmTargetTable} in ` : ''}dataset ${dataset}...`,
+    { project, dataset, table: dmTargetTable },
+    dmTargetTable ? 'Open table in BigQuery' : 'Open dataset in BigQuery'
   ));
   const dmDatasetLine = dataset
     ? `The active dataset is: ${dataset}`
     : 'No dataset is pre-selected. Infer the correct dataset from the user\'s prompt and the available datasets listed below.';
+  const dmTargetTableLine = dmTargetTable
+    ? `\nCRITICAL: The user is asking about table \`${project}.${dataset}.${dmTargetTable}\`. You MUST use this exact table in your SQL. Do NOT use any other table.`
+    : '';
   const plan = await callGemini({
     systemInstruction: `${skillDoc}
 
 The BigQuery project is: ${project}
 ${dmDatasetLine}
 The available datasets in project ${project} are: ${available.join(', ')}
-${schemaContext}
+${schemaContext}${dmTargetTableLine}
 Always wrap fully qualified table references in literal backticks: \`${project}.DATASET.tablename\` (e.g. \`${project}.ecomm.orders\`). This is CRITICAL to prevent syntax errors when project names contain dashes/hyphens.\``,
     messages: [...messages, { role: 'user' as const, content: enrichedMessage }],
     schema: DataManagementResponseSchema,
@@ -3556,4 +3637,108 @@ async function handleDiscovery(
     comparison: null,
   };
   return [compose('discovery', result)];
+}
+
+// ─── Task Handler ────────────────────────────────────────────────────────────
+// Delegates to the autonomous task resolver which uses the API knowledge base
+// to figure out what Google Cloud APIs to call for any data task.
+
+async function handleTask(
+  message: string,
+  context?: { project?: string; dataset?: string; availableDatasets?: string[] },
+  onStatus?: StatusCallback
+): Promise<CompositionEnvelope[]> {
+  const project = context?.project || '';
+
+  onStatus?.('Researching available APIs for this task...');
+
+  try {
+    // Dynamic import to avoid loading task framework until needed
+    const { resolveTask } = await import('./tasks/resolver');
+    const plan = await resolveTask(message, project, 'us', onStatus);
+
+    if (!plan || !plan.steps || plan.steps.length === 0) {
+      // Resolver couldn't produce a plan -- return guidance
+      const envelope: CompositionEnvelope = {
+        id: 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+        skill: 'task',
+        headline: {
+          text: 'Could not determine the right approach for this task.',
+          tone: 'ATTENTION',
+          basis: 'STATUS',
+        },
+        primaryArtifact: {
+          type: 'TASK_VIEW',
+          data: {
+            plan: {
+              title: 'Unable to resolve task',
+              description: plan?.description || 'The system could not identify which Google Cloud APIs to use for this request. Try being more specific about what you want to accomplish.',
+              approach: '',
+              steps: [],
+            },
+            status: 'failed',
+          },
+        },
+        provenance: { visibility: 'COLLAPSED' },
+        nextActions: [],
+      };
+      return [envelope];
+    }
+
+    const statusNote = plan.fromLearnedPlan
+      ? 'Using a previously successful approach'
+      : `Found ${plan.steps.length} step${plan.steps.length !== 1 ? 's' : ''} to complete this task`;
+
+    onStatus?.(statusNote);
+
+    const envelope: CompositionEnvelope = {
+      id: 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+      skill: 'task',
+      headline: {
+        text: plan.title,
+        tone: 'NEUTRAL',
+        basis: 'STATUS',
+      },
+      primaryArtifact: {
+        type: 'TASK_VIEW',
+        data: {
+          plan,
+          status: 'planned',
+        },
+      },
+      provenance: {
+        visibility: 'COLLAPSED',
+        project,
+      },
+      nextActions: [],
+    };
+
+    return [envelope];
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    const envelope: CompositionEnvelope = {
+      id: 'task_error_' + Date.now(),
+      skill: 'task',
+      headline: {
+        text: 'Failed to plan this task',
+        tone: 'ATTENTION',
+        basis: 'STATUS',
+      },
+      primaryArtifact: {
+        type: 'TASK_VIEW',
+        data: {
+          plan: {
+            title: 'Task planning failed',
+            description: `Error: ${errorMsg}. Try rephrasing your request or being more specific about the data task you want to accomplish.`,
+            approach: '',
+            steps: [],
+          },
+          status: 'failed',
+        },
+      },
+      provenance: { visibility: 'COLLAPSED' },
+      nextActions: [],
+    };
+    return [envelope];
+  }
 }

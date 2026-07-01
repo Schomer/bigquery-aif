@@ -20,6 +20,7 @@ import { StorageBreakdownView } from './StorageBreakdownView';
 import { AccessPatternView } from './AccessPatternView';
 import { CostAnalysisView } from './CostAnalysisView';
 import { FreshnessView } from './FreshnessView';
+import TaskWorkflowView from './TaskWorkflowView';
 import { useState, useRef, useCallback } from 'react';
 
 interface Props {
@@ -486,6 +487,8 @@ function Artifact({
       return <CostAnalysisView result={data as import('@/lib/types').CostAnalysisResult} onSendMessage={onSendMessage} />;
     case 'FRESHNESS_VIEW':
       return <FreshnessView result={data as import('@/lib/types').FreshnessResult} onSendMessage={onSendMessage} />;
+    case 'TASK_VIEW':
+      return <TaskWorkflowView envelope={envelope} onSendMessage={onSendMessage} />;
     default:
       return (
         <pre style={{ fontSize: 11, color: 'var(--text-muted)', overflowX: 'auto' }}>

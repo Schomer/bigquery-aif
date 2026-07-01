@@ -13,6 +13,7 @@ Task-to-skill mapping for the BigQuery AI assistant. Use this to determine which
 | discovery | Searching for tables/views across datasets, comparing schemas of two tables, viewing lineage. | "search for tables with customer data", "find tables matching X", "compare orders and orders_v2", "where does this come from" |
 | monitoring | Checking query/job history, costs, performance, failures, storage, slot usage, query optimization. | "what failed", "expensive queries", "job status", "storage analysis", "who ran this", "show recent jobs", "slot usage", "how much storage", "query plan" |
 | data-loading | Exporting data, downloading CSVs, scheduling queries, loading data, sharing results, exporting to Sheets. | "export as CSV", "download results", "schedule this query", "send to Sheets" |
+| task | Interactive data tasks that require calling Google Cloud APIs beyond BigQuery SQL. Includes: SQL dialect translation/migration, setting up data transfers, configuring external connections, batch file operations, ETL pipeline setup. The user wants guided help completing a multi-step cloud operation. | "translate my SQL files to GoogleSQL", "help me migrate from Snowflake", "set up a data transfer from S3", "batch translate these queries", "guide me through setting up a connection", "convert my Teradata SQL" |
 
 ## Critical Routing Rules
 
@@ -25,6 +26,8 @@ Task-to-skill mapping for the BigQuery AI assistant. Use this to determine which
 4. **Pivot, filter, string ops, and regex are query, not data-management.** These reshape or extract data without modifying the source table.
 
 5. **ML/analytics tasks route to query.** Forecasting, anomaly detection, sentiment analysis, and classification use `AI.*`/`ML.*` SQL functions within a SELECT query.
+
+6. **"Translate SQL" means dialect translation (task), not column translation (query).** If the user says "translate my SQL files" or "convert from Teradata to BigQuery," that is a task (SQL dialect migration via the BigQuery Migration API). If the user says "translate the description column" or "translate these product names to French," that is a query (using AI.GENERATE within a SELECT).
 
 ## Disambiguation Guide
 
@@ -52,4 +55,10 @@ These prompts are commonly confused. Use this as a reference:
 | "sales trend for product Y" | query | Time series analysis, read-only |
 | "revenue breakdown by category" | query | Aggregation query, read-only |
 | "top 10 customers by order count" | query | Ranking query, read-only |
+| "translate my SQL files to GoogleSQL" | task | SQL dialect migration via the BigQuery Migration API |
+| "batch translate these queries from Teradata" | task | Batch SQL dialect translation -- external API workflow |
+| "translate the description column" | query | Uses AI.GENERATE within a SELECT query on existing data |
+| "help me set up a data transfer from S3" | task | Multi-step Cloud API workflow (Data Transfer Service) |
+| "connect BigQuery to my Cloud SQL database" | task | External connection setup via Connection API |
+| "guide me through migrating from Snowflake" | task | Guided multi-step migration workflow |
 

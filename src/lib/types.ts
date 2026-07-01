@@ -11,7 +11,8 @@ export type SkillName =
   | 'discovery'
   | 'monitoring'
   | 'data-loading'
-  | 'multistep';
+  | 'multistep'
+  | 'task';
 
 // ─── Handoff envelope (bigquery-shared-harness-policies.md §B) ───────────────
 
@@ -72,7 +73,8 @@ export type ArtifactType =
   | 'STORAGE_VIEW'
   | 'ACCESS_PATTERN_VIEW'
   | 'COST_ANALYSIS_VIEW'
-  | 'FRESHNESS_VIEW';
+  | 'FRESHNESS_VIEW'
+  | 'TASK_VIEW';
 
 export interface CompositionEnvelope {
   id: string; // unique per response, used as sourceResultRef

@@ -230,6 +230,38 @@ const DATA_LOADING_SIGNALS: Array<{ phrase: string; weight: number }> = [
   { phrase: 'json export', weight: 3 },
 ];
 
+const TASK_SIGNALS: Array<{ phrase: string; weight: number }> = [
+  // High-weight: unambiguous task/workflow intent
+  { phrase: 'batch translation', weight: 3 },
+  { phrase: 'translate sql', weight: 3 },
+  { phrase: 'convert sql', weight: 3 },
+  { phrase: 'migrate from', weight: 3 },
+  { phrase: 'translate my', weight: 3 },
+  { phrase: 'guide me through', weight: 3 },
+  { phrase: 'walk me through', weight: 3 },
+  { phrase: 'help me set up', weight: 3 },
+  { phrase: 'set up a transfer', weight: 3 },
+  { phrase: 'load data from', weight: 3 },
+  { phrase: 'set up a pipeline', weight: 3 },
+  { phrase: 'configure a connection', weight: 3 },
+  { phrase: 'import data', weight: 3 },
+  { phrase: 'translate these', weight: 3 },
+  { phrase: 'translate some', weight: 3 },
+  { phrase: 'batch translate', weight: 3 },
+  { phrase: 'sql files', weight: 3 },
+  { phrase: 'into google sql', weight: 3 },
+  { phrase: 'to googlesql', weight: 3 },
+  { phrase: 'to bigquery sql', weight: 3 },
+  // Medium-weight: likely task but could overlap with other skills
+  { phrase: 'step by step', weight: 2 },
+  { phrase: 'translate', weight: 2 },
+  { phrase: 'convert', weight: 2 },
+  { phrase: 'etl', weight: 2 },
+  { phrase: 'migration', weight: 2 },
+  { phrase: 'how do i', weight: 2 },
+  { phrase: 'transfer', weight: 2 },
+];
+
 // ─── Scoring engine ───────────────────────────────────────────────────────────
 
 type SignalList = Array<{ phrase: string; weight: number }>;
@@ -376,6 +408,7 @@ export function classifyIntent(
     'schema': scoreSignals(lower, SCHEMA_SIGNALS),
     'discovery': scoreSignals(lower, DISCOVERY_SIGNALS),
     'data-loading': scoreSignals(lower, DATA_LOADING_SIGNALS),
+    'task': scoreSignals(lower, TASK_SIGNALS),
   };
 
   // Apply context-aware boosts

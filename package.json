@@ -16,12 +16,15 @@
     "test:all": "/Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/test-loop.mjs && /Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/capture-screenshots.mjs && /Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/generate-report.mjs"
   },
   "dependencies": {
+    "@ai-sdk/google": "^4.0.5",
+    "ai": "^7.0.11",
     "firebase": "^12.14.0",
     "next": "16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.8.1",
-    "ws": "^8.21.0"
+    "ws": "^8.21.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.0",
