@@ -1871,6 +1871,44 @@ details>summary::marker {
   gap: 3px;
 }
 
+/* Step deep-link icon -- revealed on hover */
+.step-link {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  color: var(--text-dim);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.step-link .material-symbols-outlined {
+  font-size: 12px;
+}
+
+.step-link:hover {
+  color: var(--accent);
+}
+
+.thinking-step:hover .step-link {
+  opacity: 1;
+}
+
+/* Clickable entity names (dataset/table) in thinking metadata */
+.thinking-entity-link {
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--text-dim);
+  transition: color 0.15s, text-decoration-color 0.15s;
+}
+
+.thinking-entity-link:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+
 /* ═══════════════════════════════════════════════════════
    CHAT SIDEBAR: ARTIFACT LINK BUTTONS
    ═══════════════════════════════════════════════════════ */

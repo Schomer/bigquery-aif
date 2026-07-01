@@ -24,8 +24,24 @@ import type {
   SavedCheck,
   SkillName,
   QueryResult,
+  StatusCallback,
+  StepInfo,
   VisualizationType,
 } from './types';
+
+// ─── BQ Console URL builder ──────────────────────────────────────────────────
+
+function bqConsoleUrl(opts: { project: string; dataset?: string; table?: string; jobId?: string }): string {
+  const base = 'https://console.cloud.google.com/bigquery';
+  if (opts.jobId) return `${base}?project=${encodeURIComponent(opts.project)}&j=bq:US:${encodeURIComponent(opts.jobId)}&page=queryresults`;
+  if (opts.table && opts.dataset) return `${base}?p=${encodeURIComponent(opts.project)}&d=${encodeURIComponent(opts.dataset)}&t=${encodeURIComponent(opts.table)}&page=table`;
+  if (opts.dataset) return `${base}?p=${encodeURIComponent(opts.project)}&d=${encodeURIComponent(opts.dataset)}&page=dataset`;
+  return `${base}?project=${encodeURIComponent(opts.project)}`;
+}
+
+function stepWithLink(text: string, opts: { project: string; dataset?: string; table?: string; jobId?: string }, label?: string): StepInfo {
+  return { text, link: { url: bqConsoleUrl(opts), label: label || 'Open in BigQuery' } };
+}
 
 // ─── Load skill docs from public assets (cached in memory) ───────────────────
 
@@ -394,7 +410,7 @@ export interface ProcessMessageArgs {
     // Handoff chain: full envelope context from chip clicks (§B)
     handoffContext?: Record<string, unknown>;
   };
-  onStatus?: (status: string) => void;
+  onStatus?: StatusCallback;
 }
 
 export interface OrchestrationResult {
@@ -883,7 +899,7 @@ function extractSchemaIdentifiers(
 async function handleSchema(
   message: string,
   context?: { project?: string; dataset?: string; availableDatasets?: string[] },
-  onStatus?: (status: string) => void
+  onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
   const project = context?.project || '';
 
@@ -938,7 +954,11 @@ async function handleSchema(
     const bqRegion = await detectBqRegion(project);
     const fastResult = tryFastEnrichment(message, project, resolvedDataset, bqRegion);
     if (fastResult) {
-      onStatus?.(`Running INFORMATION_SCHEMA query against ${resolvedDataset || project}...`);
+      onStatus?.(stepWithLink(
+        `Running INFORMATION_SCHEMA query against ${resolvedDataset || project}...`,
+        { project, dataset: resolvedDataset },
+        resolvedDataset ? 'Open dataset in BigQuery' : 'Open project in BigQuery'
+      ));
       const executed = await executeQuery(fastResult.sql, project);
 
       const queryResult: QueryResult = {
@@ -1020,10 +1040,22 @@ Rules:
   }
 
   onStatus?.(table
-    ? `Fetching schema for table ${resolvedDataset ? `${resolvedDataset}.` : ''}${table}...`
+    ? stepWithLink(
+        `Fetching schema for table ${resolvedDataset ? `${resolvedDataset}.` : ''}${table}...`,
+        { project, dataset: resolvedDataset, table },
+        'Open table in BigQuery'
+      )
     : resolvedDataset
-      ? `Listing tables in dataset ${resolvedDataset}...`
-      : `Listing datasets in project ${project}...`
+      ? stepWithLink(
+          `Listing tables in dataset ${resolvedDataset}...`,
+          { project, dataset: resolvedDataset },
+          'Open dataset in BigQuery'
+        )
+      : stepWithLink(
+          `Listing datasets in project ${project}...`,
+          { project },
+          'Open project in BigQuery'
+        )
   );
 
   // For table-level lookups, if the table isn't found in the assumed dataset,
@@ -1135,7 +1167,7 @@ async function selfReviewEnvelope(
   envelope: CompositionEnvelope,
   userMessage: string,
   project: string,
-  _onStatus?: (status: string) => void,
+  _onStatus?: StatusCallback,
 ): Promise<CompositionEnvelope> {
   const snapshot = buildReviewSnapshot(envelope);
 
@@ -1244,7 +1276,7 @@ async function handleQuery(
   message: string,
   history: ChatMessage[],
   context?: { project?: string; dataset?: string; lastTable?: string; resolvedDataset?: string; availableDatasets?: string[] },
-  onStatus?: (status: string) => void
+  onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
   const project = context?.project || '';
 
@@ -1280,7 +1312,11 @@ async function handleQuery(
   } else {
   const schemaContext = await buildSchemaContext(project, dataset);
 
-  onStatus?.(`Building SQL for dataset ${dataset} in project ${project}...`);
+  onStatus?.(stepWithLink(
+    `Building SQL for dataset ${dataset} in project ${project}...`,
+    { project, dataset },
+    'Open dataset in BigQuery'
+  ));
   const datasetLine = dataset
     ? `The active dataset is: ${dataset}`
     : 'No dataset is pre-selected. Infer the correct dataset from the user\'s prompt and the available datasets listed below.';
@@ -1341,7 +1377,11 @@ VISUALIZATION SELECTION: Pick the suggestedVisualization that best matches both 
   } // end else (no cached plan)
 
   // Run dry-run first for cost check
-  onStatus?.(`Dry-running query to estimate cost (${dataset})...`);
+  onStatus?.(stepWithLink(
+    `Dry-running query to estimate cost (${dataset})...`,
+    { project, dataset },
+    'Open dataset in BigQuery'
+  ));
   const costResult = await dryRun(queryPlan.sql, project);
 
   if (costResult.requiresConfirmation) {
@@ -1447,7 +1487,7 @@ async function handleDataManagement(
   message: string,
   history: ChatMessage[],
   context?: { project?: string; dataset?: string; resolvedDataset?: string; availableDatasets?: string[]; handoffContext?: Record<string, unknown> },
-  onStatus?: (status: string) => void
+  onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
   const project = context?.project || '';
 
@@ -1491,7 +1531,11 @@ async function handleDataManagement(
 
   const schemaContext = await buildSchemaContext(project, dataset);
 
-  onStatus?.(`Planning data management operation on dataset ${dataset}...`);
+  onStatus?.(stepWithLink(
+    `Planning data management operation on dataset ${dataset}...`,
+    { project, dataset },
+    'Open dataset in BigQuery'
+  ));
   const dmDatasetLine = dataset
     ? `The active dataset is: ${dataset}`
     : 'No dataset is pre-selected. Infer the correct dataset from the user\'s prompt and the available datasets listed below.';
@@ -1516,7 +1560,11 @@ Always wrap fully qualified table references in literal backticks: \`${project}.
   // DIRECT_EXECUTE: no preview, no confirmation. Used for operations that
   // create new objects or are inherently safe (CREATE TABLE, CREATE VIEW, etc.).
   if (strategy === 'DIRECT_EXECUTE') {
-    onStatus?.(`Executing ${plan.operation} directly on ${plan.table || dataset}...`);
+    onStatus?.(stepWithLink(
+      `Executing ${plan.operation} directly on ${plan.table || dataset}...`,
+      { project, dataset, table: plan.table },
+      plan.table ? 'Open table in BigQuery' : 'Open dataset in BigQuery'
+    ));
     const dmlResult = await executeDml(plan.executionSql, project);
     const completeResult: DataManagementResult = {
       skill: 'data-management',
@@ -1535,7 +1583,11 @@ Always wrap fully qualified table references in literal backticks: \`${project}.
 
   // PREVIEW_AND_CONFIRM_DEDUPE: preview + example group + group count + confirmation.
   if (strategy === 'PREVIEW_AND_CONFIRM_DEDUPE') {
-    onStatus?.(`Running dedupe preview on ${plan.table || dataset}...`);
+    onStatus?.(stepWithLink(
+      `Running dedupe preview on ${plan.table || dataset}...`,
+      { project, dataset, table: plan.table },
+      plan.table ? 'Open table in BigQuery' : 'Open dataset in BigQuery'
+    ));
     const previewResult = await executeQuery(plan.previewSql, project);
     const rawCount = Number(previewResult.rows[0]?.[0]);
     const affectedRowCount = Number.isFinite(rawCount) ? Math.round(rawCount) : 0;
@@ -1672,7 +1724,7 @@ async function executeConfirmedOperation(
 async function handleMonitoring(
   message: string,
   context?: { project?: string; uid?: string; dataset?: string; resolvedDataset?: string; availableDatasets?: string[]; handoffContext?: Record<string, unknown> },
-  onStatus?: (status: string) => void
+  onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
   const project = context?.project || '';
   const region = await detectBqRegion(project);
@@ -2432,7 +2484,7 @@ async function handleMonitoring(
 async function handleDataQuality(
   message: string,
   context?: { project?: string; dataset?: string; lastTable?: string; resolvedDataset?: string; availableDatasets?: string[]; handoffContext?: Record<string, unknown> },
-  onStatus?: (status: string) => void
+  onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
   const project = context?.project || '';
   const hc = context?.handoffContext;
@@ -2913,7 +2965,7 @@ async function handleDataQuality(
 async function handleDataLoading(
   message: string,
   context?: { project?: string; dataset?: string; lastTable?: string; uid?: string; handoffContext?: Record<string, unknown> },
-  onStatus?: (status: string) => void
+  onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
   const project = context?.project || '';
   const hc = context?.handoffContext;
@@ -3138,7 +3190,7 @@ async function handleDataLoading(
 async function handleDiscovery(
   message: string,
   context?: { project?: string; dataset?: string; handoffContext?: Record<string, unknown> },
-  onStatus?: (status: string) => void
+  onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
   const project = context?.project || '';
   const hc = context?.handoffContext;

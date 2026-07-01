@@ -109,6 +109,18 @@ export interface CompositionEnvelope {
 // Re-export QualityFlag from result-quality module for convenience
 export type { QualityFlag } from './result-quality';
 
+// ─── Structured thinking step with optional BQ Console link ──────────────────
+
+export interface StepInfo {
+  text: string;
+  link?: {
+    url: string;       // full BQ Console URL
+    label?: string;    // tooltip text, e.g. "Open dataset in BigQuery"
+  };
+}
+
+export type StatusCallback = (status: string | StepInfo) => void;
+
 // ─── Context item (visible chip in the prompt area) ──────────────────────────
 
 export interface ContextItem {

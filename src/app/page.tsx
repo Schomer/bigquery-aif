@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useConversation } from '@/lib/conversation-context';
 import { usePage } from '@/lib/page-context';
 import { useLayout } from '@/lib/layout-context';
-import type { ChatMessage, CompositionEnvelope, SkillName, DataManagementResult, HandoffEnvelope, ContextItem } from '@/lib/types';
+import type { ChatMessage, CompositionEnvelope, SkillName, StepInfo, DataManagementResult, HandoffEnvelope, ContextItem } from '@/lib/types';
 import { ChatOrchestrator } from '@/lib/chat-orchestrator';
 import { ArtifactCard } from '@/components/ArtifactCard';
 import { PromptsLibrary } from '@/components/PromptsLibrary';
@@ -98,7 +98,7 @@ export default function Home() {
   const [pinnedEnvelopeId, setPinnedEnvelopeId] = useState<string | null>(null);
   const [statusText, setStatusText] = useState<string | null>(null);
   const [lastError, setLastError] = useState<{ message: string; type: string; sql?: string; retryFn?: () => void } | null>(null);
-  const [thinkingSteps, setThinkingSteps] = useState<Record<number, string[]>>({});
+  const [thinkingSteps, setThinkingSteps] = useState<Record<number, (string | StepInfo)[]>>({});
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('hdn_sidebar_width');
@@ -114,7 +114,7 @@ export default function Home() {
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const titleSetRef = useRef(false);
   const resultsPanelRef = useRef<HTMLDivElement>(null);
-  const pendingStepsRef = useRef<string[]>([]);
+  const pendingStepsRef = useRef<(string | StepInfo)[]>([]);
 
   // Auto-focus and auto-size the edit textarea when it opens
   useEffect(() => {
@@ -233,7 +233,7 @@ export default function Home() {
         message: text,
         history: historyBefore,
         context: { ...deriveContextFromItems(), project: activeProject || context.project, uid: user?.uid },
-        onStatus: (s: string) => { setStatusText(s); pendingStepsRef.current.push(s); },
+        onStatus: (s: string | StepInfo) => { setStatusText(typeof s === 'string' ? s : s.text); pendingStepsRef.current.push(s); },
       });
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
       const newAssistantMsg: ChatMessage = {
@@ -292,7 +292,7 @@ export default function Home() {
         message: userText,
         history: historyUpTo.slice(0, -1),
         context: { ...deriveContextFromItems(), project: activeProject || context.project, uid: user?.uid },
-        onStatus: (s: string) => { setStatusText(s); pendingStepsRef.current.push(s); },
+        onStatus: (s: string | StepInfo) => { setStatusText(typeof s === 'string' ? s : s.text); pendingStepsRef.current.push(s); },
       });
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
       const newAssistantMsg: ChatMessage = {
@@ -342,7 +342,7 @@ export default function Home() {
         message: text,
         history: messages,
         context: { ...derivedCtx, project: activeProject || derivedCtx.project, uid: user?.uid },
-        onStatus: (s: string) => { setStatusText(s); pendingStepsRef.current.push(s); },
+        onStatus: (s: string | StepInfo) => { setStatusText(typeof s === 'string' ? s : s.text); pendingStepsRef.current.push(s); },
       });
 
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
@@ -425,7 +425,7 @@ export default function Home() {
         message: 'confirm',
         history: messages,
         context: { ...deriveContextFromItems(), project: activeProject || context.project, uid: user?.uid, confirmedPayload: envelope.primaryArtifact.data as DataManagementResult },
-        onStatus: (s: string) => setStatusText(s),
+        onStatus: (s: string | StepInfo) => setStatusText(typeof s === 'string' ? s : s.text),
       });
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
       const assistantMsg: ChatMessage = { role: 'assistant', content: '', envelopes, timestamp: new Date().toISOString() };
@@ -625,7 +625,7 @@ export default function Home() {
         message: enrichedMessage,
         history: messages,
         context: mergedContext,
-        onStatus: (s: string) => setStatusText(s),
+        onStatus: (s: string | StepInfo) => setStatusText(typeof s === 'string' ? s : s.text),
       });
 
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
@@ -1349,11 +1349,20 @@ export default function Home() {
                             {thinkingSteps[i] && thinkingSteps[i].length > 0 && (
                               <>
                                 <div className="thinking-section-label">Steps</div>
-                                {thinkingSteps[i].map((step, si) => (
-                                  <div key={si} className="thinking-step">
-                                    {si + 1}. {step}
-                                  </div>
-                                ))}
+                                {thinkingSteps[i].map((step, si) => {
+                                  const info: StepInfo = typeof step === 'string' ? { text: step } : step;
+                                  return (
+                                    <div key={si} className="thinking-step">
+                                      {si + 1}. {info.text}
+                                      {info.link && (
+                                        <a href={info.link.url} target="_blank" rel="noopener noreferrer"
+                                           className="step-link" title={info.link.label || 'Open in BigQuery'}>
+                                          <span className="material-symbols-outlined">open_in_new</span>
+                                        </a>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </>
                             )}
 
@@ -1371,11 +1380,11 @@ export default function Home() {
                                   {type === 'SCHEMA_VIEW' && d && (
                                     <div className="thinking-step" style={{ flexDirection: 'column', gap: 2 }}>
                                       {d.scope === 'DATASET' && d.dataset && (
-                                        <div>Dataset: <strong>{d.dataset}</strong> ({d.columns?.length || 0} tables)</div>
+                                        <div>Dataset: <a href={`https://console.cloud.google.com/bigquery?p=${encodeURIComponent(env.provenance.project || '')}&d=${encodeURIComponent(d.dataset)}&page=dataset`} target="_blank" rel="noopener noreferrer" className="thinking-entity-link"><strong>{d.dataset}</strong></a> ({d.columns?.length || 0} tables)</div>
                                       )}
                                       {d.scope === 'TABLE' && (
                                         <>
-                                          <div>Table: <strong>{d.dataset ? `${d.dataset}.` : ''}{d.table}</strong></div>
+                                          <div>Table: <a href={`https://console.cloud.google.com/bigquery?p=${encodeURIComponent(env.provenance.project || '')}&d=${encodeURIComponent(d.dataset || '')}&t=${encodeURIComponent(d.table)}&page=table`} target="_blank" rel="noopener noreferrer" className="thinking-entity-link"><strong>{d.dataset ? `${d.dataset}.` : ''}{d.table}</strong></a></div>
                                           {d.columns?.length > 0 && (
                                             <div>Fields: {d.columns.map((c: any) => `${c.name} (${c.type})`).slice(0, 8).join(', ')}{d.columns.length > 8 ? ` +${d.columns.length - 8} more` : ''}</div>
                                           )}
