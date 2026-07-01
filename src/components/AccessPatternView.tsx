@@ -418,7 +418,6 @@ function TopTableRow({
       </span>
       <span style={{
         fontSize: 12,
-        fontFamily: 'var(--font-mono)',
         color: hovered ? 'var(--accent)' : 'var(--text)',
         flex: 1,
         transition: 'color 0.12s',

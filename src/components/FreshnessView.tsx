@@ -169,7 +169,6 @@ function EntryRow({
       {/* Name + metadata */}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <span style={{
-          fontFamily: 'var(--font-mono)',
           fontSize: 13,
           color: 'var(--text)',
           overflow: 'hidden',

@@ -32,7 +32,7 @@ export function SchemaView({ result, onSendMessage }: Props) {
           >
             <IconBadge icon="database" color="#6366f1" />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', fontFamily: 'var(--font-mono)', display: 'block' }}>{ds.name}</span>
+              <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', display: 'block' }}>{ds.name}</span>
               {ds.tableCount != null && (
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3, marginTop: 2, display: 'block' }}>
                   {ds.tableCount} table{ds.tableCount !== 1 ? 's' : ''}
@@ -69,7 +69,7 @@ export function SchemaView({ result, onSendMessage }: Props) {
             >
               <IconBadge icon={badge.icon} color={badge.color} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', fontFamily: 'var(--font-mono)', display: 'block' }}>{t.name}</span>
+                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', display: 'block' }}>{t.name}</span>
                 {(t.description || meta.length > 0) && (
                   <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3, marginTop: 2, display: 'block' }}>
                     {t.description ? `${t.description} — ` : ''}{meta.join(' / ')}

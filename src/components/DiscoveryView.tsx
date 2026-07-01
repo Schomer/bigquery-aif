@@ -118,7 +118,6 @@ function SearchResultRow({ item, onSendMessage }: { item: DiscoverySearchResult;
         <span style={{
           fontSize: 13,
           color: hovered ? 'var(--accent)' : 'var(--text)',
-          fontFamily: 'var(--font-mono)',
           wordBreak: 'break-all',
           transition: 'color 0.12s',
         }}>
