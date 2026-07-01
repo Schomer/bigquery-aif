@@ -15,8 +15,10 @@ const STATUS_COLORS: Record<FreshnessEntry['status'], string> = {
 };
 
 function formatRelativeTime(isoString: string): string {
+  if (!isoString) return 'unknown';
   const now = Date.now();
   const then = new Date(isoString).getTime();
+  if (isNaN(then)) return 'unknown';
   const diffMs = now - then;
   const minutes = Math.floor(diffMs / 60_000);
   if (minutes < 1) return 'just now';
@@ -28,6 +30,7 @@ function formatRelativeTime(isoString: string): string {
 }
 
 function formatAge(hours: number): string {
+  if (isNaN(hours) || hours <= 0) return '---';
   if (hours < 24) return `${Math.round(hours)}h`;
   const days = Math.floor(hours / 24);
   const rem = Math.round(hours % 24);

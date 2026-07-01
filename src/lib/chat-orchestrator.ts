@@ -2302,12 +2302,25 @@ async function handleMonitoring(
       const freshHours = 24;
       const staleHours = 72;
       // Debug: log first raw row to diagnose NaN timestamp issue
-      if (allRows.length > 0) console.log('[freshness] raw row[0]:', JSON.stringify(allRows[0]));
+      if (allRows.length > 0) console.log('[freshness] raw row[0]:', JSON.stringify(allRows[0]), 'row[1] type:', typeof allRows[0][1]);
       const entries: import('./types').FreshnessEntry[] = allRows.map(row => {
         const tbl = String(row[0] ?? '');
-        // __TABLES__ last_modified_time: BQ REST API returns as string of ms-since-epoch
+        // __TABLES__ last_modified_time: BQ REST API can return as:
+        //   - string of ms ("1719849000000")
+        //   - string of seconds with decimal ("1.719849E9" or "1719849000.0")
+        //   - nested object { v: "..." }
+        //   - number
+        //   - null
         const rawVal = row[1];
-        const modTimeMs = typeof rawVal === 'string' ? parseInt(rawVal, 10) : (typeof rawVal === 'number' ? rawVal : 0);
+        let modTimeMs = 0;
+        if (rawVal != null) {
+          const str = typeof rawVal === 'object' ? String((rawVal as Record<string, unknown>).v ?? rawVal) : String(rawVal);
+          const num = Number(str);
+          if (!isNaN(num)) {
+            // If value is < 1e12, it's likely seconds (TIMESTAMP format), not ms
+            modTimeMs = num < 1e12 ? Math.round(num * 1000) : num;
+          }
+        }
         const rowCount = typeof row[2] === 'string' ? parseInt(String(row[2]), 10) : Number(row[2] ?? 0);
         const ds = String(row[3] ?? '');
         const lastMod = modTimeMs > 0 ? new Date(modTimeMs).toISOString() : '';
