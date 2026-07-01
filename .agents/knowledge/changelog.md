@@ -4,6 +4,19 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-01: Auto-scroll shows result top instead of overshooting
+
+**What changed**:
+- When a prompt returns results, the chat now scrolls to the top of the last assistant message instead of scrolling past it to a bottom sentinel div
+- User messages still scroll to the bottom (to keep the loading spinner visible)
+- Added `data-msg-idx` data attributes to message wrapper divs in both center and sidebar layouts so the scroll logic can find the target element
+- Used `requestAnimationFrame` to let DOM render the new content before scrolling
+
+**Files modified**:
+- `src/app/page.tsx` -- updated auto-scroll `useEffect`, added `data-msg-idx` attributes to message divs
+
+---
+
 ## 2026-07-01: Context chips in the prompt area
 
 **What changed**:
