@@ -2301,15 +2301,17 @@ async function handleMonitoring(
       const now = Date.now();
       const freshHours = 24;
       const staleHours = 72;
+      // Debug: log first raw row to diagnose NaN timestamp issue
+      if (allRows.length > 0) console.log('[freshness] raw row[0]:', JSON.stringify(allRows[0]));
       const entries: import('./types').FreshnessEntry[] = allRows.map(row => {
         const tbl = String(row[0] ?? '');
-        const rawTime = row[1];
-        if (tbl === String(allRows[0]?.[0] ?? '')) console.log('[freshness debug] raw row[1]:', rawTime, 'type:', typeof rawTime, 'Number():', Number(rawTime));
-        const modTimeMs = Number(rawTime ?? 0);
-        const rowCount = Number(row[2] ?? 0);
+        // __TABLES__ last_modified_time: BQ REST API returns as string of ms-since-epoch
+        const rawVal = row[1];
+        const modTimeMs = typeof rawVal === 'string' ? parseInt(rawVal, 10) : (typeof rawVal === 'number' ? rawVal : 0);
+        const rowCount = typeof row[2] === 'string' ? parseInt(String(row[2]), 10) : Number(row[2] ?? 0);
         const ds = String(row[3] ?? '');
-        const lastMod = new Date(modTimeMs).toISOString();
-        const ageHours = Math.max(0, (now - modTimeMs) / (1000 * 60 * 60));
+        const lastMod = modTimeMs > 0 ? new Date(modTimeMs).toISOString() : '';
+        const ageHours = modTimeMs > 0 ? Math.max(0, (now - modTimeMs) / (1000 * 60 * 60)) : 0;
         const status: import('./types').FreshnessEntry['status'] =
           ageHours <= freshHours ? 'FRESH' : ageHours <= staleHours ? 'STALE' : 'VERY_STALE';
         return { tableRef: `${project}.${ds}.${tbl}`, lastModified: lastMod, ageHours, rowCount, status };
