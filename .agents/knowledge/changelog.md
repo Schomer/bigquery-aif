@@ -4,6 +4,35 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-01: Core task framework
+
+**What changed**:
+- Created `src/lib/tasks/` with 5 files: types.ts, executor.ts, learned-plans.ts, resolver.ts, actions/index.ts
+- Installed `@ai-sdk/google`, `ai`, and `zod` (v4) as dependencies
+- The resolver uses a two-phase Gemini approach via `generateObject` with Zod v4 schemas
+- Learned plans are stored in a top-level `learnedPlans` Firestore collection, shared across users (scoped by project)
+- The executor validates API call hosts against a googleapis.com allowlist
+- Fixed pre-existing type error in `TaskWorkflowView.tsx` where `getAccessToken()` null return was not guarded
+- Added `onStatus` callback parameter to `resolveTask()` to match orchestrator call site
+
+**Files created**:
+- `src/lib/tasks/types.ts` -- ResolvedPlan, ResolvedStep, ApiCallSpec, DynamicInput, TaskStepResult, TaskArtifact, LearnedPlan, TaskResult
+- `src/lib/tasks/executor.ts` -- executeApiCall with placeholder substitution and host validation
+- `src/lib/tasks/learned-plans.ts` -- Firestore CRUD with in-memory cache and keyword extraction
+- `src/lib/tasks/resolver.ts` -- resolveTask, findMatchingLearnedPlan, onTaskSuccess, onTaskFailure, diagnoseError
+- `src/lib/tasks/actions/index.ts` -- setupTaskActions no-op placeholder
+
+**Files modified**:
+- `src/components/TaskWorkflowView.tsx` -- added null guard on getAccessToken() result
+- `package.json` -- added @ai-sdk/google, ai, zod dependencies
+
+**Tricky parts**:
+- Zod v4 requires `z.record(keySchema, valueSchema)` -- two args, not one. The Zod v3 `z.record(z.string())` pattern does not compile.
+- The `@ai-sdk/google` default provider expects `GOOGLE_GENERATIVE_AI_API_KEY` env var. This project uses `NEXT_PUBLIC_GEMINI_API_KEY`, so the resolver uses `createGoogle({ apiKey })` explicitly.
+- The orchestrator was already calling `resolveTask` with 4 args (including onStatus). The resolver signature had to match.
+
+---
+
 ## 2026-07-01: Orbiting stars and particles on signed-out page
 
 **What changed**:

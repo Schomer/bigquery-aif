@@ -219,3 +219,43 @@ UI Components (src/components/)
 - `scripts/token-manager.mjs` -- OAuth token management for tests
 - `scripts/generate-report.mjs` -- Markdown report generator
 - No unit tests exist. No jest/vitest configuration.
+
+---
+
+## Task Framework (`src/lib/tasks/`)
+
+New subsystem for autonomously resolving and executing Google Cloud data tasks.
+
+### `src/lib/tasks/types.ts` (~85 lines)
+**Responsibility**: Type definitions for the task framework.
+- `ResolvedPlan`, `ResolvedStep`, `ApiCallSpec`, `DynamicInput`
+- `TaskStepResult`, `TaskArtifact`
+- `LearnedPlan` (Firestore persistence shape)
+- `TaskResult` (top-level result type for the app)
+
+### `src/lib/tasks/executor.ts` (~155 lines)
+**Responsibility**: Generic API executor for structured call specs.
+- `ALLOWED_API_HOSTS` -- googleapis.com domain allowlist
+- `executeApiCall()` -- substitutes placeholders, validates host, sends fetch with Bearer auth
+- `substitutePlaceholders()`, `substituteBody()` -- recursive template resolution
+- `validateHost()` -- URL host check against allowlist
+
+### `src/lib/tasks/learned-plans.ts` (~130 lines)
+**Responsibility**: Firestore persistence for learned plans.
+- Uses top-level `learnedPlans` collection (shared across users, scoped by project)
+- In-memory cache per session per project
+- `getLearnedPlans()`, `saveLearnedPlan()`, `updateLearnedPlan()`, `deleteLearnedPlan()`
+- `extractKeywords()` -- stop-word-filtered keyword extraction
+
+### `src/lib/tasks/resolver.ts` (~400 lines)
+**Responsibility**: The brain. Resolves NL requests into executable plans.
+- `resolveTask()` -- main entry: learned plan check -> API identification -> plan construction
+- `findMatchingLearnedPlan()` -- keyword overlap + Gemini semantic scoring
+- `onTaskSuccess()`, `onTaskFailure()` -- learned plan feedback loop
+- `diagnoseError()` -- Gemini-powered error diagnosis with optional plan fix
+- Uses `@ai-sdk/google` with `generateObject` and Zod v4 schemas
+- API key from `NEXT_PUBLIC_GEMINI_API_KEY` via `createGoogle()`
+
+### `src/lib/tasks/actions/index.ts` (~8 lines)
+**Responsibility**: Bootstrapper for future pre-coded action shortcuts (currently no-op).
+

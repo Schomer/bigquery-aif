@@ -12,6 +12,15 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 
 ---
 
+### 2026-07-01: LLM generates SQL against wrong table (liquor_backup -> faa.airports)
+**Scope**: `src/lib/chat-orchestrator.ts` (`buildSchemaContext`, `handleQuery`, `handleDataManagement`)
+**What broke**: When the user asked to "filter the liquor_backup table for rum categories," the system generated SQL against `malloy-data.faa.airports` -- a completely different table. The subtitle correctly identified the target table, but the SQL was wrong.
+**Root cause**: Two compounding issues:
+1. `buildSchemaContext()` only sent schemas for the first 5 tables (alphabetically) in the dataset. If the target table wasn't in the first 5, the LLM never saw its schema.
+2. `handleQuery()` accepted `context.lastTable` in its signature but never used it. The system instruction sent to the LLM contained no explicit mention of which table the user was asking about, leaving the LLM to guess from whatever schemas it received -- or hallucinate from training data (faa.airports is a well-known BigQuery public dataset).
+**Fix**: (1) `buildSchemaContext()` now accepts a `priorityTable` parameter. When set, that table's schema is always fetched first, and the remaining 4 slots are filled with other tables. (2) `handleQuery()` extracts the target table from the message (by matching against the dataset's actual table names) or from `context.lastTable`, then passes it to `buildSchemaContext` and adds a `CRITICAL` instruction to the LLM prompt: "You MUST use this exact table in your SQL query." Same fix applied to `handleDataManagement()`.
+**Rule**: When the user references a specific table by name, the LLM prompt must (a) always include that table's schema in the context and (b) explicitly name the target table in the system instruction. Never rely on the LLM to pick the right table from an incomplete list of schemas.
+
 ### 2026-07-01: Session expired "Try again" was looping instead of re-authenticating
 **Scope**: `src/app/page.tsx`, `src/lib/bigquery-client.ts`
 **What broke**: After the OAuth access token expired (~1 hour), the "Session Expired" banner appeared with a "Try again" button. Clicking it retried the same message with the same expired token, failing again immediately. Two separate issues:

@@ -97,3 +97,14 @@ Last verified: 2026-06-30
 - **`SchemaView.tsx` is the largest component (67KB)**: Changes here are high-risk. Test all three schema scopes (project/dataset/table) after any modification.
 - **Error boundaries wrap skill-specific views**: Each view component should gracefully handle missing or malformed data from the orchestrator.
 - **Confirmation cards block execution**: `ConfirmationCard` and `CostConfirmCard` must prevent any data-modifying operation until the user explicitly confirms.
+
+---
+
+## Task Framework (`src/lib/tasks/`)
+
+- **Executor host allowlist is mandatory**: `executeApiCall()` validates the resolved URL host against `ALLOWED_API_HOSTS`. Adding a new googleapis.com subdomain requires updating this list. Never remove the validation.
+- **Learned plans are per-project, not per-user**: Stored in a top-level `learnedPlans` Firestore collection with a `project` field. The `getLearnedPlans()` query filters by project.
+- **Zod v4 record syntax**: Always use `z.record(z.string(), valueSchema)` with two arguments. Single-argument `z.record(valueSchema)` does not compile in Zod v4.
+- **Resolver uses createGoogle, not the default google export**: The default export reads `GOOGLE_GENERATIVE_AI_API_KEY` env var. This project uses `NEXT_PUBLIC_GEMINI_API_KEY`, so the resolver must use `createGoogle({ apiKey })`.
+- **Learned plan match threshold is 0.7**: Plans with Gemini-scored semantic confidence below 0.7 are not reused. Lowering this risks reusing inappropriate plans.
+- **In-memory cache is per-session**: The learned plans cache resets on page reload. Do not persist it.
