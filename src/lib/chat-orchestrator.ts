@@ -2270,7 +2270,7 @@ async function handleMonitoring(
       // __TABLES__ is per-dataset, so for project scope we need to list datasets first.
       let allRows: unknown[][] = [];
       if (dataset) {
-        const sql = `SELECT table_id, TIMESTAMP_MILLIS(last_modified_time) AS last_modified, row_count, '${dataset}' AS dataset_id FROM \`${project}.${dataset}.__TABLES__\` ORDER BY last_modified_time ASC`;
+        const sql = `SELECT table_id, last_modified_time, row_count, '${dataset}' AS dataset_id FROM \`${project}.${dataset}.__TABLES__\` ORDER BY last_modified_time ASC`;
         const exec = await executeQuery(sql, project);
         allRows = exec.rows;
       } else {
@@ -2282,7 +2282,7 @@ async function handleMonitoring(
         const datasets = dsResult.rows.map(r => String(r[0] ?? '')).filter(Boolean);
         for (const ds of datasets.slice(0, 20)) {
           try {
-            const sql = `SELECT table_id, TIMESTAMP_MILLIS(last_modified_time) AS last_modified, row_count, '${ds}' AS dataset_id FROM \`${project}.${ds}.__TABLES__\``;
+            const sql = `SELECT table_id, last_modified_time, row_count, '${ds}' AS dataset_id FROM \`${project}.${ds}.__TABLES__\``;
             const exec = await executeQuery(sql, project);
             allRows.push(...exec.rows);
           } catch {
@@ -2291,8 +2291,8 @@ async function handleMonitoring(
         }
         // Sort by last_modified ascending (oldest first)
         allRows.sort((a, b) => {
-          const ta = new Date(String(a[1] ?? '')).getTime();
-          const tb = new Date(String(b[1] ?? '')).getTime();
+          const ta = Number(a[1] ?? 0);
+          const tb = Number(b[1] ?? 0);
           return ta - tb;
         });
         allRows = allRows.slice(0, 100);
@@ -2303,11 +2303,11 @@ async function handleMonitoring(
       const staleHours = 72;
       const entries: import('./types').FreshnessEntry[] = allRows.map(row => {
         const tbl = String(row[0] ?? '');
-        const lastMod = String(row[1] ?? '');
+        const modTimeMs = Number(row[1] ?? 0);
         const rowCount = Number(row[2] ?? 0);
         const ds = String(row[3] ?? '');
-        const modTime = new Date(lastMod).getTime();
-        const ageHours = Math.max(0, (now - modTime) / (1000 * 60 * 60));
+        const lastMod = new Date(modTimeMs).toISOString();
+        const ageHours = Math.max(0, (now - modTimeMs) / (1000 * 60 * 60));
         const status: import('./types').FreshnessEntry['status'] =
           ageHours <= freshHours ? 'FRESH' : ageHours <= staleHours ? 'STALE' : 'VERY_STALE';
         return { tableRef: `${project}.${ds}.${tbl}`, lastModified: lastMod, ageHours, rowCount, status };
