@@ -4,6 +4,25 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-01: BQ Console deep-links in thinking steps
+
+**What changed**:
+- Thinking steps with dataset/table/project context now show a small external-link icon on hover that opens the corresponding view in BigQuery Cloud Console
+- Added `StepInfo` type and `StatusCallback` alias to `types.ts` -- `onStatus` now accepts `string | StepInfo`
+- Added `bqConsoleUrl()` and `stepWithLink()` helpers to orchestrator
+- Key orchestrator steps enriched: "Building SQL...", "Dry-running query...", schema lookups, data management operations
+- Dataset and table names in the thinking metadata section are now clickable links to BQ Console
+- Hover-reveal link icon uses `opacity: 0` -> `1` transition on `.thinking-step:hover`
+- Entity links use dotted underline styling via `.thinking-entity-link`
+
+**Files modified**:
+- `src/lib/types.ts` -- added `StepInfo` interface and `StatusCallback` type alias
+- `src/lib/chat-orchestrator.ts` -- added `bqConsoleUrl()`/`stepWithLink()`, updated all 9 handler signatures to `StatusCallback`, enriched 7 key onStatus call sites
+- `src/app/page.tsx` -- updated state types, onStatus callbacks, step rendering, and metadata entity links
+- `src/app/globals.css` -- added `.step-link` and `.thinking-entity-link` styles
+
+---
+
 ## 2026-07-01: Editable SQL block with re-run
 
 **What changed**:
