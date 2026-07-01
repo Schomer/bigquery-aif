@@ -2303,7 +2303,9 @@ async function handleMonitoring(
       const staleHours = 72;
       const entries: import('./types').FreshnessEntry[] = allRows.map(row => {
         const tbl = String(row[0] ?? '');
-        const modTimeMs = Number(row[1] ?? 0);
+        const rawTime = row[1];
+        if (tbl === String(allRows[0]?.[0] ?? '')) console.log('[freshness debug] raw row[1]:', rawTime, 'type:', typeof rawTime, 'Number():', Number(rawTime));
+        const modTimeMs = Number(rawTime ?? 0);
         const rowCount = Number(row[2] ?? 0);
         const ds = String(row[3] ?? '');
         const lastMod = new Date(modTimeMs).toISOString();
