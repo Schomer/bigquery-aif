@@ -52,6 +52,8 @@ function checkAuthError(status: number, data: any) {
 
 export function handleAuthError() {
   if (typeof window !== 'undefined') {
+    // Clear the stale OAuth token so ShellLayout shows the sign-in page
+    try { sessionStorage.removeItem('bqaif_access_token'); } catch { /* noop */ }
     window.location.href = '/';
   }
 }
