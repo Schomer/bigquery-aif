@@ -464,6 +464,8 @@ MULTISTEP RULES:
 - Only return isMultistep: true when the message contains EXPLICIT multi-action language: 'and then', 'after that', 'first...then', 'followed by', 'next', or a numbered list of distinct actions.
 - When isMultistep is false, return an empty steps array.
 - When isMultistep is true, decompose into steps. Each step needs: skill, description (short label), prompt (fully self-contained with explicit table refs like \`${project}.${dataset}.tablename\`).
+- NEVER decompose an analytical question into a schema step followed by a query step. The query skill already loads schema context internally. Examples that are SINGLE-STEP query (NOT multistep): "show sales at store X over time", "analyze revenue by month", "what are the top products", "sales trend for category Y".
+- Analytical phrases like 'analyze', 'show me', 'trend', 'over time', 'breakdown', 'compare', 'top N' are READ-ONLY query operations, NEVER data-management.
 
 Current active project: ${project}
 Current active dataset: ${dataset}
@@ -1374,6 +1376,16 @@ async function handleDataManagement(
   onStatus?: (status: string) => void
 ): Promise<CompositionEnvelope[]> {
   const project = context?.project || '';
+
+  // Safety net: re-check the message against the keyword router.
+  // If the router does not independently confirm data-management intent,
+  // this was likely misrouted (e.g., "analyze sales over time" is analytical,
+  // not a mutation). Redirect to the query handler instead.
+  const routerCheck = classifyIntent(message);
+  if (routerCheck.skill !== 'data-management') {
+    return handleQuery(message, history, context, onStatus);
+  }
+
   const hc = context?.handoffContext;
 
   // Enrich message with handoff context so the LLM has full context

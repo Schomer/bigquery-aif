@@ -47,3 +47,9 @@ These prompts are commonly confused. Use this as a reference:
 | "detect anomalies in revenue" | query | ML function (AI.DETECT_ANOMALIES), not a quality check |
 | "forecast next quarter" | query | ML function (AI.FORECAST) |
 | "translate the description column" | query | Uses AI.GENERATE for translation |
+| "analyze sales over time" | query | Analytical SELECT with GROUP BY date, no mutation |
+| "show sales at store X over time" | query | Single analytical query with WHERE filter, read-only |
+| "sales trend for product Y" | query | Time series analysis, read-only |
+| "revenue breakdown by category" | query | Aggregation query, read-only |
+| "top 10 customers by order count" | query | Ranking query, read-only |
+

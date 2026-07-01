@@ -90,7 +90,10 @@ export function MultistepView({ envelope, onSendMessage }: Props) {
         context: {
           ...currentContext,
           project: activeProject || undefined,
-          forcedSkill: step.skill,
+          // Do NOT force the skill from the LLM's step decomposition.
+          // Let each step go through normal intent classification so the
+          // router and safety guards can catch misclassifications
+          // (e.g., analytical queries misrouted to data-management).
         },
       });
 
