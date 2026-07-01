@@ -4,6 +4,21 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-01: Project selection CTA with favorites and recents
+
+**What changed**:
+- Removed the small info-field with icon that said "Select a GCP project from the sidebar to get started"
+- Replaced with a larger call-to-action area that displays two sections: Favorites (starred projects from TopBar) and Recent Projects
+- Both sections render clickable buttons that call `setActiveProject()` directly, so users can start working without opening the project dropdown
+- Favorites are loaded from the same `hdn_favorite_projects` localStorage key used by TopBar
+- Recent projects are tracked in a new `hdn_recent_projects` localStorage key, updated whenever `activeProject` changes
+- Applied to both layout variants (unified empty state and split-panel results empty state)
+
+**Files modified**:
+- `src/app/page.tsx` -- destructured `projects`/`setActiveProject` from `useAuth()`, added favorites/recent state and tracking, replaced both `!activeProject` info blocks
+
+---
+
 ## 2026-07-01: BQ Console deep-links in thinking steps
 
 **What changed**:

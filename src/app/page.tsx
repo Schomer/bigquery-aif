@@ -18,6 +18,7 @@ import {
   saveConversation,
   getConversations,
   getRecentDatasets,
+  getFavoriteProjects,
   autoTitle,
   nowISO,
 } from '@/lib/firestore-service';
@@ -83,7 +84,7 @@ export default function Home() {
   const { layout } = useLayout();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
-  // Load favorite projects from localStorage (shared key with TopBar)
+  // Load favorite projects from Firestore (localStorage as instant cache)
   const FAVORITES_KEY = 'hdn_favorite_projects';
   const [favoriteProjectIds, setFavoriteProjectIds] = useState<string[]>([]);
   useEffect(() => {
@@ -91,7 +92,15 @@ export default function Home() {
       const raw = localStorage.getItem(FAVORITES_KEY);
       if (raw) setFavoriteProjectIds(JSON.parse(raw));
     } catch { /* ignore */ }
-  }, []);
+    if (user?.uid) {
+      getFavoriteProjects(user.uid).then((ids) => {
+        if (ids.length > 0) {
+          setFavoriteProjectIds(ids);
+          try { localStorage.setItem(FAVORITES_KEY, JSON.stringify(ids)); } catch {}
+        }
+      }).catch(() => {});
+    }
+  }, [user?.uid]);
 
   // Recently-used projects: last 5 distinct projects from projects list
   const recentProjectIds = useMemo(() => {

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useLayout, type ChatLayout } from '@/lib/layout-context';
+import { getFavoriteProjects, saveFavoriteProjects } from '@/lib/firestore-service';
 
 interface TopBarProps {
   onNavToggle: () => void;
@@ -43,10 +44,19 @@ export function TopBar({ onNavToggle }: TopBarProps) {
   const avatarMenuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Load favorites from localStorage on mount
+  // Load favorites: localStorage first (instant), then Firestore (authoritative)
   useEffect(() => {
     setFavorites(loadFavorites());
-  }, []);
+    if (user?.uid) {
+      getFavoriteProjects(user.uid).then((ids) => {
+        if (ids.length > 0) {
+          const merged = new Set([...ids, ...loadFavorites()]);
+          setFavorites(merged);
+          saveFavorites(merged);
+        }
+      }).catch(() => {});
+    }
+  }, [user?.uid]);
 
   // Focus search when dropdown opens; clear live results on close
   useEffect(() => {
@@ -147,9 +157,13 @@ export function TopBar({ onNavToggle }: TopBarProps) {
       if (next.has(projectId)) next.delete(projectId);
       else next.add(projectId);
       saveFavorites(next);
+      // Persist to Firestore
+      if (user?.uid) {
+        saveFavoriteProjects(user.uid, [...next]).catch(() => {});
+      }
       return next;
     });
-  }, []);
+  }, [user?.uid]);
 
   const DEFAULT_VISIBLE = 20;
 

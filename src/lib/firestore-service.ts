@@ -189,6 +189,26 @@ export async function saveUserPreferences(uid: string, prefs: Partial<UserPrefer
   }
 }
 
+// ── Favorite Projects ────────────────────────────────────────────────────────
+
+export async function getFavoriteProjects(uid: string): Promise<string[]> {
+  try {
+    const state = await getUserData(uid);
+    return state.favoriteProjects || [];
+  } catch (err) {
+    console.warn('[getFavoriteProjects]', err);
+    return [];
+  }
+}
+
+export async function saveFavoriteProjects(uid: string, projectIds: string[]): Promise<void> {
+  try {
+    await setDoc(userDoc(uid), { favoriteProjects: projectIds }, { merge: true });
+  } catch (err) {
+    console.warn('[saveFavoriteProjects]', err);
+  }
+}
+
 // ── Recent Datasets / Tables ─────────────────────────────────────────────────
 
 export interface RecentItem {
