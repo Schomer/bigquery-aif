@@ -77,11 +77,41 @@ function CrystalBallThinking() {
 }
 
 export default function Home() {
-  const { activeProject, user, signIn } = useAuth();
+  const { activeProject, user, signIn, projects, setActiveProject } = useAuth();
   const { conversationId, newConversation } = useConversation();
   const { activePage, setActivePage } = usePage();
   const { layout } = useLayout();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+
+  // Load favorite projects from localStorage (shared key with TopBar)
+  const FAVORITES_KEY = 'hdn_favorite_projects';
+  const [favoriteProjectIds, setFavoriteProjectIds] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FAVORITES_KEY);
+      if (raw) setFavoriteProjectIds(JSON.parse(raw));
+    } catch { /* ignore */ }
+  }, []);
+
+  // Recently-used projects: last 5 distinct projects from projects list
+  const recentProjectIds = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('hdn_recent_projects');
+      if (raw) return (JSON.parse(raw) as string[]).slice(0, 5);
+    } catch { /* ignore */ }
+    return projects.slice(0, 5);
+  }, [projects]);
+
+  // Track project usage
+  useEffect(() => {
+    if (!activeProject) return;
+    try {
+      const raw = localStorage.getItem('hdn_recent_projects');
+      const recent: string[] = raw ? JSON.parse(raw) : [];
+      const updated = [activeProject, ...recent.filter(p => p !== activeProject)].slice(0, 10);
+      localStorage.setItem('hdn_recent_projects', JSON.stringify(updated));
+    } catch { /* ignore */ }
+  }, [activeProject]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [rerunningIdx, setRerunningIdx] = useState<number | null>(null);
@@ -1028,21 +1058,91 @@ export default function Home() {
 
                 {!activeProject && (
                   <div style={{
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 12,
-                    padding: '14px 20px',
-                    marginBottom: 20,
                     maxWidth: 640,
                     width: '100%',
+                    marginBottom: 20,
                     display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    color: 'var(--text-muted)',
-                    fontSize: 13,
+                    flexDirection: 'column',
+                    gap: 16,
                   }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#f59e0b' }}>info</span>
-                    Select a GCP project from the sidebar to get started.
+                    <p style={{
+                      color: 'var(--text-muted)',
+                      fontSize: 15,
+                      margin: 0,
+                      textAlign: 'center',
+                    }}>
+                      Select a project to get started
+                    </p>
+
+                    {favoriteProjectIds.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 8 }}>Favorites</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {favoriteProjectIds.map(p => (
+                            <button
+                              key={p}
+                              onClick={() => setActiveProject(p)}
+                              style={{
+                                background: 'var(--surface)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 8,
+                                padding: '8px 14px',
+                                cursor: 'pointer',
+                                fontSize: 13,
+                                color: 'var(--text)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                transition: 'border-color 0.15s, background 0.15s',
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--surface-hover)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)'; }}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#f59e0b' }}>star</span>
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {recentProjectIds.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 8 }}>Recent Projects</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {recentProjectIds.filter(p => !favoriteProjectIds.includes(p)).map(p => (
+                            <button
+                              key={p}
+                              onClick={() => setActiveProject(p)}
+                              style={{
+                                background: 'var(--surface)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 8,
+                                padding: '8px 14px',
+                                cursor: 'pointer',
+                                fontSize: 13,
+                                color: 'var(--text)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                transition: 'border-color 0.15s, background 0.15s',
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--surface-hover)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)'; }}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>history</span>
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {favoriteProjectIds.length === 0 && recentProjectIds.length === 0 && (
+                      <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0, textAlign: 'center' }}>
+                        Use the project selector above to choose a GCP project.
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -1506,20 +1606,90 @@ export default function Home() {
                 </p>
                 {!activeProject && (
                   <div style={{
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 12,
-                    padding: '14px 20px',
                     maxWidth: 480,
                     width: '100%',
                     display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    color: 'var(--text-muted)',
-                    fontSize: 13,
+                    flexDirection: 'column',
+                    gap: 16,
                   }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#f59e0b' }}>info</span>
-                    Select a GCP project from the sidebar to get started.
+                    <p style={{
+                      color: 'var(--text-muted)',
+                      fontSize: 15,
+                      margin: 0,
+                      textAlign: 'center',
+                    }}>
+                      Select a project to get started
+                    </p>
+
+                    {favoriteProjectIds.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 8 }}>Favorites</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {favoriteProjectIds.map(p => (
+                            <button
+                              key={p}
+                              onClick={() => setActiveProject(p)}
+                              style={{
+                                background: 'var(--surface)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 8,
+                                padding: '8px 14px',
+                                cursor: 'pointer',
+                                fontSize: 13,
+                                color: 'var(--text)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                transition: 'border-color 0.15s, background 0.15s',
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--surface-hover)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)'; }}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#f59e0b' }}>star</span>
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {recentProjectIds.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 8 }}>Recent Projects</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {recentProjectIds.filter(p => !favoriteProjectIds.includes(p)).map(p => (
+                            <button
+                              key={p}
+                              onClick={() => setActiveProject(p)}
+                              style={{
+                                background: 'var(--surface)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 8,
+                                padding: '8px 14px',
+                                cursor: 'pointer',
+                                fontSize: 13,
+                                color: 'var(--text)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                transition: 'border-color 0.15s, background 0.15s',
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--surface-hover)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)'; }}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>history</span>
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {favoriteProjectIds.length === 0 && recentProjectIds.length === 0 && (
+                      <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0, textAlign: 'center' }}>
+                        Use the project selector above to choose a GCP project.
+                      </p>
+                    )}
                   </div>
                 )}
                 {activeProject && recentItems.length > 0 && (
