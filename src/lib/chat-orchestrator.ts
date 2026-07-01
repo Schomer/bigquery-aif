@@ -2187,20 +2187,48 @@ async function handleMonitoring(
   // FRESHNESS -- data freshness by table in a dataset
   if (monitoringType === 'FRESHNESS') {
     const dataset = (hc?.dataset as string) || '';
-    const freshnessSql = dataset
-      ? `SELECT table_schema, table_name, TIMESTAMP_MILLIS(last_modified_time) AS last_modified, row_count AS total_rows FROM \`${project}.${dataset}\`.INFORMATION_SCHEMA.TABLES ORDER BY last_modified_time ASC LIMIT 100`
-      : `SELECT table_schema, table_name, TIMESTAMP_MILLIS(last_modified_time) AS last_modified, row_count AS total_rows FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.TABLES ORDER BY last_modified_time ASC LIMIT 100`;
     onStatus?.(`Checking data freshness${dataset ? ` for ${dataset}` : ''}...`);
     try {
-      const executed = await executeQuery(freshnessSql, project);
+      // __TABLES__ has last_modified_time; INFORMATION_SCHEMA.TABLES does not.
+      // __TABLES__ is per-dataset, so for project scope we need to list datasets first.
+      let allRows: Record<string, unknown>[][] = [];
+      if (dataset) {
+        const sql = `SELECT table_id, TIMESTAMP_MILLIS(last_modified_time) AS last_modified, row_count, '${dataset}' AS dataset_id FROM \`${project}.${dataset}.__TABLES__\` ORDER BY last_modified_time ASC`;
+        const exec = await executeQuery(sql, project);
+        allRows = exec.rows;
+      } else {
+        // Project scope: query __TABLES__ for each dataset
+        const dsResult = await executeQuery(
+          `SELECT schema_name FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.SCHEMATA ORDER BY schema_name`,
+          project,
+        );
+        const datasets = dsResult.rows.map(r => String(r[0] ?? '')).filter(Boolean);
+        for (const ds of datasets.slice(0, 20)) {
+          try {
+            const sql = `SELECT table_id, TIMESTAMP_MILLIS(last_modified_time) AS last_modified, row_count, '${ds}' AS dataset_id FROM \`${project}.${ds}.__TABLES__\``;
+            const exec = await executeQuery(sql, project);
+            allRows.push(...exec.rows);
+          } catch {
+            // Skip datasets we can't access
+          }
+        }
+        // Sort by last_modified ascending (oldest first)
+        allRows.sort((a, b) => {
+          const ta = new Date(String(a[1] ?? '')).getTime();
+          const tb = new Date(String(b[1] ?? '')).getTime();
+          return ta - tb;
+        });
+        allRows = allRows.slice(0, 100);
+      }
+
       const now = Date.now();
       const freshHours = 24;
       const staleHours = 72;
-      const entries: import('./types').FreshnessEntry[] = executed.rows.map(row => {
-        const ds = String(row[0] ?? '');
-        const tbl = String(row[1] ?? '');
-        const lastMod = String(row[2] ?? '');
-        const rowCount = Number(row[3] ?? 0);
+      const entries: import('./types').FreshnessEntry[] = allRows.map(row => {
+        const tbl = String(row[0] ?? '');
+        const lastMod = String(row[1] ?? '');
+        const rowCount = Number(row[2] ?? 0);
+        const ds = String(row[3] ?? '');
         const modTime = new Date(lastMod).getTime();
         const ageHours = Math.max(0, (now - modTime) / (1000 * 60 * 60));
         const status: import('./types').FreshnessEntry['status'] =
@@ -2215,7 +2243,8 @@ async function handleMonitoring(
         thresholds: { freshHours, staleHours },
       };
       return [compose('monitoring', result as unknown as MonitoringResult)];
-    } catch {
+    } catch (err) {
+      console.error('[freshness] Error:', err);
       const result: import('./types').FreshnessResult = {
         skill: 'monitoring', monitoringType: 'FRESHNESS',
         dataset: dataset || project, entries: [],
