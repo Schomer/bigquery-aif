@@ -50,6 +50,9 @@ export function FreshnessView({ result, onSendMessage }: Props) {
   }, [entries]);
 
   if (entries.length === 0) {
+    const scopeLabel = result.dataset
+      ? `dataset '${result.dataset}'`
+      : `project '${result.project || 'unknown'}'`;
     return (
       <div style={{
         padding: '20px 16px',
@@ -59,7 +62,7 @@ export function FreshnessView({ result, onSendMessage }: Props) {
         color: 'var(--text-muted)',
         fontSize: 13,
       }}>
-        No tables found in this dataset.
+        No tables found in this {result.dataset ? 'dataset' : 'project'}.
       </div>
     );
   }
@@ -74,7 +77,8 @@ export function FreshnessView({ result, onSendMessage }: Props) {
           <Badge label="Very Stale" count={counts.VERY_STALE} color={STATUS_COLORS.VERY_STALE} />
           <span style={{ fontSize: 12, color: 'var(--text-dim)', marginLeft: 6 }}>
             {entries.length} table{entries.length === 1 ? '' : 's'} in{' '}
-            <span style={{ fontFamily: 'var(--font-mono)' }}>{dataset}</span>
+            <span style={{ fontFamily: 'var(--font-mono)' }}>{dataset || result.project || 'project'}</span>
+            {!dataset && <span> (project)</span>}
           </span>
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>

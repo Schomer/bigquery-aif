@@ -24,6 +24,7 @@ import type {
   SavedCheck,
   SkillName,
   QueryResult,
+  VisualizationType,
 } from './types';
 
 // ─── Load skill docs from public assets (cached in memory) ───────────────────
@@ -1264,13 +1265,26 @@ async function handleQuery(
     content: m.content,
   }));
 
+  // ── Plan cache: check for reusable query plan ───────────────────────────
+  const cachedPlan = findReusablePlan(message, dataset);
+  let queryPlan: { sql: string; suggestedVisualization: VisualizationType; xAxis?: string; yAxis?: string[]; notableFindings?: string; resultSummary?: string };
+
+  if (cachedPlan) {
+    onStatus?.(`Reusing cached query plan for dataset ${dataset}...`);
+    queryPlan = {
+      sql: cachedPlan.substitutedSql,
+      suggestedVisualization: cachedPlan.entry.visualization,
+      xAxis: cachedPlan.entry.xAxis ?? undefined,
+      yAxis: cachedPlan.entry.yAxis ?? undefined,
+    };
+  } else {
   const schemaContext = await buildSchemaContext(project, dataset);
 
   onStatus?.(`Building SQL for dataset ${dataset} in project ${project}...`);
   const datasetLine = dataset
     ? `The active dataset is: ${dataset}`
     : 'No dataset is pre-selected. Infer the correct dataset from the user\'s prompt and the available datasets listed below.';
-  const queryPlan = await callGemini({
+  queryPlan = await callGemini({
     systemInstruction: `${skillDoc}
 
 The BigQuery project is: ${project}
@@ -1314,6 +1328,17 @@ VISUALIZATION SELECTION: Pick the suggestedVisualization that best matches both 
     schema: QueryResponseSchema,
     project,
   });
+
+  // Cache the plan for future reuse
+  cachePlan(
+    'query',
+    dataset,
+    queryPlan.sql,
+    queryPlan.suggestedVisualization,
+    queryPlan.xAxis ?? null,
+    queryPlan.yAxis ?? null,
+  );
+  } // end else (no cached plan)
 
   // Run dry-run first for cost check
   onStatus?.(`Dry-running query to estimate cost (${dataset})...`);
@@ -1392,6 +1417,9 @@ Return the corrected SQL and a short explanation of what you changed.`,
     }
   }
 
+  // ── Heuristic data quality analysis on the result set ─────────────────
+  const qualityFlags = analyzeResultQuality(executed.columns, executed.rows, finalSql);
+
   const result: QueryResult = {
     skill: 'query',
     sql: finalSql,
@@ -1410,7 +1438,7 @@ Return the corrected SQL and a short explanation of what you changed.`,
     resultSummary: queryPlan.resultSummary ?? null,
   };
 
-  return [compose('query', result)];
+  return [compose('query', result, qualityFlags)];
 }
 
 // ─── Data Management handler ───────────────────────────────────────────────────
@@ -1643,7 +1671,7 @@ async function executeConfirmedOperation(
 
 async function handleMonitoring(
   message: string,
-  context?: { project?: string; uid?: string; handoffContext?: Record<string, unknown> },
+  context?: { project?: string; uid?: string; dataset?: string; resolvedDataset?: string; availableDatasets?: string[]; handoffContext?: Record<string, unknown> },
   onStatus?: (status: string) => void
 ): Promise<CompositionEnvelope[]> {
   const project = context?.project || '';
@@ -2225,10 +2253,18 @@ async function handleMonitoring(
     }
   }
 
-  // FRESHNESS -- data freshness by table in a dataset
+  // FRESHNESS -- data freshness by table in a dataset (or across a project)
   if (monitoringType === 'FRESHNESS') {
-    const dataset = (hc?.dataset as string) || '';
-    onStatus?.(`Checking data freshness${dataset ? ` for ${dataset}` : ''}...`);
+    // Resolve dataset: handoff context > context.resolvedDataset > context.dataset > message scan
+    let dataset = (hc?.dataset as string) || context?.resolvedDataset || '';
+    if (!dataset && context?.dataset && context.dataset.toLowerCase() !== project.toLowerCase()) {
+      dataset = context.dataset;
+    }
+    if (!dataset && context?.availableDatasets) {
+      dataset = extractDatasetFromMessage(message, context.availableDatasets) ?? '';
+    }
+    const isProjectScope = !dataset;
+    onStatus?.(`Checking data freshness${dataset ? ` for dataset ${dataset}` : ` across project ${project}`}...`);
     try {
       // __TABLES__ has last_modified_time; INFORMATION_SCHEMA.TABLES does not.
       // __TABLES__ is per-dataset, so for project scope we need to list datasets first.
@@ -2279,7 +2315,8 @@ async function handleMonitoring(
       const result: import('./types').FreshnessResult = {
         skill: 'monitoring',
         monitoringType: 'FRESHNESS',
-        dataset: dataset || project,
+        dataset: dataset || null,
+        project: project,
         entries,
         thresholds: { freshHours, staleHours },
       };
@@ -2288,7 +2325,7 @@ async function handleMonitoring(
       console.error('[freshness] Error:', err);
       const result: import('./types').FreshnessResult = {
         skill: 'monitoring', monitoringType: 'FRESHNESS',
-        dataset: dataset || project, entries: [],
+        dataset: dataset || null, project: project, entries: [],
         thresholds: { freshHours: 24, staleHours: 72 },
       };
       return [compose('monitoring', result as unknown as MonitoringResult)];

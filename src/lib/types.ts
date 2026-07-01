@@ -499,7 +499,8 @@ export interface FreshnessEntry {
 export interface FreshnessResult {
   skill: 'monitoring';
   monitoringType: 'FRESHNESS';
-  dataset: string;
+  dataset: string | null;
+  project?: string;
   entries: FreshnessEntry[];
   thresholds: { freshHours: number; staleHours: number };
 }

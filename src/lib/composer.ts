@@ -627,9 +627,14 @@ function composeFreshness(result: FreshnessResult): CompositionEnvelope {
   const veryStaleCount = result.entries.filter(e => e.status === 'VERY_STALE').length;
   const issueCount = staleCount + veryStaleCount;
   const tone: Tone = veryStaleCount > 0 ? 'ATTENTION' : issueCount > 0 ? 'NEUTRAL' : 'POSITIVE';
-  const headlineText = issueCount > 0
-    ? `${result.entries.length} tables in ${result.dataset}: ${issueCount} stale (${veryStaleCount} critical)`
-    : `All ${result.entries.length} tables in ${result.dataset} are fresh`;
+  const scopeLabel = result.dataset
+    ? `dataset '${result.dataset}'`
+    : `project '${result.project || 'unknown'}'`;
+  const headlineText = result.entries.length === 0
+    ? `No tables found in ${scopeLabel}`
+    : issueCount > 0
+      ? `${result.entries.length} tables in ${scopeLabel}: ${issueCount} stale (${veryStaleCount} critical)`
+      : `All ${result.entries.length} tables in ${scopeLabel} are fresh`;
 
   return {
     id,

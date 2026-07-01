@@ -1,6 +1,6 @@
 'use client';
 
-import type { CompositionEnvelope, HandoffEnvelope } from '@/lib/types';
+import type { CompositionEnvelope, HandoffEnvelope, QualityFlag } from '@/lib/types';
 import { SchemaView } from './SchemaView';
 import { DataTable } from './DataTable';
 import { ConfirmationCard } from './ConfirmationCard';
@@ -39,6 +39,7 @@ const TONE_CLASSES: Record<string, string> = {
 export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInlineClick }: Props) {
 
   const toneClass = TONE_CLASSES[envelope.headline.tone] ?? 'tone-neutral';
+  const [dismissedFlags, setDismissedFlags] = useState<Set<number>>(new Set());
 
   // Convert chip click -> send the chip's label as a message (primary path)
   // The label is meaningful natural language, e.g. "Inspect orders", "Show sample rows"
@@ -129,6 +130,74 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
             </p>
           </div>
         )}
+
+        {/* Quality flags: dismissible data quality annotations */}
+        {envelope.qualityFlags && envelope.qualityFlags.length > 0 && (() => {
+          const visibleFlags = envelope.qualityFlags!.filter((_, i) => !dismissedFlags.has(i));
+          if (visibleFlags.length === 0) return null;
+          return (
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {envelope.qualityFlags!.map((flag: QualityFlag, i: number) => {
+                if (dismissedFlags.has(i)) return null;
+                const isWarning = flag.severity === 'warning';
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      padding: '8px 12px',
+                      background: isWarning ? '#fffbeb' : '#f9fafb',
+                      border: `1px solid ${isWarning ? '#fde68a' : '#e5e7eb'}`,
+                      borderRadius: 6,
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 8,
+                    }}
+                  >
+                    <span style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: isWarning ? '#92400e' : '#6b7280',
+                      background: isWarning ? '#fef3c7' : '#f3f4f6',
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      flexShrink: 0,
+                      marginTop: 1,
+                    }}>
+                      {isWarning ? 'Warning' : 'Note'}
+                    </span>
+                    <p style={{
+                      margin: 0,
+                      fontSize: 12,
+                      color: 'var(--text)',
+                      lineHeight: 1.4,
+                      flex: 1,
+                    }}>
+                      {flag.message}
+                    </p>
+                    <button
+                      onClick={() => setDismissedFlags((prev) => new Set([...prev, i]))}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: 0,
+                        color: '#9ca3af',
+                        fontSize: 16,
+                        lineHeight: 1,
+                        flexShrink: 0,
+                      }}
+                      aria-label="Dismiss"
+                    >
+                      x
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* Footer meta: row count + cost on same line */}
         {(() => {
