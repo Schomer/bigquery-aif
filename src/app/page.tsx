@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useConversation } from '@/lib/conversation-context';
 import { usePage } from '@/lib/page-context';
 import { useLayout } from '@/lib/layout-context';
-import type { ChatMessage, CompositionEnvelope, SkillName, DataManagementResult, HandoffEnvelope } from '@/lib/types';
+import type { ChatMessage, CompositionEnvelope, SkillName, DataManagementResult, HandoffEnvelope, ContextItem } from '@/lib/types';
 import { ChatOrchestrator } from '@/lib/chat-orchestrator';
 import { ArtifactCard } from '@/components/ArtifactCard';
 import { PromptsLibrary } from '@/components/PromptsLibrary';
@@ -94,6 +94,8 @@ export default function Home() {
     dataset?: string;
     project?: string;
   }>({});
+  const [contextItems, setContextItems] = useState<ContextItem[]>([]);
+  const [pinnedEnvelopeId, setPinnedEnvelopeId] = useState<string | null>(null);
   const [statusText, setStatusText] = useState<string | null>(null);
   const [lastError, setLastError] = useState<{ message: string; type: string; sql?: string; retryFn?: () => void } | null>(null);
   const [thinkingSteps, setThinkingSteps] = useState<Record<number, string[]>>({});
@@ -146,6 +148,8 @@ export default function Home() {
     if (!user) return;
     setMessages([]);
     setContext({});
+    setContextItems([]);
+    setPinnedEnvelopeId(null);
     titleSetRef.current = false;
 
     getConversations(user.uid).then((convs) => {
@@ -209,7 +213,7 @@ export default function Home() {
       const data = await ChatOrchestrator.processMessage({
         message: text,
         history: historyBefore,
-        context: { ...context, project: activeProject || context.project, uid: user?.uid },
+        context: { ...deriveContextFromItems(), project: activeProject || context.project, uid: user?.uid },
         onStatus: (s: string) => { setStatusText(s); pendingStepsRef.current.push(s); },
       });
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
@@ -268,7 +272,7 @@ export default function Home() {
       const data = await ChatOrchestrator.processMessage({
         message: userText,
         history: historyUpTo.slice(0, -1),
-        context: { ...context, project: activeProject || context.project, uid: user?.uid },
+        context: { ...deriveContextFromItems(), project: activeProject || context.project, uid: user?.uid },
         onStatus: (s: string) => { setStatusText(s); pendingStepsRef.current.push(s); },
       });
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
@@ -314,10 +318,11 @@ export default function Home() {
     setMessages(updatedMsgs);
 
     try {
+      const derivedCtx = deriveContextFromItems();
       const data = await ChatOrchestrator.processMessage({
         message: text,
         history: messages,
-        context: { ...context, project: activeProject || context.project, uid: user?.uid },
+        context: { ...derivedCtx, project: activeProject || derivedCtx.project, uid: user?.uid },
         onStatus: (s: string) => { setStatusText(s); pendingStepsRef.current.push(s); },
       });
 
@@ -343,6 +348,12 @@ export default function Home() {
           lastResultRef: last.id,
           ...extractContextFromEnvelope(last),
         }));
+        // Auto-populate context chips from the last envelope
+        const autoItems = extractContextItems(last);
+        if (autoItems.length > 0) {
+          setContextItems(autoItems);
+          setPinnedEnvelopeId(null);
+        }
       }
 
       setLastError(null);
@@ -394,7 +405,7 @@ export default function Home() {
       const data = await ChatOrchestrator.processMessage({
         message: 'confirm',
         history: messages,
-        context: { ...context, project: activeProject || context.project, uid: user?.uid, confirmedPayload: envelope.primaryArtifact.data as DataManagementResult },
+        context: { ...deriveContextFromItems(), project: activeProject || context.project, uid: user?.uid, confirmedPayload: envelope.primaryArtifact.data as DataManagementResult },
         onStatus: (s: string) => setStatusText(s),
       });
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
@@ -452,6 +463,105 @@ export default function Home() {
     return result;
   }
 
+  // Extract structured context items from an envelope for the chips row
+  function extractContextItems(env: CompositionEnvelope): ContextItem[] {
+    const items: ContextItem[] = [];
+    const data = env.primaryArtifact.data as Record<string, unknown> | null;
+    if (!data) return items;
+
+    let ds: string | undefined;
+    let tbl: string | undefined;
+
+    // Schema results
+    if (data.dataset && typeof data.dataset === 'string') ds = data.dataset;
+    if (data.table && typeof data.table === 'string') tbl = data.table;
+
+    // Query results -- extract from SQL
+    if (data.sql && typeof data.sql === 'string') {
+      const sqlMatch = (data.sql as string).match(/\bFROM\s+`?([A-Za-z0-9_.-]+)`?/i);
+      if (sqlMatch) {
+        const parts = sqlMatch[1].split('.');
+        if (parts.length >= 3 && !ds) ds = parts[parts.length - 2];
+        if (!tbl) tbl = parts[parts.length - 1];
+      }
+    }
+
+    // Data quality / data management
+    if (env.skill === 'data-quality' || env.skill === 'data-management') {
+      const tableFq = data.table as string | undefined;
+      if (tableFq && typeof tableFq === 'string') {
+        const parts = tableFq.replace(/`/g, '').split('.');
+        if (parts.length >= 2 && !ds) ds = parts[parts.length - 2];
+        if (!tbl) tbl = parts[parts.length - 1];
+      }
+    }
+
+    if (ds) {
+      items.push({
+        id: `ds_${env.id}`,
+        type: 'dataset',
+        label: ds,
+        icon: 'dataset',
+        dataset: ds,
+      });
+    }
+
+    if (tbl) {
+      items.push({
+        id: `tbl_${env.id}`,
+        type: 'table',
+        label: tbl,
+        icon: 'table_chart',
+        dataset: ds,
+        table: tbl,
+      });
+    }
+
+    // Result reference for query/chart/table results
+    const rowCount = Array.isArray(data.rows) ? (data.rows as unknown[]).length : null;
+    if (rowCount !== null && env.primaryArtifact.type !== 'SCHEMA_VIEW') {
+      items.push({
+        id: `res_${env.id}`,
+        type: 'result',
+        label: `${rowCount} rows`,
+        icon: 'query_stats',
+        dataset: ds,
+        table: tbl,
+        skill: env.skill,
+        resultRef: env.id,
+        sql: data.sql as string | undefined,
+      });
+    }
+
+    return items;
+  }
+
+  function removeContextItem(id: string) {
+    setContextItems((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  function pinEnvelopeContext(env: CompositionEnvelope) {
+    const items = extractContextItems(env);
+    if (items.length === 0) return;
+    setContextItems(items);
+    setPinnedEnvelopeId(env.id);
+    inputRef.current?.focus();
+  }
+
+  // Derive the flat context object the orchestrator expects from contextItems
+  function deriveContextFromItems(): typeof context {
+    const dsItem = contextItems.find((i) => i.type === 'dataset');
+    const tblItem = contextItems.find((i) => i.type === 'table');
+    const resItem = contextItems.find((i) => i.type === 'result');
+    return {
+      ...context,
+      dataset: dsItem?.dataset ?? context.dataset,
+      lastTable: tblItem?.table ?? context.lastTable,
+      lastSkill: resItem?.skill ?? context.lastSkill,
+      lastResultRef: resItem?.resultRef ?? context.lastResultRef,
+    };
+  }
+
   async function handleChipClick(chip: HandoffEnvelope) {
     if (loading) return;
     setLoading(true);
@@ -469,7 +579,7 @@ export default function Home() {
 
     try {
       const mergedContext = {
-        ...context,
+        ...deriveContextFromItems(),
         project: activeProject || context.project,
         uid: user?.uid,
         forcedSkill: chip.targetSkill as SkillName,
@@ -516,6 +626,11 @@ export default function Home() {
           lastResultRef: last.id,
           ...extractContextFromEnvelope(last),
         }));
+        const autoItems = extractContextItems(last);
+        if (autoItems.length > 0) {
+          setContextItems(autoItems);
+          setPinnedEnvelopeId(null);
+        }
       }
 
       setLastError(null);
@@ -709,6 +824,25 @@ export default function Home() {
       }}
     />
   );
+
+  // Shared context chips row (above textarea)
+  const contextChipsRow = contextItems.length > 0 ? (
+    <div className="context-chips-row">
+      {contextItems.map((item) => (
+        <span key={item.id} className="context-chip">
+          <span className="material-symbols-outlined">{item.icon}</span>
+          {item.label}
+          <button
+            className="context-chip-dismiss"
+            onClick={() => removeContextItem(item.id)}
+            aria-label={`Remove ${item.label}`}
+          >
+            x
+          </button>
+        </span>
+      ))}
+    </div>
+  ) : null;
 
   // Error card renderer (used in both unified and split modes)
   const renderErrorCard = () => {
@@ -916,14 +1050,17 @@ export default function Home() {
               <div className="mystic-prompt-container" style={{
                 width: '100%',
                 maxWidth: 640,
-                borderRadius: 999,
-                padding: '10px 10px 10px 20px',
+                borderRadius: contextItems.length > 0 ? 20 : 999,
+                padding: contextItems.length > 0 ? '8px 10px 10px 14px' : '10px 10px 10px 20px',
                 display: 'flex',
-                alignItems: 'flex-end',
-                gap: 10,
+                flexDirection: 'column',
+                gap: contextItems.length > 0 ? 6 : 0,
               }}>
-                {inputTextarea(activeProject ? 'Ask about your data...' : 'Select a project first...')}
-                {sendButton}
+                {contextChipsRow}
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+                  {inputTextarea(activeProject ? 'Ask about your data...' : 'Select a project first...')}
+                  {sendButton}
+                </div>
               </div>
             </div>
           )}
@@ -1043,6 +1180,8 @@ export default function Home() {
                           onCancel={() => handleCancel(env)}
                           onChipClick={handleChipClick}
                           onInlineClick={handleInlineClick}
+                          onPin={pinEnvelopeContext}
+                          isPinned={pinnedEnvelopeId === env.id}
                         />
                       ))}
                       {!msg.envelopes && msg.content && (
@@ -1090,16 +1229,19 @@ export default function Home() {
               transform: 'translateX(-50%)',
               marginLeft: 110,
               width: 'min(680px, calc(100vw - 268px))',
-              borderRadius: 999,
-              padding: '10px 10px 10px 20px',
+              borderRadius: contextItems.length > 0 ? 20 : 999,
+              padding: contextItems.length > 0 ? '8px 10px 10px 14px' : '10px 10px 10px 20px',
               display: 'flex',
-              alignItems: 'flex-end',
-              gap: 10,
+              flexDirection: 'column',
+              gap: contextItems.length > 0 ? 6 : 0,
               backdropFilter: 'blur(12px)',
               zIndex: 50,
             }}>
-              {inputTextarea(activeProject ? 'Ask a follow-up...' : 'Select a project first...')}
-              {sendButton}
+              {contextChipsRow}
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+                {inputTextarea(activeProject ? 'Ask a follow-up...' : 'Select a project first...')}
+                {sendButton}
+              </div>
             </div>
           )}
         </div>
@@ -1287,9 +1429,18 @@ export default function Home() {
 
             {/* Input bar docked at bottom of sidebar */}
             <div className="chat-sidebar-input">
-              <div className="chat-sidebar-input-inner mystic-prompt-container">
-                {inputTextarea(activeProject ? 'Ask about your data...' : 'Select a project first...')}
-                {sendButton}
+              <div className="chat-sidebar-input-inner mystic-prompt-container" style={{
+                borderRadius: contextItems.length > 0 ? 16 : undefined,
+                padding: contextItems.length > 0 ? '8px 10px 10px 14px' : undefined,
+                display: contextItems.length > 0 ? 'flex' : undefined,
+                flexDirection: contextItems.length > 0 ? 'column' as const : undefined,
+                gap: contextItems.length > 0 ? 6 : undefined,
+              }}>
+                {contextChipsRow}
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, width: '100%' }}>
+                  {inputTextarea(activeProject ? 'Ask about your data...' : 'Select a project first...')}
+                  {sendButton}
+                </div>
               </div>
             </div>
           </div>
@@ -1370,6 +1521,8 @@ export default function Home() {
                       onCancel={() => handleCancel(env)}
                       onChipClick={handleChipClick}
                       onInlineClick={handleInlineClick}
+                      onPin={pinEnvelopeContext}
+                      isPinned={pinnedEnvelopeId === env.id}
                     />
                   </div>
                 ))}

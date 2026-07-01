@@ -109,6 +109,20 @@ export interface CompositionEnvelope {
 // Re-export QualityFlag from result-quality module for convenience
 export type { QualityFlag } from './result-quality';
 
+// ─── Context item (visible chip in the prompt area) ──────────────────────────
+
+export interface ContextItem {
+  id: string;             // unique key for React + dedup
+  type: 'project' | 'dataset' | 'table' | 'result';
+  label: string;          // display text: "ecomm", "orders", "47 rows"
+  icon: string;           // Material Symbol name
+  dataset?: string;
+  table?: string;
+  skill?: SkillName;
+  resultRef?: string;     // envelope ID
+  sql?: string;           // source SQL for result-type items
+}
+
 // ─── Schema normalized result (bigquery-skill-schema.md §5) ──────────────────
 
 export interface SchemaColumn {

@@ -28,6 +28,8 @@ interface Props {
   onCancel?: () => void;
   onChipClick?: (chip: HandoffEnvelope) => void;
   onInlineClick?: (message: string) => void;
+  onPin?: (envelope: CompositionEnvelope) => void;
+  isPinned?: boolean;
 }
 
 const TONE_CLASSES: Record<string, string> = {
@@ -36,7 +38,7 @@ const TONE_CLASSES: Record<string, string> = {
   ATTENTION: 'tone-attention',
 };
 
-export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInlineClick }: Props) {
+export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInlineClick, onPin, isPinned }: Props) {
 
   const toneClass = TONE_CLASSES[envelope.headline.tone] ?? 'tone-neutral';
   const [dismissedFlags, setDismissedFlags] = useState<Set<number>>(new Set());
@@ -226,7 +228,6 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 3,
-                    marginLeft: 'auto',
                   }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = 'underline'; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = 'none'; }}
@@ -234,6 +235,16 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
                   <span className="material-symbols-outlined" style={{ fontSize: 13 }}>open_in_new</span>
                   BigQuery
                 </a>
+              )}
+              {onPin && !envelope.requiresConfirmation && envelope.primaryArtifact.type !== 'COMPLETION_CARD' && envelope.primaryArtifact.type !== 'MULTISTEP_VIEW' && envelope.primaryArtifact.type !== 'COST_CONFIRM_CARD' && (
+                <button
+                  className={`context-action-btn${isPinned ? ' is-active' : ''}`}
+                  onClick={() => onPin(envelope)}
+                  title={isPinned ? 'Using as context' : 'Use as context'}
+                  style={{ marginLeft: 'auto' }}
+                >
+                  <span className="material-symbols-outlined">chat</span>
+                </button>
               )}
             </div>
           );
