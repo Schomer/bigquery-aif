@@ -55,7 +55,32 @@ Last verified: 2026-06-30
 
 - **Chart type is determined by data shape, not user intent**: The composer selects visualization based on the actual result columns and row count. The LLM's `suggestedVisualization` is a hint, not a mandate.
 - **Null/undefined cells must not throw**: Table rendering code must handle null, undefined, and empty string cell values gracefully.
-- **Next-action chips are capped at 4 per envelope**: Each composed result generates at most 4 handoff chips. This is a UX constraint.
+- **Next-action chips are capped at 4 per envelope**: Each composed result generates at most 4 handoff chips. This is a UX constraint. Quality flag suggested actions also count toward this cap.
+- **Quality flags are capped at 5 per result**: `analyzeResultQuality()` returns at most 5 flags to avoid overwhelming the UI.
+
+---
+
+## Plan Cache (`src/lib/plan-cache.ts`)
+
+- **Session-scoped, not persistent**: The plan cache lives in module-level memory. It resets on page reload. Do not add persistent storage without considering SQL staleness (schema changes invalidate cached plans).
+- **FIFO eviction at 20 entries**: When the cache exceeds 20 entries, the oldest is removed. Do not increase this without measuring memory impact.
+- **Parameter substitution is conservative**: `trySubstitute()` only replaces date literals and LIMIT values. It does not rewrite WHERE clauses, table references, or GROUP BY columns. If substitution fails, the cache misses and Gemini generates fresh SQL.
+- **Cache key is dataset, not table**: Plans are matched by dataset name. SQL template reuse across different tables in the same dataset is intentional but relies on structural similarity (same operation shape).
+
+---
+
+## Result Quality (`src/lib/result-quality.ts`)
+
+- **No model calls, ever**: This module is pure heuristic analysis. Adding a Gemini call here would defeat the purpose (latency budget is zero).
+- **Single-value column check suppresses WHERE columns**: Columns appearing in the SQL's WHERE clause are expected to have a single value (the user filtered on it). Do not flag these.
+- **Null rate threshold is 20%**: Columns with >20% null/empty values are flagged. Adjusting this threshold changes sensitivity -- test with real data before modifying.
+
+---
+
+## Self-Review Gating (`src/lib/chat-orchestrator.ts`)
+
+- **Self-review is skipped for simple, high-confidence results**: Schema PROJECT/DATASET scope, KPI_CARD artifacts, and high-confidence keyword-routed queries with <100 rows skip the self-review Gemini call.
+- **Self-review always runs for**: data-management confirmations, complex queries (100+ rows), monitoring/quality reports, LLM-classified requests (medium/low confidence). Do not expand skip conditions to cover these.
 
 ---
 
