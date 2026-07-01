@@ -91,7 +91,7 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
               title={isPinned ? 'Using as context' : 'Use as context'}
               style={{ flexShrink: 0, marginTop: 1 }}
             >
-              <span className="material-symbols-outlined">generate_slides</span>
+              <img src="/add_to_prompt.svg" alt="Add to prompt" width={18} height={15} style={{ opacity: 0.7 }} />
             </button>
           )}
         </div>
