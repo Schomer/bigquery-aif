@@ -925,7 +925,7 @@ async function handleSchema(
 
     const isProjectScope = !resolvedDataset;
     const dsRef = isProjectScope
-      ? `\`${project}\`.\`region-${region}\``
+      ? `\`${project}\`.\`region-${bqRegion}\``
       : `\`${project}.${resolvedDataset}\``;
     const scopeLabel = isProjectScope ? `project \`${project}\`` : `dataset \`${resolvedDataset}\``;
 
