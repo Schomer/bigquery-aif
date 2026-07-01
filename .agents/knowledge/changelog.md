@@ -4,18 +4,22 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
-## 2026-07-01: Project selection CTA with favorites and recents
+## 2026-07-01: Project selection CTA with Firestore-backed favorites
 
 **What changed**:
 - Removed the small info-field with icon that said "Select a GCP project from the sidebar to get started"
 - Replaced with a larger call-to-action area that displays two sections: Favorites (starred projects from TopBar) and Recent Projects
-- Both sections render clickable buttons that call `setActiveProject()` directly, so users can start working without opening the project dropdown
-- Favorites are loaded from the same `hdn_favorite_projects` localStorage key used by TopBar
-- Recent projects are tracked in a new `hdn_recent_projects` localStorage key, updated whenever `activeProject` changes
-- Applied to both layout variants (unified empty state and split-panel results empty state)
+- Both sections render clickable buttons that call `setActiveProject()` directly
+- Migrated favorite projects from localStorage-only to Firestore-backed persistence (`users/{uid}.favoriteProjects`)
+- localStorage still used as a synchronous cache for instant UI on mount; Firestore is the authoritative source
+- TopBar `toggleFavorite` now writes to both localStorage and Firestore
+- Added `getFavoriteProjects()` and `saveFavoriteProjects()` to firestore-service
+- Recent projects still tracked in localStorage (`hdn_recent_projects`), updated on project switch
 
 **Files modified**:
-- `src/app/page.tsx` -- destructured `projects`/`setActiveProject` from `useAuth()`, added favorites/recent state and tracking, replaced both `!activeProject` info blocks
+- `src/lib/firestore-service.ts` -- added `getFavoriteProjects()` and `saveFavoriteProjects()`
+- `src/components/shell/TopBar.tsx` -- load favorites from Firestore on mount, persist toggles to Firestore
+- `src/app/page.tsx` -- load favorites from Firestore, added `getFavoriteProjects` import
 
 ---
 

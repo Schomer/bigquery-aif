@@ -1054,24 +1054,26 @@ export default function Home() {
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              justifyContent: 'center',
-              padding: '24px',
+              height: '100%',
             }}>
-              <CrystalBallOracle ballSize={88} />
-                <h1 style={{ fontSize: 22, fontWeight: 500, color: 'var(--text)', margin: '20px 0 6px', letterSpacing: '-0.2px' }}>
-                  BigQuery AIF
-                </h1>
-                <p style={{ color: 'var(--text-muted)', margin: '0 0 32px', fontSize: 14 }}>
-                  Ask anything about your data
-                </p>
+              {/* Centered content area */}
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <CrystalBallOracle ballSize={88} />
 
                 {!activeProject && (
                   <div style={{
                     maxWidth: 640,
                     width: '100%',
-                    marginBottom: 20,
+                    marginTop: 24,
                     display: 'flex',
                     flexDirection: 'column',
+                    alignItems: 'center',
                     gap: 16,
                   }}>
                     <p style={{
@@ -1084,9 +1086,9 @@ export default function Home() {
                     </p>
 
                     {favoriteProjectIds.length > 0 && (
-                      <div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 8 }}>Favorites</div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
                           {favoriteProjectIds.map(p => (
                             <button
                               key={p}
@@ -1116,9 +1118,9 @@ export default function Home() {
                     )}
 
                     {recentProjectIds.length > 0 && (
-                      <div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 8 }}>Recent Projects</div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
                           {recentProjectIds.filter(p => !favoriteProjectIds.includes(p)).map(p => (
                             <button
                               key={p}
@@ -1157,7 +1159,7 @@ export default function Home() {
 
                 {/* Recently-used datasets / tables */}
                 {activeProject && recentItems.length > 0 && (
-                  <div className="recent-items-section">
+                  <div className="recent-items-section" style={{ marginTop: 24 }}>
                     <div className="recent-items-label">Recent</div>
                     <div className="recent-items">
                       {recentItems.map((item, idx) => (
@@ -1186,21 +1188,23 @@ export default function Home() {
                     </div>
                   </div>
                 )}
+              </div>
 
-              {/* Centered prompt field */}
-              <div className="mystic-prompt-container" style={{
-                width: '100%',
-                maxWidth: 640,
-                borderRadius: contextItems.length > 0 ? 20 : 999,
-                padding: contextItems.length > 0 ? '8px 10px 10px 14px' : '10px 10px 10px 20px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: contextItems.length > 0 ? 6 : 0,
-              }}>
-                {contextChipsRow}
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
-                  {inputTextarea(activeProject ? 'Ask about your data...' : 'Select a project first...')}
-                  {sendButton}
+              {/* Prompt pinned to bottom */}
+              <div style={{ width: '100%', maxWidth: 640, padding: '0 24px 28px' }}>
+                <div className="mystic-prompt-container" style={{
+                  width: '100%',
+                  borderRadius: contextItems.length > 0 ? 20 : 999,
+                  padding: contextItems.length > 0 ? '8px 10px 10px 14px' : '10px 10px 10px 20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: contextItems.length > 0 ? 6 : 0,
+                }}>
+                  {contextChipsRow}
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+                    {inputTextarea(activeProject ? 'Ask about your data...' : 'Select a project first...')}
+                    {sendButton}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1606,19 +1610,13 @@ export default function Home() {
           <div className="results-panel" ref={resultsPanelRef}>
             {!hasChat ? (
               <div className="results-panel-empty">
-                <CrystalBallOracle ballSize={88} />
-                <h1 style={{ fontSize: 22, fontWeight: 500, color: 'var(--text)', margin: '20px 0 6px', letterSpacing: '-0.2px' }}>
-                  BigQuery AIF
-                </h1>
-                <p style={{ color: 'var(--text-muted)', margin: '0 0 16px', fontSize: 14 }}>
-                  Ask anything about your data
-                </p>
                 {!activeProject && (
                   <div style={{
                     maxWidth: 480,
                     width: '100%',
                     display: 'flex',
                     flexDirection: 'column',
+                    alignItems: 'center',
                     gap: 16,
                   }}>
                     <p style={{
@@ -1631,9 +1629,9 @@ export default function Home() {
                     </p>
 
                     {favoriteProjectIds.length > 0 && (
-                      <div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 8 }}>Favorites</div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
                           {favoriteProjectIds.map(p => (
                             <button
                               key={p}
@@ -1663,9 +1661,9 @@ export default function Home() {
                     )}
 
                     {recentProjectIds.length > 0 && (
-                      <div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 8 }}>Recent Projects</div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
                           {recentProjectIds.filter(p => !favoriteProjectIds.includes(p)).map(p => (
                             <button
                               key={p}
