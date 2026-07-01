@@ -91,9 +91,9 @@ export function FreshnessView({ result, onSendMessage }: Props) {
 
       {/* Table list */}
       <div style={{
-        background: 'var(--surface-2)',
-        border: '1px solid var(--border)',
-        borderRadius: 8,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 5,
         maxHeight: 500,
         overflowY: 'auto',
       }}>
@@ -150,8 +150,8 @@ function EntryRow({
         alignItems: 'flex-start',
         gap: 12,
         padding: '10px 14px',
-        borderBottom: isLast ? undefined : '1px solid var(--border-subtle)',
-        background: hovered ? 'var(--accent-dim)' : 'transparent',
+        background: hovered ? 'var(--accent-dim)' : 'rgba(128, 128, 128, 0.06)',
+        borderRadius: 6,
         transition: 'background 0.1s',
         cursor: 'pointer',
       }}

@@ -320,10 +320,9 @@ export function AccessPatternView({ result, onSendMessage }: Props) {
             Most queried tables
           </div>
           <div style={{
-            background: 'var(--surface-2)',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 5,
           }}>
             {matrix.topTables.map((t, i) => (
               <TopTableRow
@@ -402,9 +401,9 @@ function TopTableRow({
         alignItems: 'center',
         gap: 12,
         padding: '8px 12px',
-        borderBottom: isLast ? undefined : '1px solid var(--border-subtle)',
         cursor: 'pointer',
-        background: hovered ? 'var(--accent-dim)' : 'transparent',
+        background: hovered ? 'var(--accent-dim)' : 'rgba(128, 128, 128, 0.06)',
+        borderRadius: 6,
         transition: 'background 0.12s',
       }}
     >
