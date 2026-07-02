@@ -1,12 +1,12 @@
 // src/lib/bigquery-client.ts
 // Client-side BigQuery REST API calls using the user's OAuth access token.
 
-import { getAccessToken } from './gis-auth';
+import { getAccessToken, setAccessToken } from './gis-auth';
 import type { CostEstimate, CostTier } from './types';
 
 const BQ_BASE = 'https://bigquery.googleapis.com/bigquery/v2/projects';
 
-// ─── Cost tiers ───────────────────────────────────────────────────────────────
+// ── Cost tiers ───────────────────────────────────────────────────────────────
 
 function classifyTier(bytes: number): CostTier {
   if (bytes <= 0) return 0;
@@ -17,7 +17,7 @@ function classifyTier(bytes: number): CostTier {
   return 4;
 }
 
-// ─── Shared fetch helper ──────────────────────────────────────────────────────
+// ── Shared fetch helper ──────────────────────────────────────────────────────
 
 async function bqFetch(url: string, init?: RequestInit): Promise<any> {
   const token = getAccessToken();
@@ -51,11 +51,10 @@ function checkAuthError(status: number, data: any) {
 }
 
 export function handleAuthError() {
-  if (typeof window !== 'undefined') {
-    // Clear the stale OAuth token so ShellLayout shows the sign-in page
-    try { sessionStorage.removeItem('bqaif_access_token'); } catch { /* noop */ }
-    window.location.href = '/';
-  }
+  // Clear the stale token so callers know to refresh.
+  // Do NOT redirect -- let the error propagate to the UI layer
+  // which will auto-refresh the token and retry.
+  setAccessToken(null);
 }
 
 // ─── Region detection ─────────────────────────────────────────────────────────

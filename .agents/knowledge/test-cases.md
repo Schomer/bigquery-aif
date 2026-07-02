@@ -62,6 +62,19 @@ These test that messages route to the correct skill.
 - **Expected output**: SQL with WHERE clause
 - **Failure looks like**: Routes to schema (because of "show me more about")
 
+### R9: Follow-up filter on displayed table is single-step query
+- **Input**: "filter it down to only rum categories" (after viewing a table schema)
+- **Context**: lastSkill=schema, lastTable=liquor_backup
+- **Expected skill**: query (single step, NOT multistep)
+- **Expected output**: SQL with WHERE clause, one cost confirmation at most
+- **Failure looks like**: Creates a 2-step workflow (schema fetch + query) with double confirmation
+
+### R10: Natural filter phrasings route to query with high confidence
+- **Input**: "filter down to only the rows where county is Polk"
+- **Expected skill**: query
+- **Expected confidence**: high (keyword router, bypasses LLM classifier)
+- **Failure looks like**: Falls to LLM classifier due to regex miss
+
 ### R9: Follow-up action after data-quality routes to data-management
 - **Input**: "Clean those up" (after a data-quality check)
 - **Expected skill**: data-management (via context boost)

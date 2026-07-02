@@ -12,6 +12,16 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 
 ---
 
+### 2026-07-01: Follow-up prompts treated as fresh requests (redundant schema+query multistep)
+**Scope**: `src/lib/chat-orchestrator.ts` (LLM classifier prompt), `src/lib/router.ts` (filter regex)
+**What broke**: When a table schema was displayed and the user asked to "filter the table down to only rum categories," the system created a 2-step workflow: (1) re-fetch the schema (redundant), (2) run the filter query. This caused double cost confirmations and a frustrating UX.
+**Root cause**: The LLM intent classifier prompt received no conversational state. It knew the project, dataset, and available datasets, but not what the user was currently looking at (lastSkill, lastTable). Without this, it treated every prompt as a fresh start and decomposed it into schema-fetch + query. Additionally, the keyword router's filter regex only matched "filter" followed by {where, by, the, this, that}, missing natural phrasings like "filter it down", "filter to only".
+**Fix**:
+1. Added `buildConversationStateSummary()` -- a skill-agnostic function that describes the full conversational state (what the user is viewing, which skill produced it, which table/dataset) and injects it into the classifier prompt.
+2. Added a structural guard: if the LLM decomposes into schema+query, collapse to single-step query. `handleQuery()` calls `buildSchemaContext()` internally, so a separate schema step is always redundant.
+3. Expanded the filter regex to include {it, down, out, only, to} as defense-in-depth.
+**Rule**: The LLM classifier must always receive the full conversational state. Every prompt is a continuation of the conversation unless the user explicitly changes subject. Schema+query multistep decomposition is structurally redundant and must be collapsed.
+
 ### 2026-07-01: LLM generates SQL against wrong table (liquor_backup -> faa.airports)
 **Scope**: `src/lib/chat-orchestrator.ts` (`buildSchemaContext`, `handleQuery`, `handleDataManagement`)
 **What broke**: When the user asked to "filter the liquor_backup table for rum categories," the system generated SQL against `malloy-data.faa.airports` -- a completely different table. The subtitle correctly identified the target table, but the SQL was wrong.

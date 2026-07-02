@@ -6,6 +6,16 @@ Last verified: 2026-06-30
 
 ---
 
+## Design Philosophy
+
+These principles govern all design decisions. They are not suggestions -- they are requirements.
+
+- **Conversational data tool, not pre-canned experiences**: This app exists to handle whatever data task the user needs, not to funnel users through pre-designed flows. Every prompt is part of an ongoing conversation about data. The system must be able to create whatever experience is needed for the task at hand, dynamically. Never design features that assume a fixed sequence of steps or a predetermined UX pattern. If a new data task doesn't fit existing skill categories, the system should adapt -- not force the task into an ill-fitting template.
+- **Every prompt continues the conversation**: Each user prompt exists in the context of whatever output is currently on screen -- a table schema, query results, a quality report, a chart, monitoring data, anything. The system must treat follow-up prompts as continuations, not fresh requests. Re-deriving context that is already established (e.g., re-fetching a schema for a table the user is already looking at) is always a bug.
+- **The LLM classifier must know the full conversational state**: The intent classifier receives conversation history and must also receive structured context about what the user is currently viewing (last skill, last table, last dataset). Without this, it cannot make correct routing or decomposition decisions.
+
+---
+
 ## Global
 
 - **Model**: Always `gemini-3.5-flash`. Never change to any other model variant. Verify: `grep -rn "gemini-" src/ scripts/`
@@ -37,6 +47,7 @@ Last verified: 2026-06-30
 - **Target table always gets priority in schema context**: When a user references a specific table by name, that table's schema is always fetched first (via the `priorityTable` parameter to `buildSchemaContext`), and the remaining 4 slots are filled with other tables. The LLM prompt must also include an explicit `CRITICAL` instruction naming the target table. Without this, the LLM will hallucinate a table from its training data when the target is not in the first 5 alphabetically.
 - **Available datasets are fetched once per turn**: The `getAvailableDatasets()` result is passed through `enrichedContext` to all handlers. Handlers must not re-fetch this list independently.
 - **Cross-dataset search on table not found**: When `handleSchema()` gets a 'Not found' error for a table, it searches all other datasets in parallel before failing. This is intentional -- users often reference tables without specifying the dataset.
+- **Schema+query multistep is always redundant**: `handleQuery()` calls `buildSchemaContext()` internally. A multistep workflow that fetches schema in step 1 and runs a query in step 2 is structurally redundant and must be collapsed to a single query step. This applies regardless of conversational context.
 - **Dataset name vs project name guard**: `fetchSchema()` in `src/lib/skills/schema.ts` checks if the requested dataset name equals the project name and ignores it if so. This prevents the confusing case where the project name is treated as a dataset.
 - **callGemini retries transient errors 3 times**: 429, 5xx, and errors containing 'demand', 'temporary', 'limit', 'quota', or 'resource' get exponential backoff with jitter. Auth errors (401/403) are never retried.
 

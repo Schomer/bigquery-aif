@@ -78,7 +78,7 @@ function CrystalBallThinking() {
 }
 
 export default function Home() {
-  const { activeProject, user, signIn, projects, setActiveProject } = useAuth();
+  const { activeProject, user, signIn, refreshAccessToken, projects, setActiveProject } = useAuth();
   const { conversationId, newConversation } = useConversation();
   const { activePage, setActivePage } = usePage();
   const { layout } = useLayout();
@@ -251,6 +251,42 @@ export default function Home() {
     });
   }, [user, conversationId, activeProject, context.project]);
 
+  // ── Auth-retry wrapper ────────────────────────────────────────────────────
+  // Wraps an async operation and retries once if the error is an expired token.
+  // On auth failure: refresh the token silently (quick popup) and retry.
+  const authRetrying = useRef(false);
+
+  function looksLikeAuthError(msg: string): boolean {
+    const lower = msg.toLowerCase();
+    return lower.includes('access token') || lower.includes('credentials') || lower.includes('access_denied')
+      || lower.includes('unauthenticated') || lower.includes('authorized') || lower.includes('sign in')
+      || lower.includes('invalid authentication') || lower.includes('oauth 2');
+  }
+
+  async function withAuthRetry<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      if (looksLikeAuthError(msg) && !authRetrying.current) {
+        authRetrying.current = true;
+        setStatusText('Refreshing session...');
+        try {
+          const ok = await refreshAccessToken();
+          if (ok) {
+            const result = await fn();
+            authRetrying.current = false;
+            return result;
+          }
+        } catch {
+          // retry also failed -- fall through
+        }
+        authRetrying.current = false;
+      }
+      throw err; // re-throw original error for the existing catch block
+    }
+  }
+
   // Submit an edited user message at `userIdx`, replacing it and the following assistant reply
   async function submitEdit(userIdx: number) {
     const text = editText.trim();
@@ -268,12 +304,12 @@ export default function Home() {
     };
 
     try {
-      const data = await ChatOrchestrator.processMessage({
+      const data = await withAuthRetry(() => ChatOrchestrator.processMessage({
         message: text,
         history: historyBefore,
         context: { ...deriveContextFromItems(), project: activeProject || context.project, uid: user?.uid },
         onStatus: (s: string | StepInfo) => { setStatusText(typeof s === 'string' ? s : s.text); pendingStepsRef.current.push(s); },
-      });
+      }));
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
       const newAssistantMsg: ChatMessage = {
         role: 'assistant',
@@ -327,12 +363,12 @@ export default function Home() {
     setLoading(true);
 
     try {
-      const data = await ChatOrchestrator.processMessage({
+      const data = await withAuthRetry(() => ChatOrchestrator.processMessage({
         message: userText,
         history: historyUpTo.slice(0, -1),
         context: { ...deriveContextFromItems(), project: activeProject || context.project, uid: user?.uid },
         onStatus: (s: string | StepInfo) => { setStatusText(typeof s === 'string' ? s : s.text); pendingStepsRef.current.push(s); },
-      });
+      }));
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
       const newAssistantMsg: ChatMessage = {
         role: 'assistant',
@@ -377,12 +413,12 @@ export default function Home() {
 
     try {
       const derivedCtx = deriveContextFromItems();
-      const data = await ChatOrchestrator.processMessage({
+      const data = await withAuthRetry(() => ChatOrchestrator.processMessage({
         message: text,
         history: messages,
         context: { ...derivedCtx, project: activeProject || derivedCtx.project, uid: user?.uid },
         onStatus: (s: string | StepInfo) => { setStatusText(typeof s === 'string' ? s : s.text); pendingStepsRef.current.push(s); },
-      });
+      }));
 
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
 
@@ -460,12 +496,12 @@ export default function Home() {
   async function handleConfirm(envelope: CompositionEnvelope) {
     setLoading(true);
     try {
-      const data = await ChatOrchestrator.processMessage({
+      const data = await withAuthRetry(() => ChatOrchestrator.processMessage({
         message: 'confirm',
         history: messages,
         context: { ...deriveContextFromItems(), project: activeProject || context.project, uid: user?.uid, confirmedPayload: envelope.primaryArtifact.data as DataManagementResult },
         onStatus: (s: string | StepInfo) => setStatusText(typeof s === 'string' ? s : s.text),
-      });
+      }));
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
       const assistantMsg: ChatMessage = { role: 'assistant', content: '', envelopes, timestamp: new Date().toISOString() };
       const finalMsgs = [...messages, assistantMsg];
@@ -660,12 +696,12 @@ export default function Home() {
         enrichedMessage = `${chip.label} in dataset ${chipContext.dataset}`;
       }
 
-      const data = await ChatOrchestrator.processMessage({
+      const data = await withAuthRetry(() => ChatOrchestrator.processMessage({
         message: enrichedMessage,
         history: messages,
         context: mergedContext,
         onStatus: (s: string | StepInfo) => setStatusText(typeof s === 'string' ? s : s.text),
-      });
+      }));
 
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
       const assistantMsg: ChatMessage = {

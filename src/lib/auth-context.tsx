@@ -39,8 +39,9 @@ export interface AuthState {
   isLoading: boolean;
   bqAuthorized: boolean;
   bqRefreshToken: string | null;
-  signIn: () => void;
+  signIn: () => Promise<boolean>;
   signOut: () => void;
+  refreshAccessToken: () => Promise<boolean>;
   setActiveProject: (p: string) => void;
   setBqTokenState: (refreshToken: string) => void;
   error: string | null;
@@ -48,12 +49,21 @@ export interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-// Add BQ + Cloud Platform scopes to the Google provider
-const scopedProvider = new GoogleAuthProvider();
-scopedProvider.addScope('https://www.googleapis.com/auth/bigquery');
-scopedProvider.addScope('https://www.googleapis.com/auth/cloud-platform');
-scopedProvider.setCustomParameters({
+// Provider for initial sign-in: forces consent to ensure BQ scopes are granted
+const consentProvider = new GoogleAuthProvider();
+consentProvider.addScope('https://www.googleapis.com/auth/bigquery');
+consentProvider.addScope('https://www.googleapis.com/auth/cloud-platform');
+consentProvider.setCustomParameters({
   prompt: 'consent',
+  include_granted_scopes: 'true',
+});
+
+// Provider for token refresh: no consent prompt, auto-completes if user already
+// granted the scopes. The popup opens and closes almost instantly.
+const refreshProvider = new GoogleAuthProvider();
+refreshProvider.addScope('https://www.googleapis.com/auth/bigquery');
+refreshProvider.addScope('https://www.googleapis.com/auth/cloud-platform');
+refreshProvider.setCustomParameters({
   include_granted_scopes: 'true',
 });
 
@@ -116,10 +126,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (saved) setActiveProjectState(saved);
   }, [user]);
 
-  const signIn = useCallback(async () => {
+  const signIn = useCallback(async (): Promise<boolean> => {
     try {
       setIsLoading(true);
-      const result = await signInWithPopup(auth, scopedProvider);
+      const result = await signInWithPopup(auth, consentProvider);
       const credential = GoogleAuthProvider.credentialFromResult(result);
       // Try multiple ways to extract the Google OAuth access token
       const oauthToken = credential?.accessToken
@@ -137,6 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (result.user) {
         setUser(toGoogleUser(result.user));
       }
+      return true;
     } catch (err: any) {
       console.error('[auth] Sign-in failed:', err.code, err.message);
       if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
@@ -144,8 +155,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setError(`${err.code || 'unknown'}: ${err.message || 'Sign-in failed'}`);
       }
+      return false;
     } finally {
       setIsLoading(false);
+    }
+  }, [setAccessToken]);
+
+  // Silent token refresh: uses the refresh provider (no consent prompt).
+  // The popup opens and auto-closes if the user already granted scopes.
+  const refreshAccessToken = useCallback(async (): Promise<boolean> => {
+    try {
+      const result = await signInWithPopup(auth, refreshProvider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const oauthToken = credential?.accessToken
+        || (result as any)._tokenResponse?.oauthAccessToken
+        || (result as any)._tokenResponse?.access_token;
+      if (oauthToken) {
+        setAccessToken(oauthToken);
+        setError(null);
+        return true;
+      }
+      return false;
+    } catch (err: any) {
+      console.warn('[auth] Token refresh failed:', err.code, err.message);
+      return false;
     }
   }, [setAccessToken]);
 
@@ -178,6 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       bqRefreshToken: null,
       signIn,
       signOut,
+      refreshAccessToken,
       setActiveProject,
       setBqTokenState,
       error,

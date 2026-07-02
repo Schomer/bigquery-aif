@@ -388,7 +388,7 @@ export function classifyIntent(
   // contain an equality comparison and should go to the query skill.
   // NOTE: bare "where" is too broad ("where does this come from" is discovery).
   const hasEqualityPattern = /[`']?\w+[`']?\s*=\s*(?:'[^']*'|\d+)/i.test(message);
-  const hasFilterPhrase = /\bfilter\s+(where|by|the|this|that)\b/i.test(lower)
+  const hasFilterPhrase = /\bfilter\s+(where|by|the|this|that|it|down|out|only|to)\b/i.test(lower)
     || /\bwhere\s+\w+\s*(=|>|<|!=|like|in\s*\()/i.test(lower);
   if (hasEqualityPattern || hasFilterPhrase) {
     return {

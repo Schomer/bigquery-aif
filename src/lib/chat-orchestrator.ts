@@ -387,6 +387,40 @@ function extractDatasetFromMessage(message: string, available: string[]): string
   return undefined;
 }
 
+// ─── Conversation state summary ──────────────────────────────────────────────
+// Produces a human-readable description of the current conversational state so
+// the LLM classifier can treat follow-up prompts as continuations, not fresh
+// requests. This is skill-agnostic — it works for any prior output type.
+
+function buildConversationStateSummary(context?: { lastSkill?: SkillName; lastTable?: string; dataset?: string; resolvedDataset?: string }): string {
+  if (!context?.lastSkill) {
+    return 'This is the start of a new conversation. No prior output is on screen.';
+  }
+
+  const table = context.lastTable ? `table "${context.lastTable}"` : 'the current dataset';
+  const dataset = context.dataset ?? context.resolvedDataset;
+  const dsClause = dataset ? ` in dataset "${dataset}"` : '';
+
+  switch (context.lastSkill) {
+    case 'schema':
+      return `The user is viewing the schema for ${table}${dsClause}. The schema is already loaded and visible.`;
+    case 'query':
+      return `The user is viewing query results from ${table}${dsClause}. The data is already on screen.`;
+    case 'data-quality':
+      return `The user is viewing a data quality report for ${table}${dsClause}.`;
+    case 'data-management':
+      return `The user just performed a data management operation on ${table}${dsClause}.`;
+    case 'monitoring':
+      return `The user is viewing monitoring/usage data${dsClause}.`;
+    case 'discovery':
+      return `The user is viewing discovery/search results${dsClause}.`;
+    case 'data-loading':
+      return `The user just performed an export or data loading operation${dsClause}.`;
+    default:
+      return `The user's last action was: ${context.lastSkill} on ${table}${dsClause}.`;
+  }
+}
+
 // ─── Intent classification ────────────────────────────────────────────────────
 // A single Gemini call classifies the target skill AND detects multistep requests.
 // Falls back to keyword-based classifyIntent if the LLM call fails.
@@ -491,7 +525,11 @@ MULTISTEP RULES:
 
 Current active project: ${project}
 Current active dataset: ${dataset}
-Available datasets: ${available.join(', ')}`;
+Available datasets: ${available.join(', ')}
+
+CONVERSATION STATE:
+${buildConversationStateSummary(context)}
+The user's new message is a continuation of this conversation. Treat it as a follow-up to the current context unless it explicitly changes the subject. Do NOT re-derive context that is already established (e.g., do not add a schema step for a table the user is already looking at).`;
 
           const result = await callGemini({
             systemInstruction: classifierPrompt,
@@ -501,26 +539,38 @@ Available datasets: ${available.join(', ')}`;
           });
 
           if (result && result.isMultistep && result.steps && result.steps.length > 1) {
-            const envelope: CompositionEnvelope = {
-              id: 'workflow_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-              skill: 'multistep',
-              headline: {
-                text: `Created a workflow with ${result.steps.length} steps to complete your request.`,
-                tone: 'NEUTRAL',
-                basis: 'STATUS',
-              },
-              primaryArtifact: {
-                type: 'MULTISTEP_VIEW',
-                data: {
-                  steps: result.steps,
+            // Guard: schema+query decomposition is always redundant because
+            // handleQuery() loads schema context internally via buildSchemaContext().
+            // Collapse to a single query step instead of creating a workflow.
+            const isRedundantSchemaQuery = result.steps.length === 2
+              && result.steps[0].skill === 'schema'
+              && result.steps[1].skill === 'query';
+
+            if (isRedundantSchemaQuery) {
+              // Use the query step's prompt directly as a single-step query
+              skill = 'query' as SkillName;
+            } else {
+              const envelope: CompositionEnvelope = {
+                id: 'workflow_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                skill: 'multistep',
+                headline: {
+                  text: `Created a workflow with ${result.steps.length} steps to complete your request.`,
+                  tone: 'NEUTRAL',
+                  basis: 'STATUS',
                 },
-              },
-              provenance: {
-                visibility: 'COLLAPSED',
-              },
-              nextActions: [],
-            };
-            return { envelopes: [envelope], skill: 'multistep' };
+                primaryArtifact: {
+                  type: 'MULTISTEP_VIEW',
+                  data: {
+                    steps: result.steps,
+                  },
+                },
+                provenance: {
+                  visibility: 'COLLAPSED',
+                },
+                nextActions: [],
+              };
+              return { envelopes: [envelope], skill: 'multistep' };
+            }
           }
 
           // Single-step: use the LLM-classified skill
