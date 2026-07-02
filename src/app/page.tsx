@@ -81,7 +81,7 @@ export default function Home() {
   const { activeProject, user, signIn, refreshAccessToken, projects, setActiveProject } = useAuth();
   const { conversationId, newConversation } = useConversation();
   const { activePage, setActivePage } = usePage();
-  const { layout } = useLayout();
+  const { layout, historyVisible } = useLayout();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
   // Load favorite projects from Firestore (localStorage as instant cache)
@@ -769,6 +769,18 @@ export default function Home() {
   const hasChat = messages.length > 0;
   const isSplit = layout === 'chat-left' || layout === 'chat-right';
 
+  // When history is hidden, compute the index at which visible messages start.
+  // Everything before this index is hidden via display:none (preserving original indices
+  // so editingIdx, submitEdit, thinkingSteps etc. still work correctly).
+  const historyHiddenBefore = useMemo(() => {
+    if (historyVisible || messages.length <= 2) return 0;
+    // Find the last user message -- that and everything after it stays visible
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') return i;
+    }
+    return 0;
+  }, [messages, historyVisible]);
+
   // Map artifact types to Material Symbols icon names
   const artifactIcon = useCallback((type: string): string => {
     if (type === 'TABLE') return 'table_chart';
@@ -867,11 +879,13 @@ export default function Home() {
     localStorage.setItem('hdn_sidebar_width', String(sidebarWidth));
   }, [sidebarWidth]);
 
-  // In split mode, collect all envelopes from all assistant messages for the results panel
+  // In split mode, collect envelopes from visible assistant messages for the results panel
   const allEnvelopes = (() => {
     if (!isSplit) return [];
     const result: CompositionEnvelope[] = [];
-    for (const msg of messages) {
+    for (let idx = 0; idx < messages.length; idx++) {
+      if (idx < historyHiddenBefore) continue;
+      const msg = messages[idx];
       if (msg.role === 'assistant' && msg.envelopes?.length) {
         result.push(...msg.envelopes);
       }
@@ -1258,7 +1272,7 @@ export default function Home() {
               gap: '24px',
             }}>
               {messages.map((msg, i) => (
-                <div key={i} data-msg-idx={i} className={i > 0 ? 'fade-up' : ''}>
+                <div key={i} data-msg-idx={i} className={i > 0 ? 'fade-up' : ''} style={i < historyHiddenBefore ? { display: 'none' } : undefined}>
                   {msg.role === 'user' ? (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginBottom: 4 }}>
                       {editingIdx === i ? (
@@ -1448,7 +1462,7 @@ export default function Home() {
                 </div>
               )}
               {messages.map((msg, i) => (
-                <div key={i} data-msg-idx={i}>
+                <div key={i} data-msg-idx={i} style={i < historyHiddenBefore ? { display: 'none' } : undefined}>
                   {msg.role === 'user' ? (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                       <div className="chat-sidebar-user-msg">

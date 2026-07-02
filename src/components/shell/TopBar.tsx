@@ -26,7 +26,7 @@ function saveFavorites(favs: Set<string>) {
 
 export function TopBar({ onNavToggle }: TopBarProps) {
   const { user, accessToken, projects, activeProject, isLoading, signIn, signOut, setActiveProject } = useAuth();
-  const { layout, setLayout } = useLayout();
+  const { layout, setLayout, historyVisible, setHistoryVisible } = useLayout();
 
   const LAYOUT_OPTIONS: { value: ChatLayout; icon: string; label: string; flip?: boolean }[] = [
     { value: 'unified', icon: 'view_stream', label: 'Unified' },
@@ -345,6 +345,17 @@ export function TopBar({ onNavToggle }: TopBarProps) {
 
       {/* ── Right: utility icons + auth ── */}
       <div className="gc-top-bar-end">
+        {/* History toggle */}
+        <button
+          className={`gc-icon-btn gc-history-toggle${historyVisible ? '' : ' gc-history-toggle--off'}`}
+          aria-label={historyVisible ? 'Hide conversation history' : 'Show conversation history'}
+          aria-pressed={historyVisible}
+          title={historyVisible ? 'Hide history' : 'Show history'}
+          onClick={() => setHistoryVisible(!historyVisible)}
+        >
+          <span className="material-symbols-outlined">history</span>
+        </button>
+
         {/* Layout switcher */}
         <div className="layout-seg" role="radiogroup" aria-label="Chat layout">
           {LAYOUT_OPTIONS.map((opt) => (

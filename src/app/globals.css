@@ -833,6 +833,29 @@ details>summary::marker {
   font-size: 22px;
 }
 
+/* History toggle */
+.gc-history-toggle {
+  position: relative;
+}
+
+.gc-history-toggle--off {
+  color: var(--text-muted);
+  opacity: 0.55;
+}
+
+.gc-history-toggle--off::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: var(--text-muted);
+  border-radius: 1px;
+  transform: rotate(-45deg);
+  pointer-events: none;
+}
+
 /* Avatar */
 .gc-avatar-wrap {
   position: relative;
