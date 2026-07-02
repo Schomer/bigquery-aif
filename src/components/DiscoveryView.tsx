@@ -70,7 +70,7 @@ function SearchView({ result, onSendMessage }: { result: DiscoveryResult; onSend
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
       {result.results.map((r, i) => (
         <SearchResultRow key={i} item={r} onSendMessage={onSendMessage} />
       ))}

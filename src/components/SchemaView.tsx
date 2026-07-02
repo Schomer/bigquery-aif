@@ -22,7 +22,7 @@ export function SchemaView({ result, onSendMessage }: Props) {
 
   if (result.scope === 'PROJECT') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
         {result.columns.map((ds, i) => (
           <ClickableRow
             key={ds.name}
@@ -47,7 +47,7 @@ export function SchemaView({ result, onSendMessage }: Props) {
 
   if (result.scope === 'DATASET') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
         {result.columns.map((t, i) => {
           const badge = TYPE_BADGE_MAP[t.type ?? ''] ?? { icon: 'help_outline', color: '#94a3b8', label: t.type ?? 'Unknown' };
           const meta: string[] = [];
@@ -308,7 +308,6 @@ function SampleTab({ preview, error }: { preview: PreviewResponse | null; error:
                   color: 'var(--text-muted)',
                   fontWeight: 500,
                   whiteSpace: 'nowrap',
-                  fontFamily: 'var(--font-mono)',
                   position: 'sticky',
                   top: 0,
                   background: 'var(--surface)',
@@ -328,8 +327,7 @@ function SampleTab({ preview, error }: { preview: PreviewResponse | null; error:
                   <td key={ci} style={{
                     padding: '6px 12px',
                     color: cell === null ? 'var(--text-dim)' : 'var(--text)',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 11,
+                    fontSize: 12,
                     whiteSpace: 'nowrap',
                     maxWidth: 240,
                     overflow: 'hidden',

@@ -4,6 +4,22 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-01: Flatten dataset/table list rows to single-line layout
+
+**Problem**: List rows for datasets and tables used a two-line layout (name on top, details below). User wanted a more compact single-row format with name and metadata inline.
+
+**What changed**:
+- PROJECT scope (datasets): name and table count now on same row, with TypePill badge
+- DATASET scope (tables): name and metadata (row count, size, date) on same row separated by middle dots
+- DiscoveryView SearchResultRow: same treatment -- ref and matched-on details on one line
+- Gap between rows reduced from 5px to 3px for tighter list appearance
+
+**Files modified**:
+- `src/components/SchemaView.tsx` -- flattened PROJECT and DATASET list row layouts
+- `src/components/DiscoveryView.tsx` -- flattened search result row layout
+
+---
+
 ## 2026-07-01: History toggle in top bar
 
 **Problem**: Users wanted a way to hide previous conversation output so the latest result sits at the top of the viewport, rather than scrolling past old exchanges.

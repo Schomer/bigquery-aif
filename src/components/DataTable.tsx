@@ -124,7 +124,7 @@ export function DataTable({ result, onSendMessage }: Props) {
                     style={{
                       padding: '7px 12px',
                       color: typeof cell === 'number' ? 'var(--text)' : 'var(--text-muted)',
-                      fontFamily: typeof cell === 'number' ? 'var(--font-mono)' : 'inherit',
+                      fontFamily: 'inherit',
                       whiteSpace: 'nowrap',
                       maxWidth: 300,
                       overflow: 'hidden',
