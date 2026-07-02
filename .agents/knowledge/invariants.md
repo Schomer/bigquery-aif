@@ -99,8 +99,17 @@ These principles govern all design decisions. They are not suggestions -- they a
 ## BigQuery Client (`src/lib/bigquery-client.ts`)
 
 - **OAuth token is fetched per-request via `getAccessToken()`**: Never cache the token at module level. The GIS auth module manages token refresh internally.
+- **`handleAuthError()` clears the token, does NOT redirect**: It calls `setAccessToken(null)` and lets the error propagate. The UI layer's `withAuthRetry` handles refresh. Never add `window.location.href` back.
 - **`dryRun()` must be called before `executeQuery()` for user-initiated queries**: The dry run checks estimated bytes and returns a cost tier. Tier 3+ requires user confirmation.
 - **DML operations use `executeDml()`**, not `executeQuery()`: These are separate functions with different error handling.
+
+---
+
+## Auth Token Refresh (`src/lib/auth-context.tsx`, `src/app/page.tsx`)
+
+- **All orchestrator calls must be wrapped in `withAuthRetry()`**: This wrapper catches expired-token errors, calls `refreshAccessToken()` to get a fresh token via a quick popup, and retries the call once. Without this wrapper, users see "Session Expired" after ~1 hour.
+- **`refreshAccessToken` uses a provider WITHOUT `prompt: 'consent'`**: This is intentional. The user already granted consent on initial sign-in. The refresh popup auto-completes almost instantly. Do not add `prompt: 'consent'` to the refresh provider.
+- **Auth retry is one-shot**: The `authRetrying` ref prevents infinite retry loops. If the refresh fails, the error propagates to the existing catch block which shows the error banner.
 
 ---
 

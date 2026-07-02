@@ -4,6 +4,42 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-01: Auto-refresh expired OAuth token
+
+**Problem**: The Google OAuth access token expires after ~1 hour. Users see "Session Expired" mid-session and have to manually re-sign-in, losing their in-progress query.
+
+**What changed**:
+- Added `refreshAccessToken()` to `auth-context.tsx` -- uses a Google provider without `prompt: 'consent'` so the popup auto-completes almost instantly when consent was already granted
+- Removed the hard `window.location.href = '/'` redirect from `handleAuthError()` in `bigquery-client.ts` -- now just clears the stale token
+- Added `withAuthRetry()` wrapper in `page.tsx` that wraps all 5 orchestrator call sites. On auth error: refreshes token via quick popup, retries the call once
+- If refresh fails, falls through to existing error banner with "Sign in again" button
+
+**Files modified**:
+- `src/lib/auth-context.tsx` -- added `refreshProvider`, `refreshAccessToken()`, changed `signIn` return type to `Promise<boolean>`
+- `src/lib/bigquery-client.ts` -- `handleAuthError()` calls `setAccessToken(null)` instead of redirecting
+- `src/app/page.tsx` -- added `withAuthRetry`, `looksLikeAuthError`, wrapped all orchestrator calls
+
+---
+
+## 2026-07-01: Give LLM classifier full conversational state
+
+**Problem**: Follow-up prompts were treated as fresh requests. Asking to "filter the table" while viewing a table schema created a redundant 2-step workflow (re-fetch schema + query), causing double cost confirmations.
+
+**What changed**:
+- Added `buildConversationStateSummary()` in `chat-orchestrator.ts` -- a skill-agnostic function that describes what the user is currently viewing (schema, query results, quality report, etc.) and injects it into the LLM classifier prompt as `CONVERSATION STATE`
+- Added a structural guard: if the LLM decomposes a request into schema+query multistep, collapse it to a single query step (since `handleQuery()` loads schema internally via `buildSchemaContext()`)
+- Expanded the keyword router's filter regex to catch more natural phrasings ("filter it down", "filter to only", etc.)
+- Added Design Philosophy section to `invariants.md` codifying the principle that this app is a conversational data tool, not a collection of pre-canned experiences
+
+**Files modified**:
+- `src/lib/chat-orchestrator.ts` -- `buildConversationStateSummary()`, classifier prompt, multistep guard
+- `src/lib/router.ts` -- expanded `hasFilterPhrase` regex
+- `.agents/knowledge/invariants.md` -- Design Philosophy section, schema+query invariant
+- `.agents/knowledge/test-cases.md` -- R9, R10 test cases
+- `.agents/knowledge/ops-ledger.md` -- fix entry
+
+---
+
 ## 2026-07-01: Fix LLM hallucinating wrong table in SQL generation
 
 **What changed**:

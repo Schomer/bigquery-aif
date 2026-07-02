@@ -12,6 +12,13 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 
 ---
 
+### 2026-07-01: OAuth token expiration breaks app mid-session
+**Scope**: `src/lib/auth-context.tsx`, `src/lib/bigquery-client.ts`, `src/app/page.tsx`
+**What broke**: The Google OAuth access token (for BigQuery/Cloud Platform) expires after ~1 hour. Firebase Auth stays signed in but all API calls fail with 401. The user sees "Session Expired" and has to manually re-authenticate, losing their in-progress query.
+**Root cause**: Three problems: (1) No automatic token refresh mechanism. (2) `handleAuthError()` did a hard page redirect, blowing away app state. (3) The error catch block only showed a banner, never attempted to recover.
+**Fix**: (1) Added `refreshAccessToken()` using a Google provider without `prompt: 'consent'` -- popup auto-completes instantly. (2) Removed the hard redirect from `handleAuthError()`. (3) Added `withAuthRetry()` wrapper around all orchestrator call sites that catches auth errors, refreshes token, and retries once.
+**Rule**: All orchestrator calls must go through `withAuthRetry()`. `handleAuthError()` must never redirect.
+
 ### 2026-07-01: Follow-up prompts treated as fresh requests (redundant schema+query multistep)
 **Scope**: `src/lib/chat-orchestrator.ts` (LLM classifier prompt), `src/lib/router.ts` (filter regex)
 **What broke**: When a table schema was displayed and the user asked to "filter the table down to only rum categories," the system created a 2-step workflow: (1) re-fetch the schema (redundant), (2) run the filter query. This caused double cost confirmations and a frustrating UX.
