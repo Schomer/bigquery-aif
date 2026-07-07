@@ -720,7 +720,51 @@ async function buildSchemaContext(project: string, dataset: string, priorityTabl
         const colString = tableSchema.columns
           .map((col) => `${col.name} (${col.type})`)
           .join(', ');
-        return `Table \`${project}.${dataset}.${tableId}\` columns: ${colString}`;
+        let schemaLine = `Table \`${project}.${dataset}.${tableId}\` columns: ${colString}`;
+
+        // For the priority table, fetch sample distinct values for string
+        // columns so the LLM can see actual data patterns (e.g., that
+        // store_name contains "HY-VEE FOOD STORE / IOWA FALLS", not just
+        // "HY-VEE FOOD STORE"). This prevents exact-match WHERE clauses
+        // that return zero rows.
+        if (priorityTable && tableId.toLowerCase() === priorityTable.toLowerCase()) {
+          const stringCols = tableSchema.columns
+            .filter((col) => col.type === 'STRING')
+            .slice(0, 3);
+          if (stringCols.length > 0) {
+            try {
+              const sampleParts = await Promise.all(
+                stringCols.map(async (col) => {
+                  try {
+                    const sampleResult = await executeQuery(
+                      `SELECT DISTINCT \`${col.name}\` FROM \`${project}.${dataset}.${tableId}\` WHERE \`${col.name}\` IS NOT NULL LIMIT 3`,
+                      project
+                    );
+                    const values = sampleResult.rows
+                      .map((r) => r[0])
+                      .filter(Boolean)
+                      .map((v) => `"${v}"`);
+                    if (values.length > 0) {
+                      return `  ${col.name} sample values: ${values.join(', ')}`;
+                    }
+                  } catch {
+                    // Ignore per-column sample failures
+                  }
+                  return null;
+                })
+              );
+              const validSamples = sampleParts.filter(Boolean);
+              if (validSamples.length > 0) {
+                schemaLine += `\n${validSamples.join('\n')}`;
+              }
+            } catch {
+              // Ignore sample fetch failures entirely -- schema context
+              // without samples is still useful
+            }
+          }
+        }
+
+        return schemaLine;
       } catch {
         return null;
       }
