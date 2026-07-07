@@ -2261,3 +2261,506 @@ details>summary::marker {
 .context-action-btn.is-active .material-symbols-outlined {
   font-variation-settings: 'FILL' 1, 'wght' 300, 'GRAD' 0, 'opsz' 20;
 }
+
+/* ===============================================================
+   DESIGN TOKENS: Spacing, Typography, Transitions
+   =============================================================== */
+
+:root {
+  /* -- Spacing scale -- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  /* -- Typography scale -- */
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 20px;
+  --text-xl: 24px;
+  --text-2xl: 32px;
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  /* -- Transition presets -- */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+  --transition-slow: 400ms ease;
+}
+
+/* ===============================================================
+   MATERIAL DESIGN 3 — DARK THEME
+   Activated by OS preference OR .dark-theme class on <html>/<body>.
+   Overrides all :root and gc-* custom properties so every existing
+   component inherits dark values automatically.
+   =============================================================== */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* -- Core surfaces -- */
+    --bg: #121218;
+    --chat-bg: #18182a;
+    --surface: #1e1e2e;
+    --surface-2: #252540;
+    --border: #333355;
+    --border-subtle: #2a2a4a;
+
+    /* -- Text hierarchy -- */
+    --text: #e0e0e0;
+    --text-muted: #a0a0b8;
+    --text-dim: #6b6b88;
+
+    /* -- Accent (blue, adjusted for dark contrast) -- */
+    --accent: #8ab4f8;
+    --accent-dim: #1e2d4d;
+    --accent-text: #a8c7fa;
+
+    /* -- Semantic colors (dark-adapted) -- */
+    --positive: #81c995;
+    --attention: #fdd663;
+    --issue: #f28b82;
+
+    /* -- GC shell dark overrides -- */
+    --gc-blue: #8ab4f8;
+    --gc-blue-dark: #669df6;
+    --gc-blue-hover: #aecbfa;
+    --gc-blue-light: #1e2d4d;
+    --gc-surface: #1e1e2e;
+    --gc-bg: #121218;
+    --gc-nav-bg: #121218;
+    --gc-nav-active-bg: #1e2d4d;
+    --gc-border: #333355;
+    --gc-text-primary: #e0e0e0;
+    --gc-text-secondary: #a0a0b8;
+    --gc-icon: #a0a0b8;
+  }
+
+  /* -- Scrollbar for dark mode -- */
+  ::-webkit-scrollbar-thumb {
+    background: #3a3a5a;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #4a4a6a;
+  }
+
+  /* -- Hardcoded color overrides for dark mode -- */
+  .sql-block {
+    color: #c8c8d8;
+  }
+  .sql-block-editor {
+    color: #c8c8d8;
+  }
+
+  .chip {
+    background: #1e2d4d;
+    color: #a8c7fa;
+  }
+  .chip:hover {
+    background: #283d65;
+    color: #c5d8fb;
+  }
+
+  .recent-item-chip:hover {
+    border-color: #5a7ab8;
+    box-shadow: 0 1px 4px rgba(138, 180, 248, 0.10);
+  }
+
+  .gc-logo-divider {
+    background: rgba(200, 210, 230, 0.3);
+  }
+  .gc-logo-product {
+    color: #e0e0e0;
+  }
+  .gc-logo-text {
+    color: #a8c7fa;
+  }
+
+  .gc-env-chip {
+    background: #1e2d4d;
+    color: #a8c7fa;
+    border-color: #3a5080;
+  }
+  .gc-env-chip:hover {
+    background: #283d65;
+  }
+  .gc-env-chip-icon {
+    fill: #a8c7fa;
+  }
+
+  .gc-search-bar {
+    background: #252540;
+    border-color: #3a3a5a;
+    color: #e0e0e0;
+  }
+  .gc-search-input {
+    color: #e0e0e0;
+  }
+  .gc-search-input::placeholder {
+    color: #6b6b88;
+  }
+  .gc-search-btn {
+    color: #a8c7fa;
+  }
+
+  .gc-nav-header-text {
+    color: #a8c7fa;
+  }
+  .gc-nav-cta {
+    color: #a8c7fa;
+    background: #1e2d4d;
+  }
+  .gc-nav-cta:hover {
+    background: #283d65;
+  }
+  .gc-nav-item {
+    color: #a0a0b8;
+  }
+  .gc-nav-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .gc-nav-item--active {
+    background: #1e2d4d;
+    color: #a8c7fa;
+    border-left-color: #8ab4f8;
+  }
+  .gc-nav-item--active .material-symbols-outlined {
+    color: #8ab4f8;
+  }
+  .gc-nav-item .material-symbols-outlined {
+    color: #a0a0b8;
+  }
+  .gc-nav-group-header {
+    color: #e0e0e0;
+  }
+  .gc-nav-group-header:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .gc-project-dropdown {
+    background: #1e1e2e;
+    border-color: #333355;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+  .gc-project-option {
+    color: #e0e0e0;
+  }
+  .gc-project-option-wrap:hover .gc-project-option {
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .gc-project-option--active {
+    color: #8ab4f8;
+  }
+  .gc-project-option--active .gc-project-option-icon {
+    color: #8ab4f8;
+  }
+  .gc-project-option-check {
+    color: #8ab4f8;
+  }
+  .gc-project-option-icon {
+    color: #a0a0b8;
+  }
+  .gc-project-search-clear:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .gc-project-manual-form:focus-within {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .gc-avatar-menu {
+    background: #1e1e2e;
+    border-color: #333355;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+  .gc-avatar-menu-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .gc-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  /* -- Signed-out page dark overrides -- */
+  .so-grid {
+    background-image: radial-gradient(circle, rgba(138, 180, 248, 0.05) 1px, transparent 1px);
+  }
+  .so-glow-blue {
+    background: #1e2d4d;
+    opacity: 0.3;
+  }
+  .so-glow-purple {
+    background: #2d1e4d;
+    opacity: 0.3;
+  }
+  .so-icon-ring {
+    background: radial-gradient(circle at 38% 32%, #1e2d4d 0%, #252540 60%);
+    border-color: #3a5080;
+    box-shadow: 0 4px 32px rgba(138, 180, 248, 0.15), 0 0 0 8px rgba(138, 180, 248, 0.04);
+  }
+  .so-star {
+    background: #5a7ab8;
+  }
+  .so-star-d { background: #3a5080; }
+  .so-star-e { background: #4a6aa0; }
+  .so-particle {
+    background: #5a7ab8;
+    box-shadow: 0 0 6px 2px rgba(90, 122, 184, 0.4);
+  }
+  .so-particle-c {
+    background: #3a5080;
+    box-shadow: 0 0 8px 3px rgba(58, 80, 128, 0.4);
+  }
+  .so-particle-f {
+    background: #4d3a80;
+    box-shadow: 0 0 8px 3px rgba(77, 58, 128, 0.4);
+  }
+  .so-prompt-chip:hover {
+    border-color: #3a5080;
+    background: #1e2d4d;
+  }
+  .so-signin-cta {
+    background: #252540;
+    color: #e0e0e0;
+    border-color: #333355;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+  .so-signin-cta:hover:not(:disabled) {
+    background: #2a2a4e;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
+  }
+
+  /* -- Layout controls -- */
+  .layout-seg {
+    border-color: #3a3a5a;
+  }
+  .layout-seg-btn {
+    color: #a0a0b8;
+  }
+  .layout-seg-btn:hover:not(.layout-seg-btn--active) {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .layout-seg-btn--active {
+    background: #1e2d4d;
+    color: #a8c7fa;
+  }
+  .layout-seg-btn::after {
+    background: #1e1e2e;
+    color: #e0e0e0;
+  }
+
+  /* -- Chat sidebar user message -- */
+  .chat-sidebar .chat-sidebar-user-msg {
+    background: #1e2d4d;
+    border-color: #3a5080;
+    color: #a8c7fa;
+  }
+
+  /* -- Mystic prompt container -- */
+  .mystic-prompt-container {
+    background-image: linear-gradient(rgba(30, 30, 46, 0.85), rgba(30, 30, 46, 0.85)),
+      linear-gradient(135deg, #333355 0%, #333355 100%);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  }
+  .mystic-prompt-container:hover {
+    background-image: linear-gradient(rgba(30, 30, 46, 0.9), rgba(30, 30, 46, 0.9)),
+      linear-gradient(135deg, #5a5a8a 0%, #6a4a8a 100%);
+    box-shadow: 0 4px 24px rgba(99, 102, 241, 0.12);
+  }
+  .mystic-prompt-container:focus-within {
+    background-image: linear-gradient(rgba(30, 30, 46, 0.95), rgba(30, 30, 46, 0.95)),
+      linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #06b6d4 100%);
+    box-shadow:
+      0 0 0 1px rgba(99, 102, 241, 0.15),
+      0 8px 32px rgba(99, 102, 241, 0.2),
+      0 2px 8px rgba(168, 85, 247, 0.15);
+  }
+
+  /* -- Artifact link buttons -- */
+  .chat-sidebar-artifact-link {
+    background: #1a3326;
+    border-color: #2a5a3e;
+    color: #81c995;
+  }
+  .chat-sidebar-artifact-link:hover {
+    background: #224a35;
+    border-color: #3a7a52;
+    color: #a3e4b5;
+    box-shadow: 0 1px 3px rgba(34, 197, 94, 0.15);
+  }
+  .chat-sidebar-artifact-link .material-symbols-outlined {
+    color: #81c995;
+  }
+
+  /* -- Context chips -- */
+  .context-chip {
+    background: #1e2d4d;
+    border-color: #3a5080;
+  }
+
+  /* -- Drag handle -- */
+  .layout-drag-handle:hover,
+  .layout-drag-handle--active {
+    background: rgba(138, 180, 248, 0.12);
+  }
+}
+
+/* ---------------------------------------------------------------
+   .dark-theme class — mirrors @media block above for manual toggle.
+   Applied on <html> or <body>.
+   --------------------------------------------------------------- */
+
+.dark-theme {
+  /* -- Core surfaces -- */
+  --bg: #121218;
+  --chat-bg: #18182a;
+  --surface: #1e1e2e;
+  --surface-2: #252540;
+  --border: #333355;
+  --border-subtle: #2a2a4a;
+
+  /* -- Text hierarchy -- */
+  --text: #e0e0e0;
+  --text-muted: #a0a0b8;
+  --text-dim: #6b6b88;
+
+  /* -- Accent (blue, adjusted for dark contrast) -- */
+  --accent: #8ab4f8;
+  --accent-dim: #1e2d4d;
+  --accent-text: #a8c7fa;
+
+  /* -- Semantic colors (dark-adapted) -- */
+  --positive: #81c995;
+  --attention: #fdd663;
+  --issue: #f28b82;
+
+  /* -- GC shell dark overrides -- */
+  --gc-blue: #8ab4f8;
+  --gc-blue-dark: #669df6;
+  --gc-blue-hover: #aecbfa;
+  --gc-blue-light: #1e2d4d;
+  --gc-surface: #1e1e2e;
+  --gc-bg: #121218;
+  --gc-nav-bg: #121218;
+  --gc-nav-active-bg: #1e2d4d;
+  --gc-border: #333355;
+  --gc-text-primary: #e0e0e0;
+  --gc-text-secondary: #a0a0b8;
+  --gc-icon: #a0a0b8;
+}
+
+/* Scrollbar in .dark-theme */
+.dark-theme ::-webkit-scrollbar-thumb {
+  background: #3a3a5a;
+}
+.dark-theme ::-webkit-scrollbar-thumb:hover {
+  background: #4a4a6a;
+}
+
+/* Hardcoded color overrides for .dark-theme */
+.dark-theme .sql-block { color: #c8c8d8; }
+.dark-theme .sql-block-editor { color: #c8c8d8; }
+
+.dark-theme .chip { background: #1e2d4d; color: #a8c7fa; }
+.dark-theme .chip:hover { background: #283d65; color: #c5d8fb; }
+
+.dark-theme .recent-item-chip:hover {
+  border-color: #5a7ab8;
+  box-shadow: 0 1px 4px rgba(138, 180, 248, 0.10);
+}
+
+.dark-theme .gc-logo-divider { background: rgba(200, 210, 230, 0.3); }
+.dark-theme .gc-logo-product { color: #e0e0e0; }
+.dark-theme .gc-logo-text { color: #a8c7fa; }
+
+.dark-theme .gc-env-chip { background: #1e2d4d; color: #a8c7fa; border-color: #3a5080; }
+.dark-theme .gc-env-chip:hover { background: #283d65; }
+.dark-theme .gc-env-chip-icon { fill: #a8c7fa; }
+
+.dark-theme .gc-search-bar { background: #252540; border-color: #3a3a5a; color: #e0e0e0; }
+.dark-theme .gc-search-input { color: #e0e0e0; }
+.dark-theme .gc-search-input::placeholder { color: #6b6b88; }
+.dark-theme .gc-search-btn { color: #a8c7fa; }
+
+.dark-theme .gc-nav-header-text { color: #a8c7fa; }
+.dark-theme .gc-nav-cta { color: #a8c7fa; background: #1e2d4d; }
+.dark-theme .gc-nav-cta:hover { background: #283d65; }
+.dark-theme .gc-nav-item { color: #a0a0b8; }
+.dark-theme .gc-nav-item:hover { background: rgba(255, 255, 255, 0.06); }
+.dark-theme .gc-nav-item--active { background: #1e2d4d; color: #a8c7fa; border-left-color: #8ab4f8; }
+.dark-theme .gc-nav-item--active .material-symbols-outlined { color: #8ab4f8; }
+.dark-theme .gc-nav-item .material-symbols-outlined { color: #a0a0b8; }
+.dark-theme .gc-nav-group-header { color: #e0e0e0; }
+.dark-theme .gc-nav-group-header:hover { background: rgba(255, 255, 255, 0.04); }
+
+.dark-theme .gc-project-dropdown { background: #1e1e2e; border-color: #333355; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4); }
+.dark-theme .gc-project-option { color: #e0e0e0; }
+.dark-theme .gc-project-option-wrap:hover .gc-project-option { background: rgba(255, 255, 255, 0.06); }
+.dark-theme .gc-project-option--active { color: #8ab4f8; }
+.dark-theme .gc-project-option--active .gc-project-option-icon { color: #8ab4f8; }
+.dark-theme .gc-project-option-check { color: #8ab4f8; }
+.dark-theme .gc-project-option-icon { color: #a0a0b8; }
+.dark-theme .gc-project-search-clear:hover { background: rgba(255, 255, 255, 0.08); }
+.dark-theme .gc-project-manual-form:focus-within { background: rgba(255, 255, 255, 0.05); }
+
+.dark-theme .gc-avatar-menu { background: #1e1e2e; border-color: #333355; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4); }
+.dark-theme .gc-avatar-menu-item:hover { background: rgba(255, 255, 255, 0.06); }
+
+.dark-theme .gc-icon-btn:hover { background: rgba(255, 255, 255, 0.08); }
+
+.dark-theme .so-grid { background-image: radial-gradient(circle, rgba(138, 180, 248, 0.05) 1px, transparent 1px); }
+.dark-theme .so-glow-blue { background: #1e2d4d; opacity: 0.3; }
+.dark-theme .so-glow-purple { background: #2d1e4d; opacity: 0.3; }
+.dark-theme .so-icon-ring {
+  background: radial-gradient(circle at 38% 32%, #1e2d4d 0%, #252540 60%);
+  border-color: #3a5080;
+  box-shadow: 0 4px 32px rgba(138, 180, 248, 0.15), 0 0 0 8px rgba(138, 180, 248, 0.04);
+}
+.dark-theme .so-star { background: #5a7ab8; }
+.dark-theme .so-star-d { background: #3a5080; }
+.dark-theme .so-star-e { background: #4a6aa0; }
+.dark-theme .so-particle { background: #5a7ab8; box-shadow: 0 0 6px 2px rgba(90, 122, 184, 0.4); }
+.dark-theme .so-particle-c { background: #3a5080; box-shadow: 0 0 8px 3px rgba(58, 80, 128, 0.4); }
+.dark-theme .so-particle-f { background: #4d3a80; box-shadow: 0 0 8px 3px rgba(77, 58, 128, 0.4); }
+.dark-theme .so-prompt-chip:hover { border-color: #3a5080; background: #1e2d4d; }
+.dark-theme .so-signin-cta { background: #252540; color: #e0e0e0; border-color: #333355; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2); }
+.dark-theme .so-signin-cta:hover:not(:disabled) { background: #2a2a4e; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3); }
+
+.dark-theme .layout-seg { border-color: #3a3a5a; }
+.dark-theme .layout-seg-btn { color: #a0a0b8; }
+.dark-theme .layout-seg-btn:hover:not(.layout-seg-btn--active) { background: rgba(255, 255, 255, 0.04); }
+.dark-theme .layout-seg-btn--active { background: #1e2d4d; color: #a8c7fa; }
+.dark-theme .layout-seg-btn::after { background: #1e1e2e; color: #e0e0e0; }
+
+.dark-theme .chat-sidebar .chat-sidebar-user-msg { background: #1e2d4d; border-color: #3a5080; color: #a8c7fa; }
+
+.dark-theme .mystic-prompt-container {
+  background-image: linear-gradient(rgba(30, 30, 46, 0.85), rgba(30, 30, 46, 0.85)),
+    linear-gradient(135deg, #333355 0%, #333355 100%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+.dark-theme .mystic-prompt-container:hover {
+  background-image: linear-gradient(rgba(30, 30, 46, 0.9), rgba(30, 30, 46, 0.9)),
+    linear-gradient(135deg, #5a5a8a 0%, #6a4a8a 100%);
+  box-shadow: 0 4px 24px rgba(99, 102, 241, 0.12);
+}
+.dark-theme .mystic-prompt-container:focus-within {
+  background-image: linear-gradient(rgba(30, 30, 46, 0.95), rgba(30, 30, 46, 0.95)),
+    linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #06b6d4 100%);
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.15),
+    0 8px 32px rgba(99, 102, 241, 0.2),
+    0 2px 8px rgba(168, 85, 247, 0.15);
+}
+
+.dark-theme .chat-sidebar-artifact-link { background: #1a3326; border-color: #2a5a3e; color: #81c995; }
+.dark-theme .chat-sidebar-artifact-link:hover { background: #224a35; border-color: #3a7a52; color: #a3e4b5; box-shadow: 0 1px 3px rgba(34, 197, 94, 0.15); }
+.dark-theme .chat-sidebar-artifact-link .material-symbols-outlined { color: #81c995; }
+
+.dark-theme .context-chip { background: #1e2d4d; border-color: #3a5080; }
+
+.dark-theme .layout-drag-handle:hover,
+.dark-theme .layout-drag-handle--active { background: rgba(138, 180, 248, 0.12); }
