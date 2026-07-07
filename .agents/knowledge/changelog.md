@@ -4,6 +4,39 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-07 (session 2): Orchestrator decomposition -- monolith to modules
+
+**What changed**:
+- Decomposed the 3,835-line `chat-orchestrator.ts` monolith into 12 focused modules
+- The orchestrator is now a 307-line thin dispatch layer
+- All handler logic moved to `src/lib/skills/handle-*.ts` (8 handler files)
+- Infrastructure extracted to `gemini-client.ts` (316 lines), `orchestrator-utils.ts` (182 lines), `self-review.ts` (192 lines)
+
+**Files created**:
+- `src/lib/gemini-client.ts` -- Gemini API client, response schemas, loadSkillDoc
+- `src/lib/orchestrator-utils.ts` -- dataset resolution, BQ console URLs, schema context builder
+- `src/lib/self-review.ts` -- LLM review pass (buildReviewSnapshot, selfReviewEnvelope)
+- `src/lib/skills/handle-schema.ts` -- Schema handler (420 lines)
+- `src/lib/skills/handle-query.ts` -- Query handler (259 lines)
+- `src/lib/skills/handle-data-management.ts` -- Data management handler (275 lines)
+- `src/lib/skills/handle-data-quality.ts` -- Data quality handler (489 lines)
+- `src/lib/skills/handle-monitoring.ts` -- Monitoring handler (770 lines)
+- `src/lib/skills/handle-discovery.ts` -- Discovery handler (386 lines)
+- `src/lib/skills/handle-data-loading.ts` -- Data loading handler (232 lines)
+- `src/lib/skills/handle-task.ts` -- Task handler (105 lines)
+
+**Files modified**:
+- `src/lib/chat-orchestrator.ts` -- rewritten from 3,835 lines to 307 lines (dispatch only)
+
+**Key decisions**:
+- Handlers are stateless functions, not classes. They import infrastructure from shared modules.
+- Circular dependency between data-management and query is broken via lazy `await import('./handle-query')`.
+- Inline type imports replaced with static top-level imports.
+- Dynamic `await import('./bigquery-client')` calls replaced with static imports.
+- No behavior changes -- pure refactoring.
+
+---
+
 ## 2026-07-07: Add runtime skill prompts for data-quality, discovery, monitoring, data-loading
 
 **What changed**:

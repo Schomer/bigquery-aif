@@ -2,7 +2,7 @@
 
 A guide to the codebase structure, key files, their responsibilities, and where to find things. Consult this before making changes to understand what you're touching and what might be affected.
 
-Last updated: 2026-06-30
+Last updated: 2026-07-07
 
 ---
 
@@ -20,16 +20,20 @@ Router (src/lib/router.ts)
   - Reference resolution: resolveReferences()
     |
     v
-Orchestrator (src/lib/chat-orchestrator.ts)
+Orchestrator (src/lib/chat-orchestrator.ts) -- 307 lines, dispatch only
   - LLM classifier (medium/low confidence fallback)
   - Skill dispatch (switch on skill name)
   - Self-review pass
     |
     v
-Skill Handlers (inline in chat-orchestrator.ts)
-  - handleSchema, handleQuery, handleDataManagement,
-    handleDataQuality, handleMonitoring, handleDiscovery,
-    handleDataLoading
+Skill Handlers (src/lib/skills/handle-*.ts)
+  - handle-schema, handle-query, handle-data-management,
+    handle-data-quality, handle-monitoring, handle-discovery,
+    handle-data-loading, handle-task
+    |
+    v
+Infrastructure (src/lib/{gemini-client,orchestrator-utils,self-review}.ts)
+  - Gemini API client, dataset resolution, self-review pass
     |
     v
 Composer (src/lib/composer.ts)
@@ -56,51 +60,97 @@ UI Components (src/components/)
 
 ---
 
-### `src/lib/chat-orchestrator.ts` (3384 lines)
-**Responsibility**: Everything else. This is the monolith.
+### `src/lib/chat-orchestrator.ts` (307 lines)
+**Responsibility**: Thin dispatch layer. Routes classified intents to skill handlers.
+- Lines 1-40: Imports (handler modules, infrastructure, types)
+- Lines 42-68: `ProcessMessageArgs` and `OrchestrationResult` interfaces
+- Lines 70-307: `ChatOrchestrator.processMessage()` -- main entry point
+  - Lines 72-77: Confirmation handling (delegates to `executeConfirmedOperation`)
+  - Lines 82-83: Reference resolution
+  - Lines 87-165: Intent classification (keyword first, LLM fallback)
+  - Lines 177-200: Skill dispatch switch (8 handlers)
+  - Lines 205-256: Self-review pass with skip heuristics
 
-#### Infrastructure (lines 1-370)
-- Lines 27-53: `loadSkillDoc()` -- loads skill .md files from /public/skills/
-- Lines 80-187: `callGemini()` -- Gemini API client with retry logic
-- Lines 189-327: Response schemas for all skills (JSON Schema for structured output)
-- Lines 329-369: Dataset resolution helpers
+---
 
-#### Orchestration (lines 370-584)
-- Lines 402-583: `ChatOrchestrator.processMessage()` -- main entry point
-  - Lines 404-410: Confirmation handling
-  - Lines 414-416: Reference resolution
-  - Lines 420-517: Intent classification (keyword first, LLM fallback)
-  - Lines 536-560: Skill dispatch switch
-  - Lines 562-580: Self-review pass
+### `src/lib/gemini-client.ts` (316 lines)
+**Responsibility**: Gemini API client and response schemas.
+- `callGemini()` -- structured output with retry logic
+- `loadSkillDoc()` -- loads skill .md files from /public/skills/
+- All response schemas: `SchemaResponseSchema`, `QueryResponseSchema`, `DataManagementResponseSchema`, `MonitoringIntentSchema`, `DqIntentSchema`, `DiscoveryResponseSchema`, `DataLoadingIntentSchema`, `IntentClassifierSchema`, `SelfReviewResponseSchema`, `EnrichedSchemaQuerySchema`
 
-#### Schema Handler (lines 615-1018)
-- Lines 618-663: Keyword-based scope classifier signals
-- Lines 665-734: `tryFastEnrichment()` -- direct SQL for common patterns
-- Lines 740-838: `extractSchemaIdentifiers()` -- regex-based entity extraction
-- Lines 841-1018: `handleSchema()` -- main schema handler
+---
 
-#### Self-Review (lines 1019-1197)
-- Lines 1024-1064: `buildReviewSnapshot()` -- prepares data for review
-- Lines 1066-1197: `selfReviewEnvelope()` -- LLM review pass
+### `src/lib/orchestrator-utils.ts` (182 lines)
+**Responsibility**: Shared utility functions used across handlers.
+- `bqConsoleUrl()` -- generates BigQuery Console deep links
+- `stepWithLink()` -- creates status step with Console link
+- `getAvailableDatasets()` -- lists datasets via BigQuery API
+- `resolveDefaultDatasetFromList()` / `resolveDefaultDataset()` -- picks default dataset
+- `extractDatasetFromMessage()` -- scans message text for dataset names
+- `buildConversationStateSummary()` -- context summary for LLM prompts
+- `buildSchemaContext()` -- loads table columns for SQL generation context
 
-#### Query Handler (lines ~1242-1441)
-- `handleQuery()` -- plan cache check, SQL generation, dry-run, execution, auto-retry, result quality analysis
+---
 
-#### Data Management Handler (lines 1375-1600)
-- Lines 1377-1562: `handleDataManagement()` -- plan generation, safety net, confirmation flow
-- Lines 1564-1600: `executeConfirmedOperation()` -- runs confirmed DML
+### `src/lib/self-review.ts` (192 lines)
+**Responsibility**: LLM review pass that evaluates and improves composed output.
+- `buildReviewSnapshot()` -- extracts reviewable fields from envelope
+- `selfReviewEnvelope()` -- single Gemini pass across 4 dimensions (comprehension, completeness, presentation, visual design)
 
-#### Monitoring Handler (lines 1598-2299)
-- 8 sub-types: JOBS, STORAGE, SLOTS, QUERY_PLAN, ALERT, STORAGE_BREAKDOWN, ACCESS_PATTERNS, COST_ANALYSIS, FRESHNESS
+---
 
-#### Data Quality Handler (lines 2303-2780)
+## Skill Handlers (`src/lib/skills/`)
+
+### `handle-schema.ts` (420 lines)
+- Keyword-based scope classifier (DATASET_LIST_SIGNALS, TABLE_LIST_SIGNALS, TABLE_DESCRIBE_SIGNALS)
+- Enrichment patterns and fast-path SQL generation (`tryFastEnrichment`)
+- Regex entity extraction (`extractSchemaIdentifiers`)
+- Main handler: `handleSchema()` -- scope resolution, enrichment, metadata fetch
+- Cross-dataset table search fallback
+
+### `handle-query.ts` (259 lines)
+- Plan cache check (`findReusablePlan` / `cachePlan`)
+- SQL generation via Gemini with full visualization type catalog
+- Dry-run cost check
+- Auto-retry on SQL errors (sends error back to Gemini for fix)
+- Result quality analysis via `analyzeResultQuality()`
+
+### `handle-data-management.ts` (275 lines)
+- DML plan generation (INSERT, UPDATE, DELETE, CREATE, ALTER, etc.)
+- Preview/confirm flow with safety net
+- Safety-net redirect to query handler via lazy `await import('./handle-query')`
+- `executeConfirmedOperation()` -- runs confirmed DML statements
+
+### `handle-data-quality.ts` (489 lines)
 - 8 check types: PROFILE, NULLS, DUPLICATES, FRESHNESS, COMPLETENESS, RANGE_VALIDATION, REFERENTIAL_INTEGRITY, SCHEMA_DRIFT
+- Batched column profiling with cost gate (dry-run before execution)
+- Auto-retry with safe query on GEOGRAPHY/STRUCT column errors
+- LLM-assisted range expectations and FK relationship detection
 
-#### Data Loading Handler (lines 2784-3005)
+### `handle-monitoring.ts` (770 lines)
+- 9 sub-types: JOBS, STORAGE, SLOTS, QUERY_PLAN, ALERT, STORAGE_BREAKDOWN, ACCESS_PATTERNS, COST_ANALYSIS, FRESHNESS
+- Alert three-way classification (PROJECT_WIDE, JOB_SPECIFIC, DATA_CONDITION)
+- Save/schedule check actions via handoff context
+- Keyword fast-path for cost and freshness to avoid LLM misrouting
+- `normalizeTimestamp()` helper for BigQuery timestamp formats
+
+### `handle-discovery.ts` (386 lines)
+- 4 discovery types: SEARCH, COMPARISON, LINEAGE, ER_DIAGRAM
+- Table search across datasets
+- Column-level lineage via INFORMATION_SCHEMA.JOBS
+- ER diagram generation from FK/naming conventions
+
+### `handle-data-loading.ts` (232 lines)
 - 5 operation types: EXPORT_CSV, EXPORT_SHEETS, SCHEDULE, SAVED_QUERY, SHARE
+- Google Sheets export via BigQuery extract
+- Scheduled query creation via Data Transfer API
+- Query save to Firestore
 
-#### Discovery Handler (lines 3009-3384)
-- 4 types: SEARCH, COMPARISON, LINEAGE, ER_DIAGRAM
+### `handle-task.ts` (105 lines)
+- Generic task resolver for Google Cloud data tasks
+- Delegates to task framework (resolver, executor, learned plans)
+
 
 ---
 
