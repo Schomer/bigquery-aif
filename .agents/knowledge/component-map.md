@@ -215,6 +215,31 @@ UI Components (src/components/)
 - `isCurrencyColumn(columnName)` -- heuristic check against `CURRENCY_PATTERNS` regex
 - `CURRENCY_PATTERNS` -- regex matching sale, revenue, price, cost, amount, spend, etc.
 - `NON_CURRENCY_SUFFIXES` -- exclusion regex preventing false positives (cost_tier, price_count, etc.)
+---
+
+### `src/lib/format.ts` (~60 lines)
+**Responsibility**: Shared formatting utilities used across many components.
+- `formatBytes(bytes)` -- human-readable byte formatting (B through PB)
+- `truncateLabel(str, maxLen)` -- truncate with ellipsis, default 30 chars
+- `truncateEmail(email, maxLen)` -- truncate email to local part
+- `relativeTime(dateStr)` -- relative time strings ("2h ago", "3d ago")
+
+---
+
+### `src/components/ui/StatCard.tsx` (~90 lines)
+**Responsibility**: Reusable stat card for displaying label/value pairs.
+- Replaces local StatCard/KpiCard/Stat definitions in AccessPatternView, StorageBreakdownView, CostAnalysisView, MonitoringView, SchemaView
+- Props: label, value, subtitle, trend, trendValue, mono, color, highlight, accent
+
+### `src/components/ui/Badge.tsx` (~45 lines)
+**Responsibility**: Reusable badge/pill component.
+- Variants: default, info, success, warning, error
+- Sizes: sm, md
+
+### `src/components/ui/Tooltip.tsx` (~95 lines)
+**Responsibility**: Reusable tooltip with fixed positioning and keyboard accessibility.
+- Wraps a trigger element, shows content on hover/focus
+- Placement: top (default), bottom
 
 ---
 

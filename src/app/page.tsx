@@ -25,6 +25,7 @@ import {
 import type { RecentItem } from '@/lib/firestore-service';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { formatBytes } from '@/lib/format';
 
 // ── Crystal-ball thinking indicator ──────────────────────────────────────────
 const THINKING_PHRASES = [
@@ -1575,7 +1576,7 @@ export default function Home() {
                                         <div>Columns: {d.columns.slice(0, 10).join(', ')}{d.columns.length > 10 ? ` +${d.columns.length - 10} more` : ''}</div>
                                       )}
                                       {d.rows?.length !== undefined && <div>Rows returned: {d.rows.length}</div>}
-                                      {d.totalBytesProcessed > 0 && <div>Data scanned: {formatBytesCompact(d.totalBytesProcessed)}</div>}
+                                      {d.totalBytesProcessed > 0 && <div>Data scanned: {formatBytes(d.totalBytesProcessed)}</div>}
                                     </div>
                                   )}
 
@@ -1601,7 +1602,7 @@ export default function Home() {
                                   {/* Cost */}
                                   {env.provenance.cost && (
                                     <div className="thinking-meta">
-                                      <span>{formatBytesCompact(env.provenance.cost.totalBytesProcessed)} processed</span>
+                                      <span>{formatBytes(env.provenance.cost.totalBytesProcessed)} processed</span>
                                       <span>Tier {env.provenance.cost.tier}</span>
                                       {env.provenance.freshness && <span>{env.provenance.freshness}</span>}
                                     </div>
@@ -1818,10 +1819,3 @@ export default function Home() {
   );
 }
 
-function formatBytesCompact(bytes: number): string {
-  if (bytes >= 1_099_511_627_776) return `${(bytes / 1_099_511_627_776).toFixed(1)} TB`;
-  if (bytes >= 1_073_741_824) return `${(bytes / 1_073_741_824).toFixed(1)} GB`;
-  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(0)} MB`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${bytes} B`;
-}

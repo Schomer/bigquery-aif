@@ -1,6 +1,7 @@
 'use client';
 
 import type { DataManagementConfirmResult } from '@/lib/types';
+import { formatBytes } from '@/lib/format';
 
 interface Props {
   result: DataManagementConfirmResult;
@@ -143,8 +144,3 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes >= 1_073_741_824) return `${(bytes / 1_073_741_824).toFixed(1)} GB`;
-  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(0)} MB`;
-  return `${bytes} bytes`;
-}

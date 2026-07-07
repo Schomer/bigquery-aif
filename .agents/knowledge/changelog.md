@@ -4,6 +4,37 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-07 (session 4): Consolidate format utils and shared UI primitives
+
+**What changed**:
+- Created `src/lib/format.ts` -- single source for `formatBytes`, `truncateLabel`, `truncateEmail`, `relativeTime`
+- Created `src/components/ui/StatCard.tsx` -- reusable stat card replacing 5 local copies (AccessPatternView, StorageBreakdownView, CostAnalysisView KpiCard, MonitoringView Stat, SchemaView Stat)
+- Created `src/components/ui/Badge.tsx` -- reusable badge/pill component with variant and size support
+- Created `src/components/ui/Tooltip.tsx` -- reusable tooltip with fixed positioning and keyboard accessibility
+- Updated 12 consumer files to import from shared modules instead of defining local copies
+
+**Files created**:
+- `src/lib/format.ts` -- formatBytes, truncateLabel, truncateEmail, relativeTime
+- `src/components/ui/StatCard.tsx` -- StatCard component
+- `src/components/ui/Badge.tsx` -- Badge component
+- `src/components/ui/Tooltip.tsx` -- Tooltip component
+
+**Files modified** (removed local utility functions/components, added imports):
+- `src/components/AccessPatternView.tsx` -- removed formatBytes, truncate, StatCard
+- `src/components/CostAnalysisView.tsx` -- removed formatBytes, truncateEmail, KpiCard
+- `src/components/StorageBreakdownView.tsx` -- removed formatBytes, truncateLabel, StatCard
+- `src/components/MonitoringView.tsx` -- removed formatBytes, relativeTime, Stat
+- `src/components/SchemaView.tsx` -- removed formatBytes, Stat
+- `src/components/ArtifactCard.tsx` -- removed formatBytes
+- `src/components/ConfirmationCard.tsx` -- removed formatBytes
+- `src/components/CostConfirmCard.tsx` -- removed formatBytes
+- `src/components/ErDiagramView.tsx` -- removed truncate
+- `src/components/LineageDagView.tsx` -- removed truncateLabel
+- `src/lib/composer.ts` -- removed formatBytes
+- `src/app/page.tsx` -- removed formatBytesCompact, replaced with formatBytes
+
+---
+
 ## 2026-07-07 (session 3): Material Design 3 dark theme + design tokens
 
 **What changed**:

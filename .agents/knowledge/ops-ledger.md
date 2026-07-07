@@ -12,6 +12,13 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 
 ---
 
+### 2026-07-07: Consolidated format utils and shared UI primitives
+**Scope**: `src/lib/format.ts` (new), `src/components/ui/` (new), 12 consumer files
+**What changed**: Extracted `formatBytes`, `truncateLabel`, `truncateEmail`, and `relativeTime` from 10 components into a single shared module. Created reusable `StatCard`, `Badge`, and `Tooltip` components to replace 5 local stat card variants and provide reusable UI primitives.
+**What worked**: All builds passed on first attempt. The shared `formatBytes` uses log-based unit selection which is the superset of all existing variants.
+**Gotcha**: Two components (LineageDagView, StorageBreakdownView) had `truncateLabel` functions that accepted pixel widths and internally converted to character counts. The shared `truncateLabel` takes character counts directly. The conversion was moved inline at the call sites (`Math.floor(px / 6.5)` for StorageBreakdownView, `Math.floor(px / 7)` for LineageDagView).
+**Rule**: When consolidating functions with similar names but different parameter semantics, keep the simpler (more primitive) interface in the shared module and push domain-specific conversions to the call sites.
+
 ### 2026-07-07: Scientific notation in KPI cards for monetary aggregates
 **Scope**: `src/lib/bigquery-client.ts`, `src/lib/format-value.ts` (new), `src/components/KpiCard.tsx`, `src/components/DataTable.tsx`, chart components
 **What broke**: "Total sales" KPI displayed `5.0938588796004164E8` instead of `$509,385,888`. All numeric values rendered as raw strings throughout the app.

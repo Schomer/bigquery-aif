@@ -1,6 +1,7 @@
 // src/lib/composer.ts
 // Transforms a skill's normalized result into a CompositionEnvelope
 // Implements bigquery-response-composition.md
+import { formatBytes } from '@/lib/format';
 
 function randomUUID(): string {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
@@ -688,12 +689,6 @@ function vizTypeToArtifactType(viz: QueryResult['suggestedVisualization']): Arti
   return map[viz] ?? 'TABLE';
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes >= 1_099_511_627_776) return `${(bytes / 1_099_511_627_776).toFixed(1)} TB`;
-  if (bytes >= 1_073_741_824) return `${(bytes / 1_073_741_824).toFixed(1)} GB`;
-  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(0)} MB`;
-  return `${bytes} bytes`;
-}
 
 // Extract the leaf table name (last `.`-separated segment) from a SQL string.
 // Handles both backtick-quoted refs (`project.dataset.table`) and unquoted names.

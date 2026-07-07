@@ -1,6 +1,7 @@
 'use client';
 
 import type { CostEstimate } from '@/lib/types';
+import { formatBytes } from '@/lib/format';
 
 interface Props {
   result: CostEstimate;
@@ -8,11 +9,7 @@ interface Props {
   onCancel?: () => void;
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes >= 1_099_511_627_776) return `${(bytes / 1_099_511_627_776).toFixed(1)} TB`;
-  if (bytes >= 1_073_741_824) return `${(bytes / 1_073_741_824).toFixed(1)} GB`;
-  return `${(bytes / 1_048_576).toFixed(0)} MB`;
-}
+
 
 export function CostConfirmCard({ result, onConfirm, onCancel }: Props) {
   return (

@@ -8,6 +8,7 @@ import { CompletionCard } from './CompletionCard';
 import { ChartView } from './ChartView';
 import { KpiCard } from './KpiCard';
 import { CostConfirmCard } from './CostConfirmCard';
+import { formatBytes } from '@/lib/format';
 import { DiscoveryView } from './DiscoveryView';
 import { DataQualityView } from './DataQualityView';
 import { MonitoringView } from './MonitoringView';
@@ -565,9 +566,3 @@ function ChartWithToggle({
 }
 
 
-function formatBytes(bytes: number): string {
-  if (bytes >= 1_099_511_627_776) return `${(bytes / 1_099_511_627_776).toFixed(1)} TB`;
-  if (bytes >= 1_073_741_824) return `${(bytes / 1_073_741_824).toFixed(1)} GB`;
-  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(0)} MB`;
-  return `${bytes} bytes`;
-}
