@@ -103,6 +103,15 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **`handleAuthError()` clears the token, does NOT redirect**: It calls `setAccessToken(null)` and lets the error propagate. The UI layer's `withAuthRetry` handles refresh. Never add `window.location.href` back.
 - **`dryRun()` must be called before `executeQuery()` for user-initiated queries**: The dry run checks estimated bytes and returns a cost tier. Tier 3+ requires user confirmation.
 - **DML operations use `executeDml()`**, not `executeQuery()`: These are separate functions with different error handling.
+- **`parseQueryResponse` coerces types based on schema**: BigQuery REST API returns all cell values as strings. `coerceValue()` converts them to native JS types using the schema field's `type` property (INTEGER/FLOAT/NUMERIC -> Number, BOOLEAN -> boolean). Do not revert this or pass raw `cell.v` strings through.
+
+---
+
+## Value Formatting (`src/lib/format-value.ts`)
+
+- **Currency detection is heuristic**: `isCurrencyColumn()` matches column names against `CURRENCY_PATTERNS` regex. New monetary column name patterns must be added to this regex. `NON_CURRENCY_SUFFIXES` prevents false positives (e.g., `cost_tier`).
+- **All display components must use `formatDisplayValue()`**: KpiCard, DataTable, and chart tooltip formatters use this function. Do not add raw `toLocaleString()` or `String()` calls for user-facing values.
+- **`formatCompactValue()` is for space-constrained contexts**: Chart Y-axis ticks and compact displays use this (e.g., `$509.4M`). Full displays use `formatDisplayValue()`.
 
 ---
 

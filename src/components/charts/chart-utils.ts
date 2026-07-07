@@ -49,7 +49,14 @@ export function buildChartData(
       const v = row[i];
       // Coerce object values (BigQuery STRUCT/RECORD, Timestamp objects) to
       // strings so chart components never try to render a raw object in JSX.
-      obj[col] = (v !== null && typeof v === 'object') ? JSON.stringify(v) : v;
+      if (v !== null && typeof v === 'object') {
+        obj[col] = JSON.stringify(v);
+      } else if (typeof v === 'string' && v !== '' && !isNaN(Number(v))) {
+        // Coerce numeric strings to numbers for proper chart plotting
+        obj[col] = Number(v);
+      } else {
+        obj[col] = v;
+      }
     });
     return obj;
   });

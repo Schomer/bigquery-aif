@@ -1,6 +1,7 @@
 'use client';
 
 import type { QueryResult } from '@/lib/types';
+import { formatDisplayValue } from '@/lib/format-value';
 
 interface Props { result: QueryResult; }
 
@@ -27,8 +28,9 @@ export function KpiCard({ result }: Props) {
         fontVariantNumeric: 'tabular-nums',
         lineHeight: 1,
       }}>
-        {typeof value === 'number' ? value.toLocaleString() : String(value ?? '—')}
+        {formatDisplayValue(value, label)}
       </span>
     </div>
   );
 }
+

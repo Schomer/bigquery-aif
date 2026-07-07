@@ -4,6 +4,18 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-07: Fix numeric type coercion and add currency-aware formatting
+
+**Problem**: KPI cards displayed raw scientific notation (e.g., `5.0938588796004164E8` instead of `$509,385,888`) for monetary aggregate queries like "what are my total sales".
+
+**Root cause**: Two issues: (1) BigQuery REST API returns all cell values as strings. `parseQueryResponse` passed them through as-is, so `typeof value === 'number'` checks in UI components always failed. (2) No currency-aware formatting existed anywhere -- even with proper numbers, `toLocaleString()` produces `509,385,888` without a `$` prefix.
+
+**Fix**: (1) Added `coerceValue()` in `bigquery-client.ts` that converts cell values to native JS types based on BigQuery schema field types (INTEGER/FLOAT/NUMERIC -> Number, BOOLEAN -> boolean). (2) Created `src/lib/format-value.ts` with `formatDisplayValue()` (full formatting with `$` for currency columns), `formatCompactValue()` (compact like `$509.4M`), and `isCurrencyColumn()` (heuristic pattern matching on column names). (3) Updated KpiCard, DataTable, chart-utils, custom-charts, and recharts-charts to use these formatters.
+
+**Files changed**: `src/lib/bigquery-client.ts`, `src/lib/format-value.ts` (new), `src/components/KpiCard.tsx`, `src/components/DataTable.tsx`, `src/components/charts/chart-utils.ts`, `src/components/charts/custom-charts.tsx`, `src/components/charts/recharts-charts.tsx`
+
+---
+
 ## 2026-07-07: Fix string filtering to use fuzzy matching instead of exact match
 
 **Problem**: Asking "total sales for HY-VEE FOOD STORE" returned zero results because the LLM generated `WHERE store_name = 'HY-VEE FOOD STORE'` (exact match). Actual values contain location suffixes like "HY-VEE FOOD STORE / IOWA FALLS".

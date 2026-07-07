@@ -125,6 +125,25 @@ export async function listTables(project: string, datasetId: string): Promise<Ar
 
 // ─── Parse BigQuery query response into flat rows ─────────────────────────────
 
+// BigQuery field types that should be coerced to JS numbers.
+const NUMERIC_TYPES = new Set([
+  'INTEGER', 'INT64', 'FLOAT', 'FLOAT64', 'NUMERIC', 'BIGNUMERIC',
+]);
+const BOOLEAN_TYPES = new Set(['BOOLEAN', 'BOOL']);
+
+function coerceValue(raw: string | null, fieldType: string): unknown {
+  if (raw === null || raw === undefined) return null;
+  const upper = fieldType.toUpperCase();
+  if (NUMERIC_TYPES.has(upper)) {
+    const n = Number(raw);
+    return isNaN(n) ? raw : n;
+  }
+  if (BOOLEAN_TYPES.has(upper)) {
+    return raw === 'true' || raw === 'TRUE';
+  }
+  return raw;
+}
+
 function parseQueryResponse(data: any): {
   columns: string[];
   rows: unknown[][];
@@ -133,9 +152,12 @@ function parseQueryResponse(data: any): {
 } {
   const fields = data.schema?.fields ?? [];
   const columns = fields.map((f: any) => f.name);
+  const fieldTypes: string[] = fields.map((f: any) => f.type ?? 'STRING');
   const rawRows = data.rows ?? [];
   const rows = rawRows.map((r: any) =>
-    (r.f ?? []).map((cell: any) => cell.v ?? null)
+    (r.f ?? []).map((cell: any, i: number) =>
+      coerceValue(cell.v ?? null, fieldTypes[i] ?? 'STRING')
+    )
   );
   return {
     columns,

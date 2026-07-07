@@ -11,6 +11,7 @@ import {
   computeQuartiles,
   drillDownMessage,
 } from './chart-utils';
+import { formatCompactValue } from '@/lib/format-value';
 
 // ---------------------------------------------------------------------------
 // Shared types & constants
@@ -94,7 +95,8 @@ function toNum(v: unknown): number {
   return isNaN(n) ? 0 : n;
 }
 
-function formatNum(v: number): string {
+function formatNum(v: number, columnName?: string): string {
+  if (columnName) return formatCompactValue(v, columnName);
   if (Number.isInteger(v)) return v.toLocaleString();
   return v.toFixed(2);
 }

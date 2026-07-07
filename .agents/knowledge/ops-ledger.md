@@ -12,6 +12,15 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 
 ---
 
+### 2026-07-07: Scientific notation in KPI cards for monetary aggregates
+**Scope**: `src/lib/bigquery-client.ts`, `src/lib/format-value.ts` (new), `src/components/KpiCard.tsx`, `src/components/DataTable.tsx`, chart components
+**What broke**: "Total sales" KPI displayed `5.0938588796004164E8` instead of `$509,385,888`. All numeric values rendered as raw strings throughout the app.
+**Root cause**: BigQuery REST API returns all cell values as strings (including numbers). `parseQueryResponse` passed `cell.v` through without type coercion, so `typeof value === 'number'` checks always failed. Additionally, no formatting layer existed to detect monetary columns and apply currency symbols.
+**Fix**: (1) Added `coerceValue()` in `parseQueryResponse` that uses BigQuery schema field types to convert strings to native JS numbers/booleans. (2) Created `format-value.ts` with `formatDisplayValue()` (detects currency columns via column name heuristics like `sale`, `revenue`, `price`, `cost`) and `formatCompactValue()` (compact notation for chart axes). (3) Updated all display components.
+**Rule**: BigQuery REST API values are always strings. Any new data path from BigQuery must coerce types using the schema's field type metadata. Currency detection is heuristic-based on column names -- if a monetary column has an unusual name, add it to the `CURRENCY_PATTERNS` regex in `format-value.ts`.
+
+---
+
 ### 2026-07-07: String entity filters returning zero rows due to exact match
 **Scope**: `public/skills/query.md`, `src/lib/chat-orchestrator.ts` (`buildSchemaContext`)
 **What broke**: "total sales for HY-VEE FOOD STORE" returned a KPI card with zero/null total. The SQL used `WHERE store_name = 'HY-VEE FOOD STORE'` but actual values have location suffixes (e.g., "HY-VEE FOOD STORE / IOWA FALLS").

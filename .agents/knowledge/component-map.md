@@ -145,7 +145,7 @@ UI Components (src/components/)
 
 ---
 
-### `src/lib/bigquery-client.ts` (~14KB)
+### `src/lib/bigquery-client.ts` (~15KB)
 **Responsibility**: BigQuery REST API wrapper.
 - `executeQuery()` -- runs read-only queries
 - `dryRun()` -- cost estimation
@@ -153,6 +153,18 @@ UI Components (src/components/)
 - `exportToSheets()` -- Google Sheets export
 - `createScheduledQuery()` -- Data Transfer API
 - `detectBqRegion()` -- region detection for INFORMATION_SCHEMA
+- `parseQueryResponse()` -- coerces cell values to native JS types using BigQuery schema field types
+- `coerceValue()` -- type-specific coercion (NUMERIC -> Number, BOOLEAN -> boolean, etc.)
+
+---
+
+### `src/lib/format-value.ts` (~100 lines)
+**Responsibility**: Smart numeric formatting with currency detection.
+- `formatDisplayValue(value, columnName)` -- full display formatting with `$` for currency columns
+- `formatCompactValue(value, columnName)` -- compact notation (e.g., `$509.4M`) for chart axes
+- `isCurrencyColumn(columnName)` -- heuristic check against `CURRENCY_PATTERNS` regex
+- `CURRENCY_PATTERNS` -- regex matching sale, revenue, price, cost, amount, spend, etc.
+- `NON_CURRENCY_SUFFIXES` -- exclusion regex preventing false positives (cost_tier, price_count, etc.)
 
 ---
 

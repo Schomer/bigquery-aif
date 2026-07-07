@@ -13,6 +13,7 @@ import {
   COLORS, AXIS_STYLE, TOOLTIP_STYLE, GRID_STYLE, CHART_HEIGHT, CHART_MARGIN,
   buildChartData, resolveAxes, drillDownMessage,
 } from './chart-utils';
+import { formatCompactValue, formatDisplayValue } from '@/lib/format-value';
 
 interface ChartProps {
   result: QueryResult;
@@ -69,22 +70,31 @@ function useChartSetup(result: QueryResult) {
   const { columns, rows, xAxis, yAxis } = result;
   const data = buildChartData(columns, rows);
   const { xKey, yKeys } = resolveAxes(columns, xAxis, yAxis);
-  return { data, xKey, yKeys };
+  // Currency-aware formatters based on the primary y-axis column name
+  const primaryY = yKeys[0] ?? '';
+  const tickFmt = (v: number) => formatCompactValue(v, primaryY);
+  const tipFmt = (v: unknown, name: unknown) => {
+    const num = typeof v === 'number' ? v : Number(v);
+    const colName = typeof name === 'string' ? name : '';
+    if (isNaN(num)) return [String(v ?? ''), colName];
+    return [formatDisplayValue(num, colName), colName];
+  };
+  return { data, xKey, yKeys, tickFmt, tipFmt };
 }
 
 // ---------------------------------------------------------------------------
 // 1. LineChartRenderer
 // ---------------------------------------------------------------------------
 export function LineChartRenderer({ result, onSendMessage }: ChartProps) {
-  const { data, xKey, yKeys } = useChartSetup(result);
+  const { data, xKey, yKeys, tickFmt, tipFmt } = useChartSetup(result);
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
         <LineChart data={data} margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage)}>
           <CartesianGrid {...GRID_STYLE} />
           <XAxis dataKey={xKey} {...AXIS_STYLE} />
-          <YAxis {...AXIS_STYLE} />
-          <Tooltip {...TOOLTIP_STYLE} />
+          <YAxis {...AXIS_STYLE} tickFormatter={tickFmt} />
+          <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
           {yKeys.map((k, i) => (
             <Line
               key={k}
@@ -112,7 +122,7 @@ const BAR_CHART_MAX_VISIBLE = 400;
 const BAR_CHART_MIN_HEIGHT = 200;
 
 export function BarChartRenderer({ result, onSendMessage }: ChartProps) {
-  const { data, xKey, yKeys } = useChartSetup(result);
+  const { data, xKey, yKeys, tickFmt, tipFmt } = useChartSetup(result);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const chartHeight = Math.max(BAR_CHART_MIN_HEIGHT, data.length * BAR_ROW_HEIGHT);
@@ -142,9 +152,9 @@ export function BarChartRenderer({ result, onSendMessage }: ChartProps) {
       onClick={makeClickHandler(xKey, onSendMessage)}
     >
       <CartesianGrid {...GRID_STYLE} />
-      <XAxis type="number" {...AXIS_STYLE} />
+      <XAxis type="number" {...AXIS_STYLE} tickFormatter={tickFmt} />
       <YAxis type="category" dataKey={xKey} {...AXIS_STYLE} width={100} />
-      <Tooltip {...TOOLTIP_STYLE} />
+      <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
       {yKeys.map((k, i) => (
         <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} />
       ))}
@@ -172,15 +182,15 @@ export function BarChartRenderer({ result, onSendMessage }: ChartProps) {
 // 3. ColumnChartRenderer (vertical bars, standard)
 // ---------------------------------------------------------------------------
 export function ColumnChartRenderer({ result, onSendMessage }: ChartProps) {
-  const { data, xKey, yKeys } = useChartSetup(result);
+  const { data, xKey, yKeys, tickFmt, tipFmt } = useChartSetup(result);
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
         <BarChart data={data} margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage)}>
           <CartesianGrid {...GRID_STYLE} />
           <XAxis dataKey={xKey} {...AXIS_STYLE} />
-          <YAxis {...AXIS_STYLE} />
-          <Tooltip {...TOOLTIP_STYLE} />
+          <YAxis {...AXIS_STYLE} tickFormatter={tickFmt} />
+          <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
           {yKeys.map((k, i) => (
             <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} radius={[3, 3, 0, 0]} />
           ))}
@@ -196,15 +206,15 @@ export function ColumnChartRenderer({ result, onSendMessage }: ChartProps) {
 // 4. AreaChartRenderer
 // ---------------------------------------------------------------------------
 export function AreaChartRenderer({ result, onSendMessage }: ChartProps) {
-  const { data, xKey, yKeys } = useChartSetup(result);
+  const { data, xKey, yKeys, tickFmt, tipFmt } = useChartSetup(result);
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
         <AreaChart data={data} margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage)}>
           <CartesianGrid {...GRID_STYLE} />
           <XAxis dataKey={xKey} {...AXIS_STYLE} />
-          <YAxis {...AXIS_STYLE} />
-          <Tooltip {...TOOLTIP_STYLE} />
+          <YAxis {...AXIS_STYLE} tickFormatter={tickFmt} />
+          <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
           {yKeys.map((k, i) => (
             <Area
               key={k}
@@ -228,15 +238,15 @@ export function AreaChartRenderer({ result, onSendMessage }: ChartProps) {
 // 5. ScatterChartRenderer
 // ---------------------------------------------------------------------------
 export function ScatterChartRenderer({ result, onSendMessage }: ChartProps) {
-  const { data, xKey, yKeys } = useChartSetup(result);
+  const { data, xKey, yKeys, tickFmt, tipFmt } = useChartSetup(result);
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
         <ScatterChart margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage)}>
           <CartesianGrid {...GRID_STYLE} />
           <XAxis dataKey={xKey} {...AXIS_STYLE} />
-          <YAxis dataKey={yKeys[0]} {...AXIS_STYLE} />
-          <Tooltip {...TOOLTIP_STYLE} />
+          <YAxis dataKey={yKeys[0]} {...AXIS_STYLE} tickFormatter={tickFmt} />
+          <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
           <Scatter data={data} fill={COLORS[0]} opacity={0.7} />
         </ScatterChart>
       </ResponsiveContainer>
@@ -330,7 +340,7 @@ export function DonutChartRenderer({ result, onSendMessage }: ChartProps) {
 // 8. HistogramRenderer
 // ---------------------------------------------------------------------------
 export function HistogramRenderer({ result, onSendMessage }: ChartProps) {
-  const { data, xKey, yKeys } = useChartSetup(result);
+  const { data, xKey, yKeys, tickFmt, tipFmt } = useChartSetup(result);
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
@@ -343,8 +353,8 @@ export function HistogramRenderer({ result, onSendMessage }: ChartProps) {
         >
           <CartesianGrid {...GRID_STYLE} />
           <XAxis dataKey={xKey} {...AXIS_STYLE} />
-          <YAxis {...AXIS_STYLE} />
-          <Tooltip {...TOOLTIP_STYLE} />
+          <YAxis {...AXIS_STYLE} tickFormatter={tickFmt} />
+          <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
           <Bar dataKey={yKeys[0]} fill={COLORS[0]} />
         </BarChart>
       </ResponsiveContainer>
@@ -595,15 +605,15 @@ export function SankeyRenderer({ result, onSendMessage }: ChartProps) {
 // 14. ComposedChartRenderer
 // ---------------------------------------------------------------------------
 export function ComposedChartRenderer({ result, onSendMessage }: ChartProps) {
-  const { data, xKey, yKeys } = useChartSetup(result);
+  const { data, xKey, yKeys, tickFmt, tipFmt } = useChartSetup(result);
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
         <ComposedChart data={data} margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage)}>
           <CartesianGrid {...GRID_STYLE} />
           <XAxis dataKey={xKey} {...AXIS_STYLE} />
-          <YAxis {...AXIS_STYLE} />
-          <Tooltip {...TOOLTIP_STYLE} />
+          <YAxis {...AXIS_STYLE} tickFormatter={tickFmt} />
+          <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
           {yKeys.length > 0 && (
             <Bar dataKey={yKeys[0]} fill={COLORS[0]} radius={[3, 3, 0, 0]} />
           )}

@@ -1,6 +1,7 @@
 'use client';
 
 import type { QueryResult } from '@/lib/types';
+import { formatDisplayValue } from '@/lib/format-value';
 import { useState } from 'react';
 import { drillDownMessage } from './charts/chart-utils';
 
@@ -28,9 +29,11 @@ export function DataTable({ result, onSendMessage }: Props) {
     filtered = [...filtered].sort((a, b) => {
       const av = a[sortCol];
       const bv = b[sortCol];
+      const an = typeof av === 'number' ? av : Number(av);
+      const bn = typeof bv === 'number' ? bv : Number(bv);
       const cmp =
-        typeof av === 'number' && typeof bv === 'number'
-          ? av - bv
+        !isNaN(an) && !isNaN(bn)
+          ? an - bn
           : String(av).localeCompare(String(bv));
       return sortDir === 'asc' ? cmp : -cmp;
     });
@@ -123,7 +126,7 @@ export function DataTable({ result, onSendMessage }: Props) {
                     }}
                     style={{
                       padding: '7px 12px',
-                      color: typeof cell === 'number' ? 'var(--text)' : 'var(--text-muted)',
+                      color: (typeof cell === 'number' || (typeof cell === 'string' && cell !== '' && !isNaN(Number(cell)))) ? 'var(--text)' : 'var(--text-muted)',
                       fontFamily: 'inherit',
                       whiteSpace: 'nowrap',
                       maxWidth: 300,
@@ -138,7 +141,7 @@ export function DataTable({ result, onSendMessage }: Props) {
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = typeof cell === 'number' ? 'var(--text)' : 'var(--text-muted)';
+                      e.currentTarget.style.color = (typeof cell === 'number' || (typeof cell === 'string' && cell !== '' && !isNaN(Number(cell)))) ? 'var(--text)' : 'var(--text-muted)';
                     }}
                     title={cell !== null && cell !== undefined
                       ? (/^(dataset|table|view|schema)[_\s]?(name|id)?$/.test(columns[ci].toLowerCase()) || columns[ci].toLowerCase() === 'table_catalog' || columns[ci].toLowerCase() === 'table_schema'
@@ -148,7 +151,7 @@ export function DataTable({ result, onSendMessage }: Props) {
                   >
                     {cell === null || cell === undefined ? (
                       <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>null</span>
-                    ) : typeof cell === 'object' ? JSON.stringify(cell) : String(cell)}
+                    ) : typeof cell === 'object' ? JSON.stringify(cell) : formatDisplayValue(cell, columns[ci])}
                   </td>
                 ))}
               </tr>
