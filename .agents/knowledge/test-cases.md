@@ -136,6 +136,12 @@ These test the schema skill's behavior.
 - **Expected**: Dry run detects high cost tier, returns confirmation card
 - **Failure looks like**: Query executes immediately without cost warning
 
+### Q5: Entity name filter uses fuzzy matching
+- **Input**: "total sales for HY-VEE FOOD STORE"
+- **Expected**: SQL with `LIKE '%HY-VEE FOOD STORE%'` or `CONTAINS_SUBSTR`, NOT `= 'HY-VEE FOOD STORE'`
+- **Expected output**: Non-zero total sales, visualization=KPI_CARD
+- **Failure looks like**: Zero rows returned because of exact-match WHERE clause
+
 ---
 
 ## Data Management Tests

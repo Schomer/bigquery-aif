@@ -12,6 +12,15 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 
 ---
 
+### 2026-07-07: String entity filters returning zero rows due to exact match
+**Scope**: `public/skills/query.md`, `src/lib/chat-orchestrator.ts` (`buildSchemaContext`)
+**What broke**: "total sales for HY-VEE FOOD STORE" returned a KPI card with zero/null total. The SQL used `WHERE store_name = 'HY-VEE FOOD STORE'` but actual values have location suffixes (e.g., "HY-VEE FOOD STORE / IOWA FALLS").
+**Root cause**: Two issues: (1) No prompt guidance for fuzzy/partial string matching -- the LLM defaulted to `=` for all string filters. (2) `buildSchemaContext()` only sent column names and types, not sample values, so the LLM had no visibility into actual data patterns.
+**Fix**: (1) Added a "String filtering" section to `query.md` instructing the LLM to use `UPPER(column) LIKE UPPER('%value%')` by default for entity name filters, reserving `=` for short enumerated values. (2) Enhanced `buildSchemaContext()` to fetch 3 sample DISTINCT values for up to 3 STRING columns of the priority/target table via lightweight queries.
+**Rule**: Entity name string filters must default to LIKE, not =. The LLM needs sample values to understand data patterns -- schema context must include them for the target table.
+
+---
+
 ### 2026-07-07: Cost confirm card not dismissed on Run Anyway / Cancel
 **Scope**: `src/app/page.tsx` (`handleConfirm`)
 **What broke**: Clicking "Run anyway" on a `COST_CONFIRM_CARD` executed the query but left the confirmation card visible in the chat. The card never disappeared.

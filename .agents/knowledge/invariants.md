@@ -50,6 +50,7 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **Schema+query multistep is always redundant**: `handleQuery()` calls `buildSchemaContext()` internally. A multistep workflow that fetches schema in step 1 and runs a query in step 2 is structurally redundant and must be collapsed to a single query step. This applies regardless of conversational context.
 - **Dataset name vs project name guard**: `fetchSchema()` in `src/lib/skills/schema.ts` checks if the requested dataset name equals the project name and ignores it if so. This prevents the confusing case where the project name is treated as a dataset.
 - **callGemini retries transient errors 3 times**: 429, 5xx, and errors containing 'demand', 'temporary', 'limit', 'quota', or 'resource' get exponential backoff with jitter. Auth errors (401/403) are never retried.
+- **Sample values for target table string columns**: `buildSchemaContext()` fetches 3 sample DISTINCT values for up to 3 STRING columns of the priority table. This is critical for the LLM to understand data patterns and generate correct WHERE clauses. The sample queries are lightweight (LIMIT 3) and run in parallel. Failures are silently ignored.
 
 ---
 

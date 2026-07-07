@@ -125,6 +125,21 @@ FROM `project.dataset.orders`
 - Single-value results should use `KPI_CARD` visualization.
 - The composer detects single-row, single-column results and formats them as KPI cards.
 
+### String Entity Filtering
+```sql
+-- Good: LIKE for entity names (handles suffixes, qualifiers, store numbers)
+WHERE UPPER(store_name) LIKE UPPER('%HY-VEE FOOD STORE%')
+
+-- Bad: Exact match fails when values have decorations
+WHERE store_name = 'HY-VEE FOOD STORE'
+
+-- For prefix matches when the user gives a brand/chain name:
+WHERE UPPER(store_name) LIKE UPPER('HY-VEE%')
+```
+- Entity names in real data almost never match user-provided values exactly.
+- Default to LIKE with wildcards for store names, vendor names, product names, categories, and similar label columns.
+- Reserve `=` for short enumerated values: status codes, state abbreviations, boolean-like flags.
+
 ### Null Analysis
 ```sql
 SELECT

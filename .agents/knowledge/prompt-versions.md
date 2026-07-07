@@ -90,6 +90,12 @@ Loaded from `public/skills/*.md` by `loadSkillDoc()`. Cached in memory.
 - All prompts documented at current state
 - No prior change history available
 
+### 2026-07-07: Added string filtering guidance to query skill prompt
+- **File**: `public/skills/query.md`
+- **What changed**: Added new "String filtering (entity names, categories, labels)" section after "SQL rules"
+- **Why**: LLM was using `=` for entity name filters (store name, vendor, etc.) causing zero-row results when actual values contain suffixes/qualifiers
+- **Key rules added**: Default to `UPPER(column) LIKE UPPER('%value%')`, include filtered column in output when matches could be ambiguous, use sample values from schema context when available
+
 ---
 
 ## Rules for Changing Prompts

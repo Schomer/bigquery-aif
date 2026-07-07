@@ -4,6 +4,18 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-07: Fix string filtering to use fuzzy matching instead of exact match
+
+**Problem**: Asking "total sales for HY-VEE FOOD STORE" returned zero results because the LLM generated `WHERE store_name = 'HY-VEE FOOD STORE'` (exact match). Actual values contain location suffixes like "HY-VEE FOOD STORE / IOWA FALLS".
+
+**Root cause**: (1) The query skill prompt had no guidance about using LIKE/partial matching for entity name filters. (2) The schema context sent to the LLM contained only column names and types, not sample values, so the LLM had no way to know the actual data format.
+
+**Fix**: (1) Added a "String filtering" section to `public/skills/query.md` instructing the LLM to default to `UPPER(column) LIKE UPPER('%value%')` for entity name filters. (2) Enhanced `buildSchemaContext()` to fetch 3 sample distinct values for up to 3 string columns of the target/priority table, so the LLM can see actual data patterns.
+
+**Files changed**: `public/skills/query.md`, `src/lib/chat-orchestrator.ts`
+
+---
+
 ## 2026-07-07: Fix cost confirm card not dismissing on button click
 
 **Problem**: The `COST_CONFIRM_CARD` (large query confirmation) stayed visible after clicking "Run anyway" or "Cancel".
