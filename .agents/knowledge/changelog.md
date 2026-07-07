@@ -4,6 +4,27 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-07 (session 3): Material Design 3 dark theme + design tokens
+
+**What changed**:
+- Added Material Design 3 dark theme to `globals.css` (appended ~500 lines, no existing styles modified)
+- Dark theme activates via `@media (prefers-color-scheme: dark)` or `.dark-theme` class on `<html>`/`<body>`
+- Overrides all `:root` custom properties (--bg, --surface, --text, --accent, --positive, --attention, --issue) and all `--gc-*` shell properties
+- Hardcoded colors in 30+ component classes also overridden for dark mode (sql blocks, chips, nav items, avatar menus, sign-out page, prompt container, artifact links, context chips, layout controls)
+- Added spacing scale tokens (`--space-1` through `--space-12`)
+- Added typography scale tokens (`--text-xs` through `--text-2xl`, `--line-height-*`)
+- Added transition presets (`--transition-fast`, `--transition-normal`, `--transition-slow`)
+
+**Files modified**:
+- `src/app/globals.css` -- appended design tokens and dark theme blocks (lines 2264+)
+
+**Design decisions**:
+- No UI toggle added; CSS supports both automatic (OS preference) and manual (`.dark-theme` class) activation
+- Dark surface palette uses deep navy-blacks (#121218, #1e1e2e, #252540) for Material 3 feel, not pure black
+- Accent blue shifted from #1a73e8 to #8ab4f8 for WCAG contrast on dark backgrounds
+- Semantic colors (positive/attention/issue) use Google-standard dark-mode tones (#81c995, #fdd663, #f28b82)
+- Shadows reduced on dark backgrounds per Material 3 guidance
+
 ## 2026-07-07 (session 2): Orchestrator decomposition -- monolith to modules
 
 **What changed**:

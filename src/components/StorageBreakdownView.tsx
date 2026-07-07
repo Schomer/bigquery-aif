@@ -2,6 +2,8 @@
 
 import type { StorageBreakdownResult, StorageItem } from '@/lib/types';
 import { useState, useMemo } from 'react';
+import { formatBytes, truncateLabel } from '@/lib/format';
+import { StatCard } from '@/components/ui/StatCard';
 
 interface Props {
   result: StorageBreakdownResult;
@@ -33,13 +35,7 @@ const GAP = 2;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  const val = bytes / Math.pow(1024, i);
-  return `${val < 10 ? val.toFixed(2) : val < 100 ? val.toFixed(1) : val.toFixed(0)} ${units[i]}`;
-}
+
 
 // ─── Squarified Treemap ───────────────────────────────────────────────────────
 
@@ -327,7 +323,7 @@ export function StorageBreakdownView({ result, onSendMessage }: Props) {
                     pointerEvents="none"
                     style={{ textShadow: '0 1px 2px rgba(0,0,0,0.4)' }}
                   >
-                    {truncateLabel(rect.item.label, rect.width - 16)}
+                    {truncateLabel(rect.item.label, Math.floor((rect.width - 16) / 6.5))}
                   </text>
                   <text
                     x={rect.x + 8}
@@ -393,36 +389,4 @@ export function StorageBreakdownView({ result, onSendMessage }: Props) {
   );
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
 
-function StatCard({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div style={{
-      background: 'var(--surface-2)',
-      borderRadius: 8,
-      padding: '12px 16px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 3,
-    }}>
-      <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>
-        {label}
-      </span>
-      <span style={{
-        fontSize: 16,
-        fontWeight: 700,
-        color: 'var(--text)',
-        fontFamily: mono ? 'var(--font-mono)' : 'inherit',
-      }}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function truncateLabel(label: string, maxWidth: number): string {
-  // Rough estimate: ~6.5px per character at 11px font
-  const maxChars = Math.floor(maxWidth / 6.5);
-  if (label.length <= maxChars) return label;
-  return label.slice(0, Math.max(0, maxChars - 1)) + '\u2026';
-}

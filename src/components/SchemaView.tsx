@@ -5,6 +5,8 @@ import { fetchTablePreview } from '@/lib/preview-client';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
+import { formatBytes } from '@/lib/format';
+import { StatCard } from '@/components/ui/StatCard';
 
 interface Props {
   result: SchemaResult;
@@ -132,23 +134,25 @@ function TableSchemaView({ result, onSendMessage }: { result: SchemaResult; onSe
       {(result.rowCount || result.sizeBytes || result.partitioning) && (
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
           {result.rowCount && (
-            <Stat label="Rows" value={result.rowCount.toLocaleString()} />
+            <StatCard label="Rows" value={result.rowCount.toLocaleString()} mono />
           )}
           {result.sizeBytes && (
-            <Stat label="Size" value={formatBytes(result.sizeBytes)} />
+            <StatCard label="Size" value={formatBytes(result.sizeBytes)} mono />
           )}
           {result.partitioning && (
-            <Stat
+            <StatCard
               label="Partitioned by"
               value={`${result.partitioning.field} (${result.partitioning.type})`}
-              highlight
+              color="var(--accent)"
+              mono
             />
           )}
           {result.clustering && (
-            <Stat
+            <StatCard
               label="Clustered by"
               value={result.clustering.join(', ')}
-              highlight
+              color="var(--accent)"
+              mono
             />
           )}
         </div>
@@ -1736,21 +1740,3 @@ function Badge({ label, color }: { label: string; color: string }) {
   );
 }
 
-function Stat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</span>
-      <span style={{
-        fontSize: 12,
-        color: highlight ? 'var(--accent)' : 'var(--text)',
-        fontFamily: 'var(--font-mono)',
-      }}>{value}</span>
-    </div>
-  );
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes >= 1_073_741_824) return `${(bytes / 1_073_741_824).toFixed(1)} GB`;
-  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(0)} MB`;
-  return `${bytes} bytes`;
-}

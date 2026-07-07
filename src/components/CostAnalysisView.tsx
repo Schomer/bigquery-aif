@@ -2,6 +2,8 @@
 
 import type { CostAnalysisResult, CostBucket } from '@/lib/types';
 import { useState, useMemo } from 'react';
+import { formatBytes, truncateEmail } from '@/lib/format';
+import { StatCard } from '@/components/ui/StatCard';
 
 interface Props {
   result: CostAnalysisResult;
@@ -14,13 +16,7 @@ function formatUsd(n: number): string {
   return '$' + n.toFixed(2);
 }
 
-function formatBytes(n: number): string {
-  if (n === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
-  const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), units.length - 1);
-  const val = n / Math.pow(1024, i);
-  return val.toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
-}
+
 
 function costColor(n: number): string {
   if (n < 1) return '#22c55e';
@@ -146,10 +142,10 @@ export function CostAnalysisView({ result, onSendMessage }: Props) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* KPI row */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <KpiCard label="Total Estimated Cost" value={formatUsd(totalEstimatedCostUsd)} color={costColor(totalEstimatedCostUsd)} />
-        <KpiCard label="Avg Daily Cost" value={formatUsd(avgDailyCost)} color={costColor(avgDailyCost)} />
-        <KpiCard label="Top Spender" value={truncateEmail(topSpender)} />
-        <KpiCard label="Total Jobs" value={totalJobs.toLocaleString()} />
+        <StatCard label="Total Estimated Cost" value={formatUsd(totalEstimatedCostUsd)} color={costColor(totalEstimatedCostUsd)} />
+        <StatCard label="Avg Daily Cost" value={formatUsd(avgDailyCost)} color={costColor(avgDailyCost)} />
+        <StatCard label="Top Spender" value={truncateEmail(topSpender)} />
+        <StatCard label="Total Jobs" value={totalJobs.toLocaleString()} />
       </div>
 
       {/* Stacked bar chart */}
@@ -336,22 +332,7 @@ export function CostAnalysisView({ result, onSendMessage }: Props) {
 
 /* ─── Sub-components ─────────────────────────────────────────────────────────── */
 
-function KpiCard({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div style={{
-      background: 'var(--surface-2)',
-      borderRadius: 8,
-      padding: '12px 16px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 2,
-      minWidth: 120,
-    }}>
-      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{label}</span>
-      <span style={{ fontSize: 18, fontWeight: 600, color: color ?? 'var(--text)', fontFamily: 'var(--font-mono)' }}>{value}</span>
-    </div>
-  );
-}
+
 
 function UserRow({ stats: s, index, color, onSendMessage }: {
   stats: UserStats;
@@ -396,10 +377,7 @@ function UserRow({ stats: s, index, color, onSendMessage }: {
 
 /* ─── Helpers ────────────────────────────────────────────────────────────────── */
 
-function truncateEmail(email: string): string {
-  const at = email.indexOf('@');
-  return at > 0 ? email.slice(0, at) : email;
-}
+
 
 function formatDateLabel(period: string): string {
   const d = new Date(period);

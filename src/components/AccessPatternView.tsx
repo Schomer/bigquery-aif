@@ -2,6 +2,8 @@
 
 import type { AccessPatternResult, AccessPatternEntry } from '@/lib/types';
 import { useState, useMemo } from 'react';
+import { formatBytes, truncateLabel } from '@/lib/format';
+import { StatCard } from '@/components/ui/StatCard';
 
 interface Props {
   result: AccessPatternResult;
@@ -10,17 +12,7 @@ interface Props {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatBytes(n: number): string {
-  if (n === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
-  const i = Math.floor(Math.log(n) / Math.log(1024));
-  const val = n / Math.pow(1024, i);
-  return `${val < 10 ? val.toFixed(1) : Math.round(val)} ${units[i]}`;
-}
 
-function truncate(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max - 1) + '\u2026' : s;
-}
 
 function tableShortName(ref: string): string {
   const parts = ref.split('.');
@@ -210,7 +202,7 @@ export function AccessPatternView({ result, onSendMessage }: Props) {
                       width: 20,
                       marginLeft: 12,
                     }}>
-                      {truncate(userShortName(user), 14)}
+                      {truncateLabel(userShortName(user), 14)}
                     </div>
                   </th>
                 ))}
@@ -231,7 +223,7 @@ export function AccessPatternView({ result, onSendMessage }: Props) {
                     zIndex: 1,
                     borderRight: '1px solid var(--border-subtle)',
                   }}>
-                    {truncate(tableShortName(table), 20)}
+                    {truncateLabel(tableShortName(table), 20)}
                   </td>
                   {matrix.users.map((user) => {
                     const key = `${table}||${user}`;
@@ -342,35 +334,7 @@ export function AccessPatternView({ result, onSendMessage }: Props) {
   );
 }
 
-// ─── Stat card ────────────────────────────────────────────────────────────────
 
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{
-      background: 'var(--surface-2)',
-      borderRadius: 8,
-      padding: '12px 16px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 2,
-    }}>
-      <span style={{
-        fontSize: 11,
-        color: 'var(--text-muted)',
-        fontWeight: 500,
-      }}>
-        {label}
-      </span>
-      <span style={{
-        fontSize: 16,
-        fontWeight: 700,
-        color: 'var(--text)',
-      }}>
-        {value}
-      </span>
-    </div>
-  );
-}
 
 // ─── Top table row ────────────────────────────────────────────────────────────
 
