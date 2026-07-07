@@ -4,6 +4,24 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-07: Add runtime skill prompts for data-quality, discovery, monitoring, data-loading
+
+**What changed**:
+- Created 4 new skill prompt files in `skills/` and copied to `public/skills/`
+- Each condensed from full spec docs in `docs from claude/` into the concise, directive format matching existing query/schema/data-management skills
+- data-quality.md: 8 check types, read-only constraint, batch column queries, TABLESAMPLE guidance, severity rules (INFO/WARNING/ISSUE), findings array shape
+- discovery.md: 3 sub-types (SEARCH, COMPARISON, LINEAGE), INFORMATION_SCHEMA queries, permission fallbacks, Knowledge Catalog and Data Lineage API
+- monitoring.md: 9 sub-types, 3-way alert classification (project-wide vs job-specific vs data-condition), data sources table, default 24h time range
+- data-loading.md: 5 operation types, Sheets 10M cell limit, Data Transfer API create vs update, Tier 0/1 alerting, schema cache invalidation
+
+**Files created**:
+- `skills/data-quality.md`, `skills/discovery.md`, `skills/monitoring.md`, `skills/data-loading.md`
+
+**Files overwritten** (in public/skills/):
+- `public/skills/data-quality.md`, `public/skills/discovery.md`, `public/skills/monitoring.md`, `public/skills/data-loading.md`
+
+---
+
 ## 2026-07-07: Fix numeric type coercion and add currency-aware formatting
 
 **Problem**: KPI cards displayed raw scientific notation (e.g., `5.0938588796004164E8` instead of `$509,385,888`) for monetary aggregate queries like "what are my total sales".
