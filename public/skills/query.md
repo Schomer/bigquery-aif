@@ -32,16 +32,6 @@ For Tier 3/4, set `requiresConfirmation: true` in your response and include the 
 - For joins: prefer explicit column lists, not `SELECT *`
 - If the user asks to create or make a new table with data/mock data, generate a `CREATE OR REPLACE TABLE ... AS SELECT ... UNION ALL SELECT ...` SQL query to populate the table with the requested data rows rather than leaving it empty.
 
-## String filtering (entity names, categories, labels)
-
-When the user filters by an entity name (store name, vendor, product, category, city, county, etc.), the value they provide is almost never an exact match for what's stored. Real-world string columns contain suffixes, location qualifiers, store numbers, abbreviations, and other decorations (e.g., `HY-VEE FOOD STORE / IOWA FALLS` when the user says "Hy-Vee Food Store").
-
-Rules:
-- **Default to `UPPER(column) LIKE UPPER('%user_value%')` for entity name filters.** Do NOT use `=` unless the user explicitly asks for an exact match or the column contains short, enumerated values (status codes, state abbreviations, boolean-like flags).
-- If the schema context includes sample values for the column, use those to determine the correct matching pattern and case.
-- When aggregating across multiple matching rows (e.g., "total sales for Hy-Vee"), use `SUM()` / `COUNT()` with `GROUP BY` omitting the filtered column if the user wants a single total, or include the filtered column in `GROUP BY` if they want a breakdown.
-- If the user's value looks like it could match many distinct entities (e.g., "Hy-Vee" matching both "Hy-Vee Food Store" and "Hy-Vee Wine and Spirits"), include the filtered column in the output so the user can see what matched.
-
 ## What you return
 
 ```json
