@@ -12,6 +12,15 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 
 ---
 
+### 2026-07-07: Cost confirm card not dismissed on Run Anyway / Cancel
+**Scope**: `src/app/page.tsx` (`handleConfirm`)
+**What broke**: Clicking "Run anyway" on a `COST_CONFIRM_CARD` executed the query but left the confirmation card visible in the chat. The card never disappeared.
+**Root cause**: `handleConfirm` appended the new response to `messages` via `[...messages, assistantMsg]` but never removed the old envelope containing the `COST_CONFIRM_CARD`. The `handleCancel` function already had the correct removal logic; `handleConfirm` was missing it.
+**Fix**: Before appending the new response, filter out the confirmed envelope from existing messages using the same pattern as `handleCancel`.
+**Rule**: Any handler that replaces a confirmation card with a new response must also remove the original confirmation envelope from messages.
+
+---
+
 ### 2026-07-01: OAuth token expiration breaks app mid-session
 **Scope**: `src/lib/auth-context.tsx`, `src/lib/bigquery-client.ts`, `src/app/page.tsx`
 **What broke**: The Google OAuth access token (for BigQuery/Cloud Platform) expires after ~1 hour. Firebase Auth stays signed in but all API calls fail with 401. The user sees "Session Expired" and has to manually re-authenticate, losing their in-progress query.

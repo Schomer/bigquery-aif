@@ -4,6 +4,16 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-07: Fix cost confirm card not dismissing on button click
+
+**Problem**: The `COST_CONFIRM_CARD` (large query confirmation) stayed visible after clicking "Run anyway" or "Cancel".
+
+**Fix**: `handleConfirm` in `page.tsx` now removes the confirmed envelope from messages before appending the new response, matching the existing `handleCancel` logic.
+
+**Files changed**: `src/app/page.tsx`
+
+---
+
 ## 2026-07-01: Enforce Google Sans as sole non-code font
 
 **Problem**: Table data cells (sample rows, query results) used monospace (`var(--font-mono)`) for all content. Various CSS declarations used Inter or Roboto as fallbacks. User directive: only Google Sans for all UI text; monospace only for actual code.
