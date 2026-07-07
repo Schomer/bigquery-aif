@@ -504,7 +504,13 @@ export default function Home() {
       }));
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
       const assistantMsg: ChatMessage = { role: 'assistant', content: '', envelopes, timestamp: new Date().toISOString() };
-      const finalMsgs = [...messages, assistantMsg];
+      // Remove the confirmed envelope (e.g. COST_CONFIRM_CARD) from existing messages
+      const cleaned = messages.map((msg) =>
+        msg.envelopes?.some((e) => e.id === envelope.id)
+          ? { ...msg, envelopes: msg.envelopes?.filter((e) => e.id !== envelope.id) }
+          : msg
+      ).filter((msg) => !msg.envelopes || msg.envelopes.length > 0 || msg.content);
+      const finalMsgs = [...cleaned, assistantMsg];
       setMessages(finalMsgs);
       persistConversation(finalMsgs).catch((e) => console.warn('[persist]', e));
     } catch (err) {
