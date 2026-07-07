@@ -75,12 +75,12 @@ These test that messages route to the correct skill.
 - **Expected confidence**: high (keyword router, bypasses LLM classifier)
 - **Failure looks like**: Falls to LLM classifier due to regex miss
 
-### R9: Follow-up action after data-quality routes to data-management
+### R11: Follow-up action after data-quality routes to data-management
 - **Input**: "Clean those up" (after a data-quality check)
 - **Expected skill**: data-management (via context boost)
 - **Failure looks like**: Routes to query or stays in data-quality
 
-### R10: Export after query routes to data-loading
+### R12: Export after query routes to data-loading
 - **Input**: "Export that to Google Sheets" (after a query)
 - **Expected skill**: data-loading
 - **Expected operation**: EXPORT_SHEETS
@@ -198,3 +198,40 @@ These test the schema skill's behavior.
 - **Expected skill**: task
 - **Expected output**: TaskWorkflowView with Connection API plan
 - **Failure looks like**: Routes to query or returns generic text response
+
+---
+
+## Monitoring Routing
+
+| ID | Input | Expected Skill | Expected Sub-Type | Confidence |
+|----|-------|---------------|-------------------|------------|
+| M1 | "what jobs ran in the last hour" | monitoring | JOBS | high |
+| M2 | "how much storage is my project using" | monitoring | STORAGE | high |
+| M3 | "show me cost breakdown by user this week" | monitoring | COST_ANALYSIS | high |
+| M4 | "which tables haven't been updated in 30 days" | monitoring | FRESHNESS | high |
+
+## Discovery Routing
+
+| ID | Input | Expected Skill | Expected Sub-Type | Confidence |
+|----|-------|---------------|-------------------|------------|
+| D1 | "find tables with email columns" | discovery | SEARCH | high |
+| D2 | "compare orders_v1 and orders_v2" | discovery | COMPARISON | high |
+| D3 | "where does this table get its data" | discovery | LINEAGE | high |
+
+## Data Quality Routing
+
+| ID | Input | Expected Skill | Expected Sub-Type | Confidence |
+|----|-------|---------------|-------------------|------------|
+| DQ1 | "profile the orders table" | data-quality | PROFILE | high |
+| DQ2 | "check for null values in the customers table" | data-quality | NULLS | high |
+| DQ3 | "check referential integrity between orders and customers" | data-quality | REFERENTIAL_INTEGRITY | high |
+
+## Negative Tests
+
+| ID | Input | Should NOT Route To | Expected Skill | Confidence |
+|----|-------|-------------------|---------------|------------|
+| N1 | "show me duplicate rows" | data-management | data-quality | high |
+| N2 | "how many tables do I have" | query | schema | high |
+| N3 | "what's the schema of orders" | query | schema | high |
+| N4 | "run this query every day" | query | data-loading | high |
+| N5 | "why is my query slow" | query | monitoring | high |

@@ -140,3 +140,33 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **Resolver uses createGoogle, not the default google export**: The default export reads `GOOGLE_GENERATIVE_AI_API_KEY` env var. This project uses `NEXT_PUBLIC_GEMINI_API_KEY`, so the resolver must use `createGoogle({ apiKey })`.
 - **Learned plan match threshold is 0.7**: Plans with Gemini-scored semantic confidence below 0.7 are not reused. Lowering this risks reusing inappropriate plans.
 - **In-memory cache is per-session**: The learned plans cache resets on page reload. Do not persist it.
+
+---
+
+## Orchestrator Architecture
+
+- **Any skill handler exceeding 300 lines must be extracted to its own file in `src/lib/skills/`.**
+- **Total LLM prompt (system instruction + schema context + conversation history + skill doc) should stay under 28,000 tokens when practical.** Use shorter context when full context is not needed.
+- **A single user turn should do whatever Gemini calls are needed to serve the request -- there is no hard cap.** If more than 6 calls happen in one turn, log a warning for visibility.
+
+---
+
+## Timeout & Rate Handling
+
+- **Any BigQuery query that does not return within 30 seconds must be cancelled and the user informed.** No silent hanging.
+- **Send at most the last 10 message pairs to the LLM classifier.** Truncate older history.
+
+---
+
+## State Management
+
+- **Any handler that replaces a confirmation card must remove the original envelope from the message list.** (from ops-ledger 07-07)
+- **Auth state handlers must be idempotent -- only call setState when the value differs from current state.** (from ops-ledger 06-30)
+- **Initial render state for any component must match between server and client to prevent hydration flash.** (from ops-ledger 06-24)
+- **Every skill handler must use `resolvedDataset` from enriched context, never raw user input for dataset names.** (from ops-ledger 07-01)
+
+---
+
+## Dependencies
+
+- **Adding a new npm dependency requires documenting the rationale in the commit message and verifying bundle size impact.**
