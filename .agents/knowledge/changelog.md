@@ -4,6 +4,22 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-09: Redesign thinking section in sidebar
+
+**What changed**:
+- Replaced chevron_right icon with a blue sparkle SVG icon in the thinking toggle header
+- Toggle text now switches between "Show thinking" (collapsed) and "Hide thinking" (expanded) via CSS `::after` pseudo-element
+- Steps now display green checkmark SVGs instead of numbered list format
+- Removed "Steps" section label and "Task:" prefix from envelope groups
+- Added light background card (surface-2 with border) around thinking body
+- Envelope details indented under their parent step with new `thinking-step-details` class
+
+**Files modified**:
+- `src/components/chat/ResultsSidebar.tsx` (lines 368-463)
+- `src/app/globals.css` (thinking section styles, ~lines 1937-2100)
+
+---
+
 ## 2026-07-09: Add OverviewDashboard landing page
 
 **What changed**:
