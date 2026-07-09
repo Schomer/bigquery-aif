@@ -4,7 +4,29 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-09: Conversation Continuity + Export Expansion (Phase 4B/4C)
+
+**What changed**:
+- Created `ConversationSummary.tsx`: collapsible panel at top of ChatThread for conversations with 6+ messages. Derives operations, tables touched, key results, and current context from the messages array. Each operation is clickable to scroll to that message.
+- Enhanced `conversation-context.tsx`: added `OperationLogEntry[]` state, `addOperation`, `getOperationLog`, `clearOperationLog` methods. Operation log clears on new/load conversation.
+- Added `OperationLogEntry` type to `types.ts`: tracks messageIndex, skill, operation, table, timestamp, and undoable flag.
+- Updated `useChatOrchestration.ts`: added `logOperationsFromEnvelopes` function that classifies operations from composition envelopes and logs them to conversation context after each successful response.
+- Wired ConversationSummary into ChatThread with `scrollContainerRef` for jump-to-message with highlight flash.
+- Expanded `DataLoadingView.tsx` with four new features:
+  - "Create View from Query": collapsible DDL preview with copy button (available when result has SQL)
+  - "Looker Studio" link: generates URL to create new Looker Studio report with table as data source
+  - "Copy as Table": copies small results (<50 rows) as markdown table to clipboard
+  - `ExportFormatSelector` component: segmented button for CSV/JSON/Avro/Parquet selection
+- Updated `public/skills/data-loading.md` with documentation for CREATE_VIEW, LOOKER_STUDIO, COPY_AS_TABLE sub-types and export format guidance.
+- Fixed duplicate `PipelineResult` type definition that caused type errors.
+
+**Files modified**: conversation-context.tsx, useChatOrchestration.ts, ChatThread.tsx, DataLoadingView.tsx, types.ts, public/skills/data-loading.md
+**Files created**: ConversationSummary.tsx
+
+---
+
 ## 2026-07-09: BigQuery ML read path + Saved Work system
+
 
 **What changed**:
 - Added QUERY_SIGNALS array to router.ts with 17 ML-specific weighted phrases (ML.PREDICT, ML.EVALUATE, ML.EXPLAIN_PREDICT, AI.GENERATE_TEXT, AI.FORECAST, AI.DETECT_ANOMALIES, etc.)
