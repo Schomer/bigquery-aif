@@ -12,6 +12,16 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 
 ---
 
+### 2026-07-09: Added governance skill (access audit, security, PII, classification)
+
+**What worked**: Following the established skill handler pattern (router signals -> gemini-client schema -> handler -> composer -> view -> artifact card) made integration straightforward. All INFORMATION_SCHEMA queries are wrapped in try/catch because views like ROW_ACCESS_POLICIES and COLUMN_FIELD_PATHS may not be accessible in all projects.
+
+**What to watch**: The PII scan is heuristic and samples only 1,000 rows. Phone number pattern (10-11 digits) may false-positive on numeric IDs. Credit card pattern (13-16 digits) may false-positive on large integers. The DLP recommendation banner makes this clear to users.
+
+**Derived rule**: When adding INFORMATION_SCHEMA-based queries, always wrap in try/catch -- not all views are available in all projects/regions, and missing permissions should fail gracefully, not crash the handler.
+
+---
+
 ### 2026-07-09: Auth retry now re-sends original request after sign-in
 **Scope**: `src/app/page.tsx` L479-492
 **What changed**: The auth error retry function was `signIn` alone, which opened the sign-in popup but dropped the user's original request. Changed it to an async function that calls `signIn()`, and if successful, removes the failed message pair (user + empty assistant) from state and calls `sendMessage(text)` to replay the original request.

@@ -29,7 +29,7 @@ Orchestrator (src/lib/chat-orchestrator.ts) -- 307 lines, dispatch only
 Skill Handlers (src/lib/skills/handle-*.ts)
   - handle-schema, handle-query, handle-data-management,
     handle-data-quality, handle-monitoring, handle-discovery,
-    handle-data-loading, handle-task
+    handle-data-loading, handle-pipeline, handle-task
     |
     v
 Infrastructure (src/lib/{gemini-client,orchestrator-utils,self-review}.ts)
@@ -147,6 +147,13 @@ UI Components (src/components/)
 - Google Sheets export via BigQuery extract
 - Scheduled query creation via Data Transfer API
 - Query save to Firestore
+
+### `handle-pipeline.ts` (~390 lines)
+- 6 operation types: LIST_SCHEDULES, SCHEDULE_DETAILS, CREATE_PIPELINE, UPDATE_SCHEDULE, DELETE_SCHEDULE, RUN_HISTORY
+- BigQuery Data Transfer API for scheduled query CRUD
+- LLM-assisted pipeline SQL generation
+- Dry-run cost estimation per pipeline run
+- Run history with success/failure tracking
 
 ### `handle-task.ts` (105 lines)
 - Generic task resolver for Google Cloud data tasks
@@ -315,6 +322,7 @@ UI Components (src/components/)
 | StorageBreakdownView.tsx | 15KB | Storage treemaps |
 | SettingsPage.tsx | 15KB | App settings UI |
 | DataLoadingView.tsx | 9KB | Export/schedule confirmations |
+| PipelineView.tsx | 10KB | Scheduled query list, details, run history, pipeline creation |
 | DiscoveryView.tsx | 9KB | Search results |
 | DataQualityView.tsx | 8KB | Quality check results |
 | EmptyCanvasAnimation.tsx | 8KB | Welcome screen animation |
@@ -340,6 +348,7 @@ UI Components (src/components/)
 - Loaded by `loadSkillDoc()` in orchestrator
 - Cached in memory (`_skillDocCache`)
 - 8 files: one per skill + `intent-routing.md`
+- Added: `pipeline.md` for pipeline management routing
 
 ### Design specs (`docs from claude/`)
 - 15 files, ~145KB total

@@ -4,6 +4,76 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-09: Add data governance skill
+
+**What changed**:
+- Added new `governance` skill with four sub-handlers: ACCESS_AUDIT, TABLE_SECURITY, SENSITIVE_DATA_SCAN, DATA_CLASSIFICATION
+- All operations are read-only -- queries INFORMATION_SCHEMA views and metadata only
+- ACCESS_AUDIT: queries OBJECT_PRIVILEGES for entity/role access information
+- TABLE_SECURITY: checks ROW_ACCESS_POLICIES, COLUMN_FIELD_PATHS with policy tags
+- SENSITIVE_DATA_SCAN: heuristic PII detection via regex sampling (emails, phones, SSNs, IPs, credit cards) with DLP recommendation
+- DATA_CLASSIFICATION: documentation coverage from COLUMNS/TABLE_OPTIONS
+- Added GovernanceView component with stat cards, badge components, progress bars, and tabular displays
+- Added governance routing signals (25 phrases) to keyword router
+- Added governance to LLM intent classifier schema
+- Created public/skills/governance.md runtime prompt
+- Updated intent-routing.md with governance row
+
+**Files created**:
+- `src/lib/skills/handle-governance.ts` (governance handler)
+- `src/components/GovernanceView.tsx` (governance view component)
+- `public/skills/governance.md` (skill prompt)
+
+**Files modified**:
+- `src/lib/types.ts` (GovernanceResult interface, GOVERNANCE_VIEW artifact type, governance in SkillName)
+- `src/lib/router.ts` (GOVERNANCE_SIGNALS, added to scoring)
+- `src/lib/composer.ts` (composeGovernance function, governance case)
+- `src/lib/chat-orchestrator.ts` (import, dispatch case, skill label)
+- `src/lib/gemini-client.ts` (governance in IntentClassifierSchema enum)
+- `src/components/ArtifactCard.tsx` (GovernanceView import and case)
+- `public/skills/intent-routing.md` (governance row)
+- `.agents/knowledge/test-cases.md` (G1-G10 test cases)
+
+---
+
+## 2026-07-09: Add Pipeline Management skill
+
+**What changed**:
+- New skill: `pipeline` for managing scheduled queries and data pipelines via BigQuery Data Transfer API
+- 6 sub-types: LIST_SCHEDULES, SCHEDULE_DETAILS, CREATE_PIPELINE, UPDATE_SCHEDULE, DELETE_SCHEDULE, RUN_HISTORY
+- New handler: `src/lib/skills/handle-pipeline.ts` (~390 lines)
+- New component: `src/components/PipelineView.tsx` (~350 lines) with schedule list table, detail cards, run history, and pipeline creation confirmation
+- New skill doc: `public/skills/pipeline.md`
+- Router: added PIPELINE_SIGNALS with high-weight phrases for schedule/pipeline management, moved `etl` and `set up a pipeline` from TASK_SIGNALS to PIPELINE_SIGNALS
+- Composer: added `composePipeline()` function with context-specific headlines and next-action chips
+- Orchestrator: added `handlePipeline` import and dispatch case
+- ArtifactCard: added PIPELINE_VIEW routing to PipelineView component
+- ResultsSidebar: added `schedule` icon and `Pipelines` label for PIPELINE_VIEW artifacts
+- IntentClassifierSchema: added `pipeline` to both skill enum arrays
+- intent-routing.md: added pipeline skill row and disambiguation entries
+- types.ts: added `pipeline` to SkillName, `PIPELINE_VIEW` to ArtifactType, PipelineResult interface
+- test-cases.md: added P1-P5 pipeline routing test cases
+
+**Files created**:
+- `src/lib/skills/handle-pipeline.ts`
+- `src/components/PipelineView.tsx`
+- `public/skills/pipeline.md`
+
+**Files modified**:
+- `src/lib/router.ts` (PIPELINE_SIGNALS, scoring)
+- `src/lib/types.ts` (SkillName, ArtifactType, PipelineResult)
+- `src/lib/composer.ts` (composePipeline, import, switch case)
+- `src/lib/chat-orchestrator.ts` (import, dispatch, skill label)
+- `src/lib/gemini-client.ts` (IntentClassifierSchema enum)
+- `src/components/ArtifactCard.tsx` (PIPELINE_VIEW case)
+- `src/components/chat/ResultsSidebar.tsx` (icon, label)
+- `public/skills/intent-routing.md` (pipeline row, disambiguation)
+- `.agents/knowledge/test-cases.md` (P1-P5)
+- `.agents/knowledge/component-map.md` (handler, component, skill doc entries)
+- `.agents/knowledge/changelog.md` (this entry)
+
+---
+
 ## 2026-07-09: Restyle artifact link chips to neutral colors
 
 **What changed**:
