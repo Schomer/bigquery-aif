@@ -2,7 +2,7 @@
 
 A guide to the codebase structure, key files, their responsibilities, and where to find things. Consult this before making changes to understand what you're touching and what might be affected.
 
-Last updated: 2026-07-07
+Last updated: 2026-07-09
 
 ---
 
@@ -18,18 +18,18 @@ API Route (src/app/api/chat/route.ts)
 Router (src/lib/router.ts)
   - Keyword scoring: classifyIntent()
   - Reference resolution: resolveReferences()
+  - Scores signals from SKILL_MANIFESTS (manifest-driven)
     |
     v
-Orchestrator (src/lib/chat-orchestrator.ts) -- 307 lines, dispatch only
+Orchestrator (src/lib/chat-orchestrator.ts)
   - LLM classifier (medium/low confidence fallback)
-  - Skill dispatch (switch on skill name)
+  - Manifest-driven dispatch via SKILL_MAP
   - Self-review pass
     |
     v
 Skill Handlers (src/lib/skills/handle-*.ts)
-  - handle-schema, handle-query, handle-data-management,
-    handle-data-quality, handle-monitoring, handle-discovery,
-    handle-data-loading, handle-pipeline, handle-task
+  - Each exports a `manifest: SkillManifest`
+  - Barrel file: src/lib/skills/index.ts
     |
     v
 Infrastructure (src/lib/{gemini-client,orchestrator-utils,self-review}.ts)
@@ -48,30 +48,31 @@ UI Components (src/components/)
 
 ## Core Files
 
-### `src/lib/router.ts` (508 lines)
+### `src/lib/router.ts` (~180 lines)
 **Responsibility**: Intent classification via weighted keyword scoring.
-- Lines 14-231: Signal lists (MUTATING_VERBS, DATA_QUALITY_SIGNALS, SCHEMA_SIGNALS, etc.)
-- Lines 233-250: QUERY_SIGNALS (ML function phrases for predict/evaluate/forecast)
-- Lines 252-263: TASK_SIGNALS
-- Lines 233-253: `scoreSignals()` -- the scoring engine
-- Lines 255-302: `getContextBoosts()` -- follow-up action pattern matching
-- Lines 316-433: `classifyIntent()` -- main classification function
-- Lines 440-455: `resolveReferences()` -- pronoun resolution
+- Lines 14-38: MUTATING_VERBS array and compiled regex patterns
+- Lines 42-55: `scoreSignals()` -- the scoring engine
+- Lines 57-104: `getContextBoosts()` -- follow-up action pattern matching
+- Lines 120-200: `classifyIntent()` -- main classification function (scores from SKILL_MANIFESTS)
+- Lines 205-220: `resolveReferences()` -- pronoun resolution
 
-**Key invariant**: Mutating verbs get checked first (line 328). High-confidence mutating verb match returns immediately unless a strong quality signal is also present.
+**Key invariant**: Mutating verbs get checked first. High-confidence mutating verb match returns immediately unless a strong quality signal (from data-quality manifest) is also present.
+**Key change (2026-07-09)**: Signal arrays moved to handler manifests. Router now iterates `SKILL_MANIFESTS` to score signals.
 
 ---
 
-### `src/lib/chat-orchestrator.ts` (307 lines)
+### `src/lib/chat-orchestrator.ts` (~270 lines)
 **Responsibility**: Thin dispatch layer. Routes classified intents to skill handlers.
-- Lines 1-40: Imports (handler modules, infrastructure, types)
-- Lines 42-68: `ProcessMessageArgs` and `OrchestrationResult` interfaces
-- Lines 70-307: `ChatOrchestrator.processMessage()` -- main entry point
-  - Lines 72-77: Confirmation handling (delegates to `executeConfirmedOperation`)
-  - Lines 82-83: Reference resolution
-  - Lines 87-165: Intent classification (keyword first, LLM fallback)
-  - Lines 177-200: Skill dispatch switch (8 handlers)
-  - Lines 205-256: Self-review pass with skip heuristics
+- Lines 1-28: Imports (barrel, infrastructure, types)
+- Lines 30-56: `ProcessMessageArgs` and `OrchestrationResult` interfaces
+- Lines 58-270: `ChatOrchestrator.processMessage()` -- main entry point
+  - Lines 60-65: Confirmation handling (delegates to `executeConfirmedOperation`)
+  - Lines 70-71: Reference resolution
+  - Lines 75-195: Intent classification (keyword first, LLM fallback)
+  - Lines 200-215: Manifest-driven dispatch via `SKILL_MAP.get(skill)`
+  - Lines 220-260: Self-review pass with skip heuristics
+
+**Key change (2026-07-09)**: Switch-case replaced with manifest-driven dispatch.
 
 ---
 

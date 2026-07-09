@@ -8,13 +8,14 @@ import { executeQuery, detectBqRegion, createScheduledQuery, listDatasets } from
 import { compose } from '../composer';
 import { saveCheck } from '../firestore-service';
 import type {
-  CompositionEnvelope, MonitoringJob, MonitoringResult, AlertResult, SavedCheck, StatusCallback,
+  ChatMessage, CompositionEnvelope, MonitoringJob, MonitoringResult, AlertResult, SavedCheck, SkillManifest, StatusCallback,
   StorageItem, StorageBreakdownResult, AccessPatternEntry, AccessPatternResult,
   CostBucket, CostAnalysisResult, FreshnessEntry, FreshnessResult,
 } from '../types';
 
 export async function handleMonitoring(
   message: string,
+  _history: ChatMessage[],
   context?: { project?: string; uid?: string; dataset?: string; resolvedDataset?: string; availableDatasets?: string[]; handoffContext?: Record<string, unknown> },
   onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
@@ -768,3 +769,71 @@ export async function handleMonitoring(
 
   return [compose('monitoring', result)];
 }
+
+// ─── Skill manifest ───────────────────────────────────────────────────────────
+
+export const manifest: SkillManifest = {
+  skill: 'monitoring',
+  label: 'monitoring',
+  signals: [
+    { phrase: 'slow query', weight: 3 },
+    { phrase: 'expensive query', weight: 3 },
+    { phrase: 'expensive job', weight: 3 },
+    { phrase: 'expensive queries', weight: 3 },
+    { phrase: 'slot', weight: 2 },
+    { phrase: 'slot usage', weight: 3 },
+    { phrase: 'failed job', weight: 3 },
+    { phrase: 'failed jobs', weight: 3 },
+    { phrase: 'job failed', weight: 3 },
+    { phrase: 'who ran', weight: 3 },
+    { phrase: 'job status', weight: 3 },
+    { phrase: 'query cost', weight: 3 },
+    { phrase: 'storage cost', weight: 3 },
+    { phrase: 'storage analysis', weight: 3 },
+    { phrase: 'table storage', weight: 3 },
+    { phrase: 'how much storage', weight: 3 },
+    { phrase: 'performance', weight: 2 },
+    { phrase: 'recent queries', weight: 3 },
+    { phrase: 'recent jobs', weight: 3 },
+    { phrase: 'recent job', weight: 3 },
+    { phrase: 'what failed', weight: 3 },
+    { phrase: 'did that job', weight: 2 },
+    { phrase: 'show jobs', weight: 3 },
+    { phrase: 'job history', weight: 3 },
+    { phrase: 'job list', weight: 3 },
+    { phrase: "what's running", weight: 3 },
+    { phrase: 'is running', weight: 2 },
+    { phrase: 'did it finish', weight: 2 },
+    { phrase: 'did the job', weight: 2 },
+    { phrase: 'tell me more about job', weight: 3 },
+    { phrase: 'diagnose', weight: 2 },
+    { phrase: 'query plan', weight: 3 },
+    { phrase: 'optimize', weight: 2 },
+    { phrase: 'alert', weight: 2 },
+    { phrase: 'threshold', weight: 2 },
+    { phrase: 'notify', weight: 2 },
+    { phrase: 'notification', weight: 2 },
+    { phrase: 'watch', weight: 2 },
+    { phrase: 'storage breakdown', weight: 3 },
+    { phrase: 'disk usage', weight: 3 },
+    { phrase: 'largest tables', weight: 3 },
+    { phrase: 'storage treemap', weight: 3 },
+    { phrase: 'which tables are largest', weight: 3 },
+    { phrase: 'access patterns', weight: 3 },
+    { phrase: 'who uses', weight: 3 },
+    { phrase: 'most queried', weight: 3 },
+    { phrase: 'who queries', weight: 3 },
+    { phrase: 'table usage', weight: 3 },
+    { phrase: 'cost analysis', weight: 3 },
+    { phrase: 'how much am i spending', weight: 3 },
+    { phrase: 'query costs over time', weight: 3 },
+    { phrase: 'cost breakdown', weight: 3 },
+    { phrase: 'spending', weight: 2 },
+    { phrase: 'freshness', weight: 3 },
+    { phrase: 'stale tables', weight: 3 },
+    { phrase: 'when was table last updated', weight: 3 },
+    { phrase: 'data freshness', weight: 3 },
+    { phrase: 'outdated tables', weight: 3 },
+  ],
+  handle: handleMonitoring,
+};

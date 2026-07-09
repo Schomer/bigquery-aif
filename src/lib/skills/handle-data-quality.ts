@@ -7,10 +7,11 @@ import { getAvailableDatasets, resolveDefaultDatasetFromList, extractDatasetFrom
 import { fetchSchema } from './schema';
 import { dryRun, executeQuery } from '../bigquery-client';
 import { compose } from '../composer';
-import type { CompositionEnvelope, DataQualityResult, DqFinding, QueryResult, StatusCallback } from '../types';
+import type { ChatMessage, CompositionEnvelope, DataQualityResult, DqFinding, QueryResult, SkillManifest, StatusCallback } from '../types';
 
 export async function handleDataQuality(
   message: string,
+  _history: ChatMessage[],
   context?: { project?: string; dataset?: string; lastTable?: string; resolvedDataset?: string; availableDatasets?: string[]; handoffContext?: Record<string, unknown> },
   onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
@@ -487,3 +488,46 @@ export async function handleDataQuality(
   };
   return [compose('data-quality', result)];
 }
+
+// ─── Skill manifest ───────────────────────────────────────────────────────────
+
+export const manifest: SkillManifest = {
+  skill: 'data-quality',
+  label: 'data quality check',
+  signals: [
+    { phrase: 'data quality', weight: 3 },
+    { phrase: 'data profile', weight: 3 },
+    { phrase: 'column profile', weight: 3 },
+    { phrase: 'null rate', weight: 3 },
+    { phrase: 'null analysis', weight: 3 },
+    { phrase: 'how many nulls', weight: 3 },
+    { phrase: 'check for nulls', weight: 3 },
+    { phrase: 'find duplicates', weight: 3 },
+    { phrase: 'check for duplicates', weight: 3 },
+    { phrase: 'duplicate rows', weight: 3 },
+    { phrase: 'duplicate detection', weight: 3 },
+    { phrase: 'are there duplicates', weight: 3 },
+    { phrase: 'referential integrity', weight: 3 },
+    { phrase: 'schema drift', weight: 3 },
+    { phrase: 'schema change', weight: 3 },
+    { phrase: 'value range', weight: 3 },
+    { phrase: 'out of range', weight: 3 },
+    { phrase: 'range validation', weight: 3 },
+    { phrase: 'completeness audit', weight: 3 },
+    { phrase: 'data completeness', weight: 3 },
+    { phrase: 'how complete', weight: 3 },
+    { phrase: 'profile the', weight: 2 },
+    { phrase: 'profile this', weight: 2 },
+    { phrase: 'quality', weight: 2 },
+    { phrase: 'freshness', weight: 2 },
+    { phrase: 'validate', weight: 2 },
+    { phrase: 'completeness', weight: 2 },
+    { phrase: 'drift', weight: 2 },
+    { phrase: 'integrity', weight: 2 },
+    { phrase: 'nulls', weight: 1 },
+    { phrase: 'outlier', weight: 1 },
+    { phrase: 'anomaly', weight: 1 },
+    { phrase: 'invalid', weight: 1 },
+  ],
+  handle: handleDataQuality,
+};

@@ -17,17 +17,10 @@ import {
 } from './orchestrator-utils';
 import { selfReviewEnvelope } from './self-review';
 
-// Skill handlers
-import { handleSchema } from './skills/handle-schema';
+// Skill handlers -- dispatched via manifest registry
+import { SKILL_MAP, SKILL_LABELS } from './skills';
+import { executeConfirmedOperation } from './skills/handle-data-management';
 import { handleQuery } from './skills/handle-query';
-import { handleDataManagement, executeConfirmedOperation } from './skills/handle-data-management';
-import { handleDataQuality } from './skills/handle-data-quality';
-import { handleMonitoring } from './skills/handle-monitoring';
-import { handleDiscovery } from './skills/handle-discovery';
-import { handleDataLoading } from './skills/handle-data-loading';
-import { handlePipeline } from './skills/handle-pipeline';
-import { handleTask } from './skills/handle-task';
-import { handleGovernance } from './skills/handle-governance';
 
 import type {
   ChatMessage,
@@ -202,19 +195,7 @@ The user's new message is a continuation of this conversation. Treat it as a fol
       }
     }
 
-    const skillLabels: Record<string, string> = {
-      'schema': 'schema lookup',
-      'query': 'query builder',
-      'data-management': 'data management',
-      'data-quality': 'data quality check',
-      'monitoring': 'monitoring',
-      'discovery': 'discovery search',
-      'data-loading': 'data export',
-      'pipeline': 'pipeline management',
-      'task': 'task resolver',
-      'governance': 'governance check',
-    };
-    onStatus?.(`Matched skill: ${skillLabels[skill] || skill}`);
+    onStatus?.(`Matched skill: ${SKILL_LABELS[skill] || skill}`);
 
     // -- Dispatch to skill --
     let envelopes: CompositionEnvelope[] = [];
@@ -222,39 +203,14 @@ The user's new message is a continuation of this conversation. Treat it as a fol
     // Pass pre-resolved context to handlers to avoid redundant fetches
     const enrichedContext = { ...context, resolvedDataset, availableDatasets };
 
-    switch (skill) {
-      case 'schema':
-        envelopes = await handleSchema(resolvedMessage, enrichedContext, onStatus);
-        break;
-      case 'query':
-        envelopes = await handleQuery(resolvedMessage, history, enrichedContext, onStatus);
-        break;
-      case 'data-management':
-        envelopes = await handleDataManagement(resolvedMessage, history, enrichedContext, onStatus);
-        break;
-      case 'data-quality':
-        envelopes = await handleDataQuality(resolvedMessage, enrichedContext, onStatus);
-        break;
-      case 'monitoring':
-        envelopes = await handleMonitoring(resolvedMessage, enrichedContext, onStatus);
-        break;
-      case 'discovery':
-        envelopes = await handleDiscovery(resolvedMessage, enrichedContext, onStatus);
-        break;
-      case 'data-loading':
-        envelopes = await handleDataLoading(resolvedMessage, enrichedContext, onStatus);
-        break;
-      case 'pipeline':
-        envelopes = await handlePipeline(resolvedMessage, enrichedContext, onStatus);
-        break;
-      case 'task':
-        envelopes = await handleTask(resolvedMessage, enrichedContext, onStatus);
-        break;
-      case 'governance':
-        envelopes = await handleGovernance(resolvedMessage, enrichedContext, onStatus);
-        break;
-      default:
-        envelopes = await handleQuery(resolvedMessage, history, enrichedContext, onStatus);
+    // Manifest-driven dispatch: look up handler from the registry.
+    // All handlers have a standardized signature: (message, history, context, onStatus)
+    const manifest = SKILL_MAP.get(skill as string);
+    if (manifest) {
+      envelopes = await manifest.handle(resolvedMessage, history, enrichedContext, onStatus);
+    } else {
+      // Unknown skill -- fall back to query
+      envelopes = await handleQuery(resolvedMessage, history, enrichedContext, onStatus);
     }
 
     // -- Self-review: run for skills that benefit from it --

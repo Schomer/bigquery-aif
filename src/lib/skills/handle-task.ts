@@ -2,10 +2,11 @@
 // Task handler: delegates to the autonomous task resolver.
 // Extracted from chat-orchestrator.ts.
 
-import type { CompositionEnvelope, StatusCallback } from '../types';
+import type { ChatMessage, CompositionEnvelope, SkillManifest, StatusCallback } from '../types';
 
 export async function handleTask(
   message: string,
+  _history: ChatMessage[],
   context?: { project?: string; dataset?: string; availableDatasets?: string[] },
   onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
@@ -103,3 +104,38 @@ export async function handleTask(
     return [envelope];
   }
 }
+
+// ─── Skill manifest ───────────────────────────────────────────────────────────
+
+export const manifest: SkillManifest = {
+  skill: 'task',
+  label: 'task resolver',
+  signals: [
+    { phrase: 'batch translation', weight: 3 },
+    { phrase: 'translate sql', weight: 3 },
+    { phrase: 'convert sql', weight: 3 },
+    { phrase: 'migrate from', weight: 3 },
+    { phrase: 'translate my', weight: 3 },
+    { phrase: 'guide me through', weight: 3 },
+    { phrase: 'walk me through', weight: 3 },
+    { phrase: 'help me set up', weight: 3 },
+    { phrase: 'set up a transfer', weight: 3 },
+    { phrase: 'load data from', weight: 3 },
+    { phrase: 'configure a connection', weight: 3 },
+    { phrase: 'import data', weight: 3 },
+    { phrase: 'translate these', weight: 3 },
+    { phrase: 'translate some', weight: 3 },
+    { phrase: 'batch translate', weight: 3 },
+    { phrase: 'sql files', weight: 3 },
+    { phrase: 'into google sql', weight: 3 },
+    { phrase: 'to googlesql', weight: 3 },
+    { phrase: 'to bigquery sql', weight: 3 },
+    { phrase: 'step by step', weight: 2 },
+    { phrase: 'translate', weight: 2 },
+    { phrase: 'convert', weight: 2 },
+    { phrase: 'migration', weight: 2 },
+    { phrase: 'how do i', weight: 2 },
+    { phrase: 'transfer', weight: 2 },
+  ],
+  handle: handleTask,
+};

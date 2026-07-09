@@ -9,7 +9,7 @@ import { dryRun, executeQuery } from '../bigquery-client';
 import { compose } from '../composer';
 import { findReusablePlan, cachePlan } from '../plan-cache';
 import { analyzeResultQuality } from '../result-quality';
-import type { ChatMessage, CompositionEnvelope, QueryResult, StatusCallback, VisualizationType } from '../types';
+import type { ChatMessage, CompositionEnvelope, QueryResult, SkillManifest, StatusCallback, VisualizationType } from '../types';
 
 export async function handleQuery(
   message: string,
@@ -257,3 +257,56 @@ Return the corrected SQL and a short explanation of what you changed.`,
 
   return [compose('query', result, qualityFlags)];
 }
+
+// ─── Skill manifest ───────────────────────────────────────────────────────────
+
+export const manifest: SkillManifest = {
+  skill: 'query',
+  label: 'query builder',
+  signals: [
+    { phrase: 'how many', weight: 3 },
+    { phrase: 'total', weight: 2 },
+    { phrase: 'sum of', weight: 3 },
+    { phrase: 'average', weight: 2 },
+    { phrase: 'count of', weight: 3 },
+    { phrase: 'biggest', weight: 2 },
+    { phrase: 'smallest', weight: 2 },
+    { phrase: 'highest', weight: 2 },
+    { phrase: 'lowest', weight: 2 },
+    { phrase: 'most', weight: 2 },
+    { phrase: 'least', weight: 2 },
+    { phrase: 'top', weight: 2 },
+    { phrase: 'bottom', weight: 2 },
+    { phrase: 'maximum', weight: 2 },
+    { phrase: 'minimum', weight: 2 },
+    { phrase: 'breakdown', weight: 2 },
+    { phrase: 'group by', weight: 3 },
+    { phrase: 'over time', weight: 2 },
+    { phrase: 'trend', weight: 2 },
+    { phrase: 'per month', weight: 3 },
+    { phrase: 'per week', weight: 3 },
+    { phrase: 'per year', weight: 3 },
+    { phrase: 'per day', weight: 3 },
+    { phrase: 'by month', weight: 3 },
+    { phrase: 'by week', weight: 3 },
+    { phrase: 'by year', weight: 3 },
+    { phrase: 'predict', weight: 2 },
+    { phrase: 'ML.PREDICT', weight: 3 },
+    { phrase: 'forecast', weight: 2 },
+    { phrase: 'classify', weight: 2 },
+    { phrase: 'cluster', weight: 2 },
+    { phrase: 'evaluate model', weight: 3 },
+    { phrase: 'model accuracy', weight: 3 },
+    { phrase: 'ML.EVALUATE', weight: 3 },
+    { phrase: 'explain prediction', weight: 3 },
+    { phrase: 'feature importance', weight: 3 },
+    { phrase: 'ML.EXPLAIN_PREDICT', weight: 3 },
+    { phrase: 'list models', weight: 3 },
+    { phrase: 'show models', weight: 3 },
+    { phrase: 'what models', weight: 3 },
+    { phrase: 'AI.GENERATE_TEXT', weight: 3 },
+    { phrase: 'AI.FORECAST', weight: 3 },
+    { phrase: 'AI.DETECT_ANOMALIES', weight: 3 },
+  ],
+  handle: handleQuery,
+};

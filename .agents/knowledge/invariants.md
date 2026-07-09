@@ -2,7 +2,7 @@
 
 Rules that must hold true across all code changes. Violating any of these has caused bugs in the past or would break critical functionality. Before making a change, check it against this list. If a change would violate an invariant, either the invariant needs updating (with justification) or the change needs rethinking.
 
-Last verified: 2026-06-30
+Last verified: 2026-07-09
 
 ---
 
@@ -30,7 +30,8 @@ These principles govern all design decisions. They are not suggestions -- they a
 
 - **Ambiguous read/write defaults to read**: If a message has both mutating and quality signals, route to data-quality (or query), never to data-management. This is enforced by the `ambiguousReadWrite` flag.
 - **Mutating verbs require word-boundary matching**: All entries in `MUTATING_VERBS` are compiled to regex patterns with `\b` boundaries. This prevents table names like `sales_deduped` from false-matching `dedupe`.
-- **Ambiguous words need counterbalancing signals**: When adding a word to `MUTATING_VERBS` that could also be a noun/adjective (e.g., "duplicate"), add the full phrase (e.g., "find duplicates", "check for duplicates") to `DATA_QUALITY_SIGNALS` with weight >= 3.
+- **Ambiguous words need counterbalancing signals**: When adding a word to `MUTATING_VERBS` that could also be a noun/adjective (e.g., "duplicate"), add the full phrase (e.g., "find duplicates", "check for duplicates") to the data-quality handler's manifest signals with weight >= 3.
+- **Routing signals live in handler manifests, not in router.ts**: Each handler's `manifest.signals` array is the single source of truth for keyword routing. The router iterates `SKILL_MANIFESTS` to score signals. Do not add signal arrays back to router.ts.
 - **Context boosts cap at +3**: Follow-up action patterns (e.g., "clean it" after data-quality) add a max bonus of 3 to the relevant skill score. Do not increase this.
 - **No-signal default is query with medium confidence**: When no keyword signals match at all, the router returns `skill: 'query', confidence: 'medium'` so the LLM classifier decides.
 - **Filter/equality patterns bypass scoring**: Messages containing `column = 'value'` or explicit `WHERE` clauses go directly to query with high confidence, skipping the scored classification.
@@ -42,6 +43,8 @@ These principles govern all design decisions. They are not suggestions -- they a
 ## Orchestrator (`src/lib/chat-orchestrator.ts`)
 
 - **High-confidence keyword match skips LLM classifier**: When `classifyIntent()` returns `confidence: 'high'`, the orchestrator dispatches directly to that skill without calling Gemini for intent classification. This saves latency and cost.
+- **Dispatch uses manifest-driven lookup, not switch-case**: `SKILL_MAP.get(skill)` retrieves the handler function. Unknown skills fall back to `handleQuery()`. Do not re-introduce a switch-case.
+- **All handler signatures are (message, history, context, onStatus)**: The 4-arg pattern enables uniform dispatch through the manifest. Do not add or remove parameters.
 - **Data-management safety net**: `handleDataManagement()` re-checks the message against the keyword router before proceeding. If the router doesn't independently confirm data-management intent, it redirects to `handleQuery()`. This prevents analytical queries from being treated as mutations.
 - **Query auto-retry is one-shot**: When a query fails with a BigQuery syntax/content error, the SQL is sent back to Gemini for repair and retried exactly once. If the retry also fails, the original error is thrown. Do not add more retry loops.
 - **Self-review is non-fatal**: The `selfReviewEnvelope()` function catches all errors and returns the original envelope if review fails. Never make self-review failures block response delivery.
@@ -149,6 +152,9 @@ These principles govern all design decisions. They are not suggestions -- they a
 ## Orchestrator Architecture
 
 - **Any skill handler exceeding 300 lines must be extracted to its own file in `src/lib/skills/`.**
+- **Adding a new skill requires exactly 2 files**: Create `handle-{name}.ts` with a `manifest` export, then add one import + one array entry in `src/lib/skills/index.ts`. No other files need editing.
+- **Each handler must export a `manifest: SkillManifest`**: The manifest declares skill name, label, signals array, and handler function. The barrel file aggregates them.
+- **`IntentClassifierSchema` is lazily initialized**: Because `gemini-client.ts` and `skills/index.ts` have a circular import, the schema is built via a `Proxy` that defers initialization until first property access.
 - **Total LLM prompt (system instruction + schema context + conversation history + skill doc) should stay under 28,000 tokens when practical.** Use shorter context when full context is not needed.
 - **A single user turn should do whatever Gemini calls are needed to serve the request -- there is no hard cap.** If more than 6 calls happen in one turn, log a warning for visibility.
 

@@ -4,6 +4,25 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-09: Self-Registering Skill Manifest Refactoring
+
+**What changed**:
+- Added `SkillManifest` interface to `types.ts`: declares skill name, label, routing signals array, and handler function for each skill.
+- Added `manifest` export to all 10 handler files in `src/lib/skills/`: each handler now co-locates its routing signals with its handler function.
+- Standardized all handler signatures to 4 arguments: `(message, history, context, onStatus)` for uniform dispatch.
+- Created `src/lib/skills/index.ts` barrel file: aggregates manifests into `SKILL_MANIFESTS`, `SKILL_MAP`, `SKILL_NAMES`, and `SKILL_LABELS`.
+- Refactored `router.ts`: removed ~330 lines of hardcoded signal constant declarations. The scoring loop now iterates `SKILL_MANIFESTS` to build scores dynamically.
+- Refactored `chat-orchestrator.ts`: replaced 10-case switch statement and hardcoded labels with `SKILL_MAP.get(skill)` lookup and `SKILL_LABELS`.
+- Refactored `gemini-client.ts`: `IntentClassifierSchema` skill enum now derives from `SKILL_NAMES`. Uses lazy Proxy initialization to avoid circular import timing issues.
+- All 19 routing snapshot tests pass -- zero behavior changes.
+
+**Collision hotspots eliminated**: Previously adding a skill required editing 6 shared files. Now: create handler file + add one line to barrel.
+
+**Files modified**: types.ts, router.ts, chat-orchestrator.ts, gemini-client.ts, handle-schema.ts, handle-query.ts, handle-data-management.ts, handle-data-quality.ts, handle-monitoring.ts, handle-discovery.ts, handle-data-loading.ts, handle-pipeline.ts, handle-task.ts, handle-governance.ts, invariants.md, component-map.md
+**Files created**: src/lib/skills/index.ts
+
+---
+
 ## 2026-07-09: Fix aggregation queries misrouted to multistep workflows
 
 **What changed**:

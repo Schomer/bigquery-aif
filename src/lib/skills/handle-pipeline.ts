@@ -7,7 +7,7 @@ import { compose } from '../composer';
 import { getAccessToken } from '../gis-auth';
 import { dryRun } from '../bigquery-client';
 import { formatBytes } from '@/lib/format';
-import type { CompositionEnvelope, PipelineResult, StatusCallback } from '../types';
+import type { ChatMessage, CompositionEnvelope, PipelineResult, SkillManifest, StatusCallback } from '../types';
 
 // -- Data Transfer API helpers ------------------------------------------------
 
@@ -74,6 +74,7 @@ const PipelineIntentSchema = {
 
 export async function handlePipeline(
   message: string,
+  _history: ChatMessage[],
   context?: {
     project?: string;
     dataset?: string;
@@ -544,7 +545,7 @@ Project: ${project}, dataset: ${dataset || 'default'}`,
   }
 
   // Fallback: list schedules
-  return handlePipeline('list my scheduled queries', context, onStatus);
+  return handlePipeline('list my scheduled queries', [], context, onStatus);
 }
 
 // -- Helpers ------------------------------------------------------------------
@@ -560,3 +561,44 @@ function extractRunId(resourceName: string): string {
   const parts = resourceName.split('/');
   return parts[parts.length - 1] || resourceName;
 }
+
+// ─── Skill manifest ───────────────────────────────────────────────────────────
+
+export const manifest: SkillManifest = {
+  skill: 'pipeline',
+  label: 'pipeline management',
+  signals: [
+    { phrase: 'show my schedules', weight: 3 },
+    { phrase: 'show my scheduled queries', weight: 3 },
+    { phrase: 'list schedules', weight: 3 },
+    { phrase: 'list scheduled queries', weight: 3 },
+    { phrase: "what's scheduled", weight: 3 },
+    { phrase: 'what is scheduled', weight: 3 },
+    { phrase: 'scheduled to run', weight: 3 },
+    { phrase: 'create a pipeline', weight: 3 },
+    { phrase: 'set up a pipeline', weight: 3 },
+    { phrase: 'build a pipeline', weight: 3 },
+    { phrase: 'data pipeline', weight: 3 },
+    { phrase: 'transfer config', weight: 3 },
+    { phrase: 'data transfer', weight: 3 },
+    { phrase: 'run history', weight: 3 },
+    { phrase: 'run every', weight: 3 },
+    { phrase: 'run daily', weight: 3 },
+    { phrase: 'run weekly', weight: 3 },
+    { phrase: 'run monthly', weight: 3 },
+    { phrase: 'make this recurring', weight: 3 },
+    { phrase: 'delete the schedule', weight: 3 },
+    { phrase: 'remove the schedule', weight: 3 },
+    { phrase: 'update the schedule', weight: 3 },
+    { phrase: 'edit the schedule', weight: 3 },
+    { phrase: 'pipeline', weight: 2 },
+    { phrase: 'automate', weight: 2 },
+    { phrase: 'workflow', weight: 2 },
+    { phrase: 'etl', weight: 2 },
+    { phrase: 'every day', weight: 2 },
+    { phrase: 'every hour', weight: 2 },
+    { phrase: 'recurring', weight: 2 },
+    { phrase: 'schedule', weight: 1 },
+  ],
+  handle: handlePipeline,
+};

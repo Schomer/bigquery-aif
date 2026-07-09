@@ -6,7 +6,7 @@ import { callGemini } from '../gemini-client';
 import { getAvailableDatasets, resolveDefaultDatasetFromList, extractDatasetFromMessage } from '../orchestrator-utils';
 import { executeQuery } from '../bigquery-client';
 import { compose } from '../composer';
-import type { CompositionEnvelope, GovernanceResult, StatusCallback } from '../types';
+import type { ChatMessage, CompositionEnvelope, GovernanceResult, SkillManifest, StatusCallback } from '../types';
 
 // -- Gemini schema for governance intent classification --
 
@@ -22,6 +22,7 @@ const GovernanceIntentSchema = {
 
 export async function handleGovernance(
   message: string,
+  _history: ChatMessage[],
   context?: { project?: string; dataset?: string; lastTable?: string; resolvedDataset?: string; availableDatasets?: string[]; handoffContext?: Record<string, unknown> },
   onStatus?: StatusCallback,
 ): Promise<CompositionEnvelope[]> {
@@ -465,3 +466,36 @@ ${table ? `AND table_name = '${table}'` : ''}`;
   };
   return [compose('governance', result)];
 }
+
+// ─── Skill manifest ───────────────────────────────────────────────────────────
+
+export const manifest: SkillManifest = {
+  skill: 'governance',
+  label: 'governance check',
+  signals: [
+    { phrase: 'who has access', weight: 3 },
+    { phrase: 'who can access', weight: 3 },
+    { phrase: 'show permissions', weight: 3 },
+    { phrase: 'access control', weight: 3 },
+    { phrase: 'row-level security', weight: 3 },
+    { phrase: 'column permissions', weight: 3 },
+    { phrase: 'data masking', weight: 3 },
+    { phrase: 'data classification', weight: 3 },
+    { phrase: 'sensitive data', weight: 3 },
+    { phrase: 'PII', weight: 3 },
+    { phrase: 'policy tags', weight: 3 },
+    { phrase: 'compliance', weight: 3 },
+    { phrase: 'audit access', weight: 3 },
+    { phrase: 'access audit', weight: 3 },
+    { phrase: 'privacy', weight: 2 },
+    { phrase: 'security posture', weight: 3 },
+    { phrase: 'security', weight: 2 },
+    { phrase: 'IAM', weight: 2 },
+    { phrase: 'roles', weight: 2 },
+    { phrase: 'grants', weight: 2 },
+    { phrase: 'govern', weight: 2 },
+    { phrase: 'policy', weight: 2 },
+    { phrase: 'audit', weight: 2 },
+  ],
+  handle: handleGovernance,
+};

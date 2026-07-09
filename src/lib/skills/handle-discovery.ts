@@ -8,7 +8,7 @@ import { fetchSchema } from './schema';
 import { executeQuery, detectBqRegion } from '../bigquery-client';
 import { compose } from '../composer';
 import type {
-  CompositionEnvelope, DiscoveryResult, DiscoverySearchResult, StatusCallback,
+  ChatMessage, CompositionEnvelope, DiscoveryResult, DiscoverySearchResult, SkillManifest, StatusCallback,
   LineageNode, LineageEdge, ErTableInfo, ErRelationship, ErDiagramData,
 } from '../types';
 
@@ -16,6 +16,7 @@ import type {
 
 export async function handleDiscovery(
   message: string,
+  _history: ChatMessage[],
   context?: { project?: string; dataset?: string; handoffContext?: Record<string, unknown> },
   onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
@@ -384,3 +385,28 @@ export async function handleDiscovery(
   };
   return [compose('discovery', result)];
 }
+
+// ─── Skill manifest ───────────────────────────────────────────────────────────
+
+export const manifest: SkillManifest = {
+  skill: 'discovery',
+  label: 'discovery search',
+  signals: [
+    { phrase: 'search', weight: 2 },
+    { phrase: 'find a table', weight: 3 },
+    { phrase: 'find tables', weight: 3 },
+    { phrase: 'compare', weight: 3 },
+    { phrase: 'lineage', weight: 3 },
+    { phrase: 'where does this come from', weight: 3 },
+    { phrase: 'what depends on', weight: 3 },
+    { phrase: 'related to', weight: 2 },
+    { phrase: 'er diagram', weight: 3 },
+    { phrase: 'entity relationship', weight: 3 },
+    { phrase: 'table relationships', weight: 3 },
+    { phrase: 'how are tables related', weight: 3 },
+    { phrase: 'relationships between', weight: 3 },
+    { phrase: 'foreign keys in', weight: 3 },
+    { phrase: 'show relationships', weight: 3 },
+  ],
+  handle: handleDiscovery,
+};

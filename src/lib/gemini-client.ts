@@ -3,6 +3,7 @@
 // Extracted from chat-orchestrator.ts for shared use by all skill handlers.
 
 import { getAccessToken } from './gis-auth';
+import { SKILL_NAMES } from './skills';
 
 // ─── System instructions ──────────────────────────────────────────────────────
 
@@ -298,26 +299,39 @@ export const DataLoadingIntentSchema = {
   required: ['operationType']
 };
 
-export const IntentClassifierSchema = {
-  type: 'OBJECT',
-  properties: {
-    isMultistep: { type: 'BOOLEAN' },
-    skill: { type: 'STRING', enum: ['schema', 'query', 'data-management', 'data-quality', 'discovery', 'monitoring', 'data-loading', 'pipeline', 'task', 'governance'] },
-    steps: {
-      type: 'ARRAY',
-      items: {
-        type: 'OBJECT',
-        properties: {
-          skill: { type: 'STRING', enum: ['schema', 'query', 'data-management', 'data-quality', 'discovery', 'monitoring', 'data-loading', 'pipeline', 'task', 'governance'] },
-          description: { type: 'STRING' },
-          prompt: { type: 'STRING' }
-        },
-        required: ['skill', 'description', 'prompt']
+// Built as a function to avoid circular import timing issues
+// (gemini-client -> skills/index -> handle-*.ts -> gemini-client)
+let _intentClassifierSchema: ReturnType<typeof buildIntentClassifierSchema> | null = null;
+
+function buildIntentClassifierSchema() {
+  return {
+    type: 'OBJECT' as const,
+    properties: {
+      isMultistep: { type: 'BOOLEAN' as const },
+      skill: { type: 'STRING' as const, enum: SKILL_NAMES },
+      steps: {
+        type: 'ARRAY' as const,
+        items: {
+          type: 'OBJECT' as const,
+          properties: {
+            skill: { type: 'STRING' as const, enum: SKILL_NAMES },
+            description: { type: 'STRING' as const },
+            prompt: { type: 'STRING' as const }
+          },
+          required: ['skill', 'description', 'prompt']
+        }
       }
-    }
+    },
+    required: ['isMultistep', 'skill']
+  };
+}
+
+export const IntentClassifierSchema = new Proxy({} as ReturnType<typeof buildIntentClassifierSchema>, {
+  get(_target, prop) {
+    if (!_intentClassifierSchema) _intentClassifierSchema = buildIntentClassifierSchema();
+    return (_intentClassifierSchema as any)[prop];
   },
-  required: ['isMultistep', 'skill']
-};
+});
 
 export const EnrichedSchemaQuerySchema = {
   type: 'OBJECT',

@@ -8,7 +8,7 @@ import { getAvailableDatasets, resolveDefaultDatasetFromList, extractDatasetFrom
 import { fetchSchema } from './schema';
 import { dryRun, executeQuery, executeDml } from '../bigquery-client';
 import { compose } from '../composer';
-import type { ChatMessage, CompositionEnvelope, DataManagementResult, StatusCallback } from '../types';
+import type { ChatMessage, CompositionEnvelope, DataManagementResult, SkillManifest, StatusCallback } from '../types';
 
 export async function handleDataManagement(
   message: string,
@@ -273,3 +273,12 @@ export async function executeConfirmedOperation(
 
   return [compose('data-management', completeResult)];
 }
+
+// ─── Skill manifest ───────────────────────────────────────────────────────────
+
+export const manifest: SkillManifest = {
+  skill: 'data-management',
+  label: 'data management',
+  signals: [],
+  handle: handleDataManagement,
+};

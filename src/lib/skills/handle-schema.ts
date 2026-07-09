@@ -7,7 +7,7 @@ import { getAvailableDatasets, resolveDefaultDataset, extractDatasetFromMessage,
 import { fetchSchema } from './schema';
 import { executeQuery, detectBqRegion } from '../bigquery-client';
 import { compose } from '../composer';
-import type { CompositionEnvelope, QueryResult, StatusCallback } from '../types';
+import type { ChatMessage, CompositionEnvelope, QueryResult, SkillManifest, StatusCallback } from '../types';
 
 // Keyword-based scope classifier -- avoids a Gemini round-trip for obvious cases.
 const DATASET_LIST_SIGNALS = [
@@ -226,6 +226,7 @@ function extractSchemaIdentifiers(
 
 export async function handleSchema(
   message: string,
+  _history: ChatMessage[],
   context?: { project?: string; dataset?: string; availableDatasets?: string[] },
   onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
@@ -418,3 +419,55 @@ Rules:
   const envelope = compose('schema', result);
   return [envelope];
 }
+
+// ─── Skill manifest ───────────────────────────────────────────────────────────
+
+export const manifest: SkillManifest = {
+  skill: 'schema',
+  label: 'schema lookup',
+  signals: [
+    { phrase: 'schema', weight: 3 },
+    { phrase: 'describe', weight: 3 },
+    { phrase: 'what fields', weight: 3 },
+    { phrase: 'what tables', weight: 3 },
+    { phrase: 'what datasets', weight: 3 },
+    { phrase: 'what is in', weight: 3 },
+    { phrase: "what's in", weight: 3 },
+    { phrase: 'structure', weight: 2 },
+    { phrase: 'type of', weight: 2 },
+    { phrase: 'data type', weight: 3 },
+    { phrase: 'list tables', weight: 3 },
+    { phrase: 'show tables', weight: 3 },
+    { phrase: 'list datasets', weight: 3 },
+    { phrase: 'show columns', weight: 3 },
+    { phrase: 'list columns', weight: 3 },
+    { phrase: 'what columns', weight: 3 },
+    { phrase: 'column types', weight: 3 },
+    { phrase: 'list of datasets', weight: 3 },
+    { phrase: 'list of tables', weight: 3 },
+    { phrase: 'show datasets', weight: 3 },
+    { phrase: 'datasets in', weight: 3 },
+    { phrase: 'tables in', weight: 3 },
+    { phrase: 'datasets of', weight: 2 },
+    { phrase: 'tables of', weight: 2 },
+    { phrase: 'list all datasets', weight: 3 },
+    { phrase: 'list all tables', weight: 3 },
+    { phrase: 'show me datasets', weight: 3 },
+    { phrase: 'show me the datasets', weight: 3 },
+    { phrase: 'show me tables', weight: 3 },
+    { phrase: 'show me the tables', weight: 3 },
+    { phrase: 'list of all datasets', weight: 3 },
+    { phrase: 'list of all tables', weight: 3 },
+    { phrase: 'tell me more', weight: 2 },
+    { phrase: 'show me more about', weight: 2 },
+    { phrase: 'more about', weight: 1 },
+    { phrase: 'tell me about', weight: 2 },
+    { phrase: 'inspect', weight: 2 },
+    { phrase: 'details about', weight: 2 },
+    { phrase: 'explore', weight: 1 },
+    { phrase: 'look at', weight: 1 },
+    { phrase: 'find the', weight: 1 },
+    { phrase: 'find dataset', weight: 2 },
+  ],
+  handle: handleSchema,
+};

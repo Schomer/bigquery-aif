@@ -6,10 +6,11 @@ import { callGemini, DataLoadingIntentSchema } from '../gemini-client';
 import { executeQuery, exportToSheets, createScheduledQuery } from '../bigquery-client';
 import { compose } from '../composer';
 import { saveQuery as firestoreSaveQuery } from '../firestore-service';
-import type { CompositionEnvelope, DataLoadingResult, StatusCallback } from '../types';
+import type { ChatMessage, CompositionEnvelope, DataLoadingResult, SkillManifest, StatusCallback } from '../types';
 
 export async function handleDataLoading(
   message: string,
+  _history: ChatMessage[],
   context?: { project?: string; dataset?: string; lastTable?: string; uid?: string; handoffContext?: Record<string, unknown> },
   onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
@@ -230,3 +231,31 @@ export async function handleDataLoading(
   };
   return [compose('data-loading', result)];
 }
+
+// ─── Skill manifest ───────────────────────────────────────────────────────────
+
+export const manifest: SkillManifest = {
+  skill: 'data-loading',
+  label: 'data export',
+  signals: [
+    { phrase: 'export', weight: 2 },
+    { phrase: 'download', weight: 2 },
+    { phrase: 'schedule', weight: 2 },
+    { phrase: 'recurring', weight: 2 },
+    { phrase: 'save this query', weight: 3 },
+    { phrase: 'save this', weight: 2 },
+    { phrase: 'save query', weight: 3 },
+    { phrase: 'send to sheets', weight: 3 },
+    { phrase: 'google sheets', weight: 3 },
+    { phrase: 'export to sheets', weight: 3 },
+    { phrase: 'share this', weight: 3 },
+    { phrase: 'share results', weight: 3 },
+    { phrase: 'copy results', weight: 3 },
+    { phrase: 'connect to', weight: 2 },
+    { phrase: 'load from', weight: 2 },
+    { phrase: 'upload', weight: 2 },
+    { phrase: 'csv', weight: 2 },
+    { phrase: 'json export', weight: 3 },
+  ],
+  handle: handleDataLoading,
+};

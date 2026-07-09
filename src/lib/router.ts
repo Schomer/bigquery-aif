@@ -8,6 +8,7 @@
 // confidence drops to 'medium' so the LLM classifier can break the tie.
 
 import type { SkillName, HandoffEnvelope } from './types';
+import { SKILL_MANIFESTS } from './skills';
 
 // ─── Skill selection signals ──────────────────────────────────────────────────
 
@@ -38,340 +39,7 @@ const MUTATING_VERB_PATTERNS = MUTATING_VERBS.map((verb) => {
   return new RegExp(`\\b${escaped}${suffix}`, 'i');
 });
 
-// Data quality signals — uses multi-word phrases for ambiguous words.
-// Single words like "duplicate", "clean", "profile" are too ambiguous on their own
-// and now route through the scoring system or are handled as verbs above.
-const DATA_QUALITY_SIGNALS: Array<{ phrase: string; weight: number }> = [
-  // High-weight: unambiguous data-quality intent
-  { phrase: 'data quality', weight: 3 },
-  { phrase: 'data profile', weight: 3 },
-  { phrase: 'column profile', weight: 3 },
-  { phrase: 'null rate', weight: 3 },
-  { phrase: 'null analysis', weight: 3 },
-  { phrase: 'how many nulls', weight: 3 },
-  { phrase: 'check for nulls', weight: 3 },
-  { phrase: 'find duplicates', weight: 3 },
-  { phrase: 'check for duplicates', weight: 3 },
-  { phrase: 'duplicate rows', weight: 3 },
-  { phrase: 'duplicate detection', weight: 3 },
-  { phrase: 'are there duplicates', weight: 3 },
-  { phrase: 'referential integrity', weight: 3 },
-  { phrase: 'schema drift', weight: 3 },
-  { phrase: 'schema change', weight: 3 },
-  { phrase: 'value range', weight: 3 },
-  { phrase: 'out of range', weight: 3 },
-  { phrase: 'range validation', weight: 3 },
-  { phrase: 'completeness audit', weight: 3 },
-  { phrase: 'data completeness', weight: 3 },
-  { phrase: 'how complete', weight: 3 },
-  // Medium-weight: likely data-quality but could be part of other contexts
-  { phrase: 'profile the', weight: 2 },
-  { phrase: 'profile this', weight: 2 },
-  { phrase: 'quality', weight: 2 },
-  { phrase: 'freshness', weight: 2 },
-  { phrase: 'validate', weight: 2 },
-  { phrase: 'completeness', weight: 2 },
-  { phrase: 'drift', weight: 2 },
-  { phrase: 'integrity', weight: 2 },
-  // Low-weight: ambiguous single words — only tip the balance, don't decide alone
-  { phrase: 'nulls', weight: 1 },
-  { phrase: 'outlier', weight: 1 },
-  { phrase: 'anomaly', weight: 1 },
-  { phrase: 'invalid', weight: 1 },
-];
 
-// All non-mutating signal lists now use the same weighted structure.
-// Phrases are matched with word boundaries to avoid substring false positives.
-const SCHEMA_SIGNALS: Array<{ phrase: string; weight: number }> = [
-  // High-weight: unambiguous schema/metadata intent
-  { phrase: 'schema', weight: 3 },
-  { phrase: 'describe', weight: 3 },
-  { phrase: 'what fields', weight: 3 },
-  { phrase: 'what tables', weight: 3 },
-  { phrase: 'what datasets', weight: 3 },
-  { phrase: 'what is in', weight: 3 },
-  { phrase: "what's in", weight: 3 },
-  { phrase: 'structure', weight: 2 },
-  { phrase: 'type of', weight: 2 },
-  { phrase: 'data type', weight: 3 },
-  { phrase: 'list tables', weight: 3 },
-  { phrase: 'show tables', weight: 3 },
-  { phrase: 'list datasets', weight: 3 },
-  { phrase: 'show columns', weight: 3 },
-  { phrase: 'list columns', weight: 3 },
-  { phrase: 'what columns', weight: 3 },
-  { phrase: 'column types', weight: 3 },
-  { phrase: 'list of datasets', weight: 3 },
-  { phrase: 'list of tables', weight: 3 },
-  { phrase: 'show datasets', weight: 3 },
-  { phrase: 'datasets in', weight: 3 },
-  { phrase: 'tables in', weight: 3 },
-  { phrase: 'datasets of', weight: 2 },
-  { phrase: 'tables of', weight: 2 },
-  { phrase: 'list all datasets', weight: 3 },
-  { phrase: 'list all tables', weight: 3 },
-  { phrase: 'show me datasets', weight: 3 },
-  { phrase: 'show me the datasets', weight: 3 },
-  { phrase: 'show me tables', weight: 3 },
-  { phrase: 'show me the tables', weight: 3 },
-  { phrase: 'list of all datasets', weight: 3 },
-  { phrase: 'list of all tables', weight: 3 },
-  // Natural click-through phrases
-  { phrase: 'tell me more', weight: 2 },
-  { phrase: 'show me more about', weight: 2 },
-  { phrase: 'more about', weight: 1 },
-  { phrase: 'tell me about', weight: 2 },
-  { phrase: 'inspect', weight: 2 },
-  { phrase: 'details about', weight: 2 },
-  { phrase: 'explore', weight: 1 },
-  { phrase: 'look at', weight: 1 },
-  // Lookup-by-name phrases
-  { phrase: 'find the', weight: 1 },
-  { phrase: 'find dataset', weight: 2 },
-];
-
-const DISCOVERY_SIGNALS: Array<{ phrase: string; weight: number }> = [
-  { phrase: 'search', weight: 2 },
-  { phrase: 'find a table', weight: 3 },
-  { phrase: 'find tables', weight: 3 },
-  { phrase: 'compare', weight: 3 },
-  { phrase: 'lineage', weight: 3 },
-  { phrase: 'where does this come from', weight: 3 },
-  { phrase: 'what depends on', weight: 3 },
-  { phrase: 'related to', weight: 2 },
-  { phrase: 'er diagram', weight: 3 },
-  { phrase: 'entity relationship', weight: 3 },
-  { phrase: 'table relationships', weight: 3 },
-  { phrase: 'how are tables related', weight: 3 },
-  { phrase: 'relationships between', weight: 3 },
-  { phrase: 'foreign keys in', weight: 3 },
-  { phrase: 'show relationships', weight: 3 },
-];
-
-const MONITORING_SIGNALS: Array<{ phrase: string; weight: number }> = [
-  { phrase: 'slow query', weight: 3 },
-  { phrase: 'expensive query', weight: 3 },
-  { phrase: 'expensive job', weight: 3 },
-  { phrase: 'expensive queries', weight: 3 },
-  { phrase: 'slot', weight: 2 },
-  { phrase: 'slot usage', weight: 3 },
-  { phrase: 'failed job', weight: 3 },
-  { phrase: 'failed jobs', weight: 3 },
-  { phrase: 'job failed', weight: 3 },
-  { phrase: 'who ran', weight: 3 },
-  { phrase: 'job status', weight: 3 },
-  { phrase: 'query cost', weight: 3 },
-  { phrase: 'storage cost', weight: 3 },
-  { phrase: 'storage analysis', weight: 3 },
-  { phrase: 'table storage', weight: 3 },
-  { phrase: 'how much storage', weight: 3 },
-  { phrase: 'performance', weight: 2 },
-  { phrase: 'recent queries', weight: 3 },
-  { phrase: 'recent jobs', weight: 3 },
-  { phrase: 'recent job', weight: 3 },
-  { phrase: 'what failed', weight: 3 },
-  { phrase: 'did that job', weight: 2 },
-  { phrase: 'show jobs', weight: 3 },
-  { phrase: 'job history', weight: 3 },
-  { phrase: 'job list', weight: 3 },
-  { phrase: "what's running", weight: 3 },
-  { phrase: 'is running', weight: 2 },
-  { phrase: 'did it finish', weight: 2 },
-  { phrase: 'did the job', weight: 2 },
-  { phrase: 'tell me more about job', weight: 3 },
-  { phrase: 'diagnose', weight: 2 },
-  { phrase: 'query plan', weight: 3 },
-  { phrase: 'optimize', weight: 2 },
-  { phrase: 'alert', weight: 2 },
-  { phrase: 'threshold', weight: 2 },
-  { phrase: 'notify', weight: 2 },
-  { phrase: 'notification', weight: 2 },
-  { phrase: 'watch', weight: 2 },
-  { phrase: 'storage breakdown', weight: 3 },
-  { phrase: 'disk usage', weight: 3 },
-  { phrase: 'largest tables', weight: 3 },
-  { phrase: 'storage treemap', weight: 3 },
-  { phrase: 'which tables are largest', weight: 3 },
-  { phrase: 'access patterns', weight: 3 },
-  { phrase: 'who uses', weight: 3 },
-  { phrase: 'most queried', weight: 3 },
-  { phrase: 'who queries', weight: 3 },
-  { phrase: 'table usage', weight: 3 },
-  { phrase: 'cost analysis', weight: 3 },
-  { phrase: 'how much am i spending', weight: 3 },
-  { phrase: 'query costs over time', weight: 3 },
-  { phrase: 'cost breakdown', weight: 3 },
-  { phrase: 'spending', weight: 2 },
-  { phrase: 'freshness', weight: 3 },
-  { phrase: 'stale tables', weight: 3 },
-  { phrase: 'when was table last updated', weight: 3 },
-  { phrase: 'data freshness', weight: 3 },
-  { phrase: 'outdated tables', weight: 3 },
-];
-
-const DATA_LOADING_SIGNALS: Array<{ phrase: string; weight: number }> = [
-  { phrase: 'export', weight: 2 },
-  { phrase: 'download', weight: 2 },
-  { phrase: 'schedule', weight: 2 },
-  { phrase: 'recurring', weight: 2 },
-  { phrase: 'save this query', weight: 3 },
-  { phrase: 'save this', weight: 2 },
-  { phrase: 'save query', weight: 3 },
-  { phrase: 'send to sheets', weight: 3 },
-  { phrase: 'google sheets', weight: 3 },
-  { phrase: 'export to sheets', weight: 3 },
-  { phrase: 'share this', weight: 3 },
-  { phrase: 'share results', weight: 3 },
-  { phrase: 'copy results', weight: 3 },
-  { phrase: 'connect to', weight: 2 },
-  { phrase: 'load from', weight: 2 },
-  { phrase: 'upload', weight: 2 },
-  { phrase: 'csv', weight: 2 },
-  { phrase: 'json export', weight: 3 },
-];
-
-const QUERY_SIGNALS: Array<{ phrase: string; weight: number }> = [
-  // Common analytical / aggregation phrases
-  { phrase: 'how many', weight: 3 },
-  { phrase: 'total', weight: 2 },
-  { phrase: 'sum of', weight: 3 },
-  { phrase: 'average', weight: 2 },
-  { phrase: 'count of', weight: 3 },
-  { phrase: 'biggest', weight: 2 },
-  { phrase: 'smallest', weight: 2 },
-  { phrase: 'highest', weight: 2 },
-  { phrase: 'lowest', weight: 2 },
-  { phrase: 'most', weight: 2 },
-  { phrase: 'least', weight: 2 },
-  { phrase: 'top', weight: 2 },
-  { phrase: 'bottom', weight: 2 },
-  { phrase: 'maximum', weight: 2 },
-  { phrase: 'minimum', weight: 2 },
-  { phrase: 'breakdown', weight: 2 },
-  { phrase: 'group by', weight: 3 },
-  { phrase: 'over time', weight: 2 },
-  { phrase: 'trend', weight: 2 },
-  { phrase: 'per month', weight: 3 },
-  { phrase: 'per week', weight: 3 },
-  { phrase: 'per year', weight: 3 },
-  { phrase: 'per day', weight: 3 },
-  { phrase: 'by month', weight: 3 },
-  { phrase: 'by week', weight: 3 },
-  { phrase: 'by year', weight: 3 },
-  // BigQuery ML read-path functions
-  { phrase: 'predict', weight: 2 },
-  { phrase: 'ML.PREDICT', weight: 3 },
-  { phrase: 'forecast', weight: 2 },
-  { phrase: 'classify', weight: 2 },
-  { phrase: 'cluster', weight: 2 },
-  { phrase: 'evaluate model', weight: 3 },
-  { phrase: 'model accuracy', weight: 3 },
-  { phrase: 'ML.EVALUATE', weight: 3 },
-  { phrase: 'explain prediction', weight: 3 },
-  { phrase: 'feature importance', weight: 3 },
-  { phrase: 'ML.EXPLAIN_PREDICT', weight: 3 },
-  { phrase: 'list models', weight: 3 },
-  { phrase: 'show models', weight: 3 },
-  { phrase: 'what models', weight: 3 },
-  { phrase: 'AI.GENERATE_TEXT', weight: 3 },
-  { phrase: 'AI.FORECAST', weight: 3 },
-  { phrase: 'AI.DETECT_ANOMALIES', weight: 3 },
-];
-
-const TASK_SIGNALS: Array<{ phrase: string; weight: number }> = [
-  // High-weight: unambiguous task/workflow intent
-  { phrase: 'batch translation', weight: 3 },
-  { phrase: 'translate sql', weight: 3 },
-  { phrase: 'convert sql', weight: 3 },
-  { phrase: 'migrate from', weight: 3 },
-  { phrase: 'translate my', weight: 3 },
-  { phrase: 'guide me through', weight: 3 },
-  { phrase: 'walk me through', weight: 3 },
-  { phrase: 'help me set up', weight: 3 },
-  { phrase: 'set up a transfer', weight: 3 },
-  { phrase: 'load data from', weight: 3 },
-  { phrase: 'configure a connection', weight: 3 },
-  { phrase: 'import data', weight: 3 },
-  { phrase: 'translate these', weight: 3 },
-  { phrase: 'translate some', weight: 3 },
-  { phrase: 'batch translate', weight: 3 },
-  { phrase: 'sql files', weight: 3 },
-  { phrase: 'into google sql', weight: 3 },
-  { phrase: 'to googlesql', weight: 3 },
-  { phrase: 'to bigquery sql', weight: 3 },
-  // Medium-weight: likely task but could overlap with other skills
-  { phrase: 'step by step', weight: 2 },
-  { phrase: 'translate', weight: 2 },
-  { phrase: 'convert', weight: 2 },
-  { phrase: 'migration', weight: 2 },
-  { phrase: 'how do i', weight: 2 },
-  { phrase: 'transfer', weight: 2 },
-];
-
-const PIPELINE_SIGNALS: Array<{ phrase: string; weight: number }> = [
-  // High-weight: unambiguous pipeline/schedule management intent
-  { phrase: 'show my schedules', weight: 3 },
-  { phrase: 'show my scheduled queries', weight: 3 },
-  { phrase: 'list schedules', weight: 3 },
-  { phrase: 'list scheduled queries', weight: 3 },
-  { phrase: "what's scheduled", weight: 3 },
-  { phrase: 'what is scheduled', weight: 3 },
-  { phrase: 'scheduled to run', weight: 3 },
-  { phrase: 'create a pipeline', weight: 3 },
-  { phrase: 'set up a pipeline', weight: 3 },
-  { phrase: 'build a pipeline', weight: 3 },
-  { phrase: 'data pipeline', weight: 3 },
-  { phrase: 'transfer config', weight: 3 },
-  { phrase: 'data transfer', weight: 3 },
-  { phrase: 'run history', weight: 3 },
-  { phrase: 'run every', weight: 3 },
-  { phrase: 'run daily', weight: 3 },
-  { phrase: 'run weekly', weight: 3 },
-  { phrase: 'run monthly', weight: 3 },
-  { phrase: 'make this recurring', weight: 3 },
-  { phrase: 'delete the schedule', weight: 3 },
-  { phrase: 'remove the schedule', weight: 3 },
-  { phrase: 'update the schedule', weight: 3 },
-  { phrase: 'edit the schedule', weight: 3 },
-  // Medium-weight: likely pipeline but could overlap
-  { phrase: 'pipeline', weight: 2 },
-  { phrase: 'automate', weight: 2 },
-  { phrase: 'workflow', weight: 2 },
-  { phrase: 'etl', weight: 2 },
-  { phrase: 'every day', weight: 2 },
-  { phrase: 'every hour', weight: 2 },
-  { phrase: 'recurring', weight: 2 },
-  { phrase: 'schedule', weight: 1 },
-];
-
-const GOVERNANCE_SIGNALS: Array<{ phrase: string; weight: number }> = [
-  // High-weight: unambiguous governance/security intent
-  { phrase: 'who has access', weight: 3 },
-  { phrase: 'who can access', weight: 3 },
-  { phrase: 'show permissions', weight: 3 },
-  { phrase: 'access control', weight: 3 },
-  { phrase: 'row-level security', weight: 3 },
-  { phrase: 'column permissions', weight: 3 },
-  { phrase: 'data masking', weight: 3 },
-  { phrase: 'data classification', weight: 3 },
-  { phrase: 'sensitive data', weight: 3 },
-  { phrase: 'PII', weight: 3 },
-  { phrase: 'policy tags', weight: 3 },
-  { phrase: 'compliance', weight: 3 },
-  { phrase: 'audit access', weight: 3 },
-  { phrase: 'access audit', weight: 3 },
-  { phrase: 'privacy', weight: 2 },
-  { phrase: 'security posture', weight: 3 },
-  { phrase: 'security', weight: 2 },
-  // Medium-weight
-  { phrase: 'IAM', weight: 2 },
-  { phrase: 'roles', weight: 2 },
-  { phrase: 'grants', weight: 2 },
-  { phrase: 'govern', weight: 2 },
-  { phrase: 'policy', weight: 2 },
-  // Verb triggers
-  { phrase: 'audit', weight: 2 },
-];
 
 // ─── Scoring engine ───────────────────────────────────────────────────────────
 
@@ -474,7 +142,8 @@ export function classifyIntent(
     // Check for conflicting quality signals (e.g., "find duplicates" contains
     // "duplicate" which is now a mutating verb, but the full phrase signals quality).
     // Multi-word quality phrases take precedence over single-word verb matches.
-    const qualityScore = scoreSignals(lower, DATA_QUALITY_SIGNALS);
+    const dqManifest = SKILL_MANIFESTS.find(m => m.skill === 'data-quality');
+    const qualityScore = dqManifest ? scoreSignals(lower, dqManifest.signals) : 0;
     if (qualityScore >= 3) {
       // Strong quality signal present alongside a mutating verb — ambiguous.
       // Let the LLM decide.
@@ -512,18 +181,15 @@ export function classifyIntent(
 
   // ── Scored multi-signal classification ──────────────────────────────────────
   // Score each skill based on weighted signal matches, then pick the winner.
+  // Signals are loaded from skill manifests -- adding a new skill's signals
+  // to its handler manifest automatically includes it in routing.
 
-  const scores: Record<string, number> = {
-    'query': scoreSignals(lower, QUERY_SIGNALS),
-    'data-quality': scoreSignals(lower, DATA_QUALITY_SIGNALS),
-    'monitoring': scoreSignals(lower, MONITORING_SIGNALS),
-    'schema': scoreSignals(lower, SCHEMA_SIGNALS),
-    'discovery': scoreSignals(lower, DISCOVERY_SIGNALS),
-    'data-loading': scoreSignals(lower, DATA_LOADING_SIGNALS),
-    'task': scoreSignals(lower, TASK_SIGNALS),
-    'pipeline': scoreSignals(lower, PIPELINE_SIGNALS),
-    'governance': scoreSignals(lower, GOVERNANCE_SIGNALS),
-  };
+  const scores: Record<string, number> = {};
+  for (const m of SKILL_MANIFESTS) {
+    if (m.signals.length > 0) {
+      scores[m.skill] = scoreSignals(lower, m.signals);
+    }
+  }
 
   // Apply context-aware boosts
   const boosts = getContextBoosts(lower, conversationContext?.lastSkill);
