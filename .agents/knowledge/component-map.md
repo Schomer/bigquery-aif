@@ -244,7 +244,7 @@ UI Components (src/components/)
 
 ---
 
-### `src/lib/types.ts` (502 lines)
+### `src/lib/types.ts` (535 lines)
 **Responsibility**: All TypeScript interfaces.
 - `SkillName`, `CompositionEnvelope`, `SchemaResult`, `QueryResult`
 - `DataManagementResult`, `DataQualityResult`, `MonitoringResult`
@@ -252,7 +252,46 @@ UI Components (src/components/)
 
 ---
 
+### `src/hooks/useChatOrchestration.ts` (682 lines)
+**Responsibility**: Custom hook encapsulating all chat orchestration state and logic.
+- All chat state: messages, loading, context, contextItems, pinnedEnvelopeId, statusText, lastError, thinkingSteps
+- `sendMessage()` -- main async handler calling ChatOrchestrator.processMessage
+- `handleConfirm()` / `handleCancel()` -- confirmation flow handlers
+- `handleChipClick()` -- next-action chip handler with context merging
+- `handleRunSql()` / `handleInlineClick()` -- inline action helpers
+- Context management: `extractContextFromEnvelope`, `extractContextItems`, `removeContextItem`, `pinEnvelopeContext`, `deriveContextFromItems`
+- Message editing: `startEdit`, `cancelEdit`, `submitEdit`, `rerunMessage`
+- Auth retry: `withAuthRetry` wrapper
+- Conversation persistence: `persistConversation`
+
+---
+
 ## UI Components (`src/components/`)
+
+### `src/components/chat/ChatThread.tsx` (449 lines)
+**Responsibility**: Message rendering loop for the unified (single-pane) layout.
+- Renders user message bubbles with edit mode
+- Renders assistant envelopes via ArtifactCard
+- CrystalBallThinking indicator (rotating phrases)
+- ErrorCard for error display with retry
+- RegenerateButton for re-running prompts
+- Auto-scroll to latest message
+
+### `src/components/chat/ChatInput.tsx` (191 lines)
+**Responsibility**: Reusable input component with context chips.
+- Three variants: `hero` (empty-state centered), `floating` (fixed over chat), `docked` (sidebar bottom)
+- Textarea with auto-resize
+- Send button
+- Context chips row with dismiss
+
+### `src/components/chat/ResultsSidebar.tsx` (564 lines)
+**Responsibility**: Split-layout chat sidebar and results panel.
+- Chat message list with thinking details and artifact link buttons
+- Results panel rendering ArtifactCards
+- Drag handle for resizing sidebar
+- `artifactIcon()` and `envelopeLabel()` helper functions
+- `scrollToResult()` for result navigation
+- Empty-state project selection
 
 | Component | Size | Renders |
 |-----------|------|--------|

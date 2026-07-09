@@ -4,6 +4,27 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-09: Decompose page.tsx monolith into focused components
+
+**What changed**:
+- Extracted the 1,832-line `src/app/page.tsx` into 4 focused modules, reducing it to 399 lines.
+- Created `src/hooks/useChatOrchestration.ts` (682 lines) -- custom hook encapsulating all chat state, message handlers (send/confirm/cancel/chip click/edit/rerun), context management, auth retry, and conversation persistence.
+- Created `src/components/chat/ChatThread.tsx` (449 lines) -- message rendering loop with auto-scroll, edit mode, regenerate buttons, error cards, and CrystalBallThinking indicator.
+- Created `src/components/chat/ChatInput.tsx` (191 lines) -- reusable input component with three variants (hero, floating, docked) covering both unified and split layouts.
+- Created `src/components/chat/ResultsSidebar.tsx` (564 lines) -- split-layout chat sidebar with thinking details, artifact links, and results panel with drag-to-resize.
+- Pure refactoring: zero behavior changes.
+
+**Files created**:
+- `src/hooks/useChatOrchestration.ts`
+- `src/components/chat/ChatThread.tsx`
+- `src/components/chat/ChatInput.tsx`
+- `src/components/chat/ResultsSidebar.tsx`
+
+**Files modified**:
+- `src/app/page.tsx` -- reduced from 1,832 to 399 lines
+
+---
+
 ## 2026-07-09: Expand query, schema, data-management skill prompts
 
 **What changed**:
