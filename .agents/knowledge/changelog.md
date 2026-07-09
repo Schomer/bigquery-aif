@@ -26,6 +26,26 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-09: Add ProvenancePanel and HowItWorksPanel trust features
+
+**What changed**:
+- Created `ProvenancePanel.tsx` -- collapsible panel attached to each ArtifactCard showing SQL (syntax-highlighted), cost breakdown with tier badge, job ID, referenced tables, skill used, quality flags, and freshness. Includes copy-SQL button and BigQuery Console link.
+- Created `HowItWorksPanel.tsx` -- static informational page with 5 collapsible sections: data security, query execution, data changes, AI capabilities (can/cannot table), and cost controls (tier table with dry-run explanation).
+- Wired ProvenancePanel into ArtifactCard bottom. Defaults to collapsed, but expands for monitoring/discovery results.
+- Wired HowItWorksPanel as a nav page via SideNav bottom utility ("How it works" with info icon) and page.tsx routing.
+- Fixed SideNav settings link to properly call setActivePage via onClick handler.
+
+**Files created**:
+- `src/components/ProvenancePanel.tsx`
+- `src/components/HowItWorksPanel.tsx`
+
+**Files modified**:
+- `src/components/ArtifactCard.tsx` -- added ProvenancePanel import and render
+- `src/components/shell/SideNav.tsx` -- added "How it works" nav item, fixed settings onClick
+- `src/app/page.tsx` -- added HowItWorksPanel import, routing, and display-none conditions
+
+---
+
 ## 2026-07-09: Decompose page.tsx monolith into focused components
 
 **What changed**:
