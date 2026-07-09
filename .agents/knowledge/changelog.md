@@ -4,6 +4,24 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-09: Expand query, schema, data-management skill prompts
+
+**What changed**:
+- Expanded all three runtime skill prompt files (`skills/*.md` and `public/skills/*.md`) to cover the full capability set from the design specs in `docs from claude/`.
+- `query.md`: Added follow-up context handling (using prior SQL as base), multi-step query chaining, TABLESAMPLE guidance at Tier 2+, enhanced visualization mapping (heatmap, funnel, geographic, area chart, column chart), DML detection with Data Management handoff, EXTERNAL_QUERY for federated sources, window functions guidance, GEOGRAPHY/STRUCT/ARRAY column handling, headline anti-patterns, and expanded next-action chips.
+- `schema.md`: Added table constraints display (PK/FK), table/dataset labels, partition/clustering actionable guidance, row count and size estimates, routine/UDF listing via INFORMATION_SCHEMA.ROUTINES, schema cache invalidation signals, "show me sample rows" handoff to Query, ER diagram generation from foreign keys, and scope-specific response shapes (PROJECT/DATASET/TABLE/ROUTINE).
+- `data-management.md`: Added full DDL coverage (CREATE TABLE/VIEW/MATERIALIZED VIEW, ALTER TABLE, DROP TABLE/VIEW), dedup pattern with ROW_NUMBER + snapshot-based execution, column operations (ADD/DROP/RENAME/change type), row operations (UPDATE/DELETE with WHERE), MERGE/upsert, table copy/clone, snapshot operations, re-partitioning via CTAS, two-phase execution flow (dry-run, confirmation card, execute), confirmation card format spec, and enriched schema cache invalidation rules.
+
+**Files modified**:
+- `skills/query.md` -- expanded from 84 to ~210 lines
+- `skills/schema.md` -- expanded from 67 to ~140 lines
+- `skills/data-management.md` -- expanded from 106 to ~260 lines
+- `public/skills/query.md` -- copy of skills/query.md
+- `public/skills/schema.md` -- copy of skills/schema.md
+- `public/skills/data-management.md` -- copy of skills/data-management.md
+
+---
+
 ## 2026-07-09: Unify task framework LLM integration, add action shortcuts
 
 **What changed**:

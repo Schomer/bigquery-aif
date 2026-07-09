@@ -284,9 +284,9 @@ UI Components (src/components/)
 ## Skill Documentation
 
 ### Build-time skill definitions (`skills/`)
-- `schema.md` -- Schema skill prompt (67 lines)
-- `query.md` -- Query skill prompt (106 lines)  
-- `data-management.md` -- Data management skill prompt (106 lines)
+- `schema.md` -- Schema skill prompt (~140 lines)
+- `query.md` -- Query skill prompt (~210 lines)  
+- `data-management.md` -- Data management skill prompt (~260 lines)
 
 ### Runtime skill docs (`public/skills/`)
 - Loaded by `loadSkillDoc()` in orchestrator
