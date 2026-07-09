@@ -4,9 +4,12 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { SparkSpinner } from '@/components/SparkSpinner';
 import { ArtifactCard } from '@/components/ArtifactCard';
 import { ConversationSummary } from '@/components/ConversationSummary';
+import { InlineCostConfirm, InlineDmlConfirm } from './InlineConfirmation';
 import type {
   ChatMessage,
   CompositionEnvelope,
+  CostEstimate,
+  DataManagementConfirmResult,
   StepInfo,
   HandoffEnvelope,
   ContextItem,
@@ -417,19 +420,45 @@ export function ChatThread({
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {msg.envelopes?.map((env) => (
-                <ArtifactCard
-                  key={env.id}
-                  envelope={env}
-                  onConfirm={() => onConfirm(env)}
-                  onCancel={() => onCancel(env)}
-                  onChipClick={onChipClick}
-                  onInlineClick={onInlineClick}
-                  onRunSql={onRunSql}
-                  onPin={extractContextItems(env).length > 0 ? onPinContext : undefined}
-                  isPinned={pinnedEnvelopeId === env.id}
-                />
-              ))}
+              {msg.envelopes?.map((env) => {
+                const aType = env.primaryArtifact.type;
+                // Render confirmation envelopes inline in chat
+                if (aType === 'COST_CONFIRM_CARD') {
+                  return (
+                    <InlineCostConfirm
+                      key={env.id}
+                      headline={env.headline.text}
+                      costEstimate={env.primaryArtifact.data as CostEstimate}
+                      onConfirm={() => onConfirm(env)}
+                      onCancel={() => onCancel(env)}
+                    />
+                  );
+                }
+                if (aType === 'CONFIRMATION_CARD') {
+                  return (
+                    <InlineDmlConfirm
+                      key={env.id}
+                      headline={env.headline.text}
+                      result={env.primaryArtifact.data as DataManagementConfirmResult}
+                      onConfirm={() => onConfirm(env)}
+                      onCancel={() => onCancel(env)}
+                    />
+                  );
+                }
+                return (
+                  <ArtifactCard
+                    key={env.id}
+                    envelope={env}
+                    onConfirm={() => onConfirm(env)}
+                    onCancel={() => onCancel(env)}
+                    onChipClick={onChipClick}
+                    onInlineClick={onInlineClick}
+                    onRunSql={onRunSql}
+                    onPin={extractContextItems(env).length > 0 ? onPinContext : undefined}
+                    isPinned={pinnedEnvelopeId === env.id}
+                  />
+                );
+              })}
               {!msg.envelopes && msg.content && (
                 <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>
                   {typeof msg.content === 'string' ? msg.content : String(msg.content)}

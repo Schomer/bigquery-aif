@@ -4,6 +4,27 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-09: BigQuery ML read path + Saved Work system
+
+**What changed**:
+- Added QUERY_SIGNALS array to router.ts with 17 ML-specific weighted phrases (ML.PREDICT, ML.EVALUATE, ML.EXPLAIN_PREDICT, AI.GENERATE_TEXT, AI.FORECAST, AI.DETECT_ANOMALIES, etc.)
+- Added 'query' key to the scored classification engine so ML queries route to the query skill with proper confidence
+- Rewrote the ML section in skills/query.md: replaced mixed training+inference section with a structured reference table of read-path-only ML functions, added CRITICAL guard against CREATE MODEL, added ML.EVALUATE visualization guidance, added INFORMATION_SCHEMA.MODELS query for listing models
+- Copied updated query.md to public/skills/query.md
+- Created src/lib/saved-work.ts: unified Firestore persistence layer for saved items (queries, views, checks, setups, pipelines) with saveItem, getItems, getItem, updateItem, deleteItem, getPinnedItems, searchItems
+- Created src/components/SavedWorkLibrary.tsx: full library view with tab filters (All/Queries/Views/Checks/Setups/Pipelines), search bar, sort options, item cards with type badge, SQL preview, pin/unpin, delete with confirmation, and load action
+- Wired SavedWorkLibrary into page.tsx as activePage === 'saved-work' route
+- Added 'Saved Work' nav item in SideNav with 'bookmark' icon (changed Prompts icon to 'bookmarks' to differentiate)
+- Added 'Save this query' chip to query results in composer.ts (via saveAction context flag)
+- Added 'Save this check' chip to data quality results in composer.ts
+- Added save action interception in useChatOrchestration.ts handleChipClick: detects saveAction in chip context, calls saved-work.ts directly, shows confirmation message
+- Fixed pre-existing PipelineView.tsx type errors: Badge children->label prop, confirmation type assertion
+
+**Files modified**: router.ts, skills/query.md, public/skills/query.md, composer.ts, useChatOrchestration.ts, page.tsx, SideNav.tsx, PipelineView.tsx
+**Files created**: saved-work.ts, SavedWorkLibrary.tsx
+
+---
+
 ## 2026-07-09: Add data governance skill
 
 **What changed**:

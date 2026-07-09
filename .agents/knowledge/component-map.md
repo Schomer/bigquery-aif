@@ -48,9 +48,11 @@ UI Components (src/components/)
 
 ## Core Files
 
-### `src/lib/router.ts` (456 lines)
+### `src/lib/router.ts` (508 lines)
 **Responsibility**: Intent classification via weighted keyword scoring.
 - Lines 14-231: Signal lists (MUTATING_VERBS, DATA_QUALITY_SIGNALS, SCHEMA_SIGNALS, etc.)
+- Lines 233-250: QUERY_SIGNALS (ML function phrases for predict/evaluate/forecast)
+- Lines 252-263: TASK_SIGNALS
 - Lines 233-253: `scoreSignals()` -- the scoring engine
 - Lines 255-302: `getContextBoosts()` -- follow-up action pattern matching
 - Lines 316-433: `classifyIntent()` -- main classification function

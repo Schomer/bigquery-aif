@@ -22,6 +22,16 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 
 ---
 
+### 2026-07-09: ML read-path routing and saved work system
+
+**What**: Added QUERY_SIGNALS to the keyword router for ML function phrases (predict, evaluate, forecast, etc.), created a saved work system with Firestore persistence and a library UI, added save chips to query and data quality results.
+
+**Worked**: ML-related queries now score into the query skill via the scoring engine instead of falling through to the no-signal default. Save action interception in handleChipClick uses dynamic import to lazy-load saved-work.ts, avoiding bundle bloat for users who never save. The existing Firestore user-document pattern (merge writes into `users/{uid}`) works cleanly for saved work items.
+
+**Design decision**: Save actions are intercepted in handleChipClick before reaching the orchestrator. This avoids a round-trip through the LLM classifier and keeps saves instant. The `saveAction` flag in the chip context acts as a discriminator.
+
+**Lesson**: When adding a new signal list to the scoring engine, the key in the scores Record must match an existing SkillName value. 'query' was not previously in the scored map because query was the default fallback. Adding it explicitly means ML phrases now outcompete weak signals from other skills.
+
 ### 2026-07-09: Auth retry now re-sends original request after sign-in
 **Scope**: `src/app/page.tsx` L479-492
 **What changed**: The auth error retry function was `signIn` alone, which opened the sign-in popup but dropped the user's original request. Changed it to an async function that calls `signIn()`, and if successful, removes the failed message pair (user + empty assistant) from state and calls `sendMessage(text)` to replay the original request.
