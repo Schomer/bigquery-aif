@@ -166,6 +166,19 @@ export async function callGemini({
   throw new Error('Gemini API overloaded: The model could not be reached after multiple retries.');
 }
 
+// ─── Typed structured output wrapper ──────────────────────────────────────────
+
+/**
+ * Typed wrapper around callGemini for structured output.
+ * Accepts an OpenAPI-style JSON schema (same format the other schemas in this
+ * file use) and returns a typed result. Replaces the need for generateObject
+ * from the ai SDK.
+ */
+export async function callGeminiWithSchema<T>(args: CallGeminiArgs): Promise<T> {
+  const result = await callGemini(args);
+  return result as T;
+}
+
 // ─── Gemini Response Schemas (OpenAPI 3.0 Uppercase Format) ────────────────────
 
 export const SchemaResponseSchema = {

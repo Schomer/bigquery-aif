@@ -137,9 +137,10 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **Executor host allowlist is mandatory**: `executeApiCall()` validates the resolved URL host against `ALLOWED_API_HOSTS`. Adding a new googleapis.com subdomain requires updating this list. Never remove the validation.
 - **Learned plans are per-project, not per-user**: Stored in a top-level `learnedPlans` Firestore collection with a `project` field. The `getLearnedPlans()` query filters by project.
 - **Zod v4 record syntax**: Always use `z.record(z.string(), valueSchema)` with two arguments. Single-argument `z.record(valueSchema)` does not compile in Zod v4.
-- **Resolver uses createGoogle, not the default google export**: The default export reads `GOOGLE_GENERATIVE_AI_API_KEY` env var. This project uses `NEXT_PUBLIC_GEMINI_API_KEY`, so the resolver must use `createGoogle({ apiKey })`.
+- **Resolver uses callGeminiWithSchema, not ai-sdk**: All LLM calls in the task resolver use `callGeminiWithSchema` from `gemini-client.ts` with OpenAPI-style JSON schemas. Do not re-introduce `@ai-sdk/google` or `generateObject`.
 - **Learned plan match threshold is 0.7**: Plans with Gemini-scored semantic confidence below 0.7 are not reused. Lowering this risks reusing inappropriate plans.
 - **In-memory cache is per-session**: The learned plans cache resets on page reload. Do not persist it.
+- **Action shortcuts are checked before learned plans**: Resolution order in `resolveTask()` is: action shortcuts (instant, no LLM) -> learned plans (1 LLM call for semantic match) -> full 2-phase resolution (2 LLM calls). Do not reorder these.
 
 ---
 

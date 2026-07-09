@@ -4,6 +4,22 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-09: Unify task framework LLM integration, add action shortcuts
+
+**What changed**:
+- Replaced `@ai-sdk/google` + `generateObject` in `resolver.ts` with the shared `callGeminiWithSchema` from `gemini-client.ts`. All 5 Zod schemas converted to OpenAPI-style JSON schemas matching the format `callGemini` already uses for every other LLM call in the app.
+- Added `callGeminiWithSchema<T>()` to `gemini-client.ts` -- a thin typed wrapper around `callGemini` for structured output.
+- Built out the action shortcuts system in `src/lib/tasks/actions/index.ts` with 7 pre-coded shortcuts: create-dataset, create-table-from-query, export-to-gcs, schedule-query, copy-table, delete-table, grant-access. These build a ResolvedPlan directly without any LLM call.
+- Updated `resolveTask()` in resolver.ts to check action shortcuts first (before learned plans and the 2-phase LLM resolution).
+- The `@ai-sdk/google` and `ai` packages are no longer imported anywhere in the codebase (they remain in package.json as deps for now).
+
+**Files modified**:
+- `src/lib/gemini-client.ts` -- added `callGeminiWithSchema<T>()` wrapper
+- `src/lib/tasks/resolver.ts` -- full rewrite to use `callGeminiWithSchema`, added shortcut check step
+- `src/lib/tasks/actions/index.ts` -- full rewrite with 7 action shortcuts and `matchShortcut()` function
+
+---
+
 ## 2026-07-09: Auth retry preserves user request
 
 **What changed**:

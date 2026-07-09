@@ -5,85 +5,140 @@
 //   2. Construct a full execution plan using detailed API docs
 //
 // Also handles learned plan matching, success/failure tracking, and error diagnosis.
+// Uses callGeminiWithSchema from the shared gemini-client for all LLM calls.
 
-import { createGoogle } from '@ai-sdk/google';
-import { generateObject } from 'ai';
-import { z } from 'zod';
+import { callGeminiWithSchema } from '../gemini-client';
 import type { ResolvedPlan, ResolvedStep, LearnedPlan } from './types';
 import type { StatusCallback } from '../types';
 import { getLearnedPlans, saveLearnedPlan, updateLearnedPlan, extractKeywords } from './learned-plans';
+import { matchShortcut } from './actions';
 
-// -- Provider setup --
-// Uses the same API key as the rest of the app (NEXT_PUBLIC_GEMINI_API_KEY).
+// -- OpenAPI JSON schemas for structured Gemini outputs --
+// Equivalent to the former Zod schemas, in the uppercase OpenAPI format
+// that callGemini's responseSchema expects.
 
-function getProvider() {
-  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
-  return createGoogle({ apiKey });
+const apiIdentificationSchema = {
+  type: 'OBJECT',
+  properties: {
+    relevantApis: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          filename: { type: 'STRING' },
+          relevance: { type: 'STRING' },
+        },
+        required: ['filename', 'relevance'],
+      },
+    },
+    reasoning: { type: 'STRING' },
+  },
+  required: ['relevantApis', 'reasoning'],
+};
+
+const dynamicInputSchema = {
+  type: 'OBJECT',
+  properties: {
+    name: { type: 'STRING' },
+    type: { type: 'STRING', enum: ['select', 'text', 'textarea', 'file_upload', 'toggle', 'number'] },
+    label: { type: 'STRING' },
+    required: { type: 'BOOLEAN' },
+    options: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          value: { type: 'STRING' },
+          label: { type: 'STRING' },
+        },
+        required: ['value', 'label'],
+      },
+    },
+    placeholder: { type: 'STRING' },
+    defaultValue: { type: 'STRING' },
+    helpText: { type: 'STRING' },
+    accept: { type: 'STRING' },
+    multiple: { type: 'BOOLEAN' },
+    mapsTo: { type: 'STRING' },
+  },
+  required: ['name', 'type', 'label', 'required', 'mapsTo'],
+};
+
+const apiCallSpecSchema = {
+  type: 'OBJECT',
+  properties: {
+    url: { type: 'STRING' },
+    method: { type: 'STRING', enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] },
+    bodyTemplate: { type: 'OBJECT', properties: {} },
+    headers: { type: 'OBJECT', properties: {} },
+  },
+  required: ['url', 'method'],
+};
+
+const resolvedStepSchema = {
+  type: 'OBJECT',
+  properties: {
+    id: { type: 'STRING' },
+    label: { type: 'STRING' },
+    description: { type: 'STRING' },
+    apiCall: apiCallSpecSchema,
+    inputs: { type: 'ARRAY', items: dynamicInputSchema },
+    outputMapping: { type: 'OBJECT', properties: {} },
+    iterateOver: { type: 'STRING' },
+  },
+  required: ['id', 'label', 'description', 'apiCall', 'inputs'],
+};
+
+const resolvedPlanSchema = {
+  type: 'OBJECT',
+  properties: {
+    title: { type: 'STRING' },
+    description: { type: 'STRING' },
+    approach: { type: 'STRING' },
+    alternativeApproaches: { type: 'ARRAY', items: { type: 'STRING' } },
+    steps: { type: 'ARRAY', items: resolvedStepSchema },
+  },
+  required: ['title', 'description', 'approach', 'steps'],
+};
+
+const semanticMatchSchema = {
+  type: 'OBJECT',
+  properties: {
+    bestMatchIndex: { type: 'NUMBER' },
+    confidence: { type: 'NUMBER' },
+    reasoning: { type: 'STRING' },
+  },
+  required: ['bestMatchIndex', 'confidence', 'reasoning'],
+};
+
+const diagnosisSchema = {
+  type: 'OBJECT',
+  properties: {
+    diagnosis: { type: 'STRING' },
+    canFix: { type: 'BOOLEAN' },
+    fixedPlan: resolvedPlanSchema,
+  },
+  required: ['diagnosis', 'canFix'],
+};
+
+// -- Types for schema results --
+
+interface ApiIdentificationResult {
+  relevantApis: Array<{ filename: string; relevance: string }>;
+  reasoning: string;
 }
 
-function getModel() {
-  return getProvider()('gemini-3.5-flash');
+interface SemanticMatchResult {
+  bestMatchIndex: number;
+  confidence: number;
+  reasoning: string;
 }
 
-// -- Zod schemas for structured Gemini outputs --
-
-const apiIdentificationSchema = z.object({
-  relevantApis: z.array(z.object({
-    filename: z.string().describe('Filename from the index, e.g. "bigquery-migration.md"'),
-    relevance: z.string().describe('Brief reason why this API is relevant'),
-  })),
-  reasoning: z.string().describe('Why these APIs were selected'),
-});
-
-const dynamicInputSchema = z.object({
-  name: z.string(),
-  type: z.enum(['select', 'text', 'textarea', 'file_upload', 'toggle', 'number']),
-  label: z.string(),
-  required: z.boolean(),
-  options: z.array(z.object({ value: z.string(), label: z.string() })).optional(),
-  placeholder: z.string().optional(),
-  defaultValue: z.string().optional(),
-  helpText: z.string().optional(),
-  accept: z.string().optional(),
-  multiple: z.boolean().optional(),
-  mapsTo: z.string(),
-});
-
-const apiCallSpecSchema = z.object({
-  url: z.string(),
-  method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']),
-  bodyTemplate: z.record(z.string(), z.unknown()).optional(),
-  headers: z.record(z.string(), z.string()).optional(),
-});
-
-const resolvedStepSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  description: z.string(),
-  apiCall: apiCallSpecSchema,
-  inputs: z.array(dynamicInputSchema),
-  outputMapping: z.record(z.string(), z.string()).optional(),
-  iterateOver: z.string().optional(),
-});
-
-const resolvedPlanSchema = z.object({
-  title: z.string(),
-  description: z.string(),
-  approach: z.string(),
-  alternativeApproaches: z.array(z.string()).optional(),
-  steps: z.array(resolvedStepSchema),
-});
-
-const semanticMatchSchema = z.object({
-  confidence: z.number().min(0).max(1).describe('Semantic similarity 0-1'),
-  reasoning: z.string(),
-});
-
-const diagnosisSchema = z.object({
-  diagnosis: z.string(),
-  canFix: z.boolean(),
-  fixedPlan: resolvedPlanSchema.optional(),
-});
+interface DiagnosisResult {
+  diagnosis: string;
+  canFix: boolean;
+  fixedPlan?: ResolvedPlan;
+}
 
 // -- Main resolver --
 
@@ -91,12 +146,13 @@ const diagnosisSchema = z.object({
  * Resolve a user's natural-language message into a concrete execution plan.
  *
  * Flow:
- * 1. Check learned plans for a reusable match
- * 2. Load the API knowledge base index
- * 3. Phase 1: ask Gemini which APIs are relevant
- * 4. Load detailed docs for matched APIs
- * 5. Phase 2: ask Gemini to construct the full plan
- * 6. Return the ResolvedPlan
+ * 1. Check action shortcuts (instant, no LLM call)
+ * 2. Check learned plans for a reusable match
+ * 3. Load the API knowledge base index
+ * 4. Phase 1: ask Gemini which APIs are relevant
+ * 5. Load detailed docs for matched APIs
+ * 6. Phase 2: ask Gemini to construct the full plan
+ * 7. Return the ResolvedPlan
  */
 export async function resolveTask(
   message: string,
@@ -106,7 +162,14 @@ export async function resolveTask(
 ): Promise<ResolvedPlan> {
   const loc = location || 'us';
 
-  // Step 1: Check learned plans
+  // Step 1: Check action shortcuts (instant, no LLM call)
+  const shortcut = matchShortcut(message);
+  if (shortcut) {
+    onStatus?.('Matched action shortcut: ' + shortcut.label);
+    return shortcut.buildPlan({ project, location: loc, message });
+  }
+
+  // Step 2: Check learned plans
   onStatus?.('Checking for previously learned plans...');
   const learnedMatch = await findMatchingLearnedPlan(message, project);
   if (learnedMatch) {
@@ -114,20 +177,17 @@ export async function resolveTask(
     return learnedMatch;
   }
 
-  // Step 2: Load capability index
+  // Step 3: Load capability index
   onStatus?.('Loading API knowledge base...');
   const indexContent = await loadKnowledgeFile('index.md');
   if (!indexContent) {
     throw new Error('Failed to load API knowledge base index. Ensure public/api-knowledge/index.md exists.');
   }
 
-  // Step 3: Identify relevant APIs
+  // Step 4: Identify relevant APIs
   onStatus?.('Identifying relevant APIs...');
-  const model = getModel();
-  const apiMatch = await generateObject({
-    model,
-    schema: apiIdentificationSchema,
-    system: `You are an API routing expert for Google Cloud data services.
+  const apiMatch = await callGeminiWithSchema<ApiIdentificationResult>({
+    systemInstruction: `You are an API routing expert for Google Cloud data services.
 Given a user request and a list of available API knowledge base documents,
 identify which API docs are most relevant to fulfilling the request.
 The user's project is "${project}" in location "${loc}".
@@ -138,14 +198,15 @@ Available API knowledge base:
 ${indexContent}
 
 Which API documents should I consult to build an execution plan for this request?`,
+    schema: apiIdentificationSchema,
   });
 
-  const relevantApis = apiMatch.object.relevantApis;
+  const relevantApis = apiMatch.relevantApis;
   if (relevantApis.length === 0) {
     throw new Error('Could not identify any relevant APIs for this request. Try rephrasing or being more specific.');
   }
 
-  // Step 4: Load detailed docs for matched APIs
+  // Step 5: Load detailed docs for matched APIs
   const apiDocs: string[] = [];
   for (const api of relevantApis) {
     const content = await loadKnowledgeFile(api.filename);
@@ -158,12 +219,10 @@ Which API documents should I consult to build an execution plan for this request
     throw new Error('Failed to load any API documentation files. Check the api-knowledge directory.');
   }
 
-  // Step 5: Construct the full plan
+  // Step 6: Construct the full plan
   onStatus?.('Constructing execution plan...');
-  const planResult = await generateObject({
-    model,
-    schema: resolvedPlanSchema,
-    system: `You are a Google Cloud task planner. Given a user request and detailed API documentation,
+  const plan = await callGeminiWithSchema<ResolvedPlan>({
+    systemInstruction: `You are a Google Cloud task planner. Given a user request and detailed API documentation,
 construct a concrete execution plan with specific API calls, URL templates, and input specifications.
 
 Rules:
@@ -181,9 +240,10 @@ API Documentation:
 ${apiDocs.join('\n\n')}
 
 Build a step-by-step execution plan with concrete API calls for this request.`,
+    schema: resolvedPlanSchema,
   });
 
-  return planResult.object as ResolvedPlan;
+  return plan;
 }
 
 // -- Learned plan matching --
@@ -223,28 +283,21 @@ export async function findMatchingLearnedPlan(
   if (candidates.length === 0) return null;
 
   // Semantic scoring via Gemini
-  const model = getModel();
   const candidateDescriptions = candidates
     .map((c, i) => `[${i}] Original: "${c.plan.originalPrompt}" -> Plan: "${c.plan.plan.title}"`)
     .join('\n');
 
-  const matchResult = await generateObject({
-    model,
-    schema: z.object({
-      bestMatchIndex: z.number().describe('Index of the best matching candidate, or -1 if none match'),
-      confidence: z.number().min(0).max(1),
-      reasoning: z.string(),
-    }),
-    system: 'You are a semantic similarity judge. Compare a new user request against previously successful task plans and determine if any is a close enough match to reuse.',
+  const match = await callGeminiWithSchema<SemanticMatchResult>({
+    systemInstruction: 'You are a semantic similarity judge. Compare a new user request against previously successful task plans and determine if any is a close enough match to reuse.',
     prompt: `New request: "${message}"
 
 Previously successful plans:
 ${candidateDescriptions}
 
 Which plan (if any) is semantically similar enough to reuse? A match means the same type of operation on the same type of resource, even if specific names differ.`,
+    schema: semanticMatchSchema,
   });
 
-  const match = matchResult.object;
   if (match.bestMatchIndex >= 0 && match.confidence >= 0.7 && match.bestMatchIndex < candidates.length) {
     const matched = candidates[match.bestMatchIndex].plan;
     // Update lastUsedAt
@@ -344,11 +397,8 @@ export async function diagnoseError(
   step: ResolvedStep,
 ): Promise<{ diagnosis: string; fixedPlan?: ResolvedPlan }> {
   try {
-    const model = getModel();
-    const result = await generateObject({
-      model,
-      schema: diagnosisSchema,
-      system: `You are a Google Cloud API debugging expert. Analyze the error from an API call,
+    const diagnosis = await callGeminiWithSchema<DiagnosisResult>({
+      systemInstruction: `You are a Google Cloud API debugging expert. Analyze the error from an API call,
 explain what went wrong, and if possible, produce a corrected execution plan.`,
       prompt: `The following API call failed:
 Step: ${step.label}
@@ -362,13 +412,13 @@ Full plan context:
 ${JSON.stringify(plan, null, 2)}
 
 Diagnose the error and, if possible, provide a fixed version of the entire plan.`,
+      schema: diagnosisSchema,
     });
 
-    const diagnosis = result.object;
     return {
       diagnosis: diagnosis.diagnosis,
       fixedPlan: diagnosis.canFix && diagnosis.fixedPlan
-        ? diagnosis.fixedPlan as ResolvedPlan
+        ? diagnosis.fixedPlan
         : undefined,
     };
   } catch (err) {

@@ -73,9 +73,10 @@ UI Components (src/components/)
 
 ---
 
-### `src/lib/gemini-client.ts` (316 lines)
+### `src/lib/gemini-client.ts` (~330 lines)
 **Responsibility**: Gemini API client and response schemas.
 - `callGemini()` -- structured output with retry logic
+- `callGeminiWithSchema<T>()` -- typed wrapper for structured output (used by task resolver)
 - `loadSkillDoc()` -- loads skill .md files from /public/skills/
 - All response schemas: `SchemaResponseSchema`, `QueryResponseSchema`, `DataManagementResponseSchema`, `MonitoringIntentSchema`, `DqIntentSchema`, `DiscoveryResponseSchema`, `DataLoadingIntentSchema`, `IntentClassifierSchema`, `SelfReviewResponseSchema`, `EnrichedSchemaQuerySchema`
 
@@ -334,15 +335,19 @@ New subsystem for autonomously resolving and executing Google Cloud data tasks.
 - `getLearnedPlans()`, `saveLearnedPlan()`, `updateLearnedPlan()`, `deleteLearnedPlan()`
 - `extractKeywords()` -- stop-word-filtered keyword extraction
 
-### `src/lib/tasks/resolver.ts` (~400 lines)
+### `src/lib/tasks/resolver.ts` (~370 lines)
 **Responsibility**: The brain. Resolves NL requests into executable plans.
-- `resolveTask()` -- main entry: learned plan check -> API identification -> plan construction
+- `resolveTask()` -- main entry: shortcut check -> learned plan check -> API identification -> plan construction
 - `findMatchingLearnedPlan()` -- keyword overlap + Gemini semantic scoring
 - `onTaskSuccess()`, `onTaskFailure()` -- learned plan feedback loop
 - `diagnoseError()` -- Gemini-powered error diagnosis with optional plan fix
-- Uses `@ai-sdk/google` with `generateObject` and Zod v4 schemas
-- API key from `NEXT_PUBLIC_GEMINI_API_KEY` via `createGoogle()`
+- Uses `callGeminiWithSchema` from gemini-client.ts with OpenAPI JSON schemas
+- Resolution priority: action shortcuts (instant) -> learned plans (1 LLM call) -> full 2-phase (2 LLM calls)
 
-### `src/lib/tasks/actions/index.ts` (~8 lines)
-**Responsibility**: Bootstrapper for future pre-coded action shortcuts (currently no-op).
+### `src/lib/tasks/actions/index.ts` (~340 lines)
+**Responsibility**: Pre-coded action shortcuts that bypass the full resolver.
+- `matchShortcut(message)` -- keyword-based matching against registered shortcuts
+- `getShortcuts()` -- returns all registered shortcuts (for UI display)
+- 7 shortcuts: create-dataset, create-table-from-query, export-to-gcs, schedule-query, copy-table, delete-table, grant-access
+- Each shortcut builds a ResolvedPlan directly with no LLM call
 
