@@ -12,6 +12,16 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 
 ---
 
+### 2026-07-09: Fix basic aggregation queries routed to multistep instead of single-step query
+**Scope**: router.ts, chat-orchestrator.ts, intent-routing.md
+**What broke**: "show me how many total sales there was for the store BARMUDA DISTRIBUTION" produced a 3-step multistep workflow (list tables, describe table, calculate total sales) instead of a single query skill producing a KPI card.
+**Root cause**: Two compounding issues: (1) no keyword signals existed for basic aggregation phrases ("how many", "total", "sum of", etc.) so the router defaulted to `query` with `medium` confidence, forcing a round-trip to the LLM intent classifier; (2) the LLM classifier returned `isMultistep: true` with 3 steps despite the prompt saying single-verb requests are never multistep, and the existing guard only caught exactly 2-step schema+query patterns.
+**Fix**: Added 27 analytical/aggregation phrases to `QUERY_SIGNALS` in router.ts (e.g., "how many" weight 3, "total" weight 2). This gives the target prompt a query score of 5, producing `high` confidence and bypassing the LLM classifier entirely. Also generalized the multistep collapse guard from `steps.length === 2 && steps[0].skill === 'schema' && steps[1].skill === 'query'` to `lastStep.skill === 'query' && allOtherSteps.every(s => s.skill === 'schema')`.
+**Rule 1**: Any common analytical phrase that should obviously route to query must have a keyword signal. If users can express it in plain English and it unambiguously means "run a query", it needs a signal.
+**Rule 2**: The multistep collapse guard must handle N-step patterns, not just exactly 2 steps.
+
+---
+
 ### 2026-07-09: Inline chat confirmations
 **Scope**: InlineConfirmation.tsx (new), ChatThread.tsx, ResultsSidebar.tsx
 **What changed**: Moved COST_CONFIRM_CARD and CONFIRMATION_CARD rendering from ArtifactCard (results panel in split layout) into lightweight inline chat messages with action buttons. Created InlineConfirmation.tsx with InlineCostConfirm and InlineDmlConfirm components. InlineDmlConfirm has a `compact` prop -- full detail (with DEDUPE preview table) in unified ChatThread layout, simplified summary in split-layout sidebar.

@@ -4,6 +4,19 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-09: Fix aggregation queries misrouted to multistep workflows
+
+**What changed**:
+- Added 27 analytical/aggregation keyword signals to `QUERY_SIGNALS` in `router.ts`: "how many" (weight 3), "total" (2), "sum of" (3), "average" (2), "count of" (3), "top" (2), "trend" (2), "over time" (2), time-period phrases like "per month"/"by year" (3), and others.
+- Generalized the multistep collapse guard in `chat-orchestrator.ts` from a 2-step check (`steps.length === 2 && steps[0]=schema && steps[1]=query`) to an N-step pattern (`lastStep=query && allOtherSteps.every(schema)`).
+- Added filtered aggregation examples and an "Aggregation Anti-Pattern" section to `intent-routing.md`.
+- Added test case R13 for filtered aggregation routing.
+- Added two new invariants for aggregation keyword routing and the generalized collapse guard.
+
+**Why**: "show me how many total sales there was for the store BARMUDA DISTRIBUTION" was producing a 3-step multistep workflow instead of a single KPI card. Root cause was (1) no keyword signals for basic aggregation phrases, and (2) the LLM classifier incorrectly decomposing the query, with the existing guard only catching 2-step patterns.
+
+---
+
 ## 2026-07-09: Conversation Continuity + Export Expansion (Phase 4B/4C)
 
 **What changed**:

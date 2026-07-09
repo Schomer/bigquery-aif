@@ -86,6 +86,14 @@ These test that messages route to the correct skill.
 - **Expected operation**: EXPORT_SHEETS
 - **Failure looks like**: Routes to query or generates new SQL
 
+### R13: Filtered aggregation routes to query, not multistep
+- **Input**: "show me how many total sales there was for the store BARMUDA DISTRIBUTION"
+- **Expected skill**: query
+- **Expected confidence**: high (keyword router, bypasses LLM classifier)
+- **Expected visualization**: KPI_CARD
+- **Expected output**: Single number, sum of sales filtered by store name
+- **Failure looks like**: Creates a multistep workflow with schema listing + schema describe + query
+
 ---
 
 ## Schema Tests

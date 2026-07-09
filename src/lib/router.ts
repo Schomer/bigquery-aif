@@ -231,6 +231,33 @@ const DATA_LOADING_SIGNALS: Array<{ phrase: string; weight: number }> = [
 ];
 
 const QUERY_SIGNALS: Array<{ phrase: string; weight: number }> = [
+  // Common analytical / aggregation phrases
+  { phrase: 'how many', weight: 3 },
+  { phrase: 'total', weight: 2 },
+  { phrase: 'sum of', weight: 3 },
+  { phrase: 'average', weight: 2 },
+  { phrase: 'count of', weight: 3 },
+  { phrase: 'biggest', weight: 2 },
+  { phrase: 'smallest', weight: 2 },
+  { phrase: 'highest', weight: 2 },
+  { phrase: 'lowest', weight: 2 },
+  { phrase: 'most', weight: 2 },
+  { phrase: 'least', weight: 2 },
+  { phrase: 'top', weight: 2 },
+  { phrase: 'bottom', weight: 2 },
+  { phrase: 'maximum', weight: 2 },
+  { phrase: 'minimum', weight: 2 },
+  { phrase: 'breakdown', weight: 2 },
+  { phrase: 'group by', weight: 3 },
+  { phrase: 'over time', weight: 2 },
+  { phrase: 'trend', weight: 2 },
+  { phrase: 'per month', weight: 3 },
+  { phrase: 'per week', weight: 3 },
+  { phrase: 'per year', weight: 3 },
+  { phrase: 'per day', weight: 3 },
+  { phrase: 'by month', weight: 3 },
+  { phrase: 'by week', weight: 3 },
+  { phrase: 'by year', weight: 3 },
   // BigQuery ML read-path functions
   { phrase: 'predict', weight: 2 },
   { phrase: 'ML.PREDICT', weight: 3 },

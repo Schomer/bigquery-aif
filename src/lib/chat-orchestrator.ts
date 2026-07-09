@@ -152,12 +152,13 @@ The user's new message is a continuation of this conversation. Treat it as a fol
           });
 
           if (result && result.isMultistep && result.steps && result.steps.length > 1) {
-            // Guard: schema+query decomposition is always redundant because
-            // handleQuery() loads schema context internally via buildSchemaContext().
+            // Guard: any workflow where all leading steps are schema and the
+            // final step is query is always redundant because handleQuery()
+            // loads schema context internally via buildSchemaContext().
             // Collapse to a single query step instead of creating a workflow.
-            const isRedundantSchemaQuery = result.steps.length === 2
-              && result.steps[0].skill === 'schema'
-              && result.steps[1].skill === 'query';
+            const lastStep = result.steps[result.steps.length - 1];
+            const isRedundantSchemaQuery = lastStep.skill === 'query'
+              && result.steps.slice(0, -1).every((s: { skill: string }) => s.skill === 'schema');
 
             if (isRedundantSchemaQuery) {
               // Use the query step's prompt directly as a single-step query

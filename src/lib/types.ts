@@ -16,6 +16,25 @@ export type SkillName =
   | 'task'
   | 'governance';
 
+// ─── Skill manifest (self-registering skill pattern) ─────────────────────────
+
+/** Each skill handler exports a manifest that declares its routing signals and handler function. */
+export interface SkillManifest {
+  /** Unique skill identifier -- must match a SkillName value at runtime */
+  skill: string;
+  /** Human-readable label for status messages */
+  label: string;
+  /** Weighted routing signals for the keyword classifier */
+  signals: Array<{ phrase: string; weight: number }>;
+  /** The handler function (message, history, context, onStatus) */
+  handle: (
+    message: string,
+    history: ChatMessage[],
+    context: any,
+    onStatus?: StatusCallback,
+  ) => Promise<CompositionEnvelope[]>;
+}
+
 // ─── Handoff envelope (bigquery-shared-harness-policies.md §B) ───────────────
 
 export interface HandoffEnvelope {

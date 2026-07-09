@@ -34,6 +34,8 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **Context boosts cap at +3**: Follow-up action patterns (e.g., "clean it" after data-quality) add a max bonus of 3 to the relevant skill score. Do not increase this.
 - **No-signal default is query with medium confidence**: When no keyword signals match at all, the router returns `skill: 'query', confidence: 'medium'` so the LLM classifier decides.
 - **Filter/equality patterns bypass scoring**: Messages containing `column = 'value'` or explicit `WHERE` clauses go directly to query with high confidence, skipping the scored classification.
+- **Common analytical phrases route to query with high confidence**: Phrases like "how many", "total", "sum of", "average", "count of", "top", "trend", "over time", "per month/week/year/day", "by month/week/year", "breakdown", "group by" are in `QUERY_SIGNALS` with weight >= 2. This prevents basic aggregation queries from falling through to the LLM classifier.
+- **Any N-step workflow where all leading steps are schema and the final step is query must be collapsed**: The guard in the orchestrator is not limited to exactly 2 steps. Any decomposition where steps 1..N-1 are all `schema` and step N is `query` is structurally redundant and gets collapsed to a single query step.
 
 ---
 
