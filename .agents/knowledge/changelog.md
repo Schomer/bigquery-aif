@@ -4,6 +4,19 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-09: Auth retry preserves user request
+
+**What changed**:
+- When a BigQuery API call fails due to expired auth, the "Sign in and continue" button now signs the user in and then automatically re-sends their original request.
+- Previously, the button only called `signIn`, losing the user's request and requiring them to re-type it.
+- Error text updated from "Please sign in again" to "Sign in to continue where you left off."
+- Button label changed from "Sign in again" to "Sign in and continue."
+
+**Files modified**:
+- `src/app/page.tsx` -- auth error retry function, error text, button label, retryFn type
+
+---
+
 ## 2026-07-07 (session 4): Consolidate format utils and shared UI primitives
 
 **What changed**:

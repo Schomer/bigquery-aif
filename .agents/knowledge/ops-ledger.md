@@ -12,6 +12,13 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 
 ---
 
+### 2026-07-09: Auth retry now re-sends original request after sign-in
+**Scope**: `src/app/page.tsx` L479-492
+**What changed**: The auth error retry function was `signIn` alone, which opened the sign-in popup but dropped the user's original request. Changed it to an async function that calls `signIn()`, and if successful, removes the failed message pair (user + empty assistant) from state and calls `sendMessage(text)` to replay the original request.
+**What worked**: Capturing `text` in the closure at error time preserves the exact user input. Removing 2 messages (user + empty assistant) before calling `sendMessage` avoids duplicate user messages since `sendMessage` always appends a fresh user message.
+**Gotcha**: Must remove the user message too (not just the empty assistant), because `sendMessage` unconditionally appends a new user message at the start.
+**Rule**: When retrying after auth refresh, always clean up the messages added by the failed attempt before re-invoking the send function.
+
 ### 2026-07-07: Consolidated format utils and shared UI primitives
 **Scope**: `src/lib/format.ts` (new), `src/components/ui/` (new), 12 consumer files
 **What changed**: Extracted `formatBytes`, `truncateLabel`, `truncateEmail`, and `relativeTime` from 10 components into a single shared module. Created reusable `StatCard`, `Badge`, and `Tooltip` components to replace 5 local stat card variants and provide reusable UI primitives.
