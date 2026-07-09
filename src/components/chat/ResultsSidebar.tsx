@@ -22,9 +22,13 @@ import type { RecentItem } from '@/lib/firestore-service';
 
 // ---- Helper functions -------------------------------------------------------
 
-function artifactIcon(type: string): string {
+function artifactIcon(type: string, data?: any): string {
   if (type === 'TABLE') return 'table_chart';
-  if (type === 'SCHEMA_VIEW') return 'schema';
+  if (type === 'SCHEMA_VIEW') {
+    if (data?.scope === 'TABLE') return 'table_chart';
+    if (data?.scope === 'DATASET') return 'dataset';
+    return 'schema';
+  }
   if (type === 'KPI_CARD') return 'speed';
   if (type === 'DATA_QUALITY_VIEW') return 'verified';
   if (type === 'DISCOVERY_VIEW') return 'explore';
@@ -398,7 +402,7 @@ export function ResultsSidebar({
                               onClick={() => scrollToResult(env.id)}
                               title={`View in results panel`}
                             >
-                              <span className="material-symbols-outlined">{artifactIcon(env.primaryArtifact.type)}</span>
+                              <span className="material-symbols-outlined">{artifactIcon(env.primaryArtifact.type, env.primaryArtifact.data)}</span>
                               {envelopeLabel(env)}
                             </button>
                           ))}
