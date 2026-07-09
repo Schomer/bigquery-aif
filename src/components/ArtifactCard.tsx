@@ -9,6 +9,7 @@ import { ChartView } from './ChartView';
 import { KpiCard } from './KpiCard';
 import { CostConfirmCard } from './CostConfirmCard';
 import { formatBytes } from '@/lib/format';
+import { ProvenancePanel } from './ProvenancePanel';
 import { DiscoveryView } from './DiscoveryView';
 import { DataQualityView } from './DataQualityView';
 import { MonitoringView } from './MonitoringView';
@@ -402,6 +403,12 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
             </button>
           </div>
         )}
+
+        {/* Provenance panel -- deep-dive into how this result was computed */}
+        <ProvenancePanel
+          envelope={envelope}
+          defaultExpanded={envelope.provenance.visibility === 'VISIBLE' || envelope.skill === 'monitoring' || envelope.skill === 'discovery'}
+        />
       </div>
 
     </div>

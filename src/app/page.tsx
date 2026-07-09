@@ -9,9 +9,11 @@ import { useLayout } from '@/lib/layout-context';
 import { useChatOrchestration } from '@/hooks/useChatOrchestration';
 import { PromptsLibrary } from '@/components/PromptsLibrary';
 import { SettingsPage } from '@/components/SettingsPage';
+import { HowItWorksPanel } from '@/components/HowItWorksPanel';
 import { ChatThread } from '@/components/chat/ChatThread';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { ResultsSidebar } from '@/components/chat/ResultsSidebar';
+import { OverviewDashboard } from '@/components/OverviewDashboard';
 import {
   getConversations,
   getRecentDatasets,
@@ -20,7 +22,7 @@ import {
 import type { RecentItem } from '@/lib/firestore-service';
 
 export default function Home() {
-  const { activeProject, user, projects, setActiveProject } = useAuth();
+  const { activeProject, user, projects, setActiveProject, accessToken } = useAuth();
   const { conversationId } = useConversation();
   const { activePage, setActivePage } = usePage();
   const { layout, historyVisible } = useLayout();
@@ -130,6 +132,21 @@ export default function Home() {
       {/* -- Settings page -- */}
       {activePage === 'settings' && <SettingsPage />}
 
+      {/* -- How it works page -- */}
+      {activePage === 'how-it-works' && <HowItWorksPanel />}
+
+      {/* -- Overview dashboard -- */}
+      {activePage === 'overview' && activeProject && (
+        <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
+          <OverviewDashboard
+            project={activeProject}
+            accessToken={accessToken ?? ''}
+            onNavigate={(page) => setActivePage(page)}
+            onPrompt={(text) => { chat.setInput(text); setActivePage('chat'); setTimeout(() => inputRef.current?.focus(), 50); }}
+          />
+        </div>
+      )}
+
       {/* -- Prompts page (full inline view) -- */}
       {activePage === 'prompts' && (
         <PromptsLibrary
@@ -144,7 +161,7 @@ export default function Home() {
          UNIFIED LAYOUT (original single-pane)
          ============================================================ */}
       {!isSplit && (
-        <div style={{ display: (activePage === 'prompts' || activePage === 'settings') ? 'none' : 'flex', flexDirection: 'column', height: '100%', background: 'var(--chat-bg)' }}>
+        <div style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'overview') ? 'none' : 'flex', flexDirection: 'column', height: '100%', background: 'var(--chat-bg)' }}>
 
           {/* -- EMPTY STATE: centered hero + prompt -- */}
           {!hasChat && (
@@ -357,7 +374,7 @@ export default function Home() {
       {isSplit && (
         <div
           className={`layout-split ${layout === 'chat-right' ? 'layout-chat-right' : 'layout-chat-left'}`}
-          style={{ display: (activePage === 'prompts' || activePage === 'settings') ? 'none' : 'flex', height: '100%' }}
+          style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'overview' || activePage === 'how-it-works') ? 'none' : 'flex', height: '100%' }}
         >
           <ResultsSidebar
             messages={chat.messages}

@@ -369,24 +369,31 @@ export function ResultsSidebar({
                   {(thinkingSteps[i]?.length || (msg.envelopes && msg.envelopes.some((e) => e.provenance.sql || e.skill))) && (
                     <details className="chat-sidebar-thinking">
                       <summary>
-                        <span className="material-symbols-outlined">chevron_right</span>
-                        Show thinking
+                        <svg className="thinking-sparkle-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" />
+                        </svg>
+                        <span className="thinking-toggle-text" />
+                        <span className="material-symbols-outlined thinking-toggle-chevron">keyboard_arrow_up</span>
                       </summary>
                       <div className="chat-sidebar-thinking-body">
                         {thinkingSteps[i] && thinkingSteps[i].length > 0 && (
                           <>
-                            <div className="thinking-section-label">Steps</div>
                             {thinkingSteps[i].map((step, si) => {
                               const info: StepInfo = typeof step === 'string' ? { text: step } : step;
                               return (
                                 <div key={si} className="thinking-step">
-                                  {si + 1}. {info.text}
-                                  {info.link && (
-                                    <a href={info.link.url} target="_blank" rel="noopener noreferrer"
-                                       className="step-link" title={info.link.label || 'Open in BigQuery'}>
-                                      <span className="material-symbols-outlined">open_in_new</span>
-                                    </a>
-                                  )}
+                                  <svg className="thinking-check-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                                  </svg>
+                                  <span className="thinking-step-text">
+                                    {info.text}
+                                    {info.link && (
+                                      <a href={info.link.url} target="_blank" rel="noopener noreferrer"
+                                         className="step-link" title={info.link.label || 'Open in BigQuery'}>
+                                        <span className="material-symbols-outlined">open_in_new</span>
+                                      </a>
+                                    )}
+                                  </span>
                                 </div>
                               );
                             })}
@@ -397,13 +404,18 @@ export function ResultsSidebar({
                           const d = env.primaryArtifact.data as any;
                           const type = env.primaryArtifact.type;
                           return (
-                            <div key={env.id} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                              <div className="thinking-section-label">
-                                Task: {env.skill} / {type.toLowerCase().replace(/_/g, ' ')}
+                            <div key={env.id} className="thinking-envelope-group">
+                              <div className="thinking-step">
+                                <svg className="thinking-check-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                                </svg>
+                                <span className="thinking-step-text">
+                                  {env.skill}{type ? ` - ${type.toLowerCase().replace(/_/g, ' ')}` : ''}
+                                </span>
                               </div>
 
                               {type === 'SCHEMA_VIEW' && d && (
-                                <div className="thinking-step" style={{ flexDirection: 'column', gap: 2 }}>
+                                <div className="thinking-step-details">
                                   {d.scope === 'DATASET' && d.dataset && (
                                     <div>Dataset: <a href={`https://console.cloud.google.com/bigquery?p=${encodeURIComponent(env.provenance.project || '')}&d=${encodeURIComponent(d.dataset)}&page=dataset`} target="_blank" rel="noopener noreferrer" className="thinking-entity-link"><strong>{d.dataset}</strong></a> ({d.columns?.length || 0} tables)</div>
                                   )}
@@ -423,7 +435,7 @@ export function ResultsSidebar({
                               )}
 
                               {(type === 'TABLE' || type.includes('CHART') || type === 'SCATTER' || type === 'HISTOGRAM' || type === 'HEATMAP' || type === 'KPI_CARD') && d && (
-                                <div className="thinking-step" style={{ flexDirection: 'column', gap: 2 }}>
+                                <div className="thinking-step-details">
                                   {d.columns?.length > 0 && (
                                     <div>Columns: {d.columns.slice(0, 10).join(', ')}{d.columns.length > 10 ? ` +${d.columns.length - 10} more` : ''}</div>
                                   )}
@@ -433,7 +445,7 @@ export function ResultsSidebar({
                               )}
 
                               {type === 'DATA_QUALITY_VIEW' && d && (
-                                <div className="thinking-step" style={{ flexDirection: 'column', gap: 2 }}>
+                                <div className="thinking-step-details">
                                   <div>Table checked: <strong>{d.table}</strong></div>
                                   <div>Check type: {d.checkType}</div>
                                   {d.summary && <div>Rows scanned: {d.summary.rowsScanned?.toLocaleString()}, Issues: {d.summary.issuesFound}</div>}
@@ -441,7 +453,7 @@ export function ResultsSidebar({
                               )}
 
                               {(type === 'CONFIRMATION_CARD' || type === 'COMPLETION_CARD') && d && (
-                                <div className="thinking-step" style={{ flexDirection: 'column', gap: 2 }}>
+                                <div className="thinking-step-details">
                                   {d.operation && <div>Operation: {d.operation}</div>}
                                   {d.affectedRowCount != null && <div>Rows affected: {d.affectedRowCount.toLocaleString()}</div>}
                                   {d.rowsAffected != null && <div>Rows affected: {d.rowsAffected.toLocaleString()}</div>}

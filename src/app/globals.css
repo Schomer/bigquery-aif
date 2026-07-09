@@ -287,6 +287,12 @@ details>summary::marker {
   animation: fadeUp 0.2s ease forwards;
 }
 
+/* Skeleton loading pulse */
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.15; }
+}
+
 /* Prompt editor dialog animations */
 @keyframes fadeIn {
   from {
