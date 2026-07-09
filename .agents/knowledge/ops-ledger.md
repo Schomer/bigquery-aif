@@ -12,6 +12,13 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 
 ---
 
+### 2026-07-09: Conversation continuity + export expansion
+**Scope**: ConversationSummary.tsx, conversation-context.tsx, ChatThread.tsx, DataLoadingView.tsx, types.ts, useChatOrchestration.ts
+**What changed**: Added ConversationSummary component that derives operation history from messages array. Enhanced conversation-context with operation log tracking. Expanded DataLoadingView with Create View DDL, Looker Studio links, Copy as Table, and Export Format Selector. Fixed duplicate PipelineResult type definition.
+**What worked**: Deriving ConversationSummary entirely from the messages array avoids new state coordination. The scrollContainerRef approach for jump-to-message is clean. The `extractTable` utility reuse between ConversationSummary and the hook is consistent.
+**Gotcha**: There were two `PipelineResult` interfaces in types.ts -- interface merging made the first definition's stricter `pipelineType: string` override the second's union literal, and the required `sql: string` in confirmation override the optional `sql?: string`. Removing the first (stricter) definition fixed all type errors.
+**Rule**: Never define the same interface name twice in one file. TypeScript interface merging picks the intersection of property types, which can silently narrow optionals to required and break downstream consumers.
+
 ### 2026-07-09: Added governance skill (access audit, security, PII, classification)
 
 **What worked**: Following the established skill handler pattern (router signals -> gemini-client schema -> handler -> composer -> view -> artifact card) made integration straightforward. All INFORMATION_SCHEMA queries are wrapped in try/catch because views like ROW_ACCESS_POLICIES and COLUMN_FIELD_PATHS may not be accessible in all projects.

@@ -168,6 +168,13 @@ These principles govern all design decisions. They are not suggestions -- they a
 
 ---
 
+## Types (`src/lib/types.ts`)
+
+- **Never define the same interface name twice in one file**: TypeScript declaration merging intersects property types, which silently narrows optionals to required. This caused the `PipelineResult` type error where `confirmation.sql` became required and `confirmation.schedule` disappeared.
+- **`OperationLogEntry` is the canonical type for conversation operation tracking**: Used by `conversation-context.tsx` and `useChatOrchestration.ts`. Changes to its shape affect the ConversationSummary derivation logic.
+
+---
+
 ## Dependencies
 
 - **Adding a new npm dependency requires documenting the rationale in the commit message and verifying bundle size impact.**
