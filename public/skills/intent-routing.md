@@ -13,7 +13,9 @@ Task-to-skill mapping for the BigQuery AI assistant. Use this to determine which
 | discovery | Searching for tables/views across datasets, comparing schemas of two tables, viewing lineage. | "search for tables with customer data", "find tables matching X", "compare orders and orders_v2", "where does this come from" |
 | monitoring | Checking query/job history, costs, performance, failures, storage, slot usage, query optimization. | "what failed", "expensive queries", "job status", "storage analysis", "who ran this", "show recent jobs", "slot usage", "how much storage", "query plan" |
 | data-loading | Exporting data, downloading CSVs, scheduling queries, loading data, sharing results, exporting to Sheets. | "export as CSV", "download results", "schedule this query", "send to Sheets" |
+| pipeline | Managing scheduled queries, data pipelines, ETL workflows, transfer configs. Listing, creating, editing, deleting, and viewing run history for scheduled queries. | "show my scheduled queries", "list schedules", "create a pipeline", "run history", "delete the schedule", "what's scheduled" |
 | task | Interactive data tasks that require calling Google Cloud APIs beyond BigQuery SQL. Includes: SQL dialect translation/migration, setting up data transfers, configuring external connections, batch file operations, ETL pipeline setup. The user wants guided help completing a multi-step cloud operation. | "translate my SQL files to GoogleSQL", "help me migrate from Snowflake", "set up a data transfer from S3", "batch translate these queries", "guide me through setting up a connection", "convert my Teradata SQL" |
+| governance | Viewing access controls, security policies, data sensitivity, and documentation coverage. Read-only -- never modifies permissions. Includes: access audit (who has access), table security posture (row-level security, column masking, policy tags), sensitive data scanning (PII detection), data classification (documentation coverage, labels). | "who has access to this dataset", "show permissions", "check security policies", "scan for PII", "is there sensitive data", "data classification", "audit access", "compliance check", "which tables have no description" |
 
 ## Critical Routing Rules
 
@@ -61,4 +63,9 @@ These prompts are commonly confused. Use this as a reference:
 | "help me set up a data transfer from S3" | task | Multi-step Cloud API workflow (Data Transfer Service) |
 | "connect BigQuery to my Cloud SQL database" | task | External connection setup via Connection API |
 | "guide me through migrating from Snowflake" | task | Guided multi-step migration workflow |
+| "show my scheduled queries" | pipeline | Browsing/listing existing schedules |
+| "schedule this query to run daily" | data-loading | Creating a single new schedule for a specific query |
+| "create a pipeline from raw to clean" | pipeline | Pipeline creation with source/transform/destination |
+| "show the run history for my ETL" | pipeline | Viewing execution logs for scheduled queries |
+| "delete the weekly report schedule" | pipeline | Removing an existing scheduled query |
 

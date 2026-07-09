@@ -29,6 +29,7 @@ function artifactIcon(type: string): string {
   if (type === 'CONFIRMATION_CARD' || type === 'COST_CONFIRM_CARD') return 'check_circle';
   if (type === 'COMPLETION_CARD') return 'task_alt';
   if (type === 'DATA_LOADING_VIEW') return 'download';
+  if (type === 'PIPELINE_VIEW') return 'schedule';
   if (type === 'MULTISTEP_VIEW') return 'account_tree';
   return 'bar_chart';
 }
@@ -57,6 +58,7 @@ function envelopeLabel(env: CompositionEnvelope): string {
   if (type === 'CONFIRMATION_CARD' || type === 'COST_CONFIRM_CARD') return 'Confirm';
   if (type === 'COMPLETION_CARD') return 'Done';
   if (type === 'DATA_LOADING_VIEW') return 'Export';
+  if (type === 'PIPELINE_VIEW') return 'Pipelines';
   if (type === 'MULTISTEP_VIEW') return 'Workflow';
   const chartNames: Record<string, string> = {
     LINE_CHART: 'Line chart', BAR_CHART: 'Bar chart', AREA_CHART: 'Area chart',
@@ -369,8 +371,8 @@ export function ResultsSidebar({
                   {(thinkingSteps[i]?.length || (msg.envelopes && msg.envelopes.some((e) => e.provenance.sql || e.skill))) && (
                     <details className="chat-sidebar-thinking">
                       <summary>
-                        <svg className="thinking-sparkle-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" />
+                        <svg className="thinking-sparkle-icon" width="16" height="16" viewBox="0 0 28 28" fill="currentColor">
+                          <path d="M14 0C14.9 6.2 21.8 13.1 28 14C21.8 14.9 14.9 21.8 14 28C13.1 21.8 6.2 14.9 0 14C6.2 13.1 13.1 6.2 14 0Z" />
                         </svg>
                         <span className="thinking-toggle-text" />
                         <span className="material-symbols-outlined thinking-toggle-chevron">keyboard_arrow_up</span>
@@ -380,11 +382,16 @@ export function ResultsSidebar({
                           <>
                             {thinkingSteps[i].map((step, si) => {
                               const info: StepInfo = typeof step === 'string' ? { text: step } : step;
+                              const isCompleted = !!info.link || /^(Matched skill:|Tool call:|Fetched|Loaded|Created|Saved|Built|Generated)/i.test(info.text);
                               return (
                                 <div key={si} className="thinking-step">
-                                  <svg className="thinking-check-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-                                  </svg>
+                                  {isCompleted ? (
+                                    <svg className="thinking-check-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                                    </svg>
+                                  ) : (
+                                    <span className="thinking-step-spacer" />
+                                  )}
                                   <span className="thinking-step-text">
                                     {info.text}
                                     {info.link && (

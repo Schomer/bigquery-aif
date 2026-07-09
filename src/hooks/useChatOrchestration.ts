@@ -12,6 +12,7 @@ import type {
   DataManagementResult,
   HandoffEnvelope,
   ContextItem,
+  OperationLogEntry,
 } from '@/lib/types';
 import {
   saveConversation,
@@ -87,7 +88,7 @@ export interface ChatOrchestrationReturn {
 
 export function useChatOrchestration(): ChatOrchestrationReturn {
   const { activeProject, user, signIn, refreshAccessToken } = useAuth();
-  const { conversationId } = useConversation();
+  const { conversationId, addOperation } = useConversation();
 
   // Core state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -307,6 +308,52 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     }
   }
 
+  // ---- Log operations from envelopes for conversation summary -------------
+
+  const DML_OPERATIONS = new Set(['DEDUPE', 'DELETE', 'UPDATE', 'FILL_NULLS', 'MERGE']);
+
+  function logOperationsFromEnvelopes(envelopes: CompositionEnvelope[], baseIndex: number) {
+    for (const env of envelopes) {
+      const data = env.primaryArtifact.data as Record<string, unknown> | null;
+      let operation = env.skill as string;
+      let table: string | undefined;
+      let undoable = false;
+
+      // Extract table from envelope data
+      if (data?.table && typeof data.table === 'string') {
+        const parts = (data.table as string).replace(/`/g, '').split('.');
+        table = parts[parts.length - 1];
+      }
+      if (!table && env.provenance?.sql) {
+        const m = env.provenance.sql.match(/\bFROM\s+`?([A-Za-z0-9_.-]+)`?/i);
+        if (m) {
+          const parts = m[1].split('.');
+          table = parts[parts.length - 1];
+        }
+      }
+
+      // Classify operation more specifically
+      if (env.skill === 'data-management' && data?.operation) {
+        operation = String(data.operation).toLowerCase();
+        undoable = DML_OPERATIONS.has(String(data.operation));
+      } else if (env.skill === 'data-loading' && data?.operationType) {
+        operation = String(data.operationType).toLowerCase();
+      } else if (env.skill === 'data-quality') {
+        operation = 'quality_check';
+      }
+
+      const entry: OperationLogEntry = {
+        messageIndex: baseIndex,
+        skill: env.skill,
+        operation,
+        table,
+        timestamp: new Date().toISOString(),
+        undoable,
+      };
+      addOperation(entry);
+    }
+  }
+
   // ---- Message handlers --------------------------------------------------
 
   async function sendMessage(messageText?: string) {
@@ -349,6 +396,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       setThinkingSteps((prev) => ({ ...prev, [assistantIdx]: [...pendingStepsRef.current] }));
 
       updateContextFromEnvelopes(envelopes);
+      logOperationsFromEnvelopes(envelopes, assistantIdx);
 
       setLastError(null);
       persistConversation(finalMsgs).catch((e) => console.warn('[persist]', e));
@@ -437,10 +485,49 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
 
   async function handleChipClick(chip: HandoffEnvelope) {
     if (loading) return;
+
+    // Intercept save actions -- route to saved-work service, not orchestrator
+    const chipContext = chip.context as Record<string, unknown>;
+    if (chipContext.saveAction && user) {
+      try {
+        const saveType = String(chipContext.saveAction) as 'query' | 'view' | 'check' | 'setup' | 'pipeline';
+        const sql = chipContext.sql ? String(chipContext.sql) : undefined;
+        const table = chipContext.table ? String(chipContext.table) : undefined;
+        const name = sql
+          ? sql.replace(/\s+/g, ' ').trim().slice(0, 60)
+          : chip.label;
+        const { saveItem: doSave } = await import('@/lib/saved-work');
+        await doSave(user.uid, {
+          userId: user.uid,
+          type: saveType,
+          name,
+          description: chip.label,
+          data: {
+            sql,
+            table,
+            project: activeProject || undefined,
+            checkType: chipContext.checkType ? String(chipContext.checkType) : undefined,
+          },
+        });
+        const userMsg: ChatMessage = { role: 'user', content: chip.label, timestamp: new Date().toISOString() };
+        const assistantMsg: ChatMessage = {
+          role: 'assistant',
+          content: `Saved to your library. View it in Saved Work.`,
+          timestamp: new Date().toISOString(),
+        };
+        const finalMsgs = [...messages, userMsg, assistantMsg];
+        setMessages(finalMsgs);
+        persistConversation(finalMsgs).catch((e) => console.warn('[persist]', e));
+      } catch (err) {
+        console.error('[save]', err);
+        setLastError({ message: 'Failed to save item', type: 'unknown' });
+      }
+      return;
+    }
+
     setLoading(true);
     setLastError(null);
 
-    const chipContext = chip.context as Record<string, unknown>;
 
     const userMsg: ChatMessage = {
       role: 'user',
@@ -489,6 +576,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       setMessages(finalMsgs);
 
       updateContextFromEnvelopes(envelopes);
+      logOperationsFromEnvelopes(envelopes, finalMsgs.length - 1);
 
       setLastError(null);
       persistConversation(finalMsgs).catch((e) => console.warn('[persist]', e));

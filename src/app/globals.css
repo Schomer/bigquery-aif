@@ -1988,14 +1988,13 @@ details>summary::marker {
 }
 
 .chat-sidebar-thinking-body {
-  padding: 8px 10px;
+  padding: 6px 0 4px 14px;
   margin-top: 4px;
+  margin-left: 7px;
   display: flex;
   flex-direction: column;
   gap: 5px;
-  background: var(--surface-2);
-  border-radius: 8px;
-  border: 1px solid var(--border-subtle);
+  border-left: 2px solid var(--border-subtle);
 }
 
 .thinking-step {
@@ -2011,6 +2010,12 @@ details>summary::marker {
   flex-shrink: 0;
   color: #34a853;
   margin-top: 2px;
+}
+
+.thinking-step-spacer {
+  display: inline-block;
+  width: 14px;
+  flex-shrink: 0;
 }
 
 .thinking-step-text {

@@ -302,13 +302,13 @@ export const IntentClassifierSchema = {
   type: 'OBJECT',
   properties: {
     isMultistep: { type: 'BOOLEAN' },
-    skill: { type: 'STRING', enum: ['schema', 'query', 'data-management', 'data-quality', 'discovery', 'monitoring', 'data-loading', 'task'] },
+    skill: { type: 'STRING', enum: ['schema', 'query', 'data-management', 'data-quality', 'discovery', 'monitoring', 'data-loading', 'pipeline', 'task', 'governance'] },
     steps: {
       type: 'ARRAY',
       items: {
         type: 'OBJECT',
         properties: {
-          skill: { type: 'STRING', enum: ['schema', 'query', 'data-management', 'data-quality', 'discovery', 'monitoring', 'data-loading', 'task'] },
+          skill: { type: 'STRING', enum: ['schema', 'query', 'data-management', 'data-quality', 'discovery', 'monitoring', 'data-loading', 'pipeline', 'task', 'governance'] },
           description: { type: 'STRING' },
           prompt: { type: 'STRING' }
         },

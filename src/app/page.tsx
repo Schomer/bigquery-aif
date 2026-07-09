@@ -14,6 +14,8 @@ import { ChatThread } from '@/components/chat/ChatThread';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { ResultsSidebar } from '@/components/chat/ResultsSidebar';
 import { OverviewDashboard } from '@/components/OverviewDashboard';
+import { SavedWorkLibrary } from '@/components/SavedWorkLibrary';
+import type { SavedItem } from '@/lib/saved-work';
 import {
   getConversations,
   getRecentDatasets,
@@ -147,6 +149,23 @@ export default function Home() {
         </div>
       )}
 
+      {/* -- Saved Work library -- */}
+      {activePage === 'saved-work' && user && (
+        <SavedWorkLibrary
+          userId={user.uid}
+          onLoadItem={(item: SavedItem) => {
+            if (item.data.sql) {
+              chat.setInput(item.data.sql);
+            } else {
+              chat.setInput(`Load saved ${item.type}: ${item.name}`);
+            }
+            setActivePage('chat');
+            setTimeout(() => inputRef.current?.focus(), 50);
+          }}
+          onNavigate={(page) => setActivePage(page)}
+        />
+      )}
+
       {/* -- Prompts page (full inline view) -- */}
       {activePage === 'prompts' && (
         <PromptsLibrary
@@ -161,7 +180,7 @@ export default function Home() {
          UNIFIED LAYOUT (original single-pane)
          ============================================================ */}
       {!isSplit && (
-        <div style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'overview') ? 'none' : 'flex', flexDirection: 'column', height: '100%', background: 'var(--chat-bg)' }}>
+        <div style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'overview' || activePage === 'saved-work') ? 'none' : 'flex', flexDirection: 'column', height: '100%', background: 'var(--chat-bg)' }}>
 
           {/* -- EMPTY STATE: centered hero + prompt -- */}
           {!hasChat && (
@@ -374,7 +393,7 @@ export default function Home() {
       {isSplit && (
         <div
           className={`layout-split ${layout === 'chat-right' ? 'layout-chat-right' : 'layout-chat-left'}`}
-          style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'overview' || activePage === 'how-it-works') ? 'none' : 'flex', height: '100%' }}
+          style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'overview' || activePage === 'how-it-works' || activePage === 'saved-work') ? 'none' : 'flex', height: '100%' }}
         >
           <ResultsSidebar
             messages={chat.messages}

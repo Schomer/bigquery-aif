@@ -165,82 +165,33 @@ If the result contains lat/lng coordinates or region codes:
 
 For compact inline visualizations: `ARRAY_AGG(value ORDER BY date)` produces the array a sparkline component needs. Suggest this when embedding a trend in a table cell.
 
-## ML & AI SQL Functions
+## BigQuery ML functions
 
-When the user asks for ML/AI tasks, use BigQuery's built-in AI functions. These run as standard SELECT queries -- no separate model training step needed for zero-shot tasks.
+You can use these ML functions in SELECT queries on existing models:
 
-### Text Classification & Sentiment
+| Function | When to use | Example |
+|----------|------------|--------|
+| ML.PREDICT | User wants predictions from an existing model | `SELECT * FROM ML.PREDICT(MODEL \`project.dataset.model\`, TABLE \`project.dataset.input\`)` |
+| ML.EVALUATE | User wants model performance metrics | `SELECT * FROM ML.EVALUATE(MODEL \`project.dataset.model\`)` |
+| ML.EXPLAIN_PREDICT | User wants feature importance / explainability | `SELECT * FROM ML.EXPLAIN_PREDICT(MODEL \`project.dataset.model\`, TABLE \`project.dataset.input\`, STRUCT(3 AS top_k_features))` |
+| ML.TRAINING_INFO | User wants model training history | `SELECT * FROM ML.TRAINING_INFO(MODEL \`project.dataset.model\`)` |
+| AI.GENERATE_TEXT | User wants in-query LLM text generation | `SELECT ml_generate_text_llm_result FROM ML.GENERATE_TEXT(MODEL \`project.dataset.llm_model\`, TABLE \`input\`, STRUCT('summarize this' AS prompt))` |
+| AI.FORECAST | User wants time series forecasting | `SELECT * FROM ML.FORECAST(MODEL \`project.dataset.arima_model\`, STRUCT(7 AS horizon))` |
+| AI.DETECT_ANOMALIES | User wants anomaly detection | `SELECT * FROM ML.DETECT_ANOMALIES(MODEL \`project.dataset.model\`, TABLE \`input\`, STRUCT(0.95 AS anomaly_prob_threshold))` |
 
+CRITICAL: Do NOT generate CREATE MODEL statements -- these are long-running jobs that can take hours. If the user asks to train a model, explain that model training is not supported through this interface and recommend using the BigQuery Console or bq CLI.
+
+For ML.EVALUATE results, suggest visualization:
+- Classification metrics -> TABLE with precision/recall/f1/accuracy
+- Regression metrics -> TABLE with mean_absolute_error, mean_squared_error, r2_score
+- Feature importance -> BAR_CHART with feature name on x-axis, importance on y-axis
+
+For listing models, query INFORMATION_SCHEMA.MODELS:
 ```sql
-SELECT
-  text_column,
-  AI.GENERATE(
-    MODEL `project.model_name`,
-    CONCAT('Classify this text as positive, negative, or neutral: ', text_column)
-  ) AS classification
-FROM `project.dataset.table`
+SELECT model_name, model_type, creation_time, training_runs
+FROM `project.dataset.INFORMATION_SCHEMA.MODELS`
+ORDER BY creation_time DESC
 ```
-
-For sentiment scoring, use `AI.GENERATE_DOUBLE` to get a numeric score.
-
-### Anomaly Detection
-
-```sql
-SELECT *
-FROM AI.DETECT_ANOMALIES(
-  MODEL `project.dataset.anomaly_model`,
-  STRUCT(0.95 AS contamination),
-  TABLE `project.dataset.table`
-)
-WHERE is_anomaly = TRUE
-```
-
-### Time Series Forecasting
-
-```sql
-SELECT *
-FROM AI.FORECAST(
-  MODEL `project.dataset.forecast_model`,
-  STRUCT(30 AS horizon, 0.9 AS confidence_level)
-)
-```
-
-For zero-shot forecasting with TimesFM, the table needs a timestamp column and a numeric value column.
-
-### BQML Model Training
-
-When the user wants to train a model:
-```sql
-CREATE OR REPLACE MODEL `project.dataset.model_name`
-OPTIONS(model_type='LOGISTIC_REG', input_label_cols=['label_column'])
-AS SELECT feature1, feature2, label_column
-FROM `project.dataset.training_data`
-```
-
-Then predict:
-```sql
-SELECT * FROM ML.PREDICT(
-  MODEL `project.dataset.model_name`,
-  TABLE `project.dataset.new_data`
-)
-```
-
-### Translation (Data Enrichment)
-
-For translating text columns:
-```sql
-SELECT
-  original_text,
-  AI.GENERATE(
-    MODEL `project.model_name`,
-    CONCAT('Translate the following text to Spanish: ', original_text)
-  ) AS translated_text
-FROM `project.dataset.table`
-```
-
-### Geocoding Note
-
-Geocoding (converting addresses to lat/lng) requires a Cloud Function or remote function connected to the Google Maps Geocoding API. This is not a built-in BigQuery function. If the user asks to geocode, explain the setup requirement and suggest using a remote function pattern.
 
 ## Headline guidance
 
@@ -267,3 +218,4 @@ Geocoding (converting addresses to lat/lng) requires a Cloud Function or remote 
 - "Save this query" (-> DataLoading, saved query)
 
 Cap at 3-4 visible actions. Rank the most relevant action first based on what the headline called out.
+

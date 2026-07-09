@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { SparkSpinner } from '@/components/SparkSpinner';
 import { ArtifactCard } from '@/components/ArtifactCard';
+import { ConversationSummary } from '@/components/ConversationSummary';
 import type {
   ChatMessage,
   CompositionEnvelope,
@@ -245,6 +246,7 @@ export function ChatThread({
   extractContextItems,
 }: ChatThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-scroll to latest message
@@ -252,7 +254,7 @@ export function ChatThread({
     if (messages.length === 0) return;
     const last = messages[messages.length - 1];
     if (last.role === 'assistant') {
-      const scrollContainer = bottomRef.current?.parentElement;
+      const scrollContainer = scrollContainerRef.current;
       if (scrollContainer) {
         const lastMsgEl = scrollContainer.querySelector(
           `[data-msg-idx="${messages.length - 1}"]`
@@ -284,15 +286,36 @@ export function ChatThread({
     el.style.height = Math.min(el.scrollHeight, maxHeight) + 'px';
   };
 
+  const handleJumpToMessage = useCallback((index: number) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const target = container.querySelector(`[data-msg-idx="${index}"]`) as HTMLElement | null;
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Brief highlight flash
+      target.style.transition = 'background 0.3s';
+      target.style.background = 'var(--accent-dim, rgba(37, 99, 235, 0.08))';
+      setTimeout(() => { target.style.background = ''; }, 1200);
+    }
+  }, []);
+
   return (
-    <div style={{
-      flex: 1,
-      overflowY: 'auto',
-      padding: '24px 24px 140px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '24px',
-    }}>
+    <div
+      ref={scrollContainerRef}
+      style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: '24px 24px 140px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px',
+      }}
+    >
+      {/* Conversation summary for long conversations */}
+      <ConversationSummary
+        messages={messages}
+        onJumpToMessage={handleJumpToMessage}
+      />
       {messages.map((msg, i) => (
         <div key={i} data-msg-idx={i} className={i > 0 ? 'fade-up' : ''} style={i < historyHiddenBefore ? { display: 'none' } : undefined}>
           {msg.role === 'user' ? (

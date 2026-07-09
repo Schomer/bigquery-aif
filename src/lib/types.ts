@@ -11,8 +11,10 @@ export type SkillName =
   | 'discovery'
   | 'monitoring'
   | 'data-loading'
+  | 'pipeline'
   | 'multistep'
-  | 'task';
+  | 'task'
+  | 'governance';
 
 // ─── Handoff envelope (bigquery-shared-harness-policies.md §B) ───────────────
 
@@ -74,7 +76,9 @@ export type ArtifactType =
   | 'ACCESS_PATTERN_VIEW'
   | 'COST_ANALYSIS_VIEW'
   | 'FRESHNESS_VIEW'
-  | 'TASK_VIEW';
+  | 'PIPELINE_VIEW'
+  | 'TASK_VIEW'
+  | 'GOVERNANCE_VIEW';
 
 export interface CompositionEnvelope {
   id: string; // unique per response, used as sourceResultRef
@@ -110,6 +114,9 @@ export interface CompositionEnvelope {
 
 // Re-export QualityFlag from result-quality module for convenience
 export type { QualityFlag } from './result-quality';
+
+// ─── Pipeline skill result (see second definition at bottom of file) ─────────
+// Single definition kept at the bottom of the file to avoid interface merging issues.
 
 // ─── Structured thinking step with optional BQ Console link ──────────────────
 
@@ -313,6 +320,17 @@ export interface ChatMessage {
   content: string;
   envelopes?: CompositionEnvelope[];
   timestamp: string;
+}
+
+// ─── Operation log entry (conversation continuity) ───────────────────────────
+
+export interface OperationLogEntry {
+  messageIndex: number;
+  skill: SkillName;
+  operation: string; // "query", "create_table", "delete_rows", "export", etc.
+  table?: string;
+  timestamp: string;
+  undoable: boolean; // true for DML operations within 7-day time travel
 }
 
 // ─── Monitoring normalized result ─────────────────────────────────────────────
@@ -531,4 +549,68 @@ export interface FreshnessResult {
   project?: string;
   entries: FreshnessEntry[];
   thresholds: { freshHours: number; staleHours: number };
+}
+
+// ─── Pipeline Management types ───────────────────────────────────────────────
+
+export interface PipelineResult {
+  skill: 'pipeline';
+  pipelineType: 'LIST_SCHEDULES' | 'SCHEDULE_DETAILS' | 'CREATE_PIPELINE' | 'UPDATE_SCHEDULE' | 'DELETE_SCHEDULE' | 'RUN_HISTORY';
+  schedules?: Array<{
+    configId: string;
+    displayName: string;
+    schedule: string;
+    state: string;
+    lastRunStatus?: string;
+    lastRunTime?: string;
+    nextRunTime?: string;
+    sql?: string;
+    destinationTable?: string;
+  }>;
+  runs?: Array<{
+    runId: string;
+    state: string;
+    startTime: string;
+    endTime?: string;
+    errorStatus?: string;
+  }>;
+  confirmation?: {
+    action: string;
+    sql?: string;
+    schedule?: string;
+    estimatedCostPerRun?: string;
+  };
+}
+
+// ─── Governance types ─────────────────────────────────────────────────────────
+
+export interface GovernanceResult {
+  skill: 'governance';
+  governanceType: 'ACCESS_AUDIT' | 'TABLE_SECURITY' | 'SENSITIVE_DATA_SCAN' | 'DATA_CLASSIFICATION';
+  scope: string; // dataset or table ref
+  accessEntries?: Array<{
+    entity: string;
+    entityType: 'user' | 'group' | 'serviceAccount' | 'domain' | 'allUsers';
+    role: string;
+    grantedBy?: string;
+  }>;
+  securityPolicies?: {
+    rowLevelPolicies: number;
+    columnLevelMasking: number;
+    policyTags: string[];
+  };
+  sensitiveFindings?: Array<{
+    column: string;
+    pattern: string;
+    sampleCount: number;
+    confidence: 'low' | 'medium' | 'high';
+  }>;
+  classification?: {
+    documentedTables: number;
+    undocumentedTables: number;
+    documentedColumns: number;
+    undocumentedColumns: number;
+    labels: Record<string, string>;
+  };
+  sql?: string;
 }

@@ -4,6 +4,18 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-09: Restyle artifact link chips to neutral colors
+
+**What changed**:
+- Changed `.chat-sidebar-artifact-link` from green tint (#f0fdf4 bg, #166534 text, #22c55e icon) to neutral white/gray (#ffffff bg, #d1d5db border, #4b5563 text, #6b7280 icon)
+- Updated dark theme overrides to matching neutral dark grays
+- Updated responsive overrides to match new color scheme
+
+**Files modified**:
+- `src/app/globals.css` (artifact link styles at ~lines 2135-2161, responsive ~2645-2658, dark theme ~2821-2823)
+
+---
+
 ## 2026-07-09: Redesign thinking section in sidebar
 
 **What changed**:

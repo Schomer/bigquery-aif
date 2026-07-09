@@ -230,6 +230,27 @@ const DATA_LOADING_SIGNALS: Array<{ phrase: string; weight: number }> = [
   { phrase: 'json export', weight: 3 },
 ];
 
+const QUERY_SIGNALS: Array<{ phrase: string; weight: number }> = [
+  // BigQuery ML read-path functions
+  { phrase: 'predict', weight: 2 },
+  { phrase: 'ML.PREDICT', weight: 3 },
+  { phrase: 'forecast', weight: 2 },
+  { phrase: 'classify', weight: 2 },
+  { phrase: 'cluster', weight: 2 },
+  { phrase: 'evaluate model', weight: 3 },
+  { phrase: 'model accuracy', weight: 3 },
+  { phrase: 'ML.EVALUATE', weight: 3 },
+  { phrase: 'explain prediction', weight: 3 },
+  { phrase: 'feature importance', weight: 3 },
+  { phrase: 'ML.EXPLAIN_PREDICT', weight: 3 },
+  { phrase: 'list models', weight: 3 },
+  { phrase: 'show models', weight: 3 },
+  { phrase: 'what models', weight: 3 },
+  { phrase: 'AI.GENERATE_TEXT', weight: 3 },
+  { phrase: 'AI.FORECAST', weight: 3 },
+  { phrase: 'AI.DETECT_ANOMALIES', weight: 3 },
+];
+
 const TASK_SIGNALS: Array<{ phrase: string; weight: number }> = [
   // High-weight: unambiguous task/workflow intent
   { phrase: 'batch translation', weight: 3 },
@@ -242,7 +263,6 @@ const TASK_SIGNALS: Array<{ phrase: string; weight: number }> = [
   { phrase: 'help me set up', weight: 3 },
   { phrase: 'set up a transfer', weight: 3 },
   { phrase: 'load data from', weight: 3 },
-  { phrase: 'set up a pipeline', weight: 3 },
   { phrase: 'configure a connection', weight: 3 },
   { phrase: 'import data', weight: 3 },
   { phrase: 'translate these', weight: 3 },
@@ -256,10 +276,74 @@ const TASK_SIGNALS: Array<{ phrase: string; weight: number }> = [
   { phrase: 'step by step', weight: 2 },
   { phrase: 'translate', weight: 2 },
   { phrase: 'convert', weight: 2 },
-  { phrase: 'etl', weight: 2 },
   { phrase: 'migration', weight: 2 },
   { phrase: 'how do i', weight: 2 },
   { phrase: 'transfer', weight: 2 },
+];
+
+const PIPELINE_SIGNALS: Array<{ phrase: string; weight: number }> = [
+  // High-weight: unambiguous pipeline/schedule management intent
+  { phrase: 'show my schedules', weight: 3 },
+  { phrase: 'show my scheduled queries', weight: 3 },
+  { phrase: 'list schedules', weight: 3 },
+  { phrase: 'list scheduled queries', weight: 3 },
+  { phrase: "what's scheduled", weight: 3 },
+  { phrase: 'what is scheduled', weight: 3 },
+  { phrase: 'scheduled to run', weight: 3 },
+  { phrase: 'create a pipeline', weight: 3 },
+  { phrase: 'set up a pipeline', weight: 3 },
+  { phrase: 'build a pipeline', weight: 3 },
+  { phrase: 'data pipeline', weight: 3 },
+  { phrase: 'transfer config', weight: 3 },
+  { phrase: 'data transfer', weight: 3 },
+  { phrase: 'run history', weight: 3 },
+  { phrase: 'run every', weight: 3 },
+  { phrase: 'run daily', weight: 3 },
+  { phrase: 'run weekly', weight: 3 },
+  { phrase: 'run monthly', weight: 3 },
+  { phrase: 'make this recurring', weight: 3 },
+  { phrase: 'delete the schedule', weight: 3 },
+  { phrase: 'remove the schedule', weight: 3 },
+  { phrase: 'update the schedule', weight: 3 },
+  { phrase: 'edit the schedule', weight: 3 },
+  // Medium-weight: likely pipeline but could overlap
+  { phrase: 'pipeline', weight: 2 },
+  { phrase: 'automate', weight: 2 },
+  { phrase: 'workflow', weight: 2 },
+  { phrase: 'etl', weight: 2 },
+  { phrase: 'every day', weight: 2 },
+  { phrase: 'every hour', weight: 2 },
+  { phrase: 'recurring', weight: 2 },
+  { phrase: 'schedule', weight: 1 },
+];
+
+const GOVERNANCE_SIGNALS: Array<{ phrase: string; weight: number }> = [
+  // High-weight: unambiguous governance/security intent
+  { phrase: 'who has access', weight: 3 },
+  { phrase: 'who can access', weight: 3 },
+  { phrase: 'show permissions', weight: 3 },
+  { phrase: 'access control', weight: 3 },
+  { phrase: 'row-level security', weight: 3 },
+  { phrase: 'column permissions', weight: 3 },
+  { phrase: 'data masking', weight: 3 },
+  { phrase: 'data classification', weight: 3 },
+  { phrase: 'sensitive data', weight: 3 },
+  { phrase: 'PII', weight: 3 },
+  { phrase: 'policy tags', weight: 3 },
+  { phrase: 'compliance', weight: 3 },
+  { phrase: 'audit access', weight: 3 },
+  { phrase: 'access audit', weight: 3 },
+  { phrase: 'privacy', weight: 2 },
+  { phrase: 'security posture', weight: 3 },
+  { phrase: 'security', weight: 2 },
+  // Medium-weight
+  { phrase: 'IAM', weight: 2 },
+  { phrase: 'roles', weight: 2 },
+  { phrase: 'grants', weight: 2 },
+  { phrase: 'govern', weight: 2 },
+  { phrase: 'policy', weight: 2 },
+  // Verb triggers
+  { phrase: 'audit', weight: 2 },
 ];
 
 // ─── Scoring engine ───────────────────────────────────────────────────────────
@@ -403,12 +487,15 @@ export function classifyIntent(
   // Score each skill based on weighted signal matches, then pick the winner.
 
   const scores: Record<string, number> = {
+    'query': scoreSignals(lower, QUERY_SIGNALS),
     'data-quality': scoreSignals(lower, DATA_QUALITY_SIGNALS),
     'monitoring': scoreSignals(lower, MONITORING_SIGNALS),
     'schema': scoreSignals(lower, SCHEMA_SIGNALS),
     'discovery': scoreSignals(lower, DISCOVERY_SIGNALS),
     'data-loading': scoreSignals(lower, DATA_LOADING_SIGNALS),
     'task': scoreSignals(lower, TASK_SIGNALS),
+    'pipeline': scoreSignals(lower, PIPELINE_SIGNALS),
+    'governance': scoreSignals(lower, GOVERNANCE_SIGNALS),
   };
 
   // Apply context-aware boosts

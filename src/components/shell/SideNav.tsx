@@ -142,7 +142,8 @@ export function SideNav({ collapsed }: SideNavProps) {
             { label: 'Overview', icon: 'home', page: 'overview' },
             { label: 'Chat', icon: 'chat', page: 'chat' },
             { label: 'Favorites', icon: 'star', page: 'favorites' },
-            { label: 'Prompts', icon: 'bookmark', page: 'prompts' },
+            { label: 'Prompts', icon: 'bookmarks', page: 'prompts' },
+            { label: 'Saved Work', icon: 'bookmark', page: 'saved-work' },
           ].map((item) => (
             <div className="gc-nav-item-row" key={item.page}>
               <a

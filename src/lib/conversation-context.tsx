@@ -4,6 +4,7 @@
 // for creating new conversations and switching between existing ones.
 // The active conversation ID is persisted in sessionStorage so it
 // survives page refreshes.
+// Also tracks an operation log for conversation summary and undo.
 
 import {
   createContext,
@@ -13,6 +14,7 @@ import {
   type ReactNode,
 } from 'react';
 import { generateId } from './firestore-service';
+import type { OperationLogEntry } from './types';
 
 const STORAGE_KEY = 'bqaif_conversationId';
 
@@ -36,6 +38,10 @@ interface ConversationContextValue {
   conversationId: string;
   newConversation: () => string;
   loadConversation: (id: string) => void;
+  operationLog: OperationLogEntry[];
+  addOperation: (entry: OperationLogEntry) => void;
+  getOperationLog: () => OperationLogEntry[];
+  clearOperationLog: () => void;
 }
 
 const ConversationContext = createContext<ConversationContextValue | null>(null);
@@ -49,20 +55,44 @@ export function ConversationProvider({ children }: { children: ReactNode }) {
     return id;
   });
 
+  const [operationLog, setOperationLog] = useState<OperationLogEntry[]>([]);
+
   const newConversation = useCallback(() => {
     const id = generateId();
     setConversationId(id);
     storeId(id);
+    setOperationLog([]);
     return id;
   }, []);
 
   const loadConversation = useCallback((id: string) => {
     setConversationId(id);
     storeId(id);
+    setOperationLog([]);
+  }, []);
+
+  const addOperation = useCallback((entry: OperationLogEntry) => {
+    setOperationLog((prev) => [...prev, entry]);
+  }, []);
+
+  const getOperationLog = useCallback(() => {
+    return operationLog;
+  }, [operationLog]);
+
+  const clearOperationLog = useCallback(() => {
+    setOperationLog([]);
   }, []);
 
   return (
-    <ConversationContext.Provider value={{ conversationId, newConversation, loadConversation }}>
+    <ConversationContext.Provider value={{
+      conversationId,
+      newConversation,
+      loadConversation,
+      operationLog,
+      addOperation,
+      getOperationLog,
+      clearOperationLog,
+    }}>
       {children}
     </ConversationContext.Provider>
   );

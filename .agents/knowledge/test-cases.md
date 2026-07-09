@@ -235,3 +235,28 @@ These test the schema skill's behavior.
 | N3 | "what's the schema of orders" | query | schema | high |
 | N4 | "run this query every day" | query | data-loading | high |
 | N5 | "why is my query slow" | query | monitoring | high |
+
+## Pipeline Routing
+
+| ID | Input | Expected Skill | Expected Sub-Type | Confidence |
+|----|-------|---------------|-------------------|------------|
+| P1 | "show my scheduled queries" | pipeline | LIST_SCHEDULES | high |
+| P2 | "what's scheduled to run tonight" | pipeline | LIST_SCHEDULES | high |
+| P3 | "create a pipeline that loads data from raw_orders to clean_orders daily" | pipeline | CREATE_PIPELINE | high |
+| P4 | "show me the run history for my nightly ETL" | pipeline | RUN_HISTORY | high |
+| P5 | "delete the weekly report schedule" | pipeline | DELETE_SCHEDULE | high |
+
+## Governance Routing
+
+| ID | Input | Expected Skill | Expected Sub-Type | Confidence |
+|----|-------|---------------|-------------------|------------|
+| G1 | "who has access to the analytics dataset" | governance | ACCESS_AUDIT | high |
+| G2 | "show permissions on the orders table" | governance | ACCESS_AUDIT | high |
+| G3 | "check security policies on users" | governance | TABLE_SECURITY | high |
+| G4 | "is there any PII in the customers table" | governance | SENSITIVE_DATA_SCAN | high |
+| G5 | "scan for sensitive data" | governance | SENSITIVE_DATA_SCAN | high |
+| G6 | "how well documented is this dataset" | governance | DATA_CLASSIFICATION | high |
+| G7 | "which tables have no description" | governance | DATA_CLASSIFICATION | high |
+| G8 | "audit access to the sales dataset" | governance | ACCESS_AUDIT | high |
+| G9 | "data classification for analytics" | governance | DATA_CLASSIFICATION | high |
+| G10 | "compliance check on this dataset" | governance | ACCESS_AUDIT | high |

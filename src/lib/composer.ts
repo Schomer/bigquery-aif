@@ -27,19 +27,21 @@ import type {
   AccessPatternResult,
   CostAnalysisResult,
   FreshnessResult,
+  GovernanceResult,
   Tone,
   HeadlineBasis,
   ArtifactType,
   HandoffEnvelope,
   SkillName,
   QualityFlag,
+  PipelineResult,
 } from './types';
 
 // ─── Main compose function ────────────────────────────────────────────────────
 
 export function compose(
   skill: SkillName,
-  result: SchemaResult | QueryResult | DataManagementResult | MonitoringResult | AlertResult | DiscoveryResult | DataQualityResult | DataLoadingResult | StorageBreakdownResult | AccessPatternResult | CostAnalysisResult | FreshnessResult,
+  result: SchemaResult | QueryResult | DataManagementResult | MonitoringResult | AlertResult | DiscoveryResult | DataQualityResult | DataLoadingResult | StorageBreakdownResult | AccessPatternResult | CostAnalysisResult | FreshnessResult | GovernanceResult | PipelineResult,
   qualityFlags?: QualityFlag[],
 ): CompositionEnvelope {
   switch (skill) {
@@ -67,6 +69,10 @@ export function compose(
       return composeDataQuality(result as DataQualityResult);
     case 'data-loading':
       return composeDataLoading(result as DataLoadingResult);
+    case 'governance':
+      return composeGovernance(result as GovernanceResult);
+    case 'pipeline':
+      return composePipeline(result as unknown as PipelineResult);
     default:
       return composeGeneric(skill, result);
   }
@@ -214,6 +220,13 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[]): Compos
       sourceSkill: 'query',
       sourceResultRef: id,
     });
+    nextActions.push({
+      targetSkill: 'data-loading',
+      label: 'Save this query',
+      context: { sql: result.sql, saveAction: 'query' },
+      sourceSkill: 'query',
+      sourceResultRef: id,
+    });
   }
   // If anomalies or nulls might be present, offer Data Quality
   if (result.notableFindings) {
@@ -336,6 +349,151 @@ function composeDataManagement(
       nextActions,
     };
   }
+}
+
+// ─── Governance composition ──────────────────────────────────────────────────
+
+function composeGovernance(result: GovernanceResult): CompositionEnvelope {
+  const id = randomUUID();
+  let headlineText = '';
+  let tone: Tone = 'NEUTRAL';
+  const basis: HeadlineBasis = 'STATUS';
+  const nextActions: HandoffEnvelope[] = [];
+
+  switch (result.governanceType) {
+    case 'ACCESS_AUDIT': {
+      const count = result.accessEntries?.length ?? 0;
+      if (count === 0) {
+        headlineText = `No explicit access entries found for ${result.scope}`;
+      } else {
+        // Group by role for a descriptive headline
+        const roleGroups: Record<string, number> = {};
+        for (const e of result.accessEntries!) {
+          roleGroups[e.role] = (roleGroups[e.role] || 0) + 1;
+        }
+        const uniqueEntities = new Set(result.accessEntries!.map(e => e.entity)).size;
+        const topRole = Object.entries(roleGroups).sort(([, a], [, b]) => b - a)[0];
+        if (topRole) {
+          headlineText = `${uniqueEntities} principal${uniqueEntities !== 1 ? 's' : ''} have access to ${result.scope} -- most common role: ${topRole[0]}`;
+        } else {
+          headlineText = `${count} access entries for ${result.scope}`;
+        }
+      }
+      nextActions.push({
+        targetSkill: 'governance',
+        label: 'Check security policies',
+        context: { governanceType: 'TABLE_SECURITY' },
+        sourceSkill: 'governance',
+        sourceResultRef: id,
+      });
+      nextActions.push({
+        targetSkill: 'governance',
+        label: 'Scan for PII',
+        context: { governanceType: 'SENSITIVE_DATA_SCAN' },
+        sourceSkill: 'governance',
+        sourceResultRef: id,
+      });
+      break;
+    }
+    case 'TABLE_SECURITY': {
+      const p = result.securityPolicies!;
+      const parts: string[] = [];
+      if (p.rowLevelPolicies > 0) parts.push(`${p.rowLevelPolicies} row-level polic${p.rowLevelPolicies !== 1 ? 'ies' : 'y'}`);
+      if (p.columnLevelMasking > 0) parts.push(`${p.columnLevelMasking} column mask${p.columnLevelMasking !== 1 ? 's' : ''}`);
+      if (p.policyTags.length > 0) parts.push(`${p.policyTags.length} policy tag${p.policyTags.length !== 1 ? 's' : ''}`);
+      if (parts.length === 0) {
+        headlineText = `No security policies found on ${result.scope}`;
+        tone = 'ATTENTION';
+      } else {
+        headlineText = `${result.scope}: ${parts.join(', ')}`;
+        tone = 'POSITIVE';
+      }
+      nextActions.push({
+        targetSkill: 'governance',
+        label: 'Audit access',
+        context: { governanceType: 'ACCESS_AUDIT' },
+        sourceSkill: 'governance',
+        sourceResultRef: id,
+      });
+      nextActions.push({
+        targetSkill: 'governance',
+        label: 'Scan for PII',
+        context: { governanceType: 'SENSITIVE_DATA_SCAN' },
+        sourceSkill: 'governance',
+        sourceResultRef: id,
+      });
+      break;
+    }
+    case 'SENSITIVE_DATA_SCAN': {
+      const count = result.sensitiveFindings?.length ?? 0;
+      if (count === 0) {
+        headlineText = `No sensitive data patterns detected in ${result.scope}`;
+        tone = 'POSITIVE';
+      } else {
+        const highCount = result.sensitiveFindings!.filter(f => f.confidence === 'high').length;
+        if (highCount > 0) {
+          headlineText = `${count} potential PII pattern${count !== 1 ? 's' : ''} found in ${result.scope} (${highCount} high confidence)`;
+          tone = 'ATTENTION';
+        } else {
+          headlineText = `${count} potential PII pattern${count !== 1 ? 's' : ''} found in ${result.scope}`;
+          tone = 'ATTENTION';
+        }
+      }
+      nextActions.push({
+        targetSkill: 'governance',
+        label: 'Check security policies',
+        context: { governanceType: 'TABLE_SECURITY' },
+        sourceSkill: 'governance',
+        sourceResultRef: id,
+      });
+      nextActions.push({
+        targetSkill: 'governance',
+        label: 'Check documentation',
+        context: { governanceType: 'DATA_CLASSIFICATION' },
+        sourceSkill: 'governance',
+        sourceResultRef: id,
+      });
+      break;
+    }
+    case 'DATA_CLASSIFICATION': {
+      const cls = result.classification!;
+      const totalTables = cls.documentedTables + cls.undocumentedTables;
+      const pct = totalTables > 0 ? Math.round((cls.documentedTables / totalTables) * 100) : 0;
+      if (cls.undocumentedTables === 0) {
+        headlineText = `All ${totalTables} tables in ${result.scope} are documented`;
+        tone = 'POSITIVE';
+      } else {
+        headlineText = `${pct}% documentation coverage in ${result.scope} -- ${cls.undocumentedTables} table${cls.undocumentedTables !== 1 ? 's' : ''} undocumented`;
+        tone = cls.undocumentedTables > 5 ? 'ATTENTION' : 'NEUTRAL';
+      }
+      nextActions.push({
+        targetSkill: 'governance',
+        label: 'Audit access',
+        context: { governanceType: 'ACCESS_AUDIT' },
+        sourceSkill: 'governance',
+        sourceResultRef: id,
+      });
+      nextActions.push({
+        targetSkill: 'governance',
+        label: 'Scan for PII',
+        context: { governanceType: 'SENSITIVE_DATA_SCAN' },
+        sourceSkill: 'governance',
+        sourceResultRef: id,
+      });
+      break;
+    }
+  }
+
+  return {
+    id,
+    skill: 'governance',
+    headline: { text: headlineText, tone, basis },
+    primaryArtifact: { type: 'GOVERNANCE_VIEW', data: result },
+    provenance: result.sql
+      ? { visibility: 'COLLAPSED', sql: result.sql }
+      : { visibility: 'COLLAPSED' },
+    nextActions,
+  };
 }
 
 // ─── Generic fallback ─────────────────────────────────────────────────────────
@@ -805,6 +963,16 @@ function composeDataQuality(result: DataQualityResult): CompositionEnvelope {
     sourceSkill: 'data-quality',
     sourceResultRef: id,
   });
+  // Save this check
+  if (nextActions.length < 4) {
+    nextActions.push({
+      targetSkill: 'data-loading',
+      label: 'Save this check',
+      context: { sql: result.sql, table: result.table, saveAction: 'check', checkType: result.checkType },
+      sourceSkill: 'data-quality',
+      sourceResultRef: id,
+    });
+  }
 
   return {
     id,
@@ -863,3 +1031,165 @@ function composeDataLoading(result: DataLoadingResult): CompositionEnvelope {
     ],
   };
 }
+
+// --- Pipeline composition ----------------------------------------------------
+
+function composePipeline(result: PipelineResult): CompositionEnvelope {
+  const id = randomUUID();
+  let headlineText = '';
+  let tone: Tone = 'NEUTRAL';
+  const basis: HeadlineBasis = 'STATUS';
+  const nextActions: HandoffEnvelope[] = [];
+
+  switch (result.pipelineType) {
+    case 'LIST_SCHEDULES': {
+      const count = result.schedules?.length ?? 0;
+      if (count === 0) {
+        headlineText = 'No scheduled queries found in this project';
+        tone = 'ATTENTION';
+      } else {
+        const activeCount = result.schedules?.filter(s => (s.state || '').toUpperCase() === 'ACTIVE').length ?? 0;
+        const failedCount = result.schedules?.filter(s =>
+          ['FAILED', 'ERROR'].includes((s.state || '').toUpperCase()) ||
+          (s.lastRunStatus || '').toUpperCase() === 'FAILED'
+        ).length ?? 0;
+        const parts: string[] = [`${count} scheduled quer${count !== 1 ? 'ies' : 'y'}`];
+        if (activeCount > 0) parts.push(`${activeCount} active`);
+        if (failedCount > 0) {
+          parts.push(`${failedCount} with recent failures`);
+          tone = 'ATTENTION';
+        }
+        headlineText = parts.join(' -- ');
+      }
+      nextActions.push({
+        targetSkill: 'pipeline',
+        label: 'Create new pipeline',
+        context: { pipelineType: 'CREATE_PIPELINE' },
+        sourceSkill: 'pipeline',
+        sourceResultRef: id,
+      });
+      break;
+    }
+
+    case 'SCHEDULE_DETAILS': {
+      const sched = result.schedules?.[0];
+      if (sched) {
+        headlineText = `"${sched.displayName}" runs ${sched.schedule}`;
+        const runCount = result.runs?.length ?? 0;
+        if (runCount > 0) {
+          const failedRuns = result.runs?.filter(r => r.state === 'FAILED').length ?? 0;
+          headlineText += ` -- ${runCount} recent run${runCount !== 1 ? 's' : ''}`;
+          if (failedRuns > 0) {
+            headlineText += `, ${failedRuns} failed`;
+            tone = 'ATTENTION';
+          }
+        }
+      } else {
+        headlineText = 'Schedule not found';
+        tone = 'ATTENTION';
+      }
+      nextActions.push({
+        targetSkill: 'pipeline',
+        label: 'All schedules',
+        context: { pipelineType: 'LIST_SCHEDULES' },
+        sourceSkill: 'pipeline',
+        sourceResultRef: id,
+      });
+      break;
+    }
+
+    case 'CREATE_PIPELINE': {
+      headlineText = 'Pipeline ready for review';
+      if (result.confirmation?.estimatedCostPerRun) {
+        headlineText += ` -- ${result.confirmation.estimatedCostPerRun}`;
+      }
+      break;
+    }
+
+    case 'UPDATE_SCHEDULE': {
+      const action = result.confirmation?.action || '';
+      if (action === 'UPDATED') {
+        headlineText = `Schedule updated: ${result.schedules?.[0]?.displayName || 'schedule'}`;
+        tone = 'POSITIVE';
+      } else if (action === 'NOT_FOUND') {
+        headlineText = 'Schedule not found';
+        tone = 'ATTENTION';
+      } else if (action === 'ERROR') {
+        headlineText = 'Failed to update schedule';
+        tone = 'ATTENTION';
+      } else {
+        headlineText = result.confirmation?.sql || 'Update result';
+      }
+      nextActions.push({
+        targetSkill: 'pipeline',
+        label: 'All schedules',
+        context: { pipelineType: 'LIST_SCHEDULES' },
+        sourceSkill: 'pipeline',
+        sourceResultRef: id,
+      });
+      break;
+    }
+
+    case 'DELETE_SCHEDULE': {
+      const action = result.confirmation?.action || '';
+      if (action === 'DELETED') {
+        headlineText = 'Schedule deleted';
+        tone = 'POSITIVE';
+      } else if (action === 'NOT_FOUND') {
+        headlineText = 'Schedule not found';
+        tone = 'ATTENTION';
+      } else {
+        headlineText = 'Failed to delete schedule';
+        tone = 'ATTENTION';
+      }
+      nextActions.push({
+        targetSkill: 'pipeline',
+        label: 'All schedules',
+        context: { pipelineType: 'LIST_SCHEDULES' },
+        sourceSkill: 'pipeline',
+        sourceResultRef: id,
+      });
+      break;
+    }
+
+    case 'RUN_HISTORY': {
+      const runs = result.runs || [];
+      if (runs.length === 0) {
+        headlineText = 'No run history found';
+        tone = 'ATTENTION';
+      } else {
+        const successCount = runs.filter(r => r.state === 'SUCCEEDED').length;
+        const failedCount = runs.filter(r => r.state === 'FAILED').length;
+        headlineText = `${runs.length} run${runs.length !== 1 ? 's' : ''}: ${successCount} succeeded`;
+        if (failedCount > 0) {
+          headlineText += `, ${failedCount} failed`;
+          tone = 'ATTENTION';
+        }
+      }
+      nextActions.push({
+        targetSkill: 'pipeline',
+        label: 'All schedules',
+        context: { pipelineType: 'LIST_SCHEDULES' },
+        sourceSkill: 'pipeline',
+        sourceResultRef: id,
+      });
+      break;
+    }
+
+    default:
+      headlineText = 'Pipeline operation completed';
+  }
+
+  return {
+    id,
+    skill: 'pipeline',
+    headline: { text: headlineText, tone, basis },
+    primaryArtifact: { type: 'PIPELINE_VIEW', data: result },
+    provenance: {
+      visibility: 'COLLAPSED',
+      sql: result.confirmation?.sql || result.schedules?.[0]?.sql || undefined,
+    },
+    nextActions,
+  };
+}
+

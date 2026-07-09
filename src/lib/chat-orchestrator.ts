@@ -25,7 +25,9 @@ import { handleDataQuality } from './skills/handle-data-quality';
 import { handleMonitoring } from './skills/handle-monitoring';
 import { handleDiscovery } from './skills/handle-discovery';
 import { handleDataLoading } from './skills/handle-data-loading';
+import { handlePipeline } from './skills/handle-pipeline';
 import { handleTask } from './skills/handle-task';
+import { handleGovernance } from './skills/handle-governance';
 
 import type {
   ChatMessage,
@@ -207,7 +209,9 @@ The user's new message is a continuation of this conversation. Treat it as a fol
       'monitoring': 'monitoring',
       'discovery': 'discovery search',
       'data-loading': 'data export',
+      'pipeline': 'pipeline management',
       'task': 'task resolver',
+      'governance': 'governance check',
     };
     onStatus?.(`Matched skill: ${skillLabels[skill] || skill}`);
 
@@ -239,8 +243,14 @@ The user's new message is a continuation of this conversation. Treat it as a fol
       case 'data-loading':
         envelopes = await handleDataLoading(resolvedMessage, enrichedContext, onStatus);
         break;
+      case 'pipeline':
+        envelopes = await handlePipeline(resolvedMessage, enrichedContext, onStatus);
+        break;
       case 'task':
         envelopes = await handleTask(resolvedMessage, enrichedContext, onStatus);
+        break;
+      case 'governance':
+        envelopes = await handleGovernance(resolvedMessage, enrichedContext, onStatus);
         break;
       default:
         envelopes = await handleQuery(resolvedMessage, history, enrichedContext, onStatus);
