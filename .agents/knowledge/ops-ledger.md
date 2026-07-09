@@ -12,6 +12,14 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 
 ---
 
+### 2026-07-09: Inline chat confirmations
+**Scope**: InlineConfirmation.tsx (new), ChatThread.tsx, ResultsSidebar.tsx
+**What changed**: Moved COST_CONFIRM_CARD and CONFIRMATION_CARD rendering from ArtifactCard (results panel in split layout) into lightweight inline chat messages with action buttons. Created InlineConfirmation.tsx with InlineCostConfirm and InlineDmlConfirm components. InlineDmlConfirm has a `compact` prop -- full detail (with DEDUPE preview table) in unified ChatThread layout, simplified summary in split-layout sidebar.
+**What worked**: Intercepting confirmation envelopes in the message rendering loop (before they reach ArtifactCard) and filtering them from `allEnvelopes` in ResultsSidebar is clean and requires no backend changes.
+**Rule**: Confirmation envelopes should render inline in the chat, not in the results panel. The existing handleConfirm/handleCancel state management in useChatOrchestration.ts did not need changes -- only the rendering location changed.
+
+---
+
 ### 2026-07-09: Conversation continuity + export expansion
 **Scope**: ConversationSummary.tsx, conversation-context.tsx, ChatThread.tsx, DataLoadingView.tsx, types.ts, useChatOrchestration.ts
 **What changed**: Added ConversationSummary component that derives operation history from messages array. Enhanced conversation-context with operation log tracking. Expanded DataLoadingView with Create View DDL, Looker Studio links, Copy as Table, and Export Format Selector. Fixed duplicate PipelineResult type definition.
