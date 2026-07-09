@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { SparkSpinner } from '@/components/SparkSpinner';
 import { ArtifactCard } from '@/components/ArtifactCard';
 import type {
@@ -15,33 +15,17 @@ import type { ChatError } from '@/hooks/useChatOrchestration';
 // ---- Crystal-ball thinking indicator ----------------------------------------
 
 const THINKING_PHRASES = [
-  'Gazing into the warehouse…',
-  'Reading the query leaves…',
-  'The crystals are computing…',
-  'Communing with the schema…',
-  'Divining your results…',
-  'Scanning the data plane…',
-  'Interrogating the cosmos…',
-  'Decoding the data stream…',
+  'Gazing into the warehouse\u2026',
+  'Reading the query leaves\u2026',
+  'The crystals are computing\u2026',
+  'Communing with the schema\u2026',
+  'Divining your results\u2026',
+  'Scanning the data plane\u2026',
+  'Interrogating the cosmos\u2026',
+  'Decoding the data stream\u2026',
 ];
 
 function CrystalBallThinking() {
-  const [phrase, setPhraseState] = ['' as string, (() => {}) as any];
-  // Use refs to avoid stale closure issues with the interval
-  const phraseRef = useRef(() => {
-    const idx = Math.floor(Math.random() * THINKING_PHRASES.length);
-    return THINKING_PHRASES[idx];
-  });
-
-  const currentPhrase = useRef(phraseRef.current());
-  const [displayPhrase, setDisplayPhrase] = [currentPhrase.current, (v: string) => { currentPhrase.current = v; }];
-
-  // Re-implement with proper state
-  return <CrystalBallThinkingInner />;
-}
-
-function CrystalBallThinkingInner() {
-  const { useState } = require('react');
   const [phrase, setPhrase] = useState(() => {
     const idx = Math.floor(Math.random() * THINKING_PHRASES.length);
     return THINKING_PHRASES[idx];
@@ -160,7 +144,7 @@ function RegenerateButton({
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginTop: 2 }}>
       {rerunningIdx === index ? (
-        <CrystalBallThinkingInner />
+        <CrystalBallThinking />
       ) : (
         <button
           id={`regenerate-btn-${index}`}
@@ -461,6 +445,5 @@ export function ChatThread({
   );
 }
 
-// ---- Export subcomponents for reuse in split layout -------------------------
-
-export { CrystalBallThinkingInner as CrystalBallThinking, ErrorCard, RegenerateButton };
+// Re-export subcomponents for use in split layout sidebar
+export { CrystalBallThinking, ErrorCard, RegenerateButton };
