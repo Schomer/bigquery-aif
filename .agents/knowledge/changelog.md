@@ -4,6 +4,28 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-09: Add OverviewDashboard landing page
+
+**What changed**:
+- Created `src/components/OverviewDashboard.tsx` -- project overview dashboard with 3 sections:
+  - Project Summary: 4 StatCards showing dataset count, table count, storage used, and jobs in last 24h. Data from BigQuery REST API (datasets.list + INFORMATION_SCHEMA queries)
+  - Recent Activity: compact table of last 10 jobs with status icon, query snippet, type badge, duration, bytes processed, relative time. Clickable rows inject monitoring prompts
+  - Quick Actions: 5 action cards (Ask a question, Browse datasets, Check data quality, View costs, Export data) that navigate or inject prompts
+- Wired into `page.tsx` as `activePage === 'overview'` route. Hidden behind both unified and split layout containers
+- Added `accessToken` to the useAuth destructure in page.tsx
+- Added skeleton pulse keyframe animation to globals.css
+- Fixed pre-existing `JSX.Element` type error in ProvenancePanel.tsx (namespace not available in newer TS -- replaced with `React.JSX.Element`)
+
+**Files created**:
+- `src/components/OverviewDashboard.tsx`
+
+**Files modified**:
+- `src/app/page.tsx` -- import, routing, display:none conditions, auth destructure
+- `src/app/globals.css` -- added `@keyframes pulse`
+- `src/components/ProvenancePanel.tsx` -- fixed JSX namespace type error
+
+---
+
 ## 2026-07-09: Decompose page.tsx monolith into focused components
 
 **What changed**:

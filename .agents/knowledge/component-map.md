@@ -242,6 +242,13 @@ UI Components (src/components/)
 - Wraps a trigger element, shows content on hover/focus
 - Placement: top (default), bottom
 
+### `src/components/OverviewDashboard.tsx` (~380 lines)
+**Responsibility**: Landing page dashboard shown when activePage === 'overview'.
+- Three sections: project summary (4 StatCards), recent activity (last 10 jobs table), quick actions (5 action cards)
+- Fetches real data from BigQuery REST API using the user's OAuth token
+- Sections load independently with skeleton placeholders and graceful error fallbacks
+- Props: project, accessToken, onNavigate, onPrompt
+
 ---
 
 ### `src/lib/types.ts` (535 lines)
@@ -300,7 +307,9 @@ UI Components (src/components/)
 | MultistepView.tsx | 15KB | Multi-step workflow cards |
 | ErDiagramView.tsx | 14KB | Entity-relationship diagrams |
 | LineageDagView.tsx | 14KB | Data lineage DAG visualization |
-| ArtifactCard.tsx | 17KB | Generic artifact rendering wrapper, includes pin-to-context button |
+| ArtifactCard.tsx | 22KB | Generic artifact rendering wrapper, includes pin-to-context button, ProvenancePanel |
+| ProvenancePanel.tsx | 14KB | Collapsible provenance panel (SQL, cost, job, tables, quality flags) |
+| HowItWorksPanel.tsx | 8KB | Static trust/transparency page (security, queries, costs) |
 | CostAnalysisView.tsx | 15KB | Cost breakdown visualizations |
 | AccessPatternView.tsx | 15KB | Table access pattern analysis |
 | StorageBreakdownView.tsx | 15KB | Storage treemaps |
