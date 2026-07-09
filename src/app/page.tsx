@@ -137,7 +137,7 @@ export default function Home() {
   const [contextItems, setContextItems] = useState<ContextItem[]>([]);
   const [pinnedEnvelopeId, setPinnedEnvelopeId] = useState<string | null>(null);
   const [statusText, setStatusText] = useState<string | null>(null);
-  const [lastError, setLastError] = useState<{ message: string; type: string; sql?: string; retryFn?: () => void } | null>(null);
+  const [lastError, setLastError] = useState<{ message: string; type: string; sql?: string; retryFn?: () => void | Promise<void> } | null>(null);
   const [thinkingSteps, setThinkingSteps] = useState<Record<number, (string | StepInfo)[]>>({});
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -467,7 +467,7 @@ export default function Home() {
         errorText = msg.replace('Gemini API failed: ', '');
       } else if (msg.includes('access token') || msg.includes('credentials') || msg.includes('access_denied') || msg.includes('UNAUTHENTICATED') || msg.includes('authorized') || msg.includes('access not authorized') || msg.includes('sign in')) {
         errorType = 'auth';
-        errorText = 'Your session has expired. Please sign in again.';
+        errorText = 'Your session has expired. Sign in to continue where you left off.';
       } else if (msg.includes('quota') || msg.includes('rate limit') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('429')) {
         errorType = 'rate_limit';
         errorText = 'The service is temporarily busy. Try again in a few seconds.';
@@ -476,7 +476,17 @@ export default function Home() {
         errorText = msg.replace('BigQuery query failed: ', '');
       }
 
-      const retryFn = errorType === 'auth' ? signIn : () => sendMessage(text);
+      const retryFn = errorType === 'auth'
+        ? async () => {
+            const ok = await signIn();
+            if (ok) {
+              // Remove the user message and empty assistant message that were appended,
+              // then re-send the original request so the user picks up where they left off.
+              setMessages((prev) => prev.slice(0, -2));
+              sendMessage(text);
+            }
+          }
+        : () => sendMessage(text);
       setLastError({ message: errorText, type: errorType, retryFn });
 
       setMessages((prev) => [
@@ -1025,7 +1035,7 @@ export default function Home() {
                 cursor: 'pointer',
               }}
             >
-              {lastError.type === 'auth' ? 'Sign in again' : 'Try again'}
+              {lastError.type === 'auth' ? 'Sign in and continue' : 'Try again'}
             </button>
           )}
         </div>
