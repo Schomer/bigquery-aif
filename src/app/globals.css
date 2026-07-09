@@ -2137,10 +2137,10 @@ details>summary::marker {
   align-items: center;
   gap: 4px;
   padding: 3px 9px 3px 6px;
-  border: 1px solid #bbf7d0;
+  border: 1px solid #d1d5db;
   border-radius: 6px;
-  background: #f0fdf4;
-  color: #166534;
+  background: #ffffff;
+  color: #4b5563;
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
@@ -2149,15 +2149,15 @@ details>summary::marker {
 }
 
 .chat-sidebar-artifact-link:hover {
-  border-color: #4ade80;
-  background: #dcfce7;
-  color: #15803d;
-  box-shadow: 0 1px 3px rgba(22, 163, 74, 0.15);
+  border-color: #9ca3af;
+  background: #f9fafb;
+  color: #374151;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .chat-sidebar-artifact-link .material-symbols-outlined {
   font-size: 13px;
-  color: #22c55e;
+  color: #6b7280;
 }
 
 /* Scroll highlight animation on target card */
@@ -2643,18 +2643,18 @@ details>summary::marker {
 
   /* -- Artifact link buttons -- */
   .chat-sidebar-artifact-link {
-    background: #1a3326;
-    border-color: #2a5a3e;
-    color: #81c995;
+    background: #ffffff;
+    border-color: #d1d5db;
+    color: #4b5563;
   }
   .chat-sidebar-artifact-link:hover {
-    background: #224a35;
-    border-color: #3a7a52;
-    color: #a3e4b5;
-    box-shadow: 0 1px 3px rgba(34, 197, 94, 0.15);
+    background: #f9fafb;
+    border-color: #9ca3af;
+    color: #374151;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   }
   .chat-sidebar-artifact-link .material-symbols-outlined {
-    color: #81c995;
+    color: #6b7280;
   }
 
   /* -- Context chips -- */
@@ -2818,9 +2818,9 @@ details>summary::marker {
     0 2px 8px rgba(168, 85, 247, 0.15);
 }
 
-.dark-theme .chat-sidebar-artifact-link { background: #1a3326; border-color: #2a5a3e; color: #81c995; }
-.dark-theme .chat-sidebar-artifact-link:hover { background: #224a35; border-color: #3a7a52; color: #a3e4b5; box-shadow: 0 1px 3px rgba(34, 197, 94, 0.15); }
-.dark-theme .chat-sidebar-artifact-link .material-symbols-outlined { color: #81c995; }
+.dark-theme .chat-sidebar-artifact-link { background: #23232a; border-color: #3a3a44; color: #b0b0bc; }
+.dark-theme .chat-sidebar-artifact-link:hover { background: #2a2a33; border-color: #4a4a55; color: #d0d0da; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); }
+.dark-theme .chat-sidebar-artifact-link .material-symbols-outlined { color: #9090a0; }
 
 .dark-theme .context-chip { background: #1e2d4d; border-color: #3a5080; }
 
