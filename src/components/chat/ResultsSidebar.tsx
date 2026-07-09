@@ -4,10 +4,13 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { SparkSpinner } from '@/components/SparkSpinner';
 import { ArtifactCard } from '@/components/ArtifactCard';
 import { EmptyCanvasAnimation } from '@/components/EmptyCanvasAnimation';
+import { InlineCostConfirm, InlineDmlConfirm } from './InlineConfirmation';
 import { formatBytes } from '@/lib/format';
 import type {
   ChatMessage,
   CompositionEnvelope,
+  CostEstimate,
+  DataManagementConfirmResult,
   StepInfo,
   HandoffEnvelope,
   ContextItem,
@@ -192,16 +195,23 @@ export function ResultsSidebar({
   }, [sidebarWidth, layout, setSidebarWidth]);
 
   // Collect envelopes from visible assistant messages for the results panel
+  // Exclude confirmation envelopes -- those render inline in the chat sidebar
+  const CONFIRM_TYPES = new Set(['COST_CONFIRM_CARD', 'CONFIRMATION_CARD']);
   const allEnvelopes = useMemo(() => {
     const result: CompositionEnvelope[] = [];
     for (let idx = 0; idx < messages.length; idx++) {
       if (idx < historyHiddenBefore) continue;
       const msg = messages[idx];
       if (msg.role === 'assistant' && msg.envelopes?.length) {
-        result.push(...msg.envelopes);
+        for (const env of msg.envelopes) {
+          if (!CONFIRM_TYPES.has(env.primaryArtifact.type)) {
+            result.push(env);
+          }
+        }
       }
     }
     return result;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, historyHiddenBefore]);
 
   // Project selection buttons (used in empty-state panels)
@@ -339,31 +349,66 @@ export function ResultsSidebar({
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {msg.envelopes && msg.envelopes.length > 0 && (
-                    <div className="chat-sidebar-assistant-text" style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                      {msg.envelopes.map((env) => env.headline.text).join(' ')}
-                    </div>
-                  )}
+                  {/* Render confirmation envelopes inline in chat sidebar */}
+                  {msg.envelopes && msg.envelopes.filter(e => CONFIRM_TYPES.has(e.primaryArtifact.type)).map((env) => {
+                    const aType = env.primaryArtifact.type;
+                    if (aType === 'COST_CONFIRM_CARD') {
+                      return (
+                        <InlineCostConfirm
+                          key={env.id}
+                          headline={env.headline.text}
+                          costEstimate={env.primaryArtifact.data as CostEstimate}
+                          onConfirm={() => onConfirm(env)}
+                          onCancel={() => onCancel(env)}
+                        />
+                      );
+                    }
+                    return (
+                      <InlineDmlConfirm
+                        key={env.id}
+                        headline={env.headline.text}
+                        result={env.primaryArtifact.data as DataManagementConfirmResult}
+                        compact
+                        onConfirm={() => onConfirm(env)}
+                        onCancel={() => onCancel(env)}
+                      />
+                    );
+                  })}
+
+                  {/* Non-confirmation envelopes: show headline + artifact links */}
+                  {(() => {
+                    const nonConfirm = msg.envelopes?.filter(e => !CONFIRM_TYPES.has(e.primaryArtifact.type)) ?? [];
+                    if (nonConfirm.length === 0 && (!msg.envelopes || msg.envelopes.length === 0) && msg.content) {
+                      return (
+                        <div className="chat-sidebar-assistant-text">
+                          {typeof msg.content === 'string' ? msg.content : String(msg.content)}
+                        </div>
+                      );
+                    }
+                    return nonConfirm.length > 0 ? (
+                      <>
+                        <div className="chat-sidebar-assistant-text" style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                          {nonConfirm.map((env) => env.headline.text).join(' ')}
+                        </div>
+                        <div className="chat-sidebar-artifact-links">
+                          {nonConfirm.map((env) => (
+                            <button
+                              key={env.id}
+                              className="chat-sidebar-artifact-link"
+                              onClick={() => scrollToResult(env.id)}
+                              title={`View in results panel`}
+                            >
+                              <span className="material-symbols-outlined">{artifactIcon(env.primaryArtifact.type)}</span>
+                              {envelopeLabel(env)}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    ) : null;
+                  })()}
                   {!msg.envelopes && msg.content && (
                     <div className="chat-sidebar-assistant-text">
                       {typeof msg.content === 'string' ? msg.content : String(msg.content)}
-                    </div>
-                  )}
-
-                  {/* Artifact link buttons */}
-                  {msg.envelopes && msg.envelopes.length > 0 && (
-                    <div className="chat-sidebar-artifact-links">
-                      {msg.envelopes.map((env) => (
-                        <button
-                          key={env.id}
-                          className="chat-sidebar-artifact-link"
-                          onClick={() => scrollToResult(env.id)}
-                          title={`View in results panel`}
-                        >
-                          <span className="material-symbols-outlined">{artifactIcon(env.primaryArtifact.type)}</span>
-                          {envelopeLabel(env)}
-                        </button>
-                      ))}
                     </div>
                   )}
 
