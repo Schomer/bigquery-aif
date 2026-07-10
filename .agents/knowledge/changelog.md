@@ -4,6 +4,19 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-10: Auth Session Persistence
+
+**What changed**:
+- Switched OAuth access token storage from `sessionStorage` to `localStorage` in `gis-auth.ts`. Tokens now survive tab close, new tabs, and browser restarts.
+- Added token timestamp tracking (`bqaif_token_ts` in localStorage) and `isTokenLikelyExpired()` helper (50-minute threshold) for proactive expiry detection.
+- Added auto-refresh on page load in `auth-context.tsx`: when Firebase Auth detects an existing user but the stored token is missing or expired, automatically triggers a `signInWithPopup` with the no-consent `refreshProvider` (popup opens and auto-closes in <1s).
+- Added one-time migration from old `sessionStorage` key to `localStorage`.
+- `autoRefreshAttempted` ref prevents duplicate refresh popups.
+
+**Why**: App was showing the sign-in page too frequently -- every tab close, new tab, or page reload after token expiry. This blocked automated testing with Antigravity.
+
+---
+
 ## 2026-07-10: Saved Artifacts System (Phase 1)
 
 **What changed**:

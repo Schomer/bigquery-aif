@@ -12,6 +12,15 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 
 ---
 
+### 2026-07-10: Auth tokens stored in localStorage with expiry tracking
+**Scope**: gis-auth.ts, auth-context.tsx
+**What broke**: App showed the sign-in page on every tab close, new tab, or reload after ~1hr token expiry. Blocked Antigravity automated testing.
+**Root cause**: OAuth access token was stored in `sessionStorage` (tab-scoped, dies on close). Firebase Auth itself persists via IndexedDB, so the *identity* survived but the *BigQuery token* did not. `bqAuthorized` requires both.
+**Fix**: Moved to `localStorage`. Added `bqaif_token_ts` timestamp alongside the token. Added `isTokenLikelyExpired()` (50-min threshold). On `onAuthStateChanged`, if user exists but token is missing/expired, auto-trigger `signInWithPopup(refreshProvider)` which auto-closes in <1s.
+**Rule**: OAuth token storage must use `localStorage`, not `sessionStorage`. Token freshness must be tracked via a companion timestamp key. Auto-refresh must be gated by a ref (`autoRefreshAttempted`) to prevent popup storms.
+
+---
+
 ### 2026-07-09: Fix basic aggregation queries routed to multistep instead of single-step query
 **Scope**: router.ts, chat-orchestrator.ts, intent-routing.md
 **What broke**: "show me how many total sales there was for the store BARMUDA DISTRIBUTION" produced a 3-step multistep workflow (list tables, describe table, calculate total sales) instead of a single query skill producing a KPI card.

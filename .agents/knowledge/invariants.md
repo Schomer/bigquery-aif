@@ -120,8 +120,11 @@ These principles govern all design decisions. They are not suggestions -- they a
 
 ---
 
-## Auth Token Refresh (`src/lib/auth-context.tsx`, `src/app/page.tsx`)
+## Auth Token Refresh (`src/lib/auth-context.tsx`, `src/lib/gis-auth.ts`)
 
+- **OAuth token is stored in `localStorage`, not `sessionStorage`**: This ensures tokens survive tab close, new tabs, and browser restarts. The companion timestamp key `bqaif_token_ts` tracks when the token was acquired. Do not switch back to `sessionStorage`.
+- **`isTokenLikelyExpired()` uses a 50-minute threshold**: Google OAuth tokens expire at 60 minutes. The 10-minute buffer allows proactive refresh before a 401 hits. Do not reduce below 45 minutes.
+- **Auto-refresh on page load**: When `onAuthStateChanged` detects an existing user but the stored token is missing or expired, `signInWithPopup(refreshProvider)` is called automatically. The `autoRefreshAttempted` ref prevents duplicate popups. Do not remove this guard.
 - **All orchestrator calls must be wrapped in `withAuthRetry()`**: This wrapper catches expired-token errors, calls `refreshAccessToken()` to get a fresh token via a quick popup, and retries the call once. Without this wrapper, users see "Session Expired" after ~1 hour.
 - **`refreshAccessToken` uses a provider WITHOUT `prompt: 'consent'`**: This is intentional. The user already granted consent on initial sign-in. The refresh popup auto-completes almost instantly. Do not add `prompt: 'consent'` to the refresh provider.
 - **Auth retry is one-shot**: The `authRetrying` ref prevents infinite retry loops. If the refresh fails, the error propagates to the existing catch block which shows the error banner.

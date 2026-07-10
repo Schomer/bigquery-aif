@@ -135,45 +135,34 @@ async function waitForResponse(page, timeoutMs = 90000) {
   return false;
 }
 
-// Start a new conversation by clicking "+ New"
+// Start a new conversation by navigating to the root URL
 async function startNewConversation(page) {
-  const clicked = await page.evaluate(() => {
-    // Look for the "+ New" button in the sidebar
-    const btns = Array.from(document.querySelectorAll('button, a, div'));
-    for (const btn of btns) {
-      const text = (btn.textContent || '').trim();
-      if (text === '+ New' || text === 'New') {
-        btn.click();
-        return true;
-      }
-    }
-    return false;
-  });
-
-  if (clicked) {
-    await delay(1500);
-  }
-  return clicked;
+  await page.goto(APP_URL, { waitUntil: 'networkidle2', timeout: 30000 });
+  await delay(2000);
+  return true;
 }
 
-// Clear the textarea properly
+// Clear the textarea properly using React's internal setter
 async function clearAndType(page, text) {
   const textarea = await page.$('textarea');
   if (!textarea) return false;
 
-  // Focus the textarea
+  // Use React's internal value setter to clear the controlled input
+  await page.evaluate(() => {
+    const ta = document.querySelector('textarea');
+    if (!ta) return;
+    // Get the native setter from HTMLTextAreaElement prototype
+    const nativeSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype, 'value'
+    ).set;
+    nativeSetter.call(ta, '');
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await delay(200);
+
+  // Now type the new text
   await textarea.click();
   await delay(100);
-
-  // Select all text and delete it
-  await page.keyboard.down('Meta');
-  await page.keyboard.press('a');
-  await page.keyboard.up('Meta');
-  await delay(50);
-  await page.keyboard.press('Backspace');
-  await delay(100);
-
-  // Type the new text
   await textarea.type(text, { delay: 10 });
   return true;
 }
