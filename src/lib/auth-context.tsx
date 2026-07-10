@@ -2,6 +2,9 @@
 // Firebase Auth popup sign-in with Google.
 // Provides both a Firebase Auth session (for Firestore) and a Google OAuth
 // access token (for BigQuery / Vertex AI REST calls).
+//
+// Token refresh is handled server-side via /api/auth/refresh using a stored
+// Google OAuth refresh token. No popup is needed after the initial sign-in.
 
 'use client';
 
@@ -22,7 +25,14 @@ import {
   type User,
 } from 'firebase/auth';
 import { auth } from './firebase';
-import { setAccessToken as storeToken, getAccessToken, isTokenLikelyExpired } from './gis-auth';
+import {
+  setAccessToken as storeToken,
+  getAccessToken,
+  isTokenLikelyExpired,
+  setRefreshToken,
+  getRefreshToken,
+  refreshAccessTokenSilently,
+} from './gis-auth';
 
 export interface GoogleUser {
   uid: string;
@@ -49,17 +59,19 @@ export interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-// Provider for initial sign-in: forces consent to ensure BQ scopes are granted
+// Provider for initial sign-in: forces consent + offline access to ensure
+// BQ scopes are granted AND a refresh token is returned.
 const consentProvider = new GoogleAuthProvider();
 consentProvider.addScope('https://www.googleapis.com/auth/bigquery');
 consentProvider.addScope('https://www.googleapis.com/auth/cloud-platform');
 consentProvider.setCustomParameters({
   prompt: 'consent',
+  access_type: 'offline',
   include_granted_scopes: 'true',
 });
 
-// Provider for token refresh: no consent prompt, auto-completes if user already
-// granted the scopes. The popup opens and closes almost instantly.
+// Provider for popup-based token refresh (fallback when no refresh token
+// is stored). No consent prompt -- auto-completes almost instantly.
 const refreshProvider = new GoogleAuthProvider();
 refreshProvider.addScope('https://www.googleapis.com/auth/bigquery');
 refreshProvider.addScope('https://www.googleapis.com/auth/cloud-platform');
@@ -112,23 +124,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setAccessTokenState(storedToken);
           setIsLoading(false);
         } else if (!autoRefreshAttempted.current) {
-          // Token missing or expired -- attempt a silent refresh.
-          // The refresh popup auto-closes almost instantly since the user
-          // already granted scopes on initial sign-in.
+          // Token missing or expired -- attempt silent server-side refresh
           autoRefreshAttempted.current = true;
-          try {
-            const result = await signInWithPopup(auth, refreshProvider);
-            const credential = GoogleAuthProvider.credentialFromResult(result);
-            const oauthToken = credential?.accessToken
-              || (result as any)._tokenResponse?.oauthAccessToken
-              || (result as any)._tokenResponse?.access_token;
-            if (oauthToken) {
-              storeToken(oauthToken);
-              setAccessTokenState(oauthToken);
+          const newToken = await refreshAccessTokenSilently();
+          if (newToken) {
+            setAccessTokenState(newToken);
+          } else {
+            // No refresh token stored or server refresh failed.
+            // Fall back to popup-based refresh.
+            try {
+              const result = await signInWithPopup(auth, refreshProvider);
+              const credential = GoogleAuthProvider.credentialFromResult(result);
+              const oauthToken = credential?.accessToken
+                || (result as any)._tokenResponse?.oauthAccessToken
+                || (result as any)._tokenResponse?.access_token;
+              if (oauthToken) {
+                storeToken(oauthToken);
+                setAccessTokenState(oauthToken);
+              }
+            } catch (refreshErr: any) {
+              console.warn('[auth] Auto-refresh failed:', refreshErr.code, refreshErr.message);
             }
-          } catch (refreshErr: any) {
-            console.warn('[auth] Auto-refresh failed:', refreshErr.code, refreshErr.message);
-            // Fall through -- user will see the sign-in page
           }
           setIsLoading(false);
         } else {
@@ -169,6 +185,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const trKeys = (result as any)._tokenResponse ? Object.keys((result as any)._tokenResponse) : [];
         setError(`No access token found. credential keys: [${keys.join(',')}], _tokenResponse keys: [${trKeys.join(',')}]`);
       }
+      // Capture and store the refresh token for server-side renewal
+      const refreshToken = (result as any)._tokenResponse?.refresh_token;
+      if (refreshToken) {
+        setRefreshToken(refreshToken);
+      }
       if (result.user) {
         setUser(toGoogleUser(result.user));
       }
@@ -186,9 +207,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [setAccessToken]);
 
-  // Silent token refresh: uses the refresh provider (no consent prompt).
-  // The popup opens and auto-closes if the user already granted scopes.
+  // Token refresh: tries server-side first (silent, no popup), falls back
+  // to popup-based refresh if no refresh token is stored.
   const refreshAccessToken = useCallback(async (): Promise<boolean> => {
+    // Attempt silent server-side refresh first
+    const newToken = await refreshAccessTokenSilently();
+    if (newToken) {
+      setAccessToken(newToken);
+      setError(null);
+      return true;
+    }
+
+    // Fallback: popup-based refresh (for users who signed in before
+    // refresh token capture was added)
     try {
       const result = await signInWithPopup(auth, refreshProvider);
       const credential = GoogleAuthProvider.credentialFromResult(result);
@@ -198,6 +229,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (oauthToken) {
         setAccessToken(oauthToken);
         setError(null);
+        // Also try to capture refresh token on this popup
+        const rt = (result as any)._tokenResponse?.refresh_token;
+        if (rt) setRefreshToken(rt);
         return true;
       }
       return false;
@@ -210,6 +244,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     await fbSignOut(auth);
     setAccessToken(null);
+    setRefreshToken(null);
     setUser(null);
     setError(null);
   }, [setAccessToken]);
