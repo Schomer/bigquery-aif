@@ -146,7 +146,7 @@ async function runAgentLoop(systemPrompt, userMessage) {
   const contents = [{ role: 'user', parts: [{ text: userMessage }] }];
   const toolCalls = [];
 
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 10; i++) {
     const body = {
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents,
@@ -229,7 +229,9 @@ After running the query, provide a brief one-line summary of what the results sh
     const result = await runAgentLoop(systemPrompt, message);
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);
 
-    const queryCall = result.toolCalls.find(tc => tc.name === 'run_query');
+    // Find the last successful run_query (earlier ones may have errored before LLM self-corrected)
+    const queryCalls = result.toolCalls.filter(tc => tc.name === 'run_query');
+    const queryCall = queryCalls.reverse().find(tc => tc.result?.columns) || queryCalls[0];
     const toolNames = result.toolCalls.map(tc => tc.name);
 
     console.log(`  Time: ${elapsed}s`);
