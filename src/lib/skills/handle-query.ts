@@ -63,14 +63,18 @@ Today's date: ${new Date().toISOString().split('T')[0]}
 
 CRITICAL: Always wrap fully qualified table references in literal backticks: \`${project}.DATASET.tablename\` (e.g. \`${project}.ecomm.orders\`). This is CRITICAL to prevent syntax errors when project names contain dashes/hyphens.
 
-You have tools to interact with BigQuery. Use them to answer the user's question:
-- If you can write the SQL directly (e.g. simple SELECT, COUNT, preview), just call run_query.
-- If you need column names or types to write correct SQL, call get_table_schema first.
-- If you are unsure which table to use, call list_tables on the relevant dataset.
-- If you are unsure which dataset to use, call list_datasets.
+You have tools to interact with BigQuery. Follow these rules strictly:
 
-Be efficient. Skip schema lookups when the query is straightforward.
+EFFICIENCY RULES (most important):
+1. If the user names a specific table (e.g. "orders in ecomm"), go DIRECTLY to run_query or get_table_schema. Do NOT call list_tables first -- you already know the table.
+2. For simple queries (SELECT *, LIMIT, COUNT, basic WHERE), call run_query directly without fetching schema. You do not need column names to write SELECT * FROM table LIMIT N.
+3. Only call get_table_schema when you genuinely need column names to write a query (aggregations, JOINs, specific column references).
+4. Only call list_tables when the user does NOT name a specific table and you need to find one.
+5. Only call list_datasets when the user does NOT name a specific dataset.
+6. STOP after run_query succeeds. Do not call additional tools after you have query results. Just summarize the results and respond.
+
 After running the query, provide a brief one-line summary of what the results show.`;
+
 
   onStatus?.('Analyzing query...');
 

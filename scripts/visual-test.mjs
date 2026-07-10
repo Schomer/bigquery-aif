@@ -102,31 +102,27 @@ function findChrome() {
 }
 
 // Wait for the app to finish loading a response.
-// Detects the SparkSpinner SVG component which only renders during active loading.
-async function waitForResponse(page, timeoutMs = 90000) {
+// Detects the SparkSpinner SVG which only renders during active loading.
+async function waitForResponse(page, timeoutMs = 120000) {
   const startTime = Date.now();
-  const pollInterval = 1500;
+  const pollInterval = 2000;
 
-  // The SparkSpinner is an SVG with viewBox="0 0 28 28" and animated paths.
-  // It only exists in the DOM when loading is true.
-  const hasSpinnerFn = () => {
-    // Look for SVGs with the spinner's specific viewBox and animation keyframes
-    const svgs = document.querySelectorAll('svg[viewBox="0 0 28 28"]');
-    // Filter for ones that have animated paths (the spinner has defs > style with keyframes)
-    for (const svg of svgs) {
-      const styleEl = svg.querySelector('defs > style');
-      if (styleEl && styleEl.textContent && styleEl.textContent.includes('keyframes')) {
-        return true;
+  // Detect spinner by looking for animated SVGs with the SparkSpinner signature
+  async function isSpinnerPresent() {
+    return page.evaluate(() => {
+      const svgs = document.querySelectorAll('svg[viewBox="0 0 28 28"]');
+      for (const svg of svgs) {
+        const s = svg.querySelector('defs > style');
+        if (s && s.textContent && s.textContent.includes('keyframes')) return true;
       }
-    }
-    return false;
-  };
+      return false;
+    });
+  }
 
-  // Phase 1: Wait for loading to START (max 15s)
+  // Phase 1: Wait for spinner to APPEAR (max 20s)
   let loadingStarted = false;
-  while (Date.now() - startTime < 15000) {
-    const spinning = await page.evaluate(hasSpinnerFn);
-    if (spinning) {
+  while (Date.now() - startTime < 20000) {
+    if (await isSpinnerPresent()) {
       loadingStarted = true;
       console.log('[test] Spinner detected, waiting for completion...');
       break;
@@ -136,19 +132,18 @@ async function waitForResponse(page, timeoutMs = 90000) {
 
   if (!loadingStarted) {
     console.warn('[test] Spinner never appeared, waiting extra time...');
-    await delay(5000);
+    await delay(8000);
   }
 
   // Phase 2: Wait for spinner to DISAPPEAR
   let consecutiveIdle = 0;
   while (Date.now() - startTime < timeoutMs) {
-    const spinning = await page.evaluate(hasSpinnerFn);
+    const spinning = await isSpinnerPresent();
 
     if (!spinning) {
       consecutiveIdle++;
-      // Require 2 consecutive idle checks (3s) to ensure it's truly done
       if (consecutiveIdle >= 2) {
-        await delay(2000); // settle time for charts/animations
+        await delay(2000);
         return true;
       }
     } else {
@@ -258,12 +253,9 @@ async function main() {
   await page.screenshot({ path: join(SCREENSHOT_DIR, '00_initial_state.png'), fullPage: false });
   console.log('[test] Saved: 00_initial_state.png');
 
-  // Wait for user to sign in
-  console.log('\n========================================');
-  console.log('  Please sign in to the app in the');
-  console.log('  browser window that just opened.');
-  console.log('========================================\n');
-  await waitForInput('Press Enter after signing in > ');
+  // Auth persists from prior sessions -- just wait for page to settle
+  console.log('[test] Waiting for auth to load...');
+  await delay(5000);
 
   await delay(3000);
   await page.screenshot({ path: join(SCREENSHOT_DIR, '00_after_auth.png'), fullPage: false });
@@ -366,7 +358,8 @@ async function main() {
   console.log(`  Screenshots: ${SCREENSHOT_DIR}`);
   console.log('========================================\n');
 
-  await waitForInput('Press Enter to close browser > ');
+  console.log('[test] Closing browser...');
+  await delay(1000);
   await browser.close();
 }
 

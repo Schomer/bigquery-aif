@@ -4,6 +4,28 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-10: Adaptive Query Pipeline (Tool-Calling Agent)
+
+**What changed**:
+- Replaced the rigid query pipeline in `handle-query.ts` with a Gemini tool-calling agent loop.
+- Created `bq-tools.ts` with 4 BigQuery tools: `run_query`, `get_table_schema`, `list_tables`, `list_datasets`.
+- Added `callGeminiWithTools()` to `gemini-client.ts` -- a generic function-calling loop with iteration cap.
+- The LLM now decides what context it needs. Simple queries (e.g., "show first 10 rows") go directly to `run_query` without fetching schemas for 5 tables first.
+- Removed dry run step entirely (per user directive).
+- Removed `buildSchemaContext()` call from query handler (function still exists for data-management skill).
+- SQL auto-retry is now handled naturally by the agent loop -- errors feed back to the LLM.
+- Visualization selection delegated to composer post-processing.
+- Plan cache fast path preserved (cache hits skip the agent loop).
+
+**Why**: The old pipeline always made ~30 BigQuery API calls regardless of query complexity, causing multi-minute response times for trivial queries. The tool-calling approach reduces a simple preview to 1 LLM call + 1 BQ query.
+
+**Files touched**:
+- `src/lib/bq-tools.ts` (new)
+- `src/lib/gemini-client.ts` (added `callGeminiWithTools`)
+- `src/lib/skills/handle-query.ts` (rewritten)
+
+---
+
 ## 2026-07-10: Auth Session Persistence + Server-Side Token Refresh
 
 **What changed**:
