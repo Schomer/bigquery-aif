@@ -1,0 +1,8 @@
+{
+  "id": 9,
+  "tier": "Query",
+  "prompt": "How many users are there by state?",
+  "expected": "Bar/column chart or map",
+  "error": null,
+  "waitTime": 4000
+}

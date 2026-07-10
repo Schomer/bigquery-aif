@@ -217,7 +217,21 @@ function extractSchemaIdentifiers(
       if (availableDatasets && availableDatasets.some((ds) => ds.toLowerCase() === name.toLowerCase())) {
         return { scope: 'DATASET', dataset: name };
       }
-      return { scope: 'TABLE', dataset: contextDataset, table: name };
+      // Look for an "in/from/of DATASET" qualifier after the table name
+      // e.g. "describe the orders table in ecomm"
+      let resolvedDs = contextDataset;
+      const dsQualifier = message.match(
+        /\b(?:in|from|of)\s+(?:the\s+)?(?:dataset\s+)?[`]?(\w[\w-]*)[`]?(?:\s+dataset)?/i
+      );
+      if (dsQualifier) {
+        const candidate = dsQualifier[1];
+        // Only use it if it matches a known dataset (and isn't the table name itself)
+        if (candidate.toLowerCase() !== name.toLowerCase()
+          && availableDatasets?.some((ds) => ds.toLowerCase() === candidate.toLowerCase())) {
+          resolvedDs = candidate;
+        }
+      }
+      return { scope: 'TABLE', dataset: resolvedDs, table: name };
     }
   }
 

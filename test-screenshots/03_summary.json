@@ -1,0 +1,8 @@
+{
+  "id": 3,
+  "tier": "Foundation",
+  "prompt": "Describe the orders table in ecomm",
+  "expected": "Column schema for orders table",
+  "error": null,
+  "waitTime": 4000
+}

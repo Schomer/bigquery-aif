@@ -1,0 +1,8 @@
+{
+  "id": 4,
+  "tier": "Foundation",
+  "prompt": "Show me the first 10 rows of orders",
+  "expected": "Data table with 10 rows",
+  "error": null,
+  "waitTime": 4000
+}

@@ -1,0 +1,8 @@
+{
+  "id": 18,
+  "tier": "Viz",
+  "prompt": "Show me total sale_price by month as a line chart",
+  "expected": "Line chart",
+  "error": null,
+  "waitTime": 4000
+}

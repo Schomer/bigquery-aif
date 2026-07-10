@@ -1,0 +1,8 @@
+{
+  "id": 1,
+  "tier": "Foundation",
+  "prompt": "What datasets are in this project?",
+  "expected": "Dataset list in SCHEMA_VIEW",
+  "error": null,
+  "waitTime": 4000
+}

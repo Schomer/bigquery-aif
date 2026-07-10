@@ -1,0 +1,8 @@
+{
+  "id": 13,
+  "tier": "Monitoring",
+  "prompt": "Show me recent jobs in this project",
+  "expected": "Jobs monitoring view",
+  "error": null,
+  "waitTime": 4000
+}

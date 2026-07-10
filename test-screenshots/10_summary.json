@@ -1,0 +1,8 @@
+{
+  "id": 10,
+  "tier": "Data Quality",
+  "prompt": "Profile the order_items table in ecomm",
+  "expected": "Data quality profile view",
+  "error": null,
+  "waitTime": 4000
+}

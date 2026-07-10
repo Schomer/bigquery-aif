@@ -1,0 +1,8 @@
+{
+  "id": 12,
+  "tier": "Data Quality",
+  "prompt": "Are there any duplicates in order_items?",
+  "expected": "Duplicate check (data-quality, NOT data-management)",
+  "error": null,
+  "waitTime": 4000
+}
