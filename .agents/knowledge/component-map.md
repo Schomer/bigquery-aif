@@ -162,6 +162,20 @@ UI Components (src/components/)
 - Generic task resolver for Google Cloud data tasks
 - Delegates to task framework (resolver, executor, learned plans)
 
+### `handle-saved.ts` (184 lines)
+- Runs saved artifacts from chat ("run my weekly report")
+- Fuzzy-matches user message against saved artifact names
+- Executes cached SQL directly without Gemini calls
+- Records run count via `recordRun()`
+
+---
+
+### `src/lib/saved-work.ts` (~302 lines)
+**Responsibility**: CRUD persistence layer for saved artifacts.
+- Uses single-document Firestore pattern (`savedWork.{id}` under `users/{uid}`)
+- `migrateItem()` converts legacy `SavedItem` records to new `SavedArtifact` shape on read
+- New API: `saveArtifact`, `getArtifacts`, `getArtifact`, `updateArtifact`, `deleteArtifact`, `searchArtifacts`, `recordRun`, `getPinnedArtifacts`
+- Deprecated wrappers: `saveItem`, `getItems`, etc. (for backward compat)
 
 ---
 

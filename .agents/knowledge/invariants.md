@@ -186,3 +186,12 @@ These principles govern all design decisions. They are not suggestions -- they a
 ## Dependencies
 
 - **Adding a new npm dependency requires documenting the rationale in the commit message and verifying bundle size impact.**
+
+---
+
+## Saved Artifacts
+
+- **Saved artifacts execute cached SQL directly, not via Gemini**: The `handle-saved.ts` skill handler runs `executeQuery(step.cachedSql)` without calling the LLM. This is intentional -- saved items should not burn Gemini tokens on re-execution.
+- **Parameter extraction happens at query-generation time, not at save time**: The `QueryResponseSchema` includes a `parameters` field that Gemini populates alongside SQL. This avoids a second LLM call when saving.
+- **Old `SavedItem` format is migrated on read**: `saved-work.ts` checks `isNewFormat()` (presence of `steps` array) and calls `migrateItem()` for legacy records. Both old and new formats coexist in the same `savedWork.{id}` Firestore location.
+- **The page key for saved items is `'saved'`** (not `'saved-work'`): Updated in SideNav, page.tsx, and all hide-list conditions.

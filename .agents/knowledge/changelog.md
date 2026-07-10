@@ -4,6 +4,30 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-10: Saved Artifacts System (Phase 1)
+
+**What changed**:
+- Added `SavedArtifact`, `SavedArtifactType`, `ParameterDef`, `ArtifactStep` types to `types.ts`.
+- Added `extractedParameters` field to `CompositionEnvelope` and `QueryResult`.
+- Rewrote `saved-work.ts`: new CRUD functions (`saveArtifact`, `getArtifacts`, `deleteArtifact`, `searchArtifacts`, `recordRun`, etc.) with backward-compatible deprecated wrappers for old `SavedItem` API.
+- Added `parameters` array to `QueryResponseSchema` in `gemini-client.ts` so Gemini extracts reusable parameters alongside SQL generation.
+- Updated `handle-query.ts` system prompt to instruct parameter extraction; threads `extractedParameters` through to `QueryResult`.
+- Updated `composer.ts` `composeQuery` to include `extractedParameters` on the envelope.
+- Created `handle-saved.ts` skill handler: matches "run my X" phrases, fuzzy-matches against saved artifacts, executes cached SQL directly (no Gemini calls).
+- Registered `saved` skill in `skills/index.ts`.
+- Created `SaveModal.tsx`: native `<dialog>` modal for naming/describing/tagging artifacts before saving.
+- Created `SavedPage.tsx`: full-page library view with search, filter tabs (All/Queries/Workflows/Pipelines), sort (Recent/Name/Most Used/Type), card grid with SQL preview, metadata, pin toggle, delete confirmation.
+- Updated `ArtifactCard.tsx`: added save button (bookmark icon) next to pin button.
+- Updated `ChatThread.tsx` and `ResultsSidebar.tsx`: pass `onSave` prop through to ArtifactCard.
+- Updated `useChatOrchestration.ts`: added `saveEnvelopeAsArtifact`, `handleSaveConfirm`, `saveChatAsWorkflow`, `runSavedArtifact` functions and `saveModalState`.
+- Updated `page.tsx`: replaced `SavedWorkLibrary` with `SavedPage`, wired SaveModal, passes `onSave` to chat components.
+- Updated `SideNav.tsx`: renamed "Saved Work" to "Saved", page key from `saved-work` to `saved`.
+
+**Files added**: `handle-saved.ts`, `SavedPage.tsx`, `SaveModal.tsx`, `public/icons/save.svg`
+**Files modified**: `types.ts`, `saved-work.ts`, `gemini-client.ts`, `handle-query.ts`, `composer.ts`, `skills/index.ts`, `ArtifactCard.tsx`, `ChatThread.tsx`, `ResultsSidebar.tsx`, `useChatOrchestration.ts`, `page.tsx`, `SideNav.tsx`
+
+---
+
 ## 2026-07-09: Self-Registering Skill Manifest Refactoring
 
 **What changed**:
