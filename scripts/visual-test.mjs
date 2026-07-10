@@ -102,46 +102,60 @@ function findChrome() {
 }
 
 // Wait for the app to finish loading a response.
-// Detects: response message appears (artifact card, error card, or follow-up prompt).
+// Two-phase: (1) wait for loading to START, (2) wait for loading to END.
 async function waitForResponse(page, timeoutMs = 90000) {
   const startTime = Date.now();
-  const pollInterval = 2000;
+  const pollInterval = 1500;
 
-  // Wait for the message to be sent first
-  await delay(3000);
+  const THINKING_REGEX = /Gazing|Reading the query|crystals are computing|Communing|Divining|Scanning|Interrogating|Decoding|Classifying intent|Building SQL|Dry-running|Matched skill|Retrying|Query failed, asking|Fetching|Analyzing|Running|Checking/;
 
-  // Count existing messages before we started
-  const initialMsgCount = await page.evaluate(() => {
-    // Count user message bubbles (right-aligned)
-    return document.querySelectorAll('[style*="flex-end"], [style*="align-self: flex-end"]').length;
-  });
-
-  while (Date.now() - startTime < timeoutMs) {
-    const state = await page.evaluate(() => {
+  // Phase 1: Wait for loading to START (max 15s)
+  // The query must show a thinking phrase or spinner before we consider it "started"
+  let loadingStarted = false;
+  while (Date.now() - startTime < 15000) {
+    const isLoading = await page.evaluate((regex) => {
       const bodyText = document.body.innerText;
-
-      // Positive signals: response is done
-      const hasArtifactCard = !!document.querySelector('[data-artifact], [class*="artifact"], [class*="Artifact"]');
-      const hasErrorCard = bodyText.includes('Something Went Wrong') || bodyText.includes('Try again');
-      const hasFollowUpPrompt = bodyText.includes('Ask a follow-up');
-      const hasRegenerateBtn = bodyText.includes('Regenerate');
-
-      // Negative signals: still processing
-      const thinkingPhrases = bodyText.match(
-        /Gazing|Reading the query|crystals are computing|Communing|Divining|Scanning|Interrogating|Decoding|Classifying intent|Building SQL|Dry-running|Matched skill|Retrying|Query failed, asking/
-      );
+      const hasThinking = new RegExp(regex).test(bodyText);
       const hasSpinner = !!document.querySelector('.spark-spinner');
-      const isLoading = !!(thinkingPhrases || hasSpinner);
+      return hasThinking || hasSpinner;
+    }, THINKING_REGEX.source);
 
-      const isDone = (hasFollowUpPrompt || hasErrorCard || hasRegenerateBtn) && !isLoading;
+    if (isLoading) {
+      loadingStarted = true;
+      console.log('[test] Loading detected, waiting for completion...');
+      break;
+    }
+    await delay(500);
+  }
 
-      return { isDone, isLoading, hasArtifactCard, hasErrorCard };
-    });
+  if (!loadingStarted) {
+    console.warn('[test] Loading never started, waiting extra time...');
+    await delay(5000);
+  }
 
-    if (state.isDone) {
-      // Extra settle time for charts/animations
-      await delay(2000);
-      return true;
+  // Phase 2: Wait for loading to END
+  // Loading is done when thinking phrases are gone AND the page has settled
+  let consecutiveIdle = 0;
+  while (Date.now() - startTime < timeoutMs) {
+    const state = await page.evaluate((regex) => {
+      const bodyText = document.body.innerText;
+      const hasThinking = new RegExp(regex).test(bodyText);
+      const hasSpinner = !!document.querySelector('.spark-spinner');
+      const isLoading = hasThinking || hasSpinner;
+      const hasErrorCard = bodyText.includes('Something Went Wrong');
+      return { isLoading, hasErrorCard };
+    }, THINKING_REGEX.source);
+
+    if (!state.isLoading) {
+      consecutiveIdle++;
+      // Require 2 consecutive idle checks (3s total) to avoid transient gaps
+      if (consecutiveIdle >= 2) {
+        // Extra settle time for charts/animations
+        await delay(2000);
+        return true;
+      }
+    } else {
+      consecutiveIdle = 0;
     }
 
     await delay(pollInterval);
