@@ -102,29 +102,45 @@ function findChrome() {
 }
 
 // Wait for the app to finish loading a response.
-// Detects: thinking phrases gone, no spinner, and content has changed.
+// Detects: response message appears (artifact card, error card, or follow-up prompt).
 async function waitForResponse(page, timeoutMs = 90000) {
   const startTime = Date.now();
-  const pollInterval = 1500;
+  const pollInterval = 2000;
 
-  // First, wait for loading to start
-  await delay(2000);
+  // Wait for the message to be sent first
+  await delay(3000);
+
+  // Count existing messages before we started
+  const initialMsgCount = await page.evaluate(() => {
+    // Count user message bubbles (right-aligned)
+    return document.querySelectorAll('[style*="flex-end"], [style*="align-self: flex-end"]').length;
+  });
 
   while (Date.now() - startTime < timeoutMs) {
     const state = await page.evaluate(() => {
       const bodyText = document.body.innerText;
-      // Check for thinking/loading indicators
-      const thinkingMatch = bodyText.match(
-        /Gazing|Reading the query|crystals are computing|Communing|Divining|Scanning|Interrogating|Decoding|Classifying intent|Building SQL|Dry-running|Matched skill|Retrying/
+
+      // Positive signals: response is done
+      const hasArtifactCard = !!document.querySelector('[data-artifact], [class*="artifact"], [class*="Artifact"]');
+      const hasErrorCard = bodyText.includes('Something Went Wrong') || bodyText.includes('Try again');
+      const hasFollowUpPrompt = bodyText.includes('Ask a follow-up');
+      const hasRegenerateBtn = bodyText.includes('Regenerate');
+
+      // Negative signals: still processing
+      const thinkingPhrases = bodyText.match(
+        /Gazing|Reading the query|crystals are computing|Communing|Divining|Scanning|Interrogating|Decoding|Classifying intent|Building SQL|Dry-running|Matched skill|Retrying|Query failed, asking/
       );
-      const sparkSpinner = document.querySelector('.spark-spinner');
-      const isLoading = !!(thinkingMatch || sparkSpinner);
-      return { isLoading };
+      const hasSpinner = !!document.querySelector('.spark-spinner');
+      const isLoading = !!(thinkingPhrases || hasSpinner);
+
+      const isDone = (hasFollowUpPrompt || hasErrorCard || hasRegenerateBtn) && !isLoading;
+
+      return { isDone, isLoading, hasArtifactCard, hasErrorCard };
     });
 
-    if (!state.isLoading) {
-      // Give a bit more time for rendering to settle
-      await delay(1500);
+    if (state.isDone) {
+      // Extra settle time for charts/animations
+      await delay(2000);
       return true;
     }
 
@@ -135,10 +151,34 @@ async function waitForResponse(page, timeoutMs = 90000) {
   return false;
 }
 
-// Start a new conversation by navigating to the root URL
+// Start a new conversation by reloading the page fresh
 async function startNewConversation(page) {
-  await page.goto(APP_URL, { waitUntil: 'networkidle2', timeout: 30000 });
-  await delay(2000);
+  // Navigate with a cache-busting param to force React to remount
+  const freshUrl = `${APP_URL}?t=${Date.now()}`;
+  await page.goto(freshUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+  await delay(3000);
+
+  // Wait for textarea to appear and be empty
+  await page.waitForSelector('textarea', { timeout: 10000 });
+
+  // Verify textarea is actually empty
+  const taValue = await page.evaluate(() => {
+    const ta = document.querySelector('textarea');
+    return ta ? ta.value : null;
+  });
+  if (taValue && taValue.length > 0) {
+    console.log(`[test] Textarea not empty after nav (${taValue.length} chars), clearing via native setter`);
+    await page.evaluate(() => {
+      const ta = document.querySelector('textarea');
+      if (!ta) return;
+      const nativeSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype, 'value'
+      ).set;
+      nativeSetter.call(ta, '');
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await delay(300);
+  }
   return true;
 }
 
