@@ -189,9 +189,18 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[]): Compos
   let basis: HeadlineBasis = 'STATUS';
   let headlineText = '';
 
-  // Prefer LLM-generated summary (direct answer pattern)
-  if ((result as any).resultSummary) {
-    headlineText = (result as any).resultSummary;
+  // Prefer LLM-generated summary only if it's a clean, short natural-language string.
+  // The agent loop sometimes returns raw JSON envelopes or verbose dumps as textResponse.
+  const rawSummary = (result as any).resultSummary as string | null;
+  const isCleanSummary = rawSummary
+    && rawSummary.length < 300
+    && !rawSummary.includes('"skill"')
+    && !rawSummary.includes('"columns"')
+    && !rawSummary.trimStart().startsWith('{')
+    && !rawSummary.trimStart().startsWith('```');
+
+  if (isCleanSummary) {
+    headlineText = rawSummary;
     basis = 'DIRECT_ANSWER';
   } else {
     headlineText = buildQueryHeadline(result.rowCount, result.sql);

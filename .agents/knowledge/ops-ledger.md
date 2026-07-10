@@ -12,6 +12,17 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 
 ---
 
+### 2026-07-10: Replace rigid query pipeline with Gemini tool-calling agent
+**Scope**: handle-query.ts, gemini-client.ts, bq-tools.ts (new)
+**What broke**: Simple queries like "show first 10 rows" took minutes due to ~30 BigQuery API calls in `buildSchemaContext()` fetching schema for all tables in the dataset.
+**Root cause**: `handleQuery()` always ran a fixed pipeline: buildSchemaContext (fetch all table schemas) -> callGemini (generate SQL) -> dryRun -> executeQuery. No matter how simple the query, it fetched column lists for 5 tables + sample values + constraint queries.
+**Fix**: Replaced with `callGeminiWithTools()` loop. The LLM gets 4 tools (run_query, get_table_schema, list_tables, list_datasets) and decides what context to fetch. Simple queries go directly to `run_query` (1 LLM call + 1 BQ call).
+**Results**: Simple preview: 9s. Analytical query: 32s. Ambiguous query: 24s. All 4/4 test scenarios pass.
+**Tuning applied**: (1) System prompt with explicit efficiency rules -- "don't call list_tables if the user named a table". (2) maxIterations increased from 6 to 10 -- analytical queries need 7+ iterations for schema exploration + SQL retry. (3) The LLM self-corrects errors naturally (tried `orders`, got 404, found `order_items` via list_tables).
+**Rule**: The query handler must use tool-calling, not a fixed pipeline. Do not re-add buildSchemaContext or dryRun to handle-query.ts. maxIterations cap of 10 balances latency vs capability.
+
+---
+
 ### 2026-07-10: Auth tokens stored in localStorage with expiry tracking
 **Scope**: gis-auth.ts, auth-context.tsx
 **What broke**: App showed the sign-in page on every tab close, new tab, or reload after ~1hr token expiry. Blocked Antigravity automated testing.
