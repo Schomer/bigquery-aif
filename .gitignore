@@ -59,3 +59,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .refresh-token
+
+# Test artifacts
+test-screenshots/
+node_modules/.cache/puppeteer/

@@ -1,8 +1,0 @@
-{
-  "id": 15,
-  "tier": "Discovery",
-  "prompt": "Search for tables that have a user_id column",
-  "expected": "Discovery search results",
-  "error": null,
-  "waitTime": 4000
-}

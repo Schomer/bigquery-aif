@@ -1,8 +1,0 @@
-{
-  "id": 8,
-  "tier": "Query",
-  "prompt": "Show me total sale_price by month",
-  "expected": "Line chart with monthly revenue",
-  "error": null,
-  "waitTime": 4000
-}

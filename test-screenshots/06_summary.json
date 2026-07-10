@@ -1,8 +1,0 @@
-{
-  "id": 6,
-  "tier": "Query",
-  "prompt": "Show me orders by status",
-  "expected": "Bar chart or table grouped by status",
-  "error": null,
-  "waitTime": 4000
-}

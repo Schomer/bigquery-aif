@@ -1,8 +1,0 @@
-{
-  "id": 5,
-  "tier": "Foundation",
-  "prompt": "How many rows are in the orders table?",
-  "expected": "KPI card with row count",
-  "error": null,
-  "waitTime": 4000
-}

@@ -1,8 +1,0 @@
-{
-  "id": 2,
-  "tier": "Foundation",
-  "prompt": "What tables are in the ecomm dataset?",
-  "expected": "Table list for ecomm dataset",
-  "error": null,
-  "waitTime": 4000
-}

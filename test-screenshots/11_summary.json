@@ -1,8 +1,0 @@
-{
-  "id": 11,
-  "tier": "Data Quality",
-  "prompt": "Check for nulls in the users table in ecomm",
-  "expected": "Null check report",
-  "error": null,
-  "waitTime": 4000
-}

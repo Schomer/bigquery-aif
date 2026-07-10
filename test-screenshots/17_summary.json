@@ -1,8 +1,0 @@
-{
-  "id": 17,
-  "tier": "Viz",
-  "prompt": "Show me a pie chart of orders by status",
-  "expected": "Pie chart visualization",
-  "error": null,
-  "waitTime": 4000
-}

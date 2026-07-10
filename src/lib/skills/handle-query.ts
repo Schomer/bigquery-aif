@@ -9,7 +9,7 @@ import { dryRun, executeQuery } from '../bigquery-client';
 import { compose } from '../composer';
 import { findReusablePlan, cachePlan } from '../plan-cache';
 import { analyzeResultQuality } from '../result-quality';
-import type { ChatMessage, CompositionEnvelope, QueryResult, SkillManifest, StatusCallback, VisualizationType } from '../types';
+import type { ChatMessage, CompositionEnvelope, ParameterDef, QueryResult, SkillManifest, StatusCallback, VisualizationType } from '../types';
 
 export async function handleQuery(
   message: string,
@@ -73,7 +73,7 @@ export async function handleQuery(
 
   // -- Plan cache: check for reusable query plan --
   const cachedPlan = findReusablePlan(message, dataset);
-  let queryPlan: { sql: string; suggestedVisualization: VisualizationType; xAxis?: string; yAxis?: string[]; notableFindings?: string; resultSummary?: string };
+  let queryPlan: { sql: string; suggestedVisualization: VisualizationType; xAxis?: string; yAxis?: string[]; notableFindings?: string; resultSummary?: string; parameters?: any[] };
 
   if (cachedPlan) {
     onStatus?.(`Reusing cached query plan for dataset ${dataset}...`);
@@ -107,6 +107,7 @@ ${schemaContext}${targetTableLine}
 Always wrap fully qualified table references in literal backticks: \`${project}.DATASET.tablename\` (e.g. \`${project}.ecomm.orders\`). This is CRITICAL to prevent syntax errors when project names contain dashes/hyphens.
 Today's date is: ${new Date().toISOString().split('T')[0]}
 Also generate a resultSummary field: a brief, contextual one-line summary of what the query results likely show (e.g., 'Revenue by month for the last 12 months' or 'Top 10 customers by order count'). This will be used as the headline shown to the user.
+Also generate a parameters array: identify the key values in the SQL that a user might want to change when re-running this query. For each parameter, provide a name (snake_case), type (string/number/date/table/dataset/column), default value (the current literal used in the SQL), and a short description. Common parameters include: date ranges, LIMIT values, WHERE filter values, and metric columns. Only include 1-5 of the most important parameters.
 
 VISUALIZATION SELECTION: Pick the suggestedVisualization that best matches both the data shape AND the user's explicit request. If the user asks for a specific chart type, you MUST use that exact type -- do not substitute a similar one. In particular, "column chart" means COLUMN_CHART (vertical bars) and "bar chart" means BAR_CHART (horizontal bars); these are different chart types and must not be confused. Otherwise use these guidelines:
 - TABLE: default for raw data, lists, or when no chart fits.
@@ -253,6 +254,13 @@ Return the corrected SQL and a short explanation of what you changed.`,
     yAxis: queryPlan.yAxis ?? null,
     notableFindings: queryPlan.notableFindings ?? null,
     resultSummary: queryPlan.resultSummary ?? null,
+    extractedParameters: queryPlan.parameters?.map((p: any) => ({
+      name: p.name,
+      type: p.type || 'string',
+      default: p.default,
+      description: p.description || '',
+      required: false,
+    })) ?? undefined,
   };
 
   return [compose('query', result, qualityFlags)];

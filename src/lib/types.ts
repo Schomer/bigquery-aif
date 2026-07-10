@@ -14,7 +14,8 @@ export type SkillName =
   | 'pipeline'
   | 'multistep'
   | 'task'
-  | 'governance';
+  | 'governance'
+  | 'saved';
 
 // ─── Skill manifest (self-registering skill pattern) ─────────────────────────
 
@@ -53,6 +54,18 @@ export interface CostEstimate {
   totalBytesProcessed: number;
   tier: CostTier;
   requiresConfirmation: boolean; // tier >= 3
+}
+
+// ─── Saved Artifact types (parameter + type primitives) ──────────────────────
+
+export type SavedArtifactType = 'query' | 'workflow' | 'pipeline' | 'app';
+
+export interface ParameterDef {
+  name: string;
+  type: 'string' | 'number' | 'date' | 'table' | 'dataset' | 'column';
+  default?: string;
+  description: string;
+  required: boolean;
 }
 
 // ─── Composition envelope (bigquery-response-composition.md §2) ──────────────
@@ -129,6 +142,7 @@ export interface CompositionEnvelope {
   skipSelfReview?: boolean;
   insight?: string | null;
   qualityFlags?: import('./result-quality').QualityFlag[];
+  extractedParameters?: ParameterDef[];
 }
 
 // Re-export QualityFlag from result-quality module for convenience
@@ -235,6 +249,7 @@ export interface QueryResult {
   yAxis?: string[] | null;
   notableFindings?: string | null;
   resultSummary?: string | null;
+  extractedParameters?: ParameterDef[];
 }
 
 // ─── Data Management normalized result (bigquery-skill-data-management.md) ───
@@ -330,6 +345,37 @@ export interface DataLoadingResult {
   scheduleFrequency?: string | null
   shareText?: string | null
   savedQueryLabel?: string | null
+}
+
+// ─── Saved Artifact compound types ───────────────────────────────────────────
+
+export interface ArtifactStep {
+  id: string;
+  order: number;
+  skill: SkillName;
+  prompt: string;
+  cachedSql?: string;
+  visualizationType?: ArtifactType;
+  parameters?: ParameterDef[];
+  lastResultSnapshot?: CompositionEnvelope;
+}
+
+export interface SavedArtifact {
+  id: string;
+  userId: string;
+  type: SavedArtifactType;
+  name: string;
+  description: string;
+  steps: ArtifactStep[];
+  parameters: ParameterDef[];
+  createdAt: string;
+  updatedAt: string;
+  project?: string;
+  dataset?: string;
+  tags: string[];
+  pinned: boolean;
+  runCount: number;
+  lastRunAt?: string;
 }
 
 // ─── Chat message ─────────────────────────────────────────────────────────────

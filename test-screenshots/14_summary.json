@@ -1,8 +1,0 @@
-{
-  "id": 14,
-  "tier": "Monitoring",
-  "prompt": "How much storage is each dataset using?",
-  "expected": "Storage breakdown view",
-  "error": null,
-  "waitTime": 4000
-}

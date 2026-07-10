@@ -1,8 +1,0 @@
-{
-  "id": 7,
-  "tier": "Query",
-  "prompt": "What are the top 10 products by revenue?",
-  "expected": "Bar chart or table with top products",
-  "error": null,
-  "waitTime": 4000
-}

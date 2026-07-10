@@ -1,8 +1,0 @@
-{
-  "id": 16,
-  "tier": "Discovery",
-  "prompt": "Compare the orders and order_items tables in ecomm",
-  "expected": "Table comparison view",
-  "error": null,
-  "waitTime": 4000
-}

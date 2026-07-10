@@ -211,7 +211,20 @@ export const QueryResponseSchema = {
     xAxis: { type: 'STRING' },
     yAxis: { type: 'ARRAY', items: { type: 'STRING' } },
     notableFindings: { type: 'STRING' },
-    resultSummary: { type: 'STRING' }
+    resultSummary: { type: 'STRING' },
+    parameters: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          name: { type: 'STRING' },
+          type: { type: 'STRING', enum: ['string', 'number', 'date', 'table', 'dataset', 'column'] },
+          default: { type: 'STRING' },
+          description: { type: 'STRING' },
+        },
+        required: ['name', 'type', 'description'],
+      },
+    },
   },
   required: ['sql', 'suggestedVisualization']
 };

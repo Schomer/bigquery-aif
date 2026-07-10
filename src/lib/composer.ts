@@ -280,6 +280,7 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[]): Compos
     nextActions,
     insight,
     qualityFlags: qualityFlags && qualityFlags.length > 0 ? qualityFlags : undefined,
+    extractedParameters: result.extractedParameters,
   };
 }
 

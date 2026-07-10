@@ -1,8 +1,0 @@
-{
-  "id": 19,
-  "tier": "Governance",
-  "prompt": "Who has access to the orders table in ecomm?",
-  "expected": "Governance/access view",
-  "error": null,
-  "waitTime": 4000
-}

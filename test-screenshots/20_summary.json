@@ -1,8 +1,0 @@
-{
-  "id": 20,
-  "tier": "Data Loading",
-  "prompt": "Export the last query results to CSV",
-  "expected": "Export/data loading view",
-  "error": null,
-  "waitTime": 4000
-}
