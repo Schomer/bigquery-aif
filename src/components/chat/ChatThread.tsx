@@ -219,6 +219,7 @@ export interface ChatThreadProps {
   onEditTextChange: (text: string) => void;
   onRerun: (assistantIdx: number) => Promise<void>;
   extractContextItems: (env: CompositionEnvelope) => ContextItem[];
+  onSave?: (envelope: CompositionEnvelope) => void;
 }
 
 // ---- ChatThread Component ---------------------------------------------------
@@ -247,6 +248,7 @@ export function ChatThread({
   onEditTextChange,
   onRerun,
   extractContextItems,
+  onSave,
 }: ChatThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -454,6 +456,7 @@ export function ChatThread({
                     onChipClick={onChipClick}
                     onInlineClick={onInlineClick}
                     onRunSql={onRunSql}
+                    onSave={onSave}
                     onPin={extractContextItems(env).length > 0 ? onPinContext : undefined}
                     isPinned={pinnedEnvelopeId === env.id}
                   />

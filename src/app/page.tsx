@@ -14,8 +14,9 @@ import { ChatThread } from '@/components/chat/ChatThread';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { ResultsSidebar } from '@/components/chat/ResultsSidebar';
 import { OverviewDashboard } from '@/components/OverviewDashboard';
-import { SavedWorkLibrary } from '@/components/SavedWorkLibrary';
-import type { SavedItem } from '@/lib/saved-work';
+import { SavedPage } from '@/components/SavedPage';
+import { SaveModal } from '@/components/SaveModal';
+import type { SavedArtifact } from '@/lib/types';
 import {
   getConversations,
   getRecentDatasets,
@@ -149,18 +150,17 @@ export default function Home() {
         </div>
       )}
 
-      {/* -- Saved Work library -- */}
-      {activePage === 'saved-work' && user && (
-        <SavedWorkLibrary
+      {/* -- Saved page -- */}
+      {activePage === 'saved' && user && (
+        <SavedPage
           userId={user.uid}
-          onLoadItem={(item: SavedItem) => {
-            if (item.data.sql) {
-              chat.setInput(item.data.sql);
-            } else {
-              chat.setInput(`Load saved ${item.type}: ${item.name}`);
-            }
+          onRun={(artifact: SavedArtifact) => {
+            chat.setInput(`run my ${artifact.name}`);
             setActivePage('chat');
-            setTimeout(() => inputRef.current?.focus(), 50);
+            setTimeout(() => {
+              inputRef.current?.focus();
+              chat.sendMessage(`run my ${artifact.name}`);
+            }, 50);
           }}
           onNavigate={(page) => setActivePage(page)}
         />
@@ -180,7 +180,7 @@ export default function Home() {
          UNIFIED LAYOUT (original single-pane)
          ============================================================ */}
       {!isSplit && (
-        <div style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'overview' || activePage === 'saved-work') ? 'none' : 'flex', flexDirection: 'column', height: '100%', background: 'var(--chat-bg)' }}>
+        <div style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'overview' || activePage === 'saved') ? 'none' : 'flex', flexDirection: 'column', height: '100%', background: 'var(--chat-bg)' }}>
 
           {/* -- EMPTY STATE: centered hero + prompt -- */}
           {!hasChat && (
@@ -367,6 +367,7 @@ export default function Home() {
               onEditTextChange={chat.setEditText}
               onRerun={chat.rerunMessage}
               extractContextItems={chat.extractContextItems}
+              onSave={chat.saveEnvelopeAsArtifact}
             />
           )}
 
@@ -393,7 +394,7 @@ export default function Home() {
       {isSplit && (
         <div
           className={`layout-split ${layout === 'chat-right' ? 'layout-chat-right' : 'layout-chat-left'}`}
-          style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'overview' || activePage === 'how-it-works' || activePage === 'saved-work') ? 'none' : 'flex', height: '100%' }}
+          style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'overview' || activePage === 'how-it-works' || activePage === 'saved') ? 'none' : 'flex', height: '100%' }}
         >
           <ResultsSidebar
             messages={chat.messages}
@@ -427,8 +428,21 @@ export default function Home() {
             recentProjectIds={recentProjectIds}
             recentItems={recentItems}
             setActiveProject={setActiveProject}
+            onSave={chat.saveEnvelopeAsArtifact}
           />
         </div>
+      )}
+
+      {/* Save modal */}
+      {chat.saveModalState && (
+        <SaveModal
+          open={chat.saveModalState.open}
+          onClose={chat.handleSaveModalClose}
+          onSave={chat.handleSaveConfirm}
+          defaultName={chat.saveModalState.defaultName}
+          defaultDescription={chat.saveModalState.defaultDescription}
+          artifactType={chat.saveModalState.type}
+        />
       )}
     </>
   );

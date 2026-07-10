@@ -13,6 +13,10 @@ import type {
   HandoffEnvelope,
   ContextItem,
   OperationLogEntry,
+  SavedArtifact,
+  SavedArtifactType,
+  ArtifactStep,
+  ParameterDef,
 } from '@/lib/types';
 import {
   saveConversation,
@@ -20,6 +24,7 @@ import {
   autoTitle,
   nowISO,
 } from '@/lib/firestore-service';
+import { saveArtifact, recordRun } from '@/lib/saved-work';
 
 // ---- Types ----------------------------------------------------------------
 
@@ -82,6 +87,20 @@ export interface ChatOrchestrationReturn {
 
   // Persistence
   persistConversation: (msgs: ChatMessage[]) => Promise<void>;
+
+  // Saved work
+  saveModalState: {
+    open: boolean;
+    envelope?: CompositionEnvelope;
+    type: SavedArtifactType;
+    defaultName: string;
+    defaultDescription: string;
+  } | null;
+  saveEnvelopeAsArtifact: (envelope: CompositionEnvelope) => void;
+  handleSaveConfirm: (name: string, description: string, tags: string[]) => Promise<void>;
+  handleSaveModalClose: () => void;
+  saveChatAsWorkflow: (name: string, description: string, tags: string[]) => Promise<void>;
+  runSavedArtifact: (artifact: SavedArtifact) => Promise<void>;
 }
 
 // ---- Hook -----------------------------------------------------------------
@@ -103,6 +122,13 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
   const [statusText, setStatusText] = useState<string | null>(null);
   const [lastError, setLastError] = useState<ChatError | null>(null);
   const [thinkingSteps, setThinkingSteps] = useState<Record<number, (string | StepInfo)[]>>({});
+  const [saveModalState, setSaveModalState] = useState<{
+    open: boolean;
+    envelope?: CompositionEnvelope;
+    type: SavedArtifactType;
+    defaultName: string;
+    defaultDescription: string;
+  } | null>(null);
 
   // Refs
   const titleSetRef = useRef(false);
@@ -726,6 +752,125 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     }
   }
 
+  // ---- Saved work functions -----------------------------------------------
+
+  const saveEnvelopeAsArtifact = useCallback((envelope: CompositionEnvelope) => {
+    // Auto-detect type
+    const type: SavedArtifactType = 'query';
+    const defaultName = envelope.headline?.text?.slice(0, 80) || 'Untitled';
+    const defaultDescription = envelope.insight || '';
+    setSaveModalState({
+      open: true,
+      envelope,
+      type,
+      defaultName,
+      defaultDescription,
+    });
+  }, []);
+
+  const handleSaveConfirm = useCallback(async (name: string, description: string, tags: string[]) => {
+    if (!user || !saveModalState?.envelope) return;
+    const env = saveModalState.envelope;
+    const step: ArtifactStep = {
+      id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36),
+      order: 0,
+      skill: env.skill,
+      prompt: name,
+      cachedSql: env.provenance?.sql,
+      visualizationType: env.primaryArtifact?.type,
+      parameters: env.extractedParameters,
+    };
+    try {
+      await saveArtifact(user.uid, {
+        userId: user.uid,
+        type: saveModalState.type,
+        name,
+        description,
+        steps: [step],
+        parameters: env.extractedParameters || [],
+        project: activeProject || undefined,
+        tags,
+        pinned: false,
+      });
+      // Confirm in chat
+      const now = new Date().toISOString();
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: `Saved "${name}" to your library.`, timestamp: now, envelopes: [] },
+      ]);
+    } catch (err) {
+      console.error('Failed to save artifact:', err);
+    }
+    setSaveModalState(null);
+  }, [user, saveModalState, activeProject]);
+
+  const saveChatAsWorkflow = useCallback(async (name: string, description: string, tags: string[]) => {
+    if (!user) return;
+    // Collect all envelopes from assistant messages
+    const steps: ArtifactStep[] = [];
+    const allParams: ParameterDef[] = [];
+    let stepOrder = 0;
+    for (const msg of messages) {
+      if (msg.role === 'assistant' && msg.envelopes) {
+        for (const env of msg.envelopes) {
+          // Skip confirmation cards, completion cards, cost confirms
+          if (env.primaryArtifact?.type === 'CONFIRMATION_CARD' ||
+              env.primaryArtifact?.type === 'COMPLETION_CARD' ||
+              env.primaryArtifact?.type === 'COST_CONFIRM_CARD') continue;
+          steps.push({
+            id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + stepOrder,
+            order: stepOrder++,
+            skill: env.skill,
+            prompt: env.headline?.text || '',
+            cachedSql: env.provenance?.sql,
+            visualizationType: env.primaryArtifact?.type,
+            parameters: env.extractedParameters,
+          });
+          if (env.extractedParameters) {
+            allParams.push(...env.extractedParameters);
+          }
+        }
+      }
+    }
+    if (steps.length === 0) return;
+    // Dedupe params by name
+    const uniqueParams: ParameterDef[] = [];
+    const seen = new Set<string>();
+    for (const p of allParams) {
+      if (!seen.has(p.name)) {
+        seen.add(p.name);
+        uniqueParams.push(p);
+      }
+    }
+    try {
+      await saveArtifact(user.uid, {
+        userId: user.uid,
+        type: 'workflow',
+        name,
+        description,
+        steps,
+        parameters: uniqueParams,
+        project: activeProject || undefined,
+        tags,
+        pinned: false,
+      });
+      const now = new Date().toISOString();
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: `Saved workflow "${name}" with ${steps.length} steps to your library.`, timestamp: now, envelopes: [] },
+      ]);
+    } catch (err) {
+      console.error('Failed to save workflow:', err);
+    }
+  }, [user, messages, activeProject]);
+
+  const runSavedArtifact = useCallback(async (artifact: SavedArtifact) => {
+    if (!user) return;
+    // Send the artifact name as a user message and let the saved skill handle it
+    const prompt = `run my ${artifact.name}`;
+    await sendMessage(prompt);
+  }, [user, sendMessage]);
+
   return {
     messages,
     setMessages,
@@ -766,5 +911,12 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     pendingStepsRef,
 
     persistConversation,
+
+    saveModalState,
+    saveEnvelopeAsArtifact,
+    handleSaveConfirm,
+    handleSaveModalClose: () => setSaveModalState(null),
+    saveChatAsWorkflow,
+    runSavedArtifact,
   };
 }

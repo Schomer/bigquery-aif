@@ -33,6 +33,7 @@ interface Props {
   onCancel?: () => void;
   onChipClick?: (chip: HandoffEnvelope) => void;
   onInlineClick?: (message: string) => void;
+  onSave?: (envelope: CompositionEnvelope) => void;
   onPin?: (envelope: CompositionEnvelope) => void;
   onRunSql?: (sql: string) => void;
   isPinned?: boolean;
@@ -44,7 +45,7 @@ const TONE_CLASSES: Record<string, string> = {
   ATTENTION: 'tone-attention',
 };
 
-export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInlineClick, onPin, onRunSql, isPinned }: Props) {
+export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInlineClick, onSave, onPin, onRunSql, isPinned }: Props) {
 
   const toneClass = TONE_CLASSES[envelope.headline.tone] ?? 'tone-neutral';
   const [dismissedFlags, setDismissedFlags] = useState<Set<number>>(new Set());
@@ -104,6 +105,16 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
           }}>
             {typeof envelope.headline.text === 'string' ? envelope.headline.text : String(envelope.headline.text ?? '')}
           </p>
+          {onSave && !envelope.requiresConfirmation && envelope.primaryArtifact.type !== 'COMPLETION_CARD' && envelope.primaryArtifact.type !== 'MULTISTEP_VIEW' && envelope.primaryArtifact.type !== 'COST_CONFIRM_CARD' && (
+            <button
+              className="context-action-btn"
+              onClick={() => onSave(envelope)}
+              title="Save"
+              style={{ flexShrink: 0, marginTop: 1 }}
+            >
+              <img src="/icons/save.svg" alt="Save" width={16} height={16} style={{ opacity: 0.7 }} />
+            </button>
+          )}
           {onPin && !envelope.requiresConfirmation && envelope.primaryArtifact.type !== 'COMPLETION_CARD' && envelope.primaryArtifact.type !== 'MULTISTEP_VIEW' && envelope.primaryArtifact.type !== 'COST_CONFIRM_CARD' && (
             <button
               className={`context-action-btn${isPinned ? ' is-active' : ''}`}

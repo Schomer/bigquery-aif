@@ -106,6 +106,7 @@ export interface ResultsSidebarProps {
   onPinContext: (env: CompositionEnvelope) => void;
   onRerun: (assistantIdx: number) => Promise<void>;
   extractContextItems: (env: CompositionEnvelope) => ContextItem[];
+  onSave?: (envelope: CompositionEnvelope) => void;
   // Empty-state project selection
   favoriteProjectIds: string[];
   recentProjectIds: string[];
@@ -143,6 +144,7 @@ export function ResultsSidebar({
   onPinContext,
   onRerun,
   extractContextItems,
+  onSave,
   favoriteProjectIds,
   recentProjectIds,
   recentItems,
@@ -615,6 +617,7 @@ export function ResultsSidebar({
                   onChipClick={onChipClick}
                   onInlineClick={onInlineClick}
                   onRunSql={onRunSql}
+                  onSave={onSave}
                   onPin={extractContextItems(env).length > 0 ? onPinContext : undefined}
                   isPinned={pinnedEnvelopeId === env.id}
                 />

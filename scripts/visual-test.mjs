@@ -3,7 +3,9 @@
 // Puppeteer test harness using SYSTEM Chrome.
 // Fixed: properly clears textarea, waits for response completion, starts new conversation per test.
 
-import puppeteer from 'puppeteer';
+import { createRequire } from 'module';
+const require = createRequire('/tmp/puppeteer-runner/');
+const puppeteer = require('puppeteer');
 import { mkdirSync, writeFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
