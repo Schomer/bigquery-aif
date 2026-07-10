@@ -180,6 +180,134 @@ export async function callGeminiWithSchema<T>(args: CallGeminiArgs): Promise<T> 
   return result as T;
 }
 
+// ─── Tool-calling agent loop ──────────────────────────────────────────────────
+
+export interface ToolCallRecord {
+  name: string;
+  args: Record<string, unknown>;
+  result: unknown;
+}
+
+export interface ToolCallResult {
+  /** The LLM's final text response after all tool calls are complete. */
+  textResponse: string;
+  /** Ordered log of every tool call made during the loop. */
+  toolCalls: ToolCallRecord[];
+}
+
+export interface CallGeminiWithToolsArgs {
+  systemInstruction: string;
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+  /** Gemini function declarations (the schema half of each tool). */
+  toolDeclarations: Array<{ name: string; description: string; parameters: unknown }>;
+  /** Executes a named tool and returns the result for the LLM. */
+  toolExecutor: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+  project?: string;
+  onStatus?: (msg: string) => void;
+  /** Safety cap on loop iterations (default 6). */
+  maxIterations?: number;
+}
+
+/**
+ * Runs a Gemini function-calling loop:
+ *   1. Send the conversation + tool declarations to Gemini.
+ *   2. If the response contains functionCall parts, execute them and feed
+ *      the results back as functionResponse messages.
+ *   3. Repeat until the LLM returns a text response (no more tool calls)
+ *      or the iteration cap is reached.
+ */
+export async function callGeminiWithTools({
+  systemInstruction,
+  messages,
+  toolDeclarations,
+  toolExecutor,
+  project,
+  onStatus,
+  maxIterations = 6,
+}: CallGeminiWithToolsArgs): Promise<ToolCallResult> {
+  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+
+  const finalSystemInstruction = `${DATA_ASSISTANT_INSTRUCTIONS}\n\n${systemInstruction}`;
+
+  // Build initial contents from conversation history
+  const contents: Array<Record<string, unknown>> = messages.map((m) => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
+
+  const allToolCalls: ToolCallRecord[] = [];
+
+  for (let i = 0; i < maxIterations; i++) {
+    const requestBody = {
+      systemInstruction: { parts: [{ text: finalSystemInstruction }] },
+      contents,
+      tools: [{ functionDeclarations: toolDeclarations }],
+      toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
+      generationConfig: { temperature: 0.1 },
+    };
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+    });
+
+    const data = await res.json();
+
+    // Handle HTTP / API errors
+    if (res.status === 401 || res.status === 403) {
+      throw new Error('Not authenticated. Please sign in again.');
+    }
+    if (!res.ok || data.error) {
+      const msg = data?.error?.message || data?.error || `HTTP ${res.status}`;
+      throw new Error(`Gemini API failed: ${msg}`);
+    }
+
+    const candidate = data.candidates?.[0];
+    if (!candidate?.content?.parts) {
+      throw new Error('No content in Gemini response');
+    }
+
+    const parts = candidate.content.parts as Array<Record<string, any>>;
+    const functionCalls = parts.filter((p) => p.functionCall);
+
+    if (functionCalls.length === 0) {
+      // LLM is done calling tools -- return its text response
+      const textPart = parts.find((p) => p.text);
+      return { textResponse: textPart?.text || '', toolCalls: allToolCalls };
+    }
+
+    // Append the model's function-call turn to contents
+    contents.push({ role: 'model', parts });
+
+    // Execute each requested function call and collect responses
+    const responseParts: Array<Record<string, unknown>> = [];
+    for (const fc of functionCalls) {
+      const { name, args } = fc.functionCall;
+      onStatus?.(`Running tool: ${name}...`);
+      try {
+        const result = await toolExecutor(name, args ?? {});
+        allToolCalls.push({ name, args: args ?? {}, result });
+        responseParts.push({ functionResponse: { name, response: { result } } });
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        allToolCalls.push({ name, args: args ?? {}, result: { error: errMsg } });
+        responseParts.push({ functionResponse: { name, response: { error: errMsg } } });
+      }
+    }
+
+    // Feed function results back as the next user turn
+    contents.push({ role: 'user', parts: responseParts });
+  }
+
+  // Exhausted iteration cap
+  return {
+    textResponse: 'Reached maximum tool-call iterations.',
+    toolCalls: allToolCalls,
+  };
+}
+
 // ─── Gemini Response Schemas (OpenAPI 3.0 Uppercase Format) ────────────────────
 
 export const SchemaResponseSchema = {

@@ -102,56 +102,53 @@ function findChrome() {
 }
 
 // Wait for the app to finish loading a response.
-// Two-phase: (1) wait for loading to START, (2) wait for loading to END.
+// Detects the SparkSpinner SVG component which only renders during active loading.
 async function waitForResponse(page, timeoutMs = 90000) {
   const startTime = Date.now();
   const pollInterval = 1500;
 
-  const THINKING_REGEX = /Gazing|Reading the query|crystals are computing|Communing|Divining|Scanning|Interrogating|Decoding|Classifying intent|Building SQL|Dry-running|Matched skill|Retrying|Query failed, asking|Fetching|Analyzing|Running|Checking/;
+  // The SparkSpinner is an SVG with viewBox="0 0 28 28" and animated paths.
+  // It only exists in the DOM when loading is true.
+  const hasSpinnerFn = () => {
+    // Look for SVGs with the spinner's specific viewBox and animation keyframes
+    const svgs = document.querySelectorAll('svg[viewBox="0 0 28 28"]');
+    // Filter for ones that have animated paths (the spinner has defs > style with keyframes)
+    for (const svg of svgs) {
+      const styleEl = svg.querySelector('defs > style');
+      if (styleEl && styleEl.textContent && styleEl.textContent.includes('keyframes')) {
+        return true;
+      }
+    }
+    return false;
+  };
 
   // Phase 1: Wait for loading to START (max 15s)
-  // The query must show a thinking phrase or spinner before we consider it "started"
   let loadingStarted = false;
   while (Date.now() - startTime < 15000) {
-    const isLoading = await page.evaluate((regex) => {
-      const bodyText = document.body.innerText;
-      const hasThinking = new RegExp(regex).test(bodyText);
-      const hasSpinner = !!document.querySelector('.spark-spinner');
-      return hasThinking || hasSpinner;
-    }, THINKING_REGEX.source);
-
-    if (isLoading) {
+    const spinning = await page.evaluate(hasSpinnerFn);
+    if (spinning) {
       loadingStarted = true;
-      console.log('[test] Loading detected, waiting for completion...');
+      console.log('[test] Spinner detected, waiting for completion...');
       break;
     }
     await delay(500);
   }
 
   if (!loadingStarted) {
-    console.warn('[test] Loading never started, waiting extra time...');
+    console.warn('[test] Spinner never appeared, waiting extra time...');
     await delay(5000);
   }
 
-  // Phase 2: Wait for loading to END
-  // Loading is done when thinking phrases are gone AND the page has settled
+  // Phase 2: Wait for spinner to DISAPPEAR
   let consecutiveIdle = 0;
   while (Date.now() - startTime < timeoutMs) {
-    const state = await page.evaluate((regex) => {
-      const bodyText = document.body.innerText;
-      const hasThinking = new RegExp(regex).test(bodyText);
-      const hasSpinner = !!document.querySelector('.spark-spinner');
-      const isLoading = hasThinking || hasSpinner;
-      const hasErrorCard = bodyText.includes('Something Went Wrong');
-      return { isLoading, hasErrorCard };
-    }, THINKING_REGEX.source);
+    const spinning = await page.evaluate(hasSpinnerFn);
 
-    if (!state.isLoading) {
+    if (!spinning) {
       consecutiveIdle++;
-      // Require 2 consecutive idle checks (3s total) to avoid transient gaps
+      // Require 2 consecutive idle checks (3s) to ensure it's truly done
       if (consecutiveIdle >= 2) {
-        // Extra settle time for charts/animations
-        await delay(2000);
+        await delay(2000); // settle time for charts/animations
         return true;
       }
     } else {
