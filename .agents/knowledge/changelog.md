@@ -19,10 +19,18 @@ A record of what changed in each coding session. Read this to understand recent 
 
 **Why**: The old pipeline always made ~30 BigQuery API calls regardless of query complexity, causing multi-minute response times for trivial queries. The tool-calling approach reduces a simple preview to 1 LLM call + 1 BQ query.
 
+**Follow-up fixes**:
+- Sharpened the system prompt with explicit efficiency rules ("don't call list_tables if the user named a table", "STOP after run_query succeeds").
+- Increased maxIterations from 6 to 10 -- analytical queries need 7+ iterations for schema exploration + SQL retry.
+- Fixed composer headline to reject raw JSON from `resultSummary` -- the agent loop's textResponse can contain structured data dumps that should not be displayed as the headline.
+- Created `.agents/skills/browser-testing/SKILL.md` documenting the Puppeteer-based testing approach.
+
 **Files touched**:
 - `src/lib/bq-tools.ts` (new)
 - `src/lib/gemini-client.ts` (added `callGeminiWithTools`)
 - `src/lib/skills/handle-query.ts` (rewritten)
+- `src/lib/composer.ts` (headline guard)
+- `.agents/skills/browser-testing/SKILL.md` (new)
 
 ---
 
