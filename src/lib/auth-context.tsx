@@ -22,7 +22,7 @@ import {
   type User,
 } from 'firebase/auth';
 import { auth } from './firebase';
-import { setAccessToken as storeToken, getAccessToken } from './gis-auth';
+import { setAccessToken as storeToken, getAccessToken, isTokenLikelyExpired } from './gis-auth';
 
 export interface GoogleUser {
   uid: string;
@@ -83,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const prevUserRef = useRef<GoogleUser | null>(null);
+  const autoRefreshAttempted = useRef(false);
 
   // Sync token to both React state and the module-level store
   const setAccessToken = useCallback((token: string | null) => {
@@ -102,19 +103,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Listen for Firebase Auth state changes
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (fbUser) => {
+    const unsub = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
         setUserStable(toGoogleUser(fbUser));
-        // Restore token from sessionStorage if available
+        // Restore token from localStorage if available and not expired
         const storedToken = getAccessToken();
-        if (storedToken) {
+        if (storedToken && !isTokenLikelyExpired()) {
           setAccessTokenState(storedToken);
+          setIsLoading(false);
+        } else if (!autoRefreshAttempted.current) {
+          // Token missing or expired -- attempt a silent refresh.
+          // The refresh popup auto-closes almost instantly since the user
+          // already granted scopes on initial sign-in.
+          autoRefreshAttempted.current = true;
+          try {
+            const result = await signInWithPopup(auth, refreshProvider);
+            const credential = GoogleAuthProvider.credentialFromResult(result);
+            const oauthToken = credential?.accessToken
+              || (result as any)._tokenResponse?.oauthAccessToken
+              || (result as any)._tokenResponse?.access_token;
+            if (oauthToken) {
+              storeToken(oauthToken);
+              setAccessTokenState(oauthToken);
+            }
+          } catch (refreshErr: any) {
+            console.warn('[auth] Auto-refresh failed:', refreshErr.code, refreshErr.message);
+            // Fall through -- user will see the sign-in page
+          }
+          setIsLoading(false);
+        } else {
+          // Auto-refresh already attempted and failed -- stop loading
+          setIsLoading(false);
         }
       } else {
         setUserStable(null);
         setAccessToken(null);
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
     return unsub;
   }, [setAccessToken, setUserStable]);
