@@ -19,7 +19,7 @@ const LayoutContext = createContext<LayoutContextValue>({
   setLayout: () => {},
   historyVisible: true,
   setHistoryVisible: () => {},
-  chatListOpen: false,
+  chatListOpen: true,
   setChatListOpen: () => {},
   toggleChatList: () => {},
 });
@@ -30,7 +30,7 @@ const HISTORY_KEY = 'hdn_history_visible';
 export function LayoutProvider({ children }: { children: ReactNode }) {
   const [layout, setLayoutState] = useState<ChatLayout>('unified');
   const [historyVisible, setHistoryVisibleState] = useState(true);
-  const [chatListOpen, setChatListOpenState] = useState(false);
+  const [chatListOpen, setChatListOpenState] = useState(true);
 
   // Hydrate from localStorage on mount
   useEffect(() => {
