@@ -12,6 +12,22 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 
 ---
 
+### 2026-07-10: Fix "Suggest next steps" error after table schema view
+**Scope**: composer.ts, handle-governance.ts, handle-query.ts, ArtifactCard.tsx
+**What broke**: Clicking "Suggest next steps" after viewing a table schema produced `Not found: Dataset malloy-data:ecomm.INFORMATION_SCHEMA was not found in location US`.
+**Root cause (3 compounding bugs)**:
+1. `composeSchema()` returned empty `nextActions` for TABLE scope, triggering a generic fallback chip that sent the vague message "What can I do next with these results?" -- no keyword signals, fell to LLM classifier, which routed unpredictably.
+2. `handle-governance.ts` had 7 INFORMATION_SCHEMA references with INFORMATION_SCHEMA *inside* the backtick-quoted identifier (`` `project.dataset.INFORMATION_SCHEMA.VIEW` `` instead of `` `project.dataset`.INFORMATION_SCHEMA.VIEW ``). BigQuery interprets the former as a dataset name.
+3. The query handler's LLM prompt didn't warn about INFORMATION_SCHEMA being an exception to the backtick rule, so Gemini extended the "wrap everything in backticks" instruction to INFORMATION_SCHEMA paths.
+**Fix**:
+- Added 3 contextual next-action chips for TABLE scope schemas (Query, Profile, Check freshness)
+- Fixed all 7 governance INFORMATION_SCHEMA backtick references
+- Added INFORMATION_SCHEMA exception to the query handler's LLM prompt
+- Made the fallback chip message context-aware (references actual table name)
+**Rule**: INFORMATION_SCHEMA views must always be OUTSIDE backtick-quoted identifiers. The correct pattern is `` `project.dataset`.INFORMATION_SCHEMA.VIEW_NAME ``. Added to invariants.
+
+---
+
 ### 2026-07-10: Backtick-quote region identifier in overview JOBS_BY_PROJECT query
 **Scope**: OverviewDashboard.tsx
 **What broke**: Overview page showed "Could not load recent activity: Syntax error: Expected end of input but got '-' at [11:34]".

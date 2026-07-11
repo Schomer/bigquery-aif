@@ -4,6 +4,18 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-10: Fix "Suggest next steps" error after table schema view
+
+**What changed**:
+- `composer.ts`: TABLE scope schemas now generate 3 next-action chips (Query, Profile, Check freshness) instead of returning an empty array. The generic fallback "Suggest next steps" button no longer appears for table schema results.
+- `handle-governance.ts`: Fixed 7 INFORMATION_SCHEMA SQL references where INFORMATION_SCHEMA was incorrectly wrapped inside backtick-quoted identifiers. Changed from `` `project.dataset.INFORMATION_SCHEMA.VIEW` `` to `` `project.dataset`.INFORMATION_SCHEMA.VIEW ``.
+- `handle-query.ts`: Added an INFORMATION_SCHEMA exception to the LLM system prompt so Gemini doesn't wrap INFORMATION_SCHEMA inside backtick-quoted identifiers.
+- `ArtifactCard.tsx`: Made the fallback "Suggest next steps" chip context-aware -- it now references the actual table/dataset name instead of sending a vague "What can I do next with these results?".
+
+**Why**: The combination of empty chips, a vague fallback message, and incorrect INFORMATION_SCHEMA backtick patterns caused the error `Not found: Dataset malloy-data:ecomm.INFORMATION_SCHEMA was not found in location US`.
+
+---
+
 ## 2026-07-10: Move export action from suggestion chips to kebab overflow menu
 
 **What changed**:
