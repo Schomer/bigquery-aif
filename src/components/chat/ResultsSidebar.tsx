@@ -17,6 +17,7 @@ import type {
 } from '@/lib/types';
 import type { ChatError } from '@/hooks/useChatOrchestration';
 import { CrystalBallThinking, ErrorCard, RegenerateButton } from './ChatThread';
+import { BriefingBlock } from '@/components/BriefingBlock';
 import { ChatInput } from './ChatInput';
 import type { RecentItem } from '@/lib/firestore-service';
 
@@ -430,7 +431,7 @@ export function ResultsSidebar({
                     return nonConfirm.length > 0 ? (
                       <>
                         <div className="chat-sidebar-assistant-text" style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                          {nonConfirm.map((env) => env.headline.text).join(' ')}
+                          {nonConfirm.map((env) => env.briefing?.narrative || env.headline.text).join(' ')}
                         </div>
                         <div className="chat-sidebar-artifact-links">
                           {nonConfirm.map((env) => (
@@ -645,7 +646,10 @@ export function ResultsSidebar({
         ) : allEnvelopes.length > 0 ? (
           <div className="results-panel-inner">
             {allEnvelopes.map((env) => (
-              <div key={env.id} data-envelope-id={env.id}>
+              <div key={env.id} data-envelope-id={env.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {env.briefing && (
+                  <BriefingBlock briefing={env.briefing} />
+                )}
                 <ArtifactCard
                   envelope={env}
                   onConfirm={() => onConfirm(env)}

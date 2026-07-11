@@ -253,6 +253,12 @@ UI Components (src/components/)
 
 ---
 
+### `src/components/BriefingBlock.tsx` (~85 lines)
+**Responsibility**: Renders conversational briefing above artifact cards.
+- Narrative paragraph + optional key-findings bullet list
+- Inline code rendering for backtick-wrapped substrings
+- Styled with light blue background (#edf1f8), Neptune-inspired typography
+
 ### `src/components/ui/StatCard.tsx` (~90 lines)
 **Responsibility**: Reusable stat card for displaying label/value pairs.
 - Replaces local StatCard/KpiCard/Stat definitions in AccessPatternView, StorageBreakdownView, CostAnalysisView, MonitoringView, SchemaView

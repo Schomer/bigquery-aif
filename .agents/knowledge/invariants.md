@@ -81,6 +81,7 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **Sample/preview queries force TABLE artifact type**: Any query matching `SELECT * FROM ... LIMIT N` is treated as a sample query and forced to TABLE view. Chart inference should only apply to aggregated/analytical results, not random row samples.
 - **Time-series charts sort chronologically**: `useChartSetup` in `recharts-charts.tsx` detects date-like x-axis values and sorts data oldest-to-newest. This ensures line/area charts read left-to-right in temporal order regardless of the SQL ORDER BY direction.
 - **`buildQueryHeadline` receives columns and rows**: The headline builder has access to actual data values to produce context-aware headlines (KPI values, data shape descriptions) instead of generic "X rows from table" messages.
+- **Briefing must be set in both heuristic and LLM paths**: Every compose function sets a heuristic `briefing` on the envelope. Self-review may override it with an LLM-generated briefing. If a new compose function is added, it must also set `briefing`.
 
 ---
 

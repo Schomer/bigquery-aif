@@ -173,6 +173,22 @@ function composeSchema(result: SchemaResult): CompositionEnvelope {
     });
   }
 
+  // Build heuristic briefing based on scope
+  const schemaBriefing: CompositionEnvelope['briefing'] = (() => {
+    if (result.scope === 'PROJECT') {
+      const count = result.columns.length;
+      return { narrative: `Here are the datasets available in \`${result.project}\`. Found ${count} dataset${count !== 1 ? 's' : ''}.` };
+    }
+    if (result.scope === 'DATASET') {
+      const count = result.columns.length;
+      return { narrative: `The \`${result.dataset}\` dataset contains ${count} table${count !== 1 ? 's' : ''}.` };
+    }
+    // TABLE scope
+    const colCount = result.columns.length;
+    const rowLabel = result.rowCount?.toLocaleString() ?? 'unknown';
+    return { narrative: `Here is the schema for \`${result.table}\` -- ${colCount} columns, ${rowLabel} rows.` };
+  })();
+
   return {
     id,
     skill: 'schema',
@@ -180,6 +196,7 @@ function composeSchema(result: SchemaResult): CompositionEnvelope {
     primaryArtifact: { type: artifactType, data: result },
     provenance: { visibility: 'COLLAPSED' },
     nextActions,
+    briefing: schemaBriefing,
   };
 }
 
@@ -370,6 +387,16 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[]): Compos
     }
   }
 
+  // Heuristic briefing for query results (overridden by self-review when it runs)
+  const queryBriefing: CompositionEnvelope['briefing'] = (() => {
+    const tableRef = extractTableFromSql(result.sql);
+    const tablePart = tableRef ? ` against \`${tableRef}\`` : '';
+    if (result.rowCount === 0) {
+      return { narrative: `I ran your query${tablePart} but it returned no rows.` };
+    }
+    return { narrative: `I ran your query${tablePart} and got ${result.rowCount.toLocaleString()} row${result.rowCount !== 1 ? 's' : ''}.` };
+  })();
+
   return {
     id,
     skill: 'query',
@@ -396,6 +423,7 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[]): Compos
     insight,
     qualityFlags: qualityFlags && qualityFlags.length > 0 ? qualityFlags : undefined,
     extractedParameters: result.extractedParameters,
+    briefing: queryBriefing,
   };
 }
 
@@ -463,6 +491,7 @@ function composeDataManagement(
       primaryArtifact: { type: 'COMPLETION_CARD', data: result },
       provenance: { visibility: 'COLLAPSED' },
       nextActions,
+      briefing: { narrative: headlineText },
     };
   }
 }
@@ -687,6 +716,20 @@ function composeMonitoring(result: MonitoringResult): CompositionEnvelope {
     sourceResultRef: id,
   });
 
+  // Heuristic briefing for monitoring
+  const monBriefing: CompositionEnvelope['briefing'] = (() => {
+    if (summary.totalJobs === 0) return { narrative: 'No BigQuery jobs were found in the last 24 hours.' };
+    const findings: Array<{ label: string; value: string }> = [
+      { label: 'Total Jobs', value: summary.totalJobs.toLocaleString() },
+    ];
+    if (summary.errorCount > 0) findings.push({ label: 'Failed', value: summary.errorCount.toLocaleString() });
+    findings.push({ label: 'Data Processed', value: formatBytes(summary.totalBytesProcessed) });
+    return {
+      narrative: `I checked your BigQuery job history for the last 24 hours.`,
+      findings,
+    };
+  })();
+
   return {
     id,
     skill: 'monitoring',
@@ -697,6 +740,7 @@ function composeMonitoring(result: MonitoringResult): CompositionEnvelope {
       sql: `SELECT job_id, user_email, statement_type, state, creation_time, total_bytes_processed, error_result, referenced_tables FROM \`region-<auto>\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR) ORDER BY creation_time DESC LIMIT 50`,
     },
     nextActions,
+    briefing: monBriefing,
     ...(summary.totalJobs === 0 ? { presentation: 'inline' as const } : {}),
   };
 }
@@ -838,6 +882,7 @@ function composeDiscovery(result: DiscoveryResult): CompositionEnvelope {
     primaryArtifact: { type: artifactType, data: result },
     provenance: { visibility: 'COLLAPSED' },
     nextActions,
+    briefing: { narrative: headlineText },
   };
 }
 // ─── Storage Breakdown composition ────────────────────────────────────────────
@@ -1221,6 +1266,19 @@ function composeDataQuality(result: DataQualityResult): CompositionEnvelope {
     });
   }
 
+  // Heuristic briefing for data quality
+  const dqBriefing: CompositionEnvelope['briefing'] = (() => {
+    const shortTable = result.table.replace(/`/g, '').split('.').pop() || result.table;
+    const findings: Array<{ label: string; value: string }> = [
+      { label: 'Rows Scanned', value: summary.rowsScanned.toLocaleString() },
+      { label: 'Issues Found', value: summary.issuesFound.toLocaleString() },
+    ];
+    return {
+      narrative: `I ran a ${result.checkType.toLowerCase().replace('_', ' ')} check on \`${shortTable}\`.`,
+      findings,
+    };
+  })();
+
   return {
     id,
     skill: 'data-quality',
@@ -1228,6 +1286,7 @@ function composeDataQuality(result: DataQualityResult): CompositionEnvelope {
     primaryArtifact: { type: 'DATA_QUALITY_VIEW', data: result },
     provenance: result.sql ? { visibility: 'COLLAPSED', sql: result.sql } : { visibility: 'COLLAPSED' },
     nextActions,
+    briefing: dqBriefing,
   };
 }
 

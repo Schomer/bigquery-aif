@@ -5,6 +5,7 @@ import { SparkSpinner } from '@/components/SparkSpinner';
 import { ArtifactCard } from '@/components/ArtifactCard';
 import { ConversationSummary } from '@/components/ConversationSummary';
 import { InlineCostConfirm, InlineDmlConfirm } from './InlineConfirmation';
+import { BriefingBlock } from '@/components/BriefingBlock';
 import type {
   ChatMessage,
   CompositionEnvelope,
@@ -448,18 +449,22 @@ export function ChatThread({
                   );
                 }
                 return (
-                  <ArtifactCard
-                    key={env.id}
-                    envelope={env}
-                    onConfirm={() => onConfirm(env)}
-                    onCancel={() => onCancel(env)}
-                    onChipClick={onChipClick}
-                    onInlineClick={onInlineClick}
-                    onRunSql={onRunSql}
-                    onSave={onSave}
-                    onPin={extractContextItems(env).length > 0 ? onPinContext : undefined}
-                    isPinned={pinnedEnvelopeId === env.id}
-                  />
+                  <div key={env.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {env.briefing && (
+                      <BriefingBlock briefing={env.briefing} />
+                    )}
+                    <ArtifactCard
+                      envelope={env}
+                      onConfirm={() => onConfirm(env)}
+                      onCancel={() => onCancel(env)}
+                      onChipClick={onChipClick}
+                      onInlineClick={onInlineClick}
+                      onRunSql={onRunSql}
+                      onSave={onSave}
+                      onPin={extractContextItems(env).length > 0 ? onPinContext : undefined}
+                      isPinned={pinnedEnvelopeId === env.id}
+                    />
+                  </div>
                 );
               })}
               {!msg.envelopes && msg.content && (

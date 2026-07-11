@@ -10,6 +10,16 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+### 2026-07-11: Conversational briefings on every response
+
+**What changed**: Added a `briefing` field to `CompositionEnvelope` containing a narrative string and optional key findings. Self-review generates LLM briefings; composer generates heuristic briefings as fallback. New `BriefingBlock.tsx` renders above artifact cards in both layouts.
+
+**What worked**: Piggybacking on the existing self-review Gemini call for LLM-quality briefings -- no extra latency or cost for complex responses. Heuristic briefings for simple responses (schema, KPI, small queries) are instant.
+
+**What to watch for**: The self-review prompt is now larger (added ~200 chars for BRIEFING dimension + rules). If self-review starts timing out, this would be one factor. Monitor response times.
+
+**Derived rule**: When adding a new field to the response envelope, always populate it in both the heuristic path (composer) and the LLM path (self-review). Relying on only one path leaves gaps depending on self-review gating.
+
 ### 2026-07-11: Polymorphic response rendering
 
 **What changed**: Added `presentation: 'custom'` mode to `CompositionEnvelope`. ArtifactCard now has two paths: default (existing chrome) and custom (thin container, view owns layout). Created `CardParts.tsx` with composable building blocks (`CardHeader`, `CardChips`, `SqlPanel`, `CardMeta`). Migrated GovernanceView as the first custom-mode view.

@@ -2,6 +2,34 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-11: Neptune-style conversational briefings
+
+**Context**: User wanted each response to include a friendly conversational summary (like Neptune's prototype) above the artifact card, explaining what was done and highlighting key findings.
+
+**Changes**:
+- `types.ts`: Added `briefing` field to `CompositionEnvelope` with `narrative` string and optional `findings` array.
+- `gemini-client.ts`: Added `briefingNarrative` and `briefingFindings` to `SelfReviewResponseSchema`.
+- `self-review.ts`: Added BRIEFING as a 5th review dimension in the prompt. LLM now generates a conversational summary alongside its existing review. Response handler maps briefing fields onto envelope.
+- `composer.ts`: Added heuristic briefings to all compose functions (schema, query, data-management, monitoring, discovery, data-quality). These serve as defaults when self-review is skipped.
+- `BriefingBlock.tsx` (NEW): Presentational component rendering narrative + key findings bullets, styled with light blue background and Neptune-inspired typography.
+- `ChatThread.tsx`: Renders `BriefingBlock` above each `ArtifactCard` for non-confirmation envelopes.
+- `ResultsSidebar.tsx`: Shows briefing narrative in the chat sidebar, and renders `BriefingBlock` above cards in the results panel.
+
+**Files changed**: `types.ts`, `gemini-client.ts`, `self-review.ts`, `composer.ts`, `BriefingBlock.tsx` (new), `ChatThread.tsx`, `ResultsSidebar.tsx`.
+
+---
+
+## 2026-07-11: Widen bar chart Y-axis labels
+
+**Context**: Horizontal bar chart labels (store names like "HY-VEE WINE AND SPIRITS / IOWA CITY") were wrapping prematurely because the YAxis width was only 100px.
+
+**Changes**:
+- `recharts-charts.tsx`: Increased YAxis `width` from 100 to 160 in `BarChartRenderer`, giving labels more horizontal room and making bars narrower.
+
+**Files changed**: `recharts-charts.tsx`.
+
+---
+
 ## 2026-07-11: Data quality table layout and styling fixes
 
 **Context**: The data quality findings table had four issues: gray background, layout shift on row hover (buttons appearing/disappearing), column headers not spanning full width, and column names too light.
