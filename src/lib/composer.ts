@@ -270,6 +270,70 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[]): Compos
     }
   }
 
+  // Generate data-driven suggestions when quality flags don't provide enough
+  if (nextActions.length < 4 && result.rows.length > 0) {
+    // Extract table name from SQL for targeted suggestions
+    const tableMatch = result.sql?.match(/FROM\s+`?[\w.-]+\.(\w+)`?/i);
+    const tableName = tableMatch?.[1] || '';
+
+    // If result has a numeric aggregate column, suggest drill-down
+    const numericCols = result.columns.filter((c, i) => {
+      const firstVal = result.rows[0]?.[i];
+      return typeof firstVal === 'number' || (typeof firstVal === 'string' && /^\d+(\.\d+)?$/.test(firstVal));
+    });
+    const categoryCols = result.columns.filter((c, i) => {
+      const firstVal = result.rows[0]?.[i];
+      return typeof firstVal === 'string' && !/^\d+(\.\d+)?$/.test(firstVal);
+    });
+
+    // Suggest charting if data has a category + numeric pattern
+    if (categoryCols.length > 0 && numericCols.length > 0 && result.rows.length >= 2 && nextActions.length < 4) {
+      nextActions.push({
+        targetSkill: 'query',
+        label: `Chart ${numericCols[0]} by ${categoryCols[0]}`,
+        context: { table: tableName },
+        sourceSkill: 'query',
+        sourceResultRef: id,
+      });
+    }
+
+    // Suggest drill-down into a specific value from the results
+    if (categoryCols.length > 0 && result.rows.length > 1 && nextActions.length < 4) {
+      const topVal = result.rows[0]?.[result.columns.indexOf(categoryCols[0])];
+      if (topVal && typeof topVal === 'string' && topVal.length < 40) {
+        nextActions.push({
+          targetSkill: 'query',
+          label: `Drill into ${categoryCols[0]} = "${topVal}"`,
+          context: { table: tableName, filter: { column: categoryCols[0], value: topVal } },
+          sourceSkill: 'query',
+          sourceResultRef: id,
+        });
+      }
+    }
+
+    // Suggest data quality check for the source table
+    if (tableName && nextActions.length < 4) {
+      nextActions.push({
+        targetSkill: 'data-quality',
+        label: `Profile ${tableName}`,
+        context: { table: tableName },
+        sourceSkill: 'query',
+        sourceResultRef: id,
+      });
+    }
+
+    // Suggest viewing the table schema
+    if (tableName && nextActions.length < 4) {
+      nextActions.push({
+        targetSkill: 'schema',
+        label: `View ${tableName} schema`,
+        context: { table: tableName },
+        sourceSkill: 'query',
+        sourceResultRef: id,
+      });
+    }
+  }
+
   return {
     id,
     skill: 'query',

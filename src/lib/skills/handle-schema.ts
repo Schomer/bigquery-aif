@@ -409,6 +409,49 @@ Rules:
       return [compose('schema', result)];
     } catch (err: any) {
       if (err.message?.includes('Not found')) {
+        // First: try fuzzy-matching in the same dataset.
+        // Users often say "orders" when the table is "order_items" or "v_completed_orders".
+        if (resolvedDataset) {
+          try {
+            const dsResult = await fetchSchema(resolvedDataset, undefined, project);
+            const tableNames = dsResult.columns.map((c) => c.name.toLowerCase());
+            const lower = table.toLowerCase();
+
+            // Try exact plural/singular variants
+            const variants = [
+              lower, `${lower}s`, lower.replace(/s$/, ''),
+              `v_${lower}`, `v_completed_${lower}`,
+            ];
+            let matchedTable = tableNames.find((t) => variants.includes(t));
+
+            // Try substring matching: "orders" matches "order_items", "completed_orders"
+            if (!matchedTable) {
+              const candidates = tableNames.filter((t) =>
+                t.includes(lower) || t.includes(lower.replace(/s$/, ''))
+              );
+              if (candidates.length === 1) {
+                matchedTable = candidates[0];
+              } else if (candidates.length > 1) {
+                // Prefer exact-ish matches (shortest name that contains the search term)
+                candidates.sort((a, b) => a.length - b.length);
+                matchedTable = candidates[0];
+              }
+            }
+
+            if (matchedTable) {
+              // Re-fetch with the corrected table name
+              const actualName = dsResult.columns.find(
+                (c) => c.name.toLowerCase() === matchedTable
+              )?.name ?? matchedTable;
+              onStatus?.(`Matched "${table}" to table "${actualName}" in ${resolvedDataset}`);
+              const corrected = await fetchSchema(resolvedDataset, actualName, project);
+              return [compose('schema', corrected)];
+            }
+          } catch {
+            // Fuzzy matching failed, continue to cross-dataset search
+          }
+        }
+
         onStatus?.(`Table ${table} not found in ${resolvedDataset}, searching other datasets...`);
         const allDatasets = await getAvailableDatasets(project);
         const otherDatasets = allDatasets.filter((ds) => ds !== resolvedDataset);

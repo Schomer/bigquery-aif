@@ -282,27 +282,36 @@ async function waitForResponse(page, timeoutMs = 120000) {
 }
 
 async function startNewConversation(page) {
-  const freshUrl = `${APP_URL}?t=${Date.now()}`;
-  await page.goto(freshUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-  await delay(3000);
+  // Click the #new-btn button (the "+ New" button in the sidebar).
+  // This calls React's newConversation() which resets state properly.
+  try {
+    await page.click('#new-btn');
+    console.log('[eval] Clicked #new-btn');
+    await delay(2000);
+  } catch (err) {
+    // Fallback: navigate to fresh URL
+    console.log(`[eval] #new-btn click failed (${err.message}), falling back to URL navigation`);
+    const freshUrl = `${APP_URL}?t=${Date.now()}`;
+    await page.goto(freshUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+    await delay(3000);
+  }
+
+  // Wait for textarea
   await page.waitForSelector('textarea', { timeout: 10000 });
 
-  const taValue = await page.evaluate(() => {
-    const ta = document.querySelector('textarea');
-    return ta ? ta.value : null;
+  // Verify the page is in a clean state (no result cards visible)
+  const hasResults = await page.evaluate(() => {
+    return document.querySelectorAll('[class*="tone-"]').length;
   });
-  if (taValue && taValue.length > 0) {
-    await page.evaluate(() => {
-      const ta = document.querySelector('textarea');
-      if (!ta) return;
-      const nativeSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLTextAreaElement.prototype, 'value'
-      ).set;
-      nativeSetter.call(ta, '');
-      ta.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-    await delay(300);
+  if (hasResults > 0) {
+    // Stale results still showing -- force a full page reload
+    console.log('[eval] Stale results detected, forcing reload');
+    await page.goto(APP_URL, { waitUntil: 'networkidle2', timeout: 30000 });
+    await delay(3000);
+    await page.waitForSelector('textarea', { timeout: 10000 });
   }
+
+  await delay(500);
   return true;
 }
 
@@ -572,7 +581,7 @@ async function evaluateWithGemini(test, screenshotPath, domMeta) {
     ],
     generationConfig: {
       responseMimeType: 'application/json',
-      maxOutputTokens: 1500,
+      maxOutputTokens: 4096,
       temperature: 0.1,
     },
   };
@@ -585,8 +594,8 @@ async function evaluateWithGemini(test, screenshotPath, domMeta) {
     });
 
     if (!res.ok) {
-      const errBody = await res.text();
-      console.error(`[eval] Gemini API error ${res.status}: ${errBody.slice(0, 200)}`);
+      const errText = await res.text();
+      console.error(`[eval] Gemini API error ${res.status}: ${errText.slice(0, 200)}`);
       return null;
     }
 
@@ -597,7 +606,34 @@ async function evaluateWithGemini(test, screenshotPath, domMeta) {
       return null;
     }
 
-    return JSON.parse(text);
+    // Try parsing directly, then try repairing common issues
+    try {
+      return JSON.parse(text);
+    } catch (parseErr) {
+      // Attempt repair: strip markdown fences, fix trailing commas, close truncated strings
+      let cleaned = text
+        .replace(/^```json\s*/i, '').replace(/```\s*$/, '')  // strip markdown fences
+        .replace(/,\s*([}\]])/g, '$1');  // trailing commas
+      
+      // If truncated, try to close the JSON structure
+      if (!cleaned.endsWith('}')) {
+        // Find the last complete property
+        const lastBrace = cleaned.lastIndexOf('}');
+        if (lastBrace > 0) {
+          cleaned = cleaned.slice(0, lastBrace + 1);
+          // Close any open outer braces
+          const opens = (cleaned.match(/{/g) || []).length;
+          const closes = (cleaned.match(/}/g) || []).length;
+          for (let j = 0; j < opens - closes; j++) cleaned += '}';
+        }
+      }
+      try {
+        return JSON.parse(cleaned);
+      } catch (e2) {
+        console.error(`[eval] Gemini JSON repair failed: ${parseErr.message}`);
+        return null;
+      }
+    }
   } catch (err) {
     console.error(`[eval] Gemini evaluation failed: ${err.message}`);
     return null;
@@ -886,11 +922,34 @@ async function main() {
       }
 
       await delay(200);
+
+      // Count existing artifact cards before sending
+      const cardCountBefore = await page.evaluate(() => {
+        return document.querySelectorAll('[class*="tone-"]').length;
+      });
+
       await page.keyboard.press('Enter');
       console.log('[eval] Sent, waiting for response...');
 
       const responded = await waitForResponse(page);
       await delay(3000); // Extra time for charts and animations
+
+      // Scroll to the bottom to ensure the latest result is visible
+      await page.evaluate(() => {
+        // Scroll the main content area
+        const scrollable = document.querySelector('[style*="overflow"]') || document.documentElement;
+        scrollable.scrollTop = scrollable.scrollHeight;
+        window.scrollTo(0, document.body.scrollHeight);
+      });
+      await delay(1000);
+
+      // Verify a new response appeared (card count increased)
+      const cardCountAfter = await page.evaluate(() => {
+        return document.querySelectorAll('[class*="tone-"]').length;
+      });
+      if (cardCountAfter <= cardCountBefore && responded) {
+        console.warn(`[eval] WARNING: No new artifact card detected (before=${cardCountBefore}, after=${cardCountAfter})`);
+      }
 
       // Screenshot
       await page.screenshot({ path: screenshotPath, fullPage: false });

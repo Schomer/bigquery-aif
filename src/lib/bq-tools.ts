@@ -72,14 +72,54 @@ const getTableSchemaTool: BqTool = {
     },
   },
   execute: async (args, project) => {
-    const schema = await fetchSchema(args.dataset, args.table, project);
-    return {
-      columns: schema.columns.map((c) => ({
-        name: c.name,
-        type: c.type,
-        ...(c.description ? { description: c.description } : {}),
-      })),
-    };
+    try {
+      const schema = await fetchSchema(args.dataset, args.table, project);
+      return {
+        columns: schema.columns.map((c) => ({
+          name: c.name,
+          type: c.type,
+          ...(c.description ? { description: c.description } : {}),
+        })),
+      };
+    } catch (err: any) {
+      if (!err.message?.includes('Not found')) throw err;
+
+      // Fuzzy match: find the closest table name in the dataset
+      const dsSchema = await fetchSchema(args.dataset, undefined, project);
+      const tableNames = dsSchema.columns.map((c) => c.name);
+      const lower = (args.table as string).toLowerCase();
+      const variants = [
+        lower, `${lower}s`, lower.replace(/s$/, ''),
+        `v_${lower}`, `v_completed_${lower}`,
+      ];
+      let match = tableNames.find((t) => variants.includes(t.toLowerCase()));
+      if (!match) {
+        const candidates = tableNames.filter((t) =>
+          t.toLowerCase().includes(lower) || t.toLowerCase().includes(lower.replace(/s$/, ''))
+        );
+        if (candidates.length > 0) {
+          candidates.sort((a, b) => a.length - b.length);
+          match = candidates[0];
+        }
+      }
+      if (match) {
+        const schema = await fetchSchema(args.dataset, match, project);
+        return {
+          note: `Table "${args.table}" does not exist. The closest match is "${match}". Use "${match}" in your SQL.`,
+          actualTableName: match,
+          columns: schema.columns.map((c) => ({
+            name: c.name,
+            type: c.type,
+            ...(c.description ? { description: c.description } : {}),
+          })),
+        };
+      }
+      // No match found -- return the available tables so the LLM can pick
+      return {
+        error: `Table "${args.table}" not found in dataset "${args.dataset}".`,
+        availableTables: tableNames,
+      };
+    }
   },
 };
 

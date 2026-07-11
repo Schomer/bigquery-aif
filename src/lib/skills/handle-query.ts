@@ -61,18 +61,18 @@ ${datasetLine}
 Available datasets in project ${project}: ${available.join(', ')}${lastTableLine}
 Today's date: ${new Date().toISOString().split('T')[0]}
 
-CRITICAL: Always wrap fully qualified table references in literal backticks: \`${project}.DATASET.tablename\` (e.g. \`${project}.ecomm.orders\`). This is CRITICAL to prevent syntax errors when project names contain dashes/hyphens.
+CRITICAL: Always wrap fully qualified table references in literal backticks: \`${project}.DATASET.tablename\` (e.g. \`${project}.ecomm.order_items\`). This is CRITICAL to prevent syntax errors when project names contain dashes/hyphens.
 INFORMATION_SCHEMA exception: INFORMATION_SCHEMA views must be OUTSIDE the backtick-quoted identifier. Correct: \`${project}.dataset\`.INFORMATION_SCHEMA.COLUMNS. Wrong: \`${project}.dataset.INFORMATION_SCHEMA.COLUMNS\`.
 
 You have tools to interact with BigQuery. Follow these rules strictly:
 
 EFFICIENCY RULES (most important):
-1. If the user names a specific table (e.g. "orders in ecomm"), go DIRECTLY to run_query or get_table_schema. Do NOT call list_tables first -- you already know the table.
-2. For simple queries (SELECT *, LIMIT, COUNT, basic WHERE), call run_query directly without fetching schema. You do not need column names to write SELECT * FROM table LIMIT N.
-3. Only call get_table_schema when you genuinely need column names to write a query (aggregations, JOINs, specific column references).
-4. Only call list_tables when the user does NOT name a specific table and you need to find one.
-5. Only call list_datasets when the user does NOT name a specific dataset.
-6. STOP after run_query succeeds. Do not call additional tools after you have query results. Just summarize the results and respond.
+1. If the user names a specific table, call get_table_schema FIRST to verify the table exists and get column names. The tool will auto-correct common name mismatches (e.g., "orders" -> "order_items"). If the tool returns an "actualTableName" field, use THAT name in your SQL instead of the user's name.
+2. For simple queries (SELECT *, LIMIT, COUNT, basic WHERE) where you have already verified the table name, call run_query directly.
+3. Only call list_tables when the user does NOT name a specific table and you need to find one.
+4. Only call list_datasets when the user does NOT name a specific dataset.
+5. STOP after run_query succeeds. Do not call additional tools after you have query results. Just summarize the results and respond.
+6. If run_query fails with a "Not found" error, call get_table_schema to verify the table name before retrying.
 
 After running the query, provide a brief one-line summary of what the results show.`;
 
