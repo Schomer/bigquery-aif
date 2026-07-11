@@ -2,6 +2,13 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-11: Fix splitView not syncing on layout switch
+
+**Context**: Loading a chat in unified mode then switching to split layout (Chat left / Chat right) showed the chat list instead of the active thread.
+
+**Changes**:
+- `page.tsx`: Added effect to set `splitView` to `'thread'` when `isSplit && hasChat` -- ensures split layout shows the active conversation thread when entering split mode.
+
 ## 2026-07-11: Neptune-style conversational briefings
 
 **Context**: User wanted each response to include a friendly conversational summary (like Neptune's prototype) above the artifact card, explaining what was done and highlighting key findings.

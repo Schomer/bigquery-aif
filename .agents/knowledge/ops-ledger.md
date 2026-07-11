@@ -10,6 +10,16 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+### 2026-07-11: splitView not synced on layout switch
+
+**What broke**: Clicking a chat in unified mode, then switching to split layout (Chat left/Chat right) showed the chat list instead of the loaded chat thread.
+
+**Root cause**: `splitView` state in page.tsx was initialized to `'list'` and only changed to `'thread'` by the `onSelectChat` callback. Since the chat was selected in unified mode (which doesn't use `splitView`), the state was never updated.
+
+**Fix**: Added an effect: `if (isSplit && hasChat) setSplitView('thread')`. This ensures that entering split mode with an active conversation immediately shows the thread.
+
+**Rule**: Any state that governs split-layout behavior must be synced when the layout mode changes, not just when the triggering action happens within split mode.
+
 ### 2026-07-11: Conversational briefings on every response
 
 **What changed**: Added a `briefing` field to `CompositionEnvelope` containing a narrative string and optional key findings. Self-review generates LLM briefings; composer generates heuristic briefings as fallback. New `BriefingBlock.tsx` renders above artifact cards in both layouts.
