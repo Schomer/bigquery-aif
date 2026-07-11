@@ -4,6 +4,17 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-10 (night): Revert ChatSidebar to list-only mode
+
+**What changed**:
+- Removed the "detail view" from ChatSidebar that was replacing the conversation list with an inline chat thread when a conversation was selected.
+- The sidebar now always shows the conversation list. Selecting a conversation loads it in the main content area (ChatThread) where the full chat interface with prompt, results, artifacts, "show thinking", etc. is displayed.
+- Removed all chat-state props (messages, input, loading, contextItems, onSend, etc.) from ChatSidebar's interface since it no longer renders chat content.
+
+**Files touched**: `ChatSidebar.tsx`, `page.tsx`.
+
+---
+
 ## 2026-07-10 (night): Fix app not scaling with window resize
 
 **What changed**:

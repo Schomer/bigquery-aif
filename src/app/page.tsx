@@ -198,15 +198,6 @@ export default function Home() {
           <ChatSidebar
             open={chatSidebarOpen}
             onClose={() => setChatSidebarOpen(false)}
-            messages={chat.messages}
-            chatLoading={chat.loading}
-            input={chat.input}
-            setInput={chat.setInput}
-            activeProject={activeProject}
-            contextItems={chat.contextItems}
-            onSend={chat.sendMessage}
-            onRemoveContext={chat.removeContextItem}
-            onKeyDown={chat.handleKeyDown}
           />
 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative' }}>
