@@ -4,6 +4,14 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-10 (night): Fix double sign-in popup
+
+**What changed**: Added a `signingIn` ref guard in `auth-context.tsx` so that `onAuthStateChanged` skips auto-refresh while `signIn()` is still in progress. This prevents the race condition where Firebase fires the auth state change before the OAuth token is stored, causing a second popup.
+
+**Files touched**: `src/lib/auth-context.tsx`.
+
+---
+
 ## 2026-07-10 (night): Chat title = latest prompt, sidebar toggle removed, layout-aware chat selection
 
 **What changed**:

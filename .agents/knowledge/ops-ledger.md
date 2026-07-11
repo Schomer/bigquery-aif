@@ -10,6 +10,16 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+### 2026-07-10 (late): Double sign-in popup race condition
+
+**What changed**: Added a `signingIn` ref to `auth-context.tsx` that guards the `onAuthStateChanged` callback from triggering auto-refresh while `signIn()` is still in progress.
+
+**What broke**: Users were seeing two Google sign-in popups when logging in.
+
+**Root cause**: `signIn()` calls `signInWithPopup()` which causes Firebase to fire `onAuthStateChanged` mid-flow -- before `signIn()` stores the OAuth access token. The `onAuthStateChanged` callback sees the user is logged in but finds no stored token, so it enters the auto-refresh branch and opens a second popup via `signInWithPopup(auth, refreshProvider)`.
+
+**Derived rule**: Any async Firebase Auth state change handler must check whether a manual sign-in flow is already in progress before attempting token refresh or re-authentication.
+
 ### 2026-07-10 (late): Tailwind 4 -body class name collision
 
 **What changed**: Renamed `.gc-project-dropdown-body` to `.gc-project-dropdown-list` and `.chat-sidebar-thinking-body` to `.chat-sidebar-thinking-content` in globals.css, TopBar.tsx, and ResultsSidebar.tsx.
