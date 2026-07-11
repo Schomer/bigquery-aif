@@ -613,7 +613,7 @@ function composeGovernance(result: GovernanceResult): CompositionEnvelope {
       ? { visibility: 'COLLAPSED', sql: result.sql }
       : { visibility: 'COLLAPSED' },
     nextActions,
-    ...(isLightweight ? { presentation: 'inline' as const } : {}),
+    presentation: 'custom',
   };
 }
 
@@ -641,7 +641,9 @@ function composeMonitoring(result: MonitoringResult): CompositionEnvelope {
 
   const tone: Tone = summary.errorCount > 0 ? 'ATTENTION' : 'NEUTRAL';
   let headlineText: string;
-  if (summary.errorCount > 0) {
+  if (summary.totalJobs === 0) {
+    headlineText = 'No jobs found in the last 24 hours';
+  } else if (summary.errorCount > 0) {
     const errorTypes = items.filter(j => j.status === 'ERROR');
     const uniqueErrors = new Set(errorTypes.map(j => j.statementType)).size;
     if (uniqueErrors === 1 && errorTypes.length > 1) {
@@ -695,6 +697,7 @@ function composeMonitoring(result: MonitoringResult): CompositionEnvelope {
       sql: `SELECT job_id, user_email, statement_type, state, creation_time, total_bytes_processed, error_result, referenced_tables FROM \`region-<auto>\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR) ORDER BY creation_time DESC LIMIT 50`,
     },
     nextActions,
+    ...(summary.totalJobs === 0 ? { presentation: 'inline' as const } : {}),
   };
 }
 

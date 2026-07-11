@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/auth-context';
 import { useConversation } from '@/lib/conversation-context';
 import { usePage } from '@/lib/page-context';
+import { useLayout } from '@/lib/layout-context';
 import { useState } from 'react';
 
 interface NavGroup {
@@ -42,9 +43,22 @@ export function SideNav({ collapsed }: SideNavProps) {
   const { user } = useAuth();
   const { newConversation } = useConversation();
   const { activePage, setActivePage } = usePage();
+  const { layout, chatListOpen, toggleChatList, setChatListOpen } = useLayout();
   const [navGroupsOpen, setNavGroupsOpen] = useState<Record<string, boolean>>(
     Object.fromEntries(NAV_GROUPS.map((g) => [g.label, true]))
   );
+
+  function handleAiClick() {
+    if (activePage !== 'chat') {
+      setActivePage('chat');
+      // In unified mode, also open the chat list when navigating to chat from another page
+      if (layout === 'unified') setChatListOpen(true);
+    } else if (layout === 'unified') {
+      // Already on chat page in unified mode -- toggle the overlay
+      toggleChatList();
+    }
+    // In split modes while already on chat page, do nothing (sidebar is always visible)
+  }
 
   return (
     <nav className={`gc-side-nav${collapsed ? ' gc-side-nav--collapsed' : ''}`} id="side-nav" aria-label="Primary navigation">
@@ -80,10 +94,17 @@ export function SideNav({ collapsed }: SideNavProps) {
           ].map((item) => (
             <div className="gc-nav-item-row" key={item.page}>
               <a
-                className={`gc-nav-item${activePage === item.page ? ' gc-nav-item--active' : ''}`}
+                className={`gc-nav-item${activePage === item.page ? ' gc-nav-item--active' : ''}${item.page === 'chat' && layout === 'unified' && chatListOpen ? ' gc-nav-item--active' : ''}`}
                 href="#"
                 data-page={item.page}
-                onClick={(e) => { e.preventDefault(); setActivePage(item.page); }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (item.page === 'chat') {
+                    handleAiClick();
+                  } else {
+                    setActivePage(item.page);
+                  }
+                }}
               >
                 <span className="material-symbols-outlined">{item.icon}</span>
                 <span className="gc-nav-label">{item.label}</span>

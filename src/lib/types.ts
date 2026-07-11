@@ -148,15 +148,31 @@ export interface CompositionEnvelope {
   };
   nextActions: HandoffEnvelope[];
   /** Controls how much visual chrome ArtifactCard renders.
-   *  'card' (default) = full card with dividers, provenance panel.
-   *  'inline' = lightweight -- headline is the main content,
-   *             suppresses divider-before-chips and provenance panel. */
-  presentation?: 'card' | 'inline';
+   *  'card' (default) = full card with headline bar, dividers, chips, provenance.
+   *  'inline' = lightweight -- suppresses divider-before-chips and provenance.
+   *  'custom' = view owns its full layout using composable CardParts.
+   *             ArtifactCard is just a thin container. */
+  presentation?: 'card' | 'inline' | 'custom';
   requiresConfirmation?: boolean;
   skipSelfReview?: boolean;
   insight?: string | null;
   qualityFlags?: import('./result-quality').QualityFlag[];
   extractedParameters?: ParameterDef[];
+}
+
+/** Props passed to view components that use presentation: 'custom'.
+ *  The view receives the full envelope + all action callbacks and
+ *  composes its own layout from CardParts building blocks. */
+export interface CustomViewProps {
+  envelope: CompositionEnvelope;
+  onChipClick?: (chip: HandoffEnvelope) => void;
+  onSave?: (envelope: CompositionEnvelope) => void;
+  onPin?: (envelope: CompositionEnvelope) => void;
+  onRunSql?: (sql: string) => void;
+  onSendMessage?: (msg: string) => void;
+  onConfirm?: () => void;
+  onCancel?: () => void;
+  isPinned?: boolean;
 }
 
 // Re-export QualityFlag from result-quality module for convenience

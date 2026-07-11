@@ -29,7 +29,7 @@ export default function Home() {
   const { activeProject, user, projects, setActiveProject, accessToken } = useAuth();
   const { conversationId, loadConversation } = useConversation();
   const { activePage, setActivePage } = usePage();
-  const { layout } = useLayout();
+  const { layout, chatListOpen, setChatListOpen } = useLayout();
 
   // ---- Chat orchestration hook ----
   const chat = useChatOrchestration();
@@ -37,10 +37,7 @@ export default function Home() {
   // ---- Refs ----
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // ---- Chat sidebar visibility ----
-  // In unified layout, clicking a chat animates the sidebar out.
-  // In split layout, clicking a chat transitions to the results sidebar.
-  const [chatSidebarVisible, setChatSidebarVisible] = useState(true);
+
 
   // ---- Favorite projects ----
   const FAVORITES_KEY = 'hdn_favorite_projects';
@@ -118,10 +115,7 @@ export default function Home() {
 
   const historyHiddenBefore = 0;
 
-  // Re-show chat sidebar when starting a new conversation
-  useEffect(() => {
-    if (!hasChat) setChatSidebarVisible(true);
-  }, [hasChat]);
+
 
   // Focus input after send completes
   useEffect(() => {
@@ -195,10 +189,11 @@ export default function Home() {
       {!isSplit && (
         <div style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'spaces' || activePage === 'favorites') ? 'none' : 'flex', height: '100%', background: 'var(--chat-bg)' }}>
 
-          {/* Chat sidebar panel */}
+          {/* Chat sidebar overlay panel */}
           <ChatSidebar
-            visible={chatSidebarVisible}
-            onSelectChat={() => setChatSidebarVisible(false)}
+            visible={chatListOpen}
+            onSelectChat={() => setChatListOpen(false)}
+            mode="overlay"
           />
 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative' }}>
@@ -418,49 +413,48 @@ export default function Home() {
           className={`layout-split ${layout === 'chat-right' ? 'layout-chat-right' : 'layout-chat-left'}`}
           style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'spaces' || activePage === 'favorites') ? 'none' : 'flex', height: '100%' }}
         >
-          {/* Chat list sidebar (visible until a chat is selected) */}
+          {/* Persistent chat sidebar (always visible, internal list/thread navigation) */}
           <ChatSidebar
-            visible={chatSidebarVisible}
-            onSelectChat={() => setChatSidebarVisible(false)}
+            visible
+            mode="persistent"
+            side={layout === 'chat-right' ? 'left' : 'right'}
           />
 
-          {/* Results sidebar (shown after a chat is selected) */}
-          {!chatSidebarVisible && (
-            <ResultsSidebar
-              messages={chat.messages}
-              thinkingSteps={chat.thinkingSteps}
-              loading={chat.loading}
-              statusText={chat.statusText}
-              lastError={chat.lastError}
-              setLastError={chat.setLastError}
-              rerunningIdx={chat.rerunningIdx}
-              pinnedEnvelopeId={chat.pinnedEnvelopeId}
-              historyHiddenBefore={historyHiddenBefore}
-              layout={layout}
-              sidebarWidth={sidebarWidth}
-              setSidebarWidth={setSidebarWidth}
-              activeProject={activeProject}
-              input={chat.input}
-              setInput={chat.setInput}
-              contextItems={chat.contextItems}
-              onSend={chat.sendMessage}
-              onRemoveContext={chat.removeContextItem}
-              onKeyDown={chat.handleKeyDown}
-              onConfirm={chat.handleConfirm}
-              onCancel={chat.handleCancel}
-              onChipClick={chat.handleChipClick}
-              onRunSql={chat.handleRunSql}
-              onInlineClick={chat.handleInlineClick}
-              onPinContext={handlePinContext}
-              onRerun={chat.rerunMessage}
-              extractContextItems={chat.extractContextItems}
-              favoriteProjectIds={favoriteProjectIds}
-              recentProjectIds={recentProjectIds}
-              recentItems={recentItems}
-              setActiveProject={setActiveProject}
-              onSave={chat.saveEnvelopeAsArtifact}
-            />
-          )}
+          {/* Results panel (always visible alongside the sidebar) */}
+          <ResultsSidebar
+            messages={chat.messages}
+            thinkingSteps={chat.thinkingSteps}
+            loading={chat.loading}
+            statusText={chat.statusText}
+            lastError={chat.lastError}
+            setLastError={chat.setLastError}
+            rerunningIdx={chat.rerunningIdx}
+            pinnedEnvelopeId={chat.pinnedEnvelopeId}
+            historyHiddenBefore={historyHiddenBefore}
+            layout={layout}
+            sidebarWidth={sidebarWidth}
+            setSidebarWidth={setSidebarWidth}
+            activeProject={activeProject}
+            input={chat.input}
+            setInput={chat.setInput}
+            contextItems={chat.contextItems}
+            onSend={chat.sendMessage}
+            onRemoveContext={chat.removeContextItem}
+            onKeyDown={chat.handleKeyDown}
+            onConfirm={chat.handleConfirm}
+            onCancel={chat.handleCancel}
+            onChipClick={chat.handleChipClick}
+            onRunSql={chat.handleRunSql}
+            onInlineClick={chat.handleInlineClick}
+            onPinContext={handlePinContext}
+            onRerun={chat.rerunMessage}
+            extractContextItems={chat.extractContextItems}
+            favoriteProjectIds={favoriteProjectIds}
+            recentProjectIds={recentProjectIds}
+            recentItems={recentItems}
+            setActiveProject={setActiveProject}
+            onSave={chat.saveEnvelopeAsArtifact}
+          />
         </div>
       )}
 

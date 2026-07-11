@@ -32,11 +32,17 @@ function relativeTime(iso: string | undefined): string {
 interface ChatSidebarProps {
   visible: boolean;
   onSelectChat?: () => void;
+  /** 'overlay' = unified layout (auto-hide on selection). 'persistent' = split layout (always visible, internal nav). */
+  mode?: 'overlay' | 'persistent';
+  /** Which side the border goes on. Default 'right'. */
+  side?: 'left' | 'right';
 }
 
 export function ChatSidebar({
   visible,
   onSelectChat,
+  mode = 'overlay',
+  side = 'right',
 }: ChatSidebarProps) {
   const { user } = useAuth();
   const { conversationId, loadConversation, newConversation } = useConversation();
@@ -58,6 +64,10 @@ export function ChatSidebar({
   });
   const [filterMode, setFilterMode] = useState<'all' | 'pinned'>('all');
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  // In persistent mode, tracks whether we show the chats list or the single thread
+  const [sidebarView, setSidebarView] = useState<'list' | 'thread'>(
+    mode === 'persistent' && conversationId ? 'thread' : 'list'
+  );
   const isResizingRef = useRef(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const filterMenuRef = useRef<HTMLDivElement>(null);
@@ -127,6 +137,10 @@ export function ChatSidebar({
 
   function handleSelectConversation(id: string) {
     loadConversation(id);
+    if (mode === 'persistent') {
+      // In persistent mode, navigate to the thread view within the sidebar
+      setSidebarView('thread');
+    }
     onSelectChat?.();
   }
 
@@ -180,6 +194,16 @@ export function ChatSidebar({
 
   const filterLabel = filterMode === 'all' ? 'All chats' : 'Pinned';
 
+  // In persistent mode, whether to show the chats list
+  const showList = mode === 'overlay' || sidebarView === 'list';
+  const showThread = mode === 'persistent' && sidebarView === 'thread';
+
+  // Find active conversation title for thread view header
+  const activeConv = conversations.find((c) => c.id === conversationId);
+
+  // Border goes on the appropriate side
+  const borderStyle = visible ? '1px solid var(--border)' : 'none';
+
   return (
     <div
       style={{
@@ -190,13 +214,83 @@ export function ChatSidebar({
         display: 'flex',
         flexDirection: 'column',
         background: 'var(--chat-bg)',
-        borderRight: visible ? '1px solid var(--border)' : 'none',
+        borderRight: side === 'right' ? borderStyle : 'none',
+        borderLeft: side === 'left' ? borderStyle : 'none',
         position: 'relative',
         userSelect: 'none',
         overflow: 'hidden',
         transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
+      {/* === THREAD VIEW (persistent mode only) === */}
+      {showThread && (
+        <>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '10px 8px 6px',
+            height: 48,
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+          }}>
+            <button
+              onClick={() => setSidebarView('list')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-muted)',
+                fontSize: 13,
+                fontWeight: 500,
+                fontFamily: "'Google Sans', sans-serif",
+                padding: '6px 8px',
+                borderRadius: 8,
+                transition: 'background 0.12s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_back</span>
+              All chats
+            </button>
+          </div>
+          <div style={{
+            padding: '0 12px 10px',
+            flexShrink: 0,
+          }}>
+            <p style={{
+              margin: 0,
+              fontSize: 14,
+              fontWeight: 500,
+              color: 'var(--text)',
+              fontFamily: "'Google Sans', sans-serif",
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}>
+              {activeConv?.title || 'Current chat'}
+            </p>
+            {activeConv?.updatedAt && (
+              <p style={{
+                margin: '2px 0 0',
+                fontSize: 12,
+                color: 'var(--text-muted)',
+                fontFamily: "'Google Sans', sans-serif",
+              }}>
+                {relativeTime(activeConv.updatedAt)}
+              </p>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* === CHATS LIST VIEW === */}
+      {showList && (
+      <>
       {/* Header */}
       <div style={{
         display: 'flex',
@@ -608,14 +702,16 @@ export function ChatSidebar({
           );
         })}
       </div>
+      </>
+      )}
 
-      {/* Resize handle on right edge */}
+      {/* Resize handle */}
       <div
         onMouseDown={handleResizeMouseDown}
         style={{
           position: 'absolute',
           top: 0,
-          right: 0,
+          [side === 'left' ? 'left' : 'right']: 0,
           bottom: 0,
           width: 4,
           cursor: 'col-resize',

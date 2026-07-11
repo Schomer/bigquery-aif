@@ -4,6 +4,19 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-11: Kebab settings menu in top bar
+
+**Context**: User requested a three-dot (kebab) menu next to the profile picture to control display settings.
+
+**What changed**:
+1. **PreferencesContext** (`src/lib/preferences-context.tsx`): New React context + provider for display preferences (showProvenance, showSuggestions), persisted to localStorage.
+2. **TopBar**: Added kebab menu button (more_vert icon) to the left of the avatar with toggle switches for "How was this computed?" and suggestion chips.
+3. **ArtifactCard**: Conditionally renders ProvenancePanel and suggestion chips based on preference values.
+4. **ShellLayout**: Wrapped children in PreferencesProvider.
+5. **globals.css**: Added styles for `.gc-kebab-*` menu and `.gc-toggle-switch` controls, plus dark theme variants.
+
+---
+
 ## 2026-07-11: UX evaluation pass -- 8 systemic fixes
 
 **Context**: Ran a 25-scenario UX evaluation with browser screenshots and Gemini scoring. Identified 10 systemic issues and implemented the top 8 fixes.

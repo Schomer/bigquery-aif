@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 
 export type ChatLayout = 'unified' | 'chat-right' | 'chat-left';
 
@@ -9,6 +9,9 @@ interface LayoutContextValue {
   setLayout: (layout: ChatLayout) => void;
   historyVisible: boolean;
   setHistoryVisible: (visible: boolean) => void;
+  chatListOpen: boolean;
+  setChatListOpen: (open: boolean) => void;
+  toggleChatList: () => void;
 }
 
 const LayoutContext = createContext<LayoutContextValue>({
@@ -16,6 +19,9 @@ const LayoutContext = createContext<LayoutContextValue>({
   setLayout: () => {},
   historyVisible: true,
   setHistoryVisible: () => {},
+  chatListOpen: false,
+  setChatListOpen: () => {},
+  toggleChatList: () => {},
 });
 
 const STORAGE_KEY = 'hdn_chat_layout';
@@ -24,6 +30,7 @@ const HISTORY_KEY = 'hdn_history_visible';
 export function LayoutProvider({ children }: { children: ReactNode }) {
   const [layout, setLayoutState] = useState<ChatLayout>('unified');
   const [historyVisible, setHistoryVisibleState] = useState(true);
+  const [chatListOpen, setChatListOpenState] = useState(false);
 
   // Hydrate from localStorage on mount
   useEffect(() => {
@@ -49,8 +56,16 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem(HISTORY_KEY, String(visible)); } catch { /* ignore */ }
   }
 
+  const setChatListOpen = useCallback((open: boolean) => {
+    setChatListOpenState(open);
+  }, []);
+
+  const toggleChatList = useCallback(() => {
+    setChatListOpenState((prev) => !prev);
+  }, []);
+
   return (
-    <LayoutContext.Provider value={{ layout, setLayout, historyVisible, setHistoryVisible }}>
+    <LayoutContext.Provider value={{ layout, setLayout, historyVisible, setHistoryVisible, chatListOpen, setChatListOpen, toggleChatList }}>
       {children}
     </LayoutContext.Provider>
   );

@@ -49,6 +49,8 @@ const TONE_CLASSES: Record<string, string> = {
 export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInlineClick, onSave, onPin, onRunSql, isPinned }: Props) {
 
   const toneClass = TONE_CLASSES[envelope.headline.tone] ?? 'tone-neutral';
+
+  // All hooks must be called unconditionally (React rules of hooks)
   const { showProvenance, showSuggestions } = usePreferences();
   const [dismissedFlags, setDismissedFlags] = useState<Set<number>>(new Set());
   const [sqlOpen, setSqlOpen] = useState(false);
@@ -58,7 +60,6 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
   const [kebabOpen, setKebabOpen] = useState(false);
   const kebabRef = useRef<HTMLDivElement>(null);
 
-  // Close kebab menu on outside click
   useEffect(() => {
     if (!kebabOpen) return;
     function handleClick(e: MouseEvent) {
@@ -70,14 +71,6 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
     return () => document.removeEventListener('mousedown', handleClick);
   }, [kebabOpen]);
 
-  // Determine if this card has exportable data (SQL + rows)
-  const hasExportableData = (() => {
-    if (!envelope.provenance.sql) return false;
-    const d = envelope.primaryArtifact.data as Record<string, unknown> | undefined;
-    return Array.isArray((d as { rows?: unknown })?.rows) && ((d as { rows: unknown[] }).rows.length > 0);
-  })();
-
-  // Auto-size the textarea to fit content
   const autoSizeTextarea = useCallback(() => {
     const ta = sqlTextareaRef.current;
     if (!ta) return;
@@ -85,15 +78,11 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
     ta.style.height = Math.min(ta.scrollHeight, 300) + 'px';
   }, []);
 
-  const sqlIsModified = editedSql !== (envelope.provenance.sql ?? '');
-
   // Convert chip click -> send the chip's label as a message (primary path)
-  // The label is meaningful natural language, e.g. "Inspect orders", "Show sample rows"
   function handleInlineClick(message: string) {
     if (onInlineClick) {
       onInlineClick(message);
     } else {
-      // Create a synthetic handoff envelope to preserve context
       const syntheticChip: HandoffEnvelope = {
         targetSkill: 'query',
         label: message,
@@ -104,6 +93,45 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
       onChipClick?.(syntheticChip);
     }
   }
+
+  // ── Custom rendering path: view owns its full layout ──
+  if (envelope.presentation === 'custom') {
+    return (
+      <div
+        className={`fade-up ${toneClass}`}
+        style={{
+          background: '#ffffff',
+          border: '1px solid var(--border)',
+          borderRadius: 12,
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{ padding: '16px 20px' }}>
+          <CustomArtifact
+            envelope={envelope}
+            onChipClick={onChipClick}
+            onSave={onSave}
+            onPin={onPin}
+            onRunSql={onRunSql}
+            onSendMessage={handleInlineClick}
+            onConfirm={onConfirm}
+            onCancel={onCancel}
+            isPinned={isPinned}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Default rendering path: ArtifactCard owns the chrome ──
+
+  const hasExportableData = (() => {
+    if (!envelope.provenance.sql) return false;
+    const d = envelope.primaryArtifact.data as Record<string, unknown> | undefined;
+    return Array.isArray((d as { rows?: unknown })?.rows) && ((d as { rows: unknown[] }).rows.length > 0);
+  })();
+
+  const sqlIsModified = editedSql !== (envelope.provenance.sql ?? '');
 
   return (
     <div
@@ -587,7 +615,9 @@ function Artifact({
     case 'TASK_VIEW':
       return <TaskWorkflowView envelope={envelope} onSendMessage={onSendMessage} />;
     case 'GOVERNANCE_VIEW':
-      return <GovernanceView result={data as import('@/lib/types').GovernanceResult} onSendMessage={onSendMessage} />;
+      // Governance uses presentation: 'custom' and routes through CustomArtifact.
+      // This case should not be reached; fallback to raw JSON if it somehow is.
+      return <pre style={{ fontSize: 11, color: 'var(--text-muted)', overflowX: 'auto' }}>{JSON.stringify(data, null, 2)}</pre>;
     default:
       return (
         <pre style={{ fontSize: 11, color: 'var(--text-muted)', overflowX: 'auto' }}>
@@ -664,3 +694,21 @@ function ChartWithToggle({
 }
 
 
+// ── Custom rendering dispatcher ──────────────────────────────────────────────
+// Routes to view components that own their full layout (presentation: 'custom').
+// Each view receives the full envelope + all action callbacks.
+
+function CustomArtifact(props: import('@/lib/types').CustomViewProps) {
+  const { type } = props.envelope.primaryArtifact;
+  switch (type) {
+    case 'GOVERNANCE_VIEW':
+      return <GovernanceView {...props} />;
+    default:
+      // Fallback: render as standard Artifact (shouldn't happen in practice)
+      return (
+        <pre style={{ fontSize: 11, color: 'var(--text-muted)', overflowX: 'auto' }}>
+          {JSON.stringify(props.envelope.primaryArtifact.data, null, 2)}
+        </pre>
+      );
+  }
+}
