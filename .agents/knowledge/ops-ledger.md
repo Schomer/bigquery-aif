@@ -10,6 +10,22 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+### 2026-07-11: UX evaluation -- systemic fixes
+
+**What changed**: 8 fixes based on a 25-scenario UX evaluation with screenshot analysis.
+
+**What worked**: Data-driven headlines now surface actual values instead of generic "X rows from table". Chart routing signals prevent visualization queries from being misrouted to schema. Chronological time-series sorting fixes reversed line charts.
+
+**What broke previously**: `inferVisualizationType()` was charting `SELECT * FROM table LIMIT 20` sample queries because it saw numeric columns and assumed aggregation data. Fixed with an `isSampleQuery` pattern check.
+
+**Root cause (generic headlines)**: `buildQueryHeadline()` only had access to `rowCount` and `sql`. Added `columns` and `rows` parameters so it can inspect actual data values.
+
+**Rule**: Sample/preview queries (SELECT * ... LIMIT N) should always render as TABLE, never charts. Chart inference is for aggregated/analytical results only.
+
+**Rule**: Time-series charts must sort x-axis data chronologically. The SQL ORDER BY may produce newest-first but charts should always read left-to-right oldest-to-newest.
+
+**Rule**: Help/capability intents ("what can you do?") need a static handler with example prompts, not a Gemini round-trip that produces irrelevant query results.
+
 ### 2026-07-10 (late): Double sign-in popup race condition
 
 **What changed**: Added a `signingIn` ref to `auth-context.tsx` that guards the `onAuthStateChanged` callback from triggering auto-refresh while `signIn()` is still in progress.

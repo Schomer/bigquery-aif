@@ -78,6 +78,9 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **Next-action chips are capped at 4 per envelope**: Each composed result generates at most 4 handoff chips. This is a UX constraint. Quality flag suggested actions also count toward this cap.
 - **Quality flags are capped at 5 per result**: `analyzeResultQuality()` returns at most 5 flags to avoid overwhelming the UI.
 - **Zero-row results always use diagnostic headlines, never LLM summaries**: When `rowCount === 0`, the composer skips the LLM `resultSummary` and uses `buildQueryHeadline()` which generates SQL-aware diagnostic messages (INFORMATION_SCHEMA, WHERE-filtered, or generic). The LLM summary is written at query-generation time before results are known, so it cannot account for empty results. Zero-row results also force TABLE artifact type and generate recovery chips (sample table, view schema).
+- **Sample/preview queries force TABLE artifact type**: Any query matching `SELECT * FROM ... LIMIT N` is treated as a sample query and forced to TABLE view. Chart inference should only apply to aggregated/analytical results, not random row samples.
+- **Time-series charts sort chronologically**: `useChartSetup` in `recharts-charts.tsx` detects date-like x-axis values and sorts data oldest-to-newest. This ensures line/area charts read left-to-right in temporal order regardless of the SQL ORDER BY direction.
+- **`buildQueryHeadline` receives columns and rows**: The headline builder has access to actual data values to produce context-aware headlines (KPI values, data shape descriptions) instead of generic "X rows from table" messages.
 
 ---
 

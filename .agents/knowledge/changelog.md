@@ -4,6 +4,24 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-11: UX evaluation pass -- 8 systemic fixes
+
+**Context**: Ran a 25-scenario UX evaluation with browser screenshots and Gemini scoring. Identified 10 systemic issues and implemented the top 8 fixes.
+
+**What changed**:
+1. **Chart routing**: Added chart/visualization signals (pie chart, bar chart, line chart, graph, plot, histogram) to the query manifest with high weights (3-4).
+2. **Data-driven headlines**: Rewrote `buildQueryHeadline()` to produce context-aware headlines using actual data values.
+3. **Sample data forced TABLE view**: `isSampleQuery` check prevents charting random sample data.
+4. **Schema tab auto-switch**: When preview has zero rows, auto-switches to Schema tab.
+5. **Chronological time-series sorting**: `useChartSetup` sorts date-like x-axis data chronologically.
+6. **Capability overview**: Help intent detection returns structured capability table with example prompts.
+7. **Human-readable timestamps**: `normalizeTimestamp()` outputs "Jul 11, 2026 3:25 AM" format.
+8. **Additional query signals**: Added "revenue", "by status", "busiest" to query manifest.
+
+**Files touched**: `handle-query.ts`, `composer.ts`, `chat-orchestrator.ts`, `SchemaView.tsx`, `recharts-charts.tsx`, `handle-monitoring.ts`.
+
+---
+
 ## 2026-07-10 (night): Fix double sign-in popup
 
 **What changed**: Added a `signingIn` ref guard in `auth-context.tsx` so that `onAuthStateChanged` skips auto-refresh while `signIn()` is still in progress. This prevents the race condition where Firebase fires the auth state change before the OAuth token is stored, causing a second popup.
