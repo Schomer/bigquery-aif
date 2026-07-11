@@ -7,21 +7,22 @@ interface Props {
 }
 
 /**
- * Renders a conversational briefing above the artifact card.
- * Contains a narrative paragraph and optional key-findings bullets.
+ * Renders a conversational briefing as plain text in the chat area.
+ * Matches user prompt styling (15px, semi-bold).
  */
 export function BriefingBlock({ briefing }: Props) {
   return (
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      gap: 8,
+      gap: 6,
     }}>
       <p style={{
         margin: 0,
-        fontSize: 14,
-        lineHeight: 1.55,
-        color: '#1b2e5d',
+        fontSize: 15,
+        lineHeight: 1.5,
+        fontWeight: 500,
+        color: 'var(--text-primary, #1a1a1a)',
         fontFamily: "'Google Sans', sans-serif",
       }}>
         {renderInlineCode(briefing.narrative)}
@@ -34,20 +35,21 @@ export function BriefingBlock({ briefing }: Props) {
           listStyleType: 'disc',
           display: 'flex',
           flexDirection: 'column',
-          gap: 3,
+          gap: 2,
         }}>
           {briefing.findings.map((f, i) => (
             <li key={i} style={{
-              fontSize: 13,
+              fontSize: 14,
               lineHeight: 1.5,
-              color: '#334155',
+              fontWeight: 400,
+              color: 'var(--text-primary, #1a1a1a)',
               fontFamily: "'Google Sans', sans-serif",
             }}>
-              <span style={{ fontWeight: 600, color: '#1b2e5d' }}>{f.label}</span>
+              <span style={{ fontWeight: 600 }}>{f.label}</span>
               {': '}
               {f.value}
               {f.detail && (
-                <span style={{ color: '#64748b' }}> -- {f.detail}</span>
+                <span style={{ color: 'var(--text-muted, #64748b)' }}> -- {f.detail}</span>
               )}
             </li>
           ))}
@@ -69,10 +71,9 @@ function renderInlineCode(text: string): React.ReactNode {
         <code key={i} style={{
           fontFamily: "var(--font-mono, 'Roboto Mono', monospace)",
           fontSize: '0.88em',
-          background: 'rgba(27, 46, 93, 0.08)',
+          background: 'rgba(0, 0, 0, 0.06)',
           borderRadius: 4,
           padding: '1px 5px',
-          color: '#1b2e5d',
         }}>
           {code}
         </code>

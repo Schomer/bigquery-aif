@@ -101,6 +101,7 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
         className={`fade-up ${toneClass}`}
         style={{
           background: '#ffffff',
+          border: '1px solid #ECF1FA',
           borderRadius: 12,
           overflow: 'hidden',
         }}
@@ -137,6 +138,7 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
       className={`fade-up ${toneClass}`}
       style={{
         background: '#ffffff',
+        border: '1px solid #ECF1FA',
         borderRadius: 12,
         overflow: 'hidden',
       }}

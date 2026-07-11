@@ -17,7 +17,6 @@ import type {
 } from '@/lib/types';
 import type { ChatError } from '@/hooks/useChatOrchestration';
 import { CrystalBallThinking, ErrorCard, RegenerateButton } from './ChatThread';
-import { BriefingBlock } from '@/components/BriefingBlock';
 import { ChatInput } from './ChatInput';
 import type { RecentItem } from '@/lib/firestore-service';
 
@@ -646,10 +645,7 @@ export function ResultsSidebar({
         ) : allEnvelopes.length > 0 ? (
           <div className="results-panel-inner">
             {allEnvelopes.map((env) => (
-              <div key={env.id} data-envelope-id={env.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {env.briefing && (
-                  <BriefingBlock briefing={env.briefing} />
-                )}
+              <div key={env.id} data-envelope-id={env.id}>
                 <ArtifactCard
                   envelope={env}
                   onConfirm={() => onConfirm(env)}
