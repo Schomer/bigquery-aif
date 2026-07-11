@@ -10,9 +10,19 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+### 2026-07-10 (late): Composer now infers chart type from data shape
+
+**What changed**: Replaced `vizTypeToArtifactType()` (a passthrough of the LLM hint) with `inferVisualizationType()` that classifies columns as numeric/date/categorical and picks the right chart. Also improved `buildQueryHeadline()` to generate descriptive summaries from column names.
+
+**What worked**: The existing `ChartWithToggle` component immediately started rendering charts with the toggle pill once the composer returned non-TABLE types. Zero UI changes needed.
+
+**Root cause**: The query handler hardcodes `suggestedVisualization: 'TABLE'`. The self-review pass could override it, but self-review is skipped for high-confidence keyword-matched queries with <100 rows (the most common case). So the composer invariant "chart type by data shape" was documented but never actually implemented.
+
+**Rule**: When an invariant says behavior X should happen, verify it in code. Documented-but-not-implemented invariants are bugs.
+
 ---
 
-### 2026-07-10: Sidebar & pages restructuring -- Spaces, Favorites, Overview revamp
+
 
 **What changed**: Renamed "Saved" to "Spaces" in sidebar. Created SpacesPage with folder-like spaces, drag-and-drop, card/list view switcher, inline rename, context menus, and breadcrumb navigation. Created dedicated FavoritesPage showing favorited chats and pinned artifacts. Rewrote OverviewDashboard to remove broken KPI StatCards and replace with Recent Charts and Recently Saved sections. Added Space type, spaceId to SavedArtifact, and space CRUD operations to saved-work.ts.
 

@@ -210,21 +210,28 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[]): Compos
   let basis: HeadlineBasis = 'STATUS';
   let headlineText = '';
 
-  // Prefer LLM-generated summary only if it's a clean, short natural-language string.
-  // The agent loop sometimes returns raw JSON envelopes or verbose dumps as textResponse.
-  const rawSummary = (result as any).resultSummary as string | null;
-  const isCleanSummary = rawSummary
-    && rawSummary.length < 300
-    && !rawSummary.includes('"skill"')
-    && !rawSummary.includes('"columns"')
-    && !rawSummary.trimStart().startsWith('{')
-    && !rawSummary.trimStart().startsWith('```');
-
-  if (isCleanSummary) {
-    headlineText = rawSummary;
-    basis = 'DIRECT_ANSWER';
+  // Zero-row results always use the diagnostic headline builder.
+  // The LLM summary is written assuming data will be returned, so it produces
+  // misleading headlines like "Discover your storage footprint" for an empty result.
+  if (result.rowCount === 0) {
+    headlineText = buildQueryHeadline(0, result.sql);
   } else {
-    headlineText = buildQueryHeadline(result.rowCount, result.sql, result);
+    // Prefer LLM-generated summary only if it's a clean, short natural-language string.
+    // The agent loop sometimes returns raw JSON envelopes or verbose dumps as textResponse.
+    const rawSummary = (result as any).resultSummary as string | null;
+    const isCleanSummary = rawSummary
+      && rawSummary.length < 300
+      && !rawSummary.includes('"skill"')
+      && !rawSummary.includes('"columns"')
+      && !rawSummary.trimStart().startsWith('{')
+      && !rawSummary.trimStart().startsWith('```');
+
+    if (isCleanSummary) {
+      headlineText = rawSummary;
+      basis = 'DIRECT_ANSWER';
+    } else {
+      headlineText = buildQueryHeadline(result.rowCount, result.sql);
+    }
   }
 
   // Set tone based on result characteristics
@@ -238,99 +245,124 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[]): Compos
 
   const insight = result.notableFindings ?? null;
 
-  const artifactType = inferVisualizationType(result);
+  // Force TABLE for zero-row results -- chart components would receive empty data
+  const artifactType = result.rowCount === 0
+    ? 'TABLE' as ArtifactType
+    : inferVisualizationType(result);
 
   const nextActions: HandoffEnvelope[] = [];
-  // "Export results" moved to kebab menu in ArtifactCard header
-  // "Save this query" removed -- dedicated save button exists in header
-  // If anomalies or nulls might be present, offer Data Quality
-  if (result.notableFindings) {
-    nextActions.push({
-      targetSkill: 'data-quality',
-      label: 'Check data quality',
-      context: { sql: result.sql },
-      sourceSkill: 'query',
-      sourceResultRef: id,
-    });
-  }
-
-  // Convert quality flag suggested actions into next-action chips
-  // (respecting the 4-chip cap from invariants)
-  if (qualityFlags) {
-    for (const flag of qualityFlags) {
-      if (flag.suggestedAction && nextActions.length < 4) {
-        nextActions.push({
-          targetSkill: flag.suggestedAction.skill,
-          label: flag.suggestedAction.label,
-          context: flag.suggestedAction.context,
-          sourceSkill: 'query',
-          sourceResultRef: id,
-        });
-      }
-    }
-  }
-
-  // Generate data-driven suggestions when quality flags don't provide enough
-  if (nextActions.length < 4 && result.rows.length > 0) {
-    // Extract table name from SQL for targeted suggestions
-    const tableMatch = result.sql?.match(/FROM\s+`?[\w.-]+\.(\w+)`?/i);
-    const tableName = tableMatch?.[1] || '';
-
-    // If result has a numeric aggregate column, suggest drill-down
-    const numericCols = result.columns.filter((c, i) => {
-      const firstVal = result.rows[0]?.[i];
-      return typeof firstVal === 'number' || (typeof firstVal === 'string' && /^\d+(\.\d+)?$/.test(firstVal));
-    });
-    const categoryCols = result.columns.filter((c, i) => {
-      const firstVal = result.rows[0]?.[i];
-      return typeof firstVal === 'string' && !/^\d+(\.\d+)?$/.test(firstVal);
-    });
-
-    // Suggest charting if data has a category + numeric pattern
-    if (categoryCols.length > 0 && numericCols.length > 0 && result.rows.length >= 2 && nextActions.length < 4) {
+  if (result.rowCount === 0) {
+    // Diagnostic recovery chips for empty results
+    const zeroRowTable = extractTableFromSql(result.sql);
+    const fullTableRef = extractFullTableRef(result.sql);
+    if (zeroRowTable && fullTableRef) {
       nextActions.push({
         targetSkill: 'query',
-        label: `Chart ${numericCols[0]} by ${categoryCols[0]}`,
-        context: { table: tableName },
+        label: `Sample \`${zeroRowTable}\``,
+        context: { sql: `SELECT * FROM \`${fullTableRef}\` LIMIT 10` },
+        sourceSkill: 'query',
+        sourceResultRef: id,
+      });
+      nextActions.push({
+        targetSkill: 'schema',
+        label: `View \`${zeroRowTable}\` schema`,
+        context: { table: fullTableRef },
+        sourceSkill: 'query',
+        sourceResultRef: id,
+      });
+    }
+  } else {
+    // "Export results" moved to kebab menu in ArtifactCard header
+    // "Save this query" removed -- dedicated save button exists in header
+    // If anomalies or nulls might be present, offer Data Quality
+    if (result.notableFindings) {
+      nextActions.push({
+        targetSkill: 'data-quality',
+        label: 'Check data quality',
+        context: { sql: result.sql },
         sourceSkill: 'query',
         sourceResultRef: id,
       });
     }
 
-    // Suggest drill-down into a specific value from the results
-    if (categoryCols.length > 0 && result.rows.length > 1 && nextActions.length < 4) {
-      const topVal = result.rows[0]?.[result.columns.indexOf(categoryCols[0])];
-      if (topVal && typeof topVal === 'string' && topVal.length < 40) {
+    // Convert quality flag suggested actions into next-action chips
+    // (respecting the 4-chip cap from invariants)
+    if (qualityFlags) {
+      for (const flag of qualityFlags) {
+        if (flag.suggestedAction && nextActions.length < 4) {
+          nextActions.push({
+            targetSkill: flag.suggestedAction.skill,
+            label: flag.suggestedAction.label,
+            context: flag.suggestedAction.context,
+            sourceSkill: 'query',
+            sourceResultRef: id,
+          });
+        }
+      }
+    }
+
+    // Generate data-driven suggestions when quality flags don't provide enough
+    if (nextActions.length < 4 && result.rows.length > 0) {
+      // Extract table name from SQL for targeted suggestions
+      const tableMatch = result.sql?.match(/FROM\s+`?[\w.-]+\.(\w+)`?/i);
+      const tableName = tableMatch?.[1] || '';
+
+      // If result has a numeric aggregate column, suggest drill-down
+      const numericCols = result.columns.filter((c, i) => {
+        const firstVal = result.rows[0]?.[i];
+        return typeof firstVal === 'number' || (typeof firstVal === 'string' && /^\d+(\.\d+)?$/.test(firstVal));
+      });
+      const categoryCols = result.columns.filter((c, i) => {
+        const firstVal = result.rows[0]?.[i];
+        return typeof firstVal === 'string' && !/^\d+(\.\d+)?$/.test(firstVal);
+      });
+
+      // Suggest charting if data has a category + numeric pattern
+      if (categoryCols.length > 0 && numericCols.length > 0 && result.rows.length >= 2 && nextActions.length < 4) {
         nextActions.push({
           targetSkill: 'query',
-          label: `Drill into ${categoryCols[0]} = "${topVal}"`,
-          context: { table: tableName, filter: { column: categoryCols[0], value: topVal } },
+          label: `Chart ${numericCols[0]} by ${categoryCols[0]}`,
+          context: { table: tableName },
           sourceSkill: 'query',
           sourceResultRef: id,
         });
       }
-    }
 
-    // Suggest data quality check for the source table
-    if (tableName && nextActions.length < 4) {
-      nextActions.push({
-        targetSkill: 'data-quality',
-        label: `Profile ${tableName}`,
-        context: { table: tableName },
-        sourceSkill: 'query',
-        sourceResultRef: id,
-      });
-    }
+      // Suggest drill-down into a specific value from the results
+      if (categoryCols.length > 0 && result.rows.length > 1 && nextActions.length < 4) {
+        const topVal = result.rows[0]?.[result.columns.indexOf(categoryCols[0])];
+        if (topVal && typeof topVal === 'string' && topVal.length < 40) {
+          nextActions.push({
+            targetSkill: 'query',
+            label: `Drill into ${categoryCols[0]} = "${topVal}"`,
+            context: { table: tableName, filter: { column: categoryCols[0], value: topVal } },
+            sourceSkill: 'query',
+            sourceResultRef: id,
+          });
+        }
+      }
 
-    // Suggest viewing the table schema
-    if (tableName && nextActions.length < 4) {
-      nextActions.push({
-        targetSkill: 'schema',
-        label: `View ${tableName} schema`,
-        context: { table: tableName },
-        sourceSkill: 'query',
-        sourceResultRef: id,
-      });
+      // Suggest data quality check for the source table
+      if (tableName && nextActions.length < 4) {
+        nextActions.push({
+          targetSkill: 'data-quality',
+          label: `Profile ${tableName}`,
+          context: { table: tableName },
+          sourceSkill: 'query',
+          sourceResultRef: id,
+        });
+      }
+
+      // Suggest viewing the table schema
+      if (tableName && nextActions.length < 4) {
+        nextActions.push({
+          targetSkill: 'schema',
+          label: `View ${tableName} schema`,
+          context: { table: tableName },
+          sourceSkill: 'query',
+          sourceResultRef: id,
+        });
+      }
     }
   }
 
@@ -998,45 +1030,26 @@ function extractProjectFromSql(sql: string): string | undefined {
   return match?.[1] ?? undefined;
 }
 
-function buildQueryHeadline(rowCount: number, sql: string, result?: QueryResult): string {
+// Extract the full 3-part table reference (project.dataset.table) from SQL.
+function extractFullTableRef(sql: string): string | null {
+  const match = sql.match(/`([A-Za-z0-9_-]+\.[A-Za-z0-9_]+\.[A-Za-z0-9_]+)`/);
+  return match?.[1] ?? null;
+}
+
+function buildQueryHeadline(rowCount: number, sql: string): string {
   if (!rowCount || rowCount === 0) {
-    return 'Query returned no results -- try broadening your criteria or checking the table name';
-  }
-
-  // Try to build a descriptive headline from data shape
-  if (result && result.columns.length >= 2 && result.rows.length >= 2) {
-    const colTypes: ('numeric' | 'date' | 'categorical')[] = result.columns.map((col, i) => {
-      const sampleValues = result.rows.slice(0, 10).map(r => (r as unknown[])[i]);
-      const nonNull = sampleValues.filter(v => v != null);
-      if (nonNull.length === 0) return 'categorical';
-      if (isDateColumn(col, nonNull)) return 'date';
-      const numericCount = nonNull.filter(isNumericValue).length;
-      if (numericCount / nonNull.length >= 0.8) return 'numeric';
-      return 'categorical';
-    });
-
-    const catCols = result.columns.filter((_, i) => colTypes[i] === 'categorical');
-    const numericCols = result.columns.filter((_, i) => colTypes[i] === 'numeric');
-    const dateCols = result.columns.filter((_, i) => colTypes[i] === 'date');
-
-    // Categorical breakdown: "Status breakdown" or "Revenue by region"
-    if (catCols.length === 1 && numericCols.length >= 1) {
-      const catLabel = humanizeColumnName(catCols[0]);
-      if (numericCols.length === 1) {
-        const numLabel = humanizeColumnName(numericCols[0]);
-        return `${numLabel} by ${catLabel.toLowerCase()}`;
-      }
-      return `${catLabel} breakdown`;
+    const upper = sql.toUpperCase();
+    if (upper.includes('INFORMATION_SCHEMA')) {
+      const project = extractProjectFromSql(sql);
+      return project
+        ? `No metadata returned -- check region and permissions for \`${project}\``
+        : 'No metadata returned -- check region and permissions';
     }
-
-    // Time series: "Revenue over time" or "Monthly orders"
-    if (dateCols.length === 1 && numericCols.length >= 1) {
-      const numLabel = humanizeColumnName(numericCols[0]);
-      return `${numLabel} over time`;
+    if (/\bWHERE\b/i.test(sql)) {
+      return 'No rows matched your filter criteria';
     }
+    return 'Query returned no results -- the table may be empty or filters too restrictive';
   }
-
-  // Fallback: "N rows from `table`"
   const count = rowCount.toLocaleString();
   const rowWord = rowCount === 1 ? 'row' : 'rows';
   const table = extractTableFromSql(sql);

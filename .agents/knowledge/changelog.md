@@ -4,7 +4,21 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
-## 2026-07-11: UX Evaluation Run + Critical Fixes
+## 2026-07-10 (late): Chart-first visualization and descriptive headlines
+
+**What changed**:
+- **Data-shape chart inference** (composer.ts): Replaced `vizTypeToArtifactType()` passthrough with `inferVisualizationType()` that analyzes actual column types and row count to pick the best chart. The query handler hardcodes `suggestedVisualization: 'TABLE'`, and self-review (the only prior override) is often skipped for high-confidence results. Now the composer itself picks BAR_CHART, LINE_CHART, PIE_CHART, KPI_CARD, or SCATTER based on column classification (numeric vs date vs categorical).
+- **Descriptive headlines** (composer.ts): `buildQueryHeadline()` now analyzes column structure to produce headlines like "Order count by status" or "Revenue over time" instead of the generic "5 rows from `malloy`". Falls back to the old pattern for ambiguous shapes.
+- **No UI changes needed**: `ChartWithToggle` in ArtifactCard.tsx already supports the chart/table toggle pill -- it just never activated because the composer always said TABLE.
+
+**Files**:
+- `src/lib/composer.ts` -- replaced `vizTypeToArtifactType` with `inferVisualizationType`, improved `buildQueryHeadline`, added `humanizeColumnName`, `isDateColumn`, `isNumericValue` helpers
+
+**Derived rule**: The composer must enforce the "chart type by data shape" invariant directly in code, not rely on LLM hints or optional self-review passes.
+
+---
+
+
 
 **What changed**:
 - Ran full 25-test UX evaluation against deployed app
