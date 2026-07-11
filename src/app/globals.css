@@ -548,7 +548,7 @@ details>summary::marker {
 }
 
 /* Scrollable body */
-.gc-project-dropdown-body {
+.gc-project-dropdown-list {
   overflow-y: auto;
   max-height: 320px;
   padding: 4px 0;
@@ -1993,7 +1993,7 @@ details>summary::marker {
   transform: rotate(0deg);
 }
 
-.chat-sidebar-thinking-body {
+.chat-sidebar-thinking-content {
   padding: 6px 0 4px 14px;
   margin-top: 4px;
   margin-left: 7px;

@@ -297,7 +297,7 @@ export function TopBar({ onNavToggle }: TopBarProps) {
                 )}
               </div>
 
-              <div className="gc-project-dropdown-body">
+              <div className="gc-project-dropdown-list">
                 {/* Favorites section */}
                 {favoritedProjects.length > 0 && (
                   <>

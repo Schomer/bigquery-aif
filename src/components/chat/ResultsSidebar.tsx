@@ -428,7 +428,7 @@ export function ResultsSidebar({
                         <span className="thinking-toggle-text" />
                         <span className="material-symbols-outlined thinking-toggle-chevron">keyboard_arrow_up</span>
                       </summary>
-                      <div className="chat-sidebar-thinking-body">
+                      <div className="chat-sidebar-thinking-content">
                         {thinkingSteps[i] && thinkingSteps[i].length > 0 && (
                           <>
                             {thinkingSteps[i].map((step, si) => {
