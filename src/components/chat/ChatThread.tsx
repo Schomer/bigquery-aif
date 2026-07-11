@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { SparkSpinner } from '@/components/SparkSpinner';
 import { ArtifactCard } from '@/components/ArtifactCard';
-import { ConversationSummary } from '@/components/ConversationSummary';
 import { InlineCostConfirm, InlineDmlConfirm } from './InlineConfirmation';
 import { BriefingBlock } from '@/components/BriefingBlock';
 import type {
@@ -317,11 +316,7 @@ export function ChatThread({
         gap: '24px',
       }}
     >
-      {/* Conversation summary for long conversations */}
-      <ConversationSummary
-        messages={messages}
-        onJumpToMessage={handleJumpToMessage}
-      />
+
       {messages.map((msg, i) => (
         <div key={i} data-msg-idx={i} className={i > 0 ? 'fade-up' : ''} style={i < historyHiddenBefore ? { display: 'none' } : undefined}>
           {msg.role === 'user' ? (
