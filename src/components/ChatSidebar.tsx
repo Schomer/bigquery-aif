@@ -281,7 +281,7 @@ export function ChatSidebar({
           <span style={{
             flex: 1,
             fontSize: 14,
-            fontWeight: 600,
+            fontWeight: 500,
             color: 'var(--text)',
             fontFamily: "'Google Sans', sans-serif",
             whiteSpace: 'nowrap',
@@ -501,7 +501,7 @@ export function ChatSidebar({
       }}>
         <span style={{
           fontSize: 18,
-          fontWeight: 600,
+          fontWeight: 500,
           color: 'var(--text)',
           fontFamily: "'Google Sans', sans-serif",
           letterSpacing: '-0.01em',
@@ -785,7 +785,7 @@ export function ChatSidebar({
                       <p style={{
                         margin: 0,
                         fontSize: 13,
-                        fontWeight: 600,
+                        fontWeight: 500,
                         color: 'var(--text)',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
