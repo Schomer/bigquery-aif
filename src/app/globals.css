@@ -28,7 +28,13 @@
     box-sizing: border-box;
   }
 
+  html {
+    height: 100%;
+  }
+
   body {
+    height: 100%;
+    overflow: hidden;
     background: var(--bg);
     color: var(--text);
     font-family: 'Google Sans', sans-serif;

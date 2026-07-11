@@ -4,6 +4,18 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-10 (night): Table click prompt simplified
+
+**What changed**:
+- All table-click handlers across 6 UI components now send `Show me <table>` instead of `Show me the schema for <table>`.
+- Aligns with user mental model: clicking a table means "show me the table" (data, profile, schema), not just schema.
+- Added `show me` (weight 2) signal to the schema skill manifest to help the router classify these shorter prompts.
+- Updated `task-catalog.mjs` test prompt to match.
+
+**Files touched**: `page.tsx`, `DataQualityView.tsx`, `ErDiagramView.tsx`, `FreshnessView.tsx`, `StorageBreakdownView.tsx`, `ResultsSidebar.tsx`, `handle-schema.ts`, `task-catalog.mjs`.
+
+---
+
 ## 2026-07-10 (night): ChatSidebar redesigned to match Neptune
 
 **What changed**:
