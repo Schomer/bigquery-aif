@@ -2,6 +2,18 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-11: Rework chat sidebar for three view modes
+
+**Context**: Chat sidebar behavior was broken -- unified mode had no way to re-open the sidebar after selecting a chat, split modes couldn't navigate between chats list and thread view, and the AI button in SideNav had no toggle behavior.
+
+**Changes**:
+- `layout-context.tsx`: Added `chatListOpen`, `setChatListOpen`, `toggleChatList` to shared context (replaces local `chatSidebarVisible` state in page.tsx).
+- `SideNav.tsx`: AI nav item now toggles `chatListOpen` in unified mode. In split modes it just navigates to chat page.
+- `ChatSidebar.tsx`: Added `mode` prop ('overlay' | 'persistent') and `side` prop ('left' | 'right'). Overlay mode auto-hides on selection. Persistent mode has internal `sidebarView` state ('list' | 'thread') with a back button for navigation.
+- `page.tsx`: Removed local `chatSidebarVisible`. Unified layout uses overlay mode with `chatListOpen` from context. Split layout always renders both ChatSidebar (persistent) and ResultsSidebar side by side.
+- Fixed pre-existing type error in `ArtifactCard.tsx` (GovernanceView props mismatch).
+- Fixed pre-existing `isSearchEmpty` undeclared variable in `composer.ts`.
+
 ---
 
 ## 2026-07-11: Kebab settings menu in top bar
