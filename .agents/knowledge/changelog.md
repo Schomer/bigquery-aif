@@ -4,7 +4,24 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
-## 2026-07-10: Rewrite SavedPage into SpacesPage -- folder-based organization
+## 2026-07-10: UX Evaluation Script
+
+**What changed**:
+- Created `scripts/ux-eval.mjs` -- a 25-scenario test suite that evaluates the app from the user's perspective
+- Sends real-world prompts to the deployed app via Puppeteer, takes screenshots, extracts DOM metadata, and sends both to Gemini for critical evaluation across 6 dimensions (task completion, headline quality, visual clarity, data insight, suggestion quality, overall intelligence)
+- Scores 1-5 per dimension; minimum passing score is 4
+- Covers all 12 skills: schema (F1-F5), query (Q1-Q6), data quality (DQ1-DQ3), monitoring (M1-M3), discovery (D1-D2), visualization (V1-V2), governance (G1), data loading (DL1), pipeline (P1), conversation (C1)
+- Generates markdown report at `test-results/ux-eval-report.md` and raw JSON at `test-results/ux-eval-results.json`
+- Updated `.agents/knowledge/test-cases.md` with UX evaluation reference
+
+**Why**:
+- Existing tests (snapshot-test.mjs, test-loop.mjs) verify internal mechanics (routing, API responses) but don't evaluate whether the output is genuinely good from the user's perspective
+- The app works for basic tasks but more complex queries produce generic headlines, unhelpful suggestions, and visually uninformative results
+- This evaluation pass identifies exactly what needs fixing to make the app feel smart, not just functional
+
+---
+
+
 
 **What changed**:
 - Completely rewrote `src/components/SavedPage.tsx`. Export renamed from `SavedPage` to `SpacesPage`.

@@ -387,6 +387,9 @@ UI Components (src/components/)
 - `scripts/task-catalog.mjs` -- Test scenario definitions
 - `scripts/token-manager.mjs` -- OAuth token management for tests
 - `scripts/generate-report.mjs` -- Markdown report generator
+- `scripts/visual-test.mjs` -- Puppeteer headed-browser screenshot capture (20 tests)
+- `scripts/ux-eval.mjs` (~580 lines) -- UX evaluation: 25 scenarios, screenshots + Gemini scoring on 6 dimensions. Outputs `test-results/ux-eval-report.md`. Run: `node scripts/ux-eval.mjs`
+- `scripts/snapshot-test.mjs` -- Offline router classification tests (no server needed)
 - No unit tests exist. No jest/vitest configuration.
 
 ---
