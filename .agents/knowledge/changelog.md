@@ -4,6 +4,19 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-10: Rewrite OverviewDashboard -- replace KPI cards with Recent Charts and Recently Saved
+
+**What changed**:
+- Removed the top-level KPI section (4 StatCards: Datasets, Tables, Storage, Jobs 24h) and all associated BigQuery fetch logic (`fetchSummary`, `ProjectSummary` interface, `bqQuery`/`bqGet` for summary).
+- Added "Recent Charts" section: scans user's conversations for assistant envelopes with chart artifacts (`primaryArtifact.type` containing 'chart'). Shows up to 6 cards with headline, conversation title, and relative time. Clicking navigates to the conversation.
+- Added "Recently Saved" section: fetches up to 6 saved artifacts via `getArtifacts`. Shows cards with type icon, name, description, and relative time. Clicking runs the item via `onPrompt`.
+- Uses `useAuth()` for user context and `useConversation()` for conversation navigation.
+- Section order: Title, Recent Charts, Recently Saved, Recent Activity (kept), Quick Actions (kept).
+
+**Why**: KPI StatCards were unreliable due to BigQuery INFORMATION_SCHEMA permission/region issues. The new sections surface actionable content users have already created.
+
+---
+
 ## 2026-07-10: Add FavoritesPage component
 
 **What changed**:

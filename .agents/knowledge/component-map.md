@@ -266,11 +266,14 @@ UI Components (src/components/)
 - Wraps a trigger element, shows content on hover/focus
 - Placement: top (default), bottom
 
-### `src/components/OverviewDashboard.tsx` (~380 lines)
+### `src/components/OverviewDashboard.tsx` (~490 lines)
 **Responsibility**: Landing page dashboard shown when activePage === 'overview'.
-- Three sections: project summary (4 StatCards), recent activity (last 10 jobs table), quick actions (5 action cards)
-- Fetches real data from BigQuery REST API using the user's OAuth token
+- Five sections: title, recent charts (from conversations), recently saved (from saved artifacts), recent activity (last 10 jobs table), quick actions (5 action cards)
+- Recent Charts: scans conversations for envelopes with chart-type primaryArtifact, shows up to 6 clickable cards
+- Recently Saved: fetches up to 6 SavedArtifacts via getArtifacts, shows clickable cards that run the item
+- Recent Activity: fetches real job data from BigQuery REST API using the user's OAuth token
 - Sections load independently with skeleton placeholders and graceful error fallbacks
+- Uses useAuth() for user context, useConversation() for conversation navigation
 - Props: project, accessToken, onNavigate, onPrompt
 
 ---
