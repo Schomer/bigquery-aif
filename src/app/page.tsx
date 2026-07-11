@@ -333,6 +333,7 @@ export default function Home() {
                           key={`${item.type}-${item.name}-${idx}`}
                           className="recent-item-chip"
                           onClick={() => {
+                            setChatListOpen(false);
                             if (item.type === 'table' && item.dataset) {
                               chat.sendMessage(`Show me ${item.dataset}.${item.name}`);
                             } else if (item.type === 'table') {
@@ -364,7 +365,7 @@ export default function Home() {
                   loading={chat.loading}
                   activeProject={activeProject}
                   contextItems={chat.contextItems}
-                  onSend={chat.sendMessage}
+                  onSend={(text?: string) => { setChatListOpen(false); return chat.sendMessage(text); }}
                   onRemoveContext={chat.removeContextItem}
                   onKeyDown={chat.handleKeyDown}
                   variant="hero"

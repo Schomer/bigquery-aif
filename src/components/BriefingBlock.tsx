@@ -13,9 +13,6 @@ interface Props {
 export function BriefingBlock({ briefing }: Props) {
   return (
     <div style={{
-      padding: '12px 16px',
-      background: '#edf1f8',
-      borderRadius: 10,
       display: 'flex',
       flexDirection: 'column',
       gap: 8,

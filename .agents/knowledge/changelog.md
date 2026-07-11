@@ -2,6 +2,11 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-11: Wire +New button and hide search in chat sidebar
+
+**Changes**:
+- `ChatSidebar.tsx`: `handleNewConversation` now calls `onSelectChat?.()` after `newConversation()` so the sidebar closes in unified layout. Search field commented out (hidden for now).
+
 ## 2026-07-11: Fix splitView not syncing on layout switch
 
 **Context**: Loading a chat in unified mode then switching to split layout (Chat left / Chat right) showed the chat list instead of the active thread.
