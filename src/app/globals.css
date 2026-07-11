@@ -2021,7 +2021,7 @@ details>summary::marker {
 /* User bubble in sidebar mode -- more compact */
 .chat-sidebar .chat-sidebar-user-msg {
   max-width: 100%;
-  background: #d3e3fd;
+  background: #CCE8F9;
   border: none;
   border-radius: 14px 14px 4px 14px;
   padding: 8px 14px;

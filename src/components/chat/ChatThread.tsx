@@ -394,7 +394,7 @@ export function ChatThread({
                   onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !loading) onStartEdit(i, msg.content); }}
                   style={{
                     maxWidth: '70%',
-                    background: '#d3e3fd',
+                    background: '#CCE8F9',
                     borderRadius: '16px 16px 4px 16px',
                     padding: '10px 16px',
                     fontSize: 15,
