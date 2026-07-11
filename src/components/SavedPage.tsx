@@ -1,19 +1,32 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import type { SavedArtifact, SavedArtifactType } from '@/lib/types';
-import { getArtifacts, deleteArtifact, updateArtifact, searchArtifacts } from '@/lib/saved-work';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import type { SavedArtifact, SavedArtifactType, Space } from '@/lib/types';
+import {
+  getArtifacts,
+  deleteArtifact,
+  updateArtifact,
+  searchArtifacts,
+  getSpaces,
+  createSpace,
+  renameSpace,
+  deleteSpace,
+  moveToSpace,
+  duplicateArtifact,
+} from '@/lib/saved-work';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 type TabKey = 'all' | SavedArtifactType;
 type SortMode = 'recent' | 'name' | 'most-used' | 'type';
+type ViewMode = 'card' | 'list';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'query', label: 'Queries' },
   { key: 'workflow', label: 'Workflows' },
   { key: 'pipeline', label: 'Pipelines' },
+  { key: 'app', label: 'Apps' },
 ];
 
 const TYPE_ICONS: Record<string, string> = {
@@ -69,7 +82,7 @@ function sortItems(items: SavedArtifact[], mode: SortMode): SavedArtifact[] {
 
 // ── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = {
+const S = {
   container: {
     maxWidth: 1200,
     margin: '0 auto',
@@ -86,6 +99,12 @@ const styles = {
     gap: 16,
   } as React.CSSProperties,
 
+  titleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 16,
+  } as React.CSSProperties,
+
   title: {
     fontSize: 24,
     fontWeight: 600,
@@ -97,6 +116,41 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: 12,
+  } as React.CSSProperties,
+
+  viewToggle: {
+    display: 'flex',
+    border: '1px solid var(--border, #dadce0)',
+    borderRadius: 8,
+    overflow: 'hidden',
+  } as React.CSSProperties,
+
+  viewBtn: (active: boolean) => ({
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 36,
+    height: 36,
+    border: 'none',
+    background: active ? 'var(--accent, #1967d2)' : 'transparent',
+    color: active ? '#fff' : 'var(--text-muted, #5f6368)',
+    cursor: 'pointer',
+    fontSize: 18,
+  } as React.CSSProperties),
+
+  newSpaceBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '8px 16px',
+    fontSize: 13,
+    fontWeight: 500,
+    border: '1px solid var(--border, #dadce0)',
+    borderRadius: 8,
+    background: 'transparent',
+    color: 'var(--text, #1a1a1a)',
+    cursor: 'pointer',
+    fontFamily: "'Google Sans', sans-serif",
   } as React.CSSProperties,
 
   searchBox: {
@@ -143,34 +197,70 @@ const styles = {
     padding: '10px 20px',
     fontSize: 14,
     fontWeight: active ? 600 : 400,
-    color: active ? '#1967d2' : 'var(--text-secondary, #5f6368)',
+    color: active ? 'var(--accent, #1967d2)' : 'var(--text-muted, #5f6368)',
     background: 'none',
     border: 'none',
-    borderBottom: active ? '2px solid #1967d2' : '2px solid transparent',
+    borderBottom: active ? '2px solid var(--accent, #1967d2)' : '2px solid transparent',
     cursor: 'pointer',
     fontFamily: "'Google Sans', sans-serif",
     marginBottom: -1,
     transition: 'color 0.15s, border-color 0.15s',
   } as React.CSSProperties),
 
+  breadcrumb: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 16,
+    fontSize: 14,
+    color: 'var(--text-muted, #5f6368)',
+    fontFamily: "'Google Sans', sans-serif",
+  } as React.CSSProperties,
+
+  breadcrumbLink: {
+    color: 'var(--accent, #1967d2)',
+    cursor: 'pointer',
+    background: 'none',
+    border: 'none',
+    fontSize: 14,
+    fontFamily: "'Google Sans', sans-serif",
+    padding: '2px 6px',
+    borderRadius: 4,
+    transition: 'background 0.15s',
+  } as React.CSSProperties,
+
+  breadcrumbCurrent: {
+    fontWeight: 600,
+    color: 'var(--text, #1a1a1a)',
+  } as React.CSSProperties,
+
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(340, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
     gap: 16,
   } as React.CSSProperties,
 
-  card: {
-    background: 'white',
+  card: (isSpace: boolean) => ({
+    background: isSpace ? 'var(--surface-2, #f1f3f4)' : 'white',
     border: '1px solid var(--border, #dadce0)',
     borderRadius: 12,
     padding: '20px',
-    transition: 'box-shadow 0.15s ease',
-    cursor: 'default',
+    transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
+    cursor: isSpace ? 'pointer' : 'default',
     position: 'relative' as const,
-  } as React.CSSProperties,
+  } as React.CSSProperties),
 
   cardHover: {
     boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+  } as React.CSSProperties,
+
+  dragOver: {
+    borderColor: 'var(--accent, #1967d2)',
+    background: 'color-mix(in srgb, var(--accent, #1967d2) 5%, transparent)',
+  } as React.CSSProperties,
+
+  dragging: {
+    opacity: 0.5,
   } as React.CSSProperties,
 
   cardHeader: {
@@ -190,7 +280,7 @@ const styles = {
 
   typeIcon: {
     fontSize: 20,
-    color: '#1967d2',
+    color: 'var(--accent, #1967d2)',
     flexShrink: 0,
   } as React.CSSProperties,
 
@@ -202,22 +292,34 @@ const styles = {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap' as const,
+    cursor: 'pointer',
   } as React.CSSProperties,
 
-  pinBtn: (pinned: boolean) => ({
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    padding: 4,
-    color: pinned ? '#1967d2' : '#80868b',
-    fontSize: 20,
-    flexShrink: 0,
-    lineHeight: 1,
-  } as React.CSSProperties),
+  inlineInput: {
+    fontSize: 15,
+    fontWeight: 600,
+    color: 'var(--text, #1a1a1a)',
+    border: '1px solid var(--accent, #1967d2)',
+    borderRadius: 4,
+    padding: '1px 4px',
+    outline: 'none',
+    fontFamily: "'Google Sans', sans-serif",
+    width: '100%',
+    background: 'white',
+  } as React.CSSProperties,
+
+  metaRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    fontSize: 12,
+    color: 'var(--text-dim, #80868b)',
+    marginBottom: 10,
+  } as React.CSSProperties,
 
   cardDesc: {
     fontSize: 13,
-    color: 'var(--text-secondary, #5f6368)',
+    color: 'var(--text-muted, #5f6368)',
     marginBottom: 10,
     lineHeight: 1.5,
     display: '-webkit-box',
@@ -233,21 +335,12 @@ const styles = {
     padding: '8px 10px',
     fontSize: 12,
     fontFamily: "'Roboto Mono', monospace",
-    color: 'var(--text-secondary, #5f6368)',
+    color: 'var(--text-muted, #5f6368)',
     marginBottom: 10,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap' as const,
     maxHeight: 40,
-  } as React.CSSProperties,
-
-  metaRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    fontSize: 12,
-    color: '#80868b',
-    marginBottom: 10,
   } as React.CSSProperties,
 
   tagsRow: {
@@ -263,7 +356,7 @@ const styles = {
     fontSize: 11,
     fontWeight: 500,
     background: '#f1f3f4',
-    color: 'var(--text-secondary, #5f6368)',
+    color: 'var(--text-muted, #5f6368)',
     borderRadius: 10,
   } as React.CSSProperties,
 
@@ -279,65 +372,129 @@ const styles = {
     fontWeight: 500,
     border: 'none',
     borderRadius: 6,
-    background: '#1967d2',
+    background: 'var(--accent, #1967d2)',
     color: 'white',
     cursor: 'pointer',
     fontFamily: "'Google Sans', sans-serif",
   } as React.CSSProperties,
 
-  deleteBtn: {
-    padding: '7px 18px',
-    fontSize: 13,
-    fontWeight: 500,
-    border: '1px solid #d93025',
-    borderRadius: 6,
-    background: 'white',
-    color: '#d93025',
-    cursor: 'pointer',
-    fontFamily: "'Google Sans', sans-serif",
-  } as React.CSSProperties,
-
-  confirmRow: {
+  moreBtn: {
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
-    justifyContent: 'flex-end',
-  } as React.CSSProperties,
-
-  confirmLabel: {
-    fontSize: 12,
-    color: '#d93025',
-    fontWeight: 500,
-  } as React.CSSProperties,
-
-  confirmBtn: {
-    padding: '5px 14px',
-    fontSize: 12,
-    fontWeight: 500,
+    justifyContent: 'center',
+    width: 32,
+    height: 32,
     border: 'none',
-    borderRadius: 6,
-    background: '#d93025',
-    color: 'white',
+    background: 'none',
     cursor: 'pointer',
+    color: 'var(--text-dim, #80868b)',
+    borderRadius: 6,
+    flexShrink: 0,
+    fontSize: 20,
+  } as React.CSSProperties,
+
+  contextMenu: {
+    position: 'absolute' as const,
+    right: 8,
+    top: 48,
+    background: 'white',
+    border: '1px solid var(--border, #dadce0)',
+    borderRadius: 8,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+    zIndex: 100,
+    minWidth: 180,
+    padding: '4px 0',
     fontFamily: "'Google Sans', sans-serif",
   } as React.CSSProperties,
 
-  cancelBtn: {
-    padding: '5px 14px',
-    fontSize: 12,
-    fontWeight: 500,
-    border: '1px solid var(--border, #dadce0)',
-    borderRadius: 6,
-    background: 'white',
+  menuItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '8px 16px',
+    fontSize: 13,
     color: 'var(--text, #1a1a1a)',
+    background: 'none',
+    border: 'none',
     cursor: 'pointer',
+    width: '100%',
+    textAlign: 'left' as const,
     fontFamily: "'Google Sans', sans-serif",
+  } as React.CSSProperties,
+
+  menuItemDanger: {
+    color: 'var(--issue, #d93025)',
+  } as React.CSSProperties,
+
+  menuDivider: {
+    height: 1,
+    background: 'var(--border, #dadce0)',
+    margin: '4px 0',
+  } as React.CSSProperties,
+
+  subMenu: {
+    position: 'absolute' as const,
+    left: '100%',
+    top: 0,
+    background: 'white',
+    border: '1px solid var(--border, #dadce0)',
+    borderRadius: 8,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+    zIndex: 101,
+    minWidth: 160,
+    padding: '4px 0',
+  } as React.CSSProperties,
+
+  // List view
+  listTable: {
+    width: '100%',
+    borderCollapse: 'collapse' as const,
+  } as React.CSSProperties,
+
+  listRow: (isSpace: boolean) => ({
+    borderBottom: '1px solid var(--border, #dadce0)',
+    background: isSpace ? 'var(--surface-2, #f1f3f4)' : 'transparent',
+    transition: 'background 0.15s',
+    cursor: isSpace ? 'pointer' : 'default',
+  } as React.CSSProperties),
+
+  listCell: {
+    padding: '12px 8px',
+    fontSize: 13,
+    color: 'var(--text, #1a1a1a)',
+    verticalAlign: 'middle' as const,
+    fontFamily: "'Google Sans', sans-serif",
+  } as React.CSSProperties,
+
+  listCellMuted: {
+    padding: '12px 8px',
+    fontSize: 12,
+    color: 'var(--text-dim, #80868b)',
+    verticalAlign: 'middle' as const,
+    fontFamily: "'Google Sans', sans-serif",
+  } as React.CSSProperties,
+
+  typeBadge: {
+    display: 'inline-block',
+    padding: '2px 8px',
+    fontSize: 11,
+    fontWeight: 500,
+    background: '#f1f3f4',
+    color: 'var(--text-muted, #5f6368)',
+    borderRadius: 10,
+  } as React.CSSProperties,
+
+  dragHandle: {
+    cursor: 'grab',
+    color: 'var(--text-dim, #80868b)',
+    fontSize: 18,
+    userSelect: 'none' as const,
   } as React.CSSProperties,
 
   emptyState: {
     textAlign: 'center' as const,
     padding: '60px 20px',
-    color: 'var(--text-secondary, #5f6368)',
+    color: 'var(--text-muted, #5f6368)',
   } as React.CSSProperties,
 
   emptyIcon: {
@@ -355,7 +512,7 @@ const styles = {
 
   emptyDesc: {
     fontSize: 14,
-    color: 'var(--text-secondary, #5f6368)',
+    color: 'var(--text-muted, #5f6368)',
   } as React.CSSProperties,
 
   skeletonCard: {
@@ -373,102 +530,646 @@ const styles = {
     marginBottom: 10,
     animation: 'pulse 1.5s ease-in-out infinite',
   } as React.CSSProperties),
+
+  newSpaceInput: {
+    background: 'var(--surface-2, #f1f3f4)',
+    border: '2px dashed var(--accent, #1967d2)',
+    borderRadius: 12,
+    padding: '20px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+  } as React.CSSProperties,
 } as const;
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-interface SavedPageProps {
+interface SpacesPageProps {
   userId: string;
   onRun: (artifact: SavedArtifact) => void;
   onNavigate: (page: string) => void;
 }
 
-export function SavedPage({ userId, onRun, onNavigate }: SavedPageProps) {
+export function SpacesPage({ userId, onRun, onNavigate }: SpacesPageProps) {
   const [items, setItems] = useState<SavedArtifact[]>([]);
+  const [spaces, setSpaces] = useState<Space[]>([]);
   const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortMode>('recent');
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('card');
   const [loading, setLoading] = useState(true);
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
 
+  // Space navigation
+  const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
+
+  // Create space
+  const [creatingSpace, setCreatingSpace] = useState(false);
+  const [newSpaceName, setNewSpaceName] = useState('');
+  const newSpaceInputRef = useRef<HTMLInputElement>(null);
+
+  // Inline rename
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renameType, setRenameType] = useState<'item' | 'space'>('item');
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  // Context menu
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [moveSubMenuOpen, setMoveSubMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Drag and drop
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [dragOverBreadcrumb, setDragOverBreadcrumb] = useState(false);
+
   // ── Data loading ─────────────────────────────────────────────────────────
 
-  const loadItems = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      let result: SavedArtifact[];
-      if (searchQuery.trim()) {
-        result = await searchArtifacts(userId, searchQuery.trim());
-      } else {
-        const typeFilter = activeTab === 'all' ? undefined : activeTab as SavedArtifactType;
-        result = await getArtifacts(userId, typeFilter);
-      }
-      setItems(result);
+      const [spacesResult, itemsResult] = await Promise.all([
+        getSpaces(userId),
+        searchQuery.trim()
+          ? searchArtifacts(userId, searchQuery.trim())
+          : getArtifacts(userId, activeTab === 'all' ? undefined : activeTab as SavedArtifactType),
+      ]);
+      setSpaces(spacesResult);
+      setItems(itemsResult);
     } catch (err) {
-      console.error('Failed to load saved items:', err);
+      console.error('Failed to load data:', err);
       setItems([]);
+      setSpaces([]);
     } finally {
       setLoading(false);
     }
   }, [userId, activeTab, searchQuery]);
 
   useEffect(() => {
-    loadItems();
-  }, [loadItems]);
+    loadData();
+  }, [loadData]);
+
+  // Close context menu on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpenId(null);
+        setMoveSubMenuOpen(false);
+      }
+    }
+    if (menuOpenId) {
+      document.addEventListener('click', handleClick, true);
+      return () => document.removeEventListener('click', handleClick, true);
+    }
+  }, [menuOpenId]);
+
+  // Focus new-space input when it appears
+  useEffect(() => {
+    if (creatingSpace && newSpaceInputRef.current) {
+      newSpaceInputRef.current.focus();
+    }
+  }, [creatingSpace]);
+
+  // Focus rename input when it appears
+  useEffect(() => {
+    if (renamingId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [renamingId]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
-
-  async function handleDelete(itemId: string) {
-    try {
-      await deleteArtifact(userId, itemId);
-      setItems((prev) => prev.filter((i) => i.id !== itemId));
-      setDeletingId(null);
-    } catch (err) {
-      console.error('Failed to delete item:', err);
-    }
-  }
-
-  async function handleTogglePin(item: SavedArtifact) {
-    const newPinned = !item.pinned;
-    try {
-      await updateArtifact(userId, item.id, { pinned: newPinned });
-      setItems((prev) =>
-        prev.map((i) => (i.id === item.id ? { ...i, pinned: newPinned } : i))
-      );
-    } catch (err) {
-      console.error('Failed to toggle pin:', err);
-    }
-  }
 
   function handleTabChange(tab: TabKey) {
     setActiveTab(tab);
     setSearchQuery('');
-    setDeletingId(null);
+    setMenuOpenId(null);
   }
 
-  // ── Filtering and sorting ────────────────────────────────────────────────
+  // Create space
+  async function handleCreateSpace() {
+    const name = newSpaceName.trim();
+    if (!name) {
+      setCreatingSpace(false);
+      setNewSpaceName('');
+      return;
+    }
+    try {
+      await createSpace(userId, name);
+      setCreatingSpace(false);
+      setNewSpaceName('');
+      await loadData();
+    } catch (err) {
+      console.error('Failed to create space:', err);
+    }
+  }
+
+  // Rename
+  function startRename(id: string, currentName: string, type: 'item' | 'space') {
+    setRenamingId(id);
+    setRenameValue(currentName);
+    setRenameType(type);
+    setMenuOpenId(null);
+    setMoveSubMenuOpen(false);
+  }
+
+  async function commitRename() {
+    if (!renamingId) return;
+    const name = renameValue.trim();
+    if (!name) {
+      setRenamingId(null);
+      return;
+    }
+    try {
+      if (renameType === 'space') {
+        await renameSpace(userId, renamingId, name);
+        setSpaces((prev) => prev.map((s) => s.id === renamingId ? { ...s, name } : s));
+      } else {
+        await updateArtifact(userId, renamingId, { name });
+        setItems((prev) => prev.map((i) => i.id === renamingId ? { ...i, name } : i));
+      }
+    } catch (err) {
+      console.error('Failed to rename:', err);
+    }
+    setRenamingId(null);
+  }
+
+  // Delete
+  async function handleDeleteItem(id: string) {
+    setMenuOpenId(null);
+    try {
+      await deleteArtifact(userId, id);
+      setItems((prev) => prev.filter((i) => i.id !== id));
+    } catch (err) {
+      console.error('Failed to delete:', err);
+    }
+  }
+
+  async function handleDeleteSpace(spaceId: string) {
+    setMenuOpenId(null);
+    try {
+      await deleteSpace(userId, spaceId);
+      if (activeSpaceId === spaceId) setActiveSpaceId(null);
+      await loadData();
+    } catch (err) {
+      console.error('Failed to delete space:', err);
+    }
+  }
+
+  // Duplicate
+  async function handleDuplicate(id: string) {
+    setMenuOpenId(null);
+    try {
+      await duplicateArtifact(userId, id);
+      await loadData();
+    } catch (err) {
+      console.error('Failed to duplicate:', err);
+    }
+  }
+
+  // Move to space
+  async function handleMoveToSpace(artifactId: string, spaceId: string | undefined) {
+    setMenuOpenId(null);
+    setMoveSubMenuOpen(false);
+    try {
+      await moveToSpace(userId, artifactId, spaceId);
+      setItems((prev) => prev.map((i) => i.id === artifactId ? { ...i, spaceId } : i));
+    } catch (err) {
+      console.error('Failed to move:', err);
+    }
+  }
+
+  // ── Drag and Drop ──────────────────────────────────────────────────────
+
+  function handleDragStart(e: React.DragEvent, id: string) {
+    setDraggingId(id);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', id);
+  }
+
+  function handleDragEnd() {
+    setDraggingId(null);
+    setDragOverId(null);
+    setDragOverBreadcrumb(false);
+  }
+
+  function handleDragOverSpace(e: React.DragEvent, spaceId: string) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverId(spaceId);
+  }
+
+  function handleDragLeaveSpace() {
+    setDragOverId(null);
+  }
+
+  async function handleDropOnSpace(e: React.DragEvent, spaceId: string) {
+    e.preventDefault();
+    const artifactId = e.dataTransfer.getData('text/plain');
+    setDragOverId(null);
+    setDraggingId(null);
+    if (artifactId) {
+      await handleMoveToSpace(artifactId, spaceId);
+    }
+  }
+
+  function handleDragOverBreadcrumb(e: React.DragEvent) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverBreadcrumb(true);
+  }
+
+  function handleDragLeaveBreadcrumb() {
+    setDragOverBreadcrumb(false);
+  }
+
+  async function handleDropOnBreadcrumb(e: React.DragEvent) {
+    e.preventDefault();
+    const artifactId = e.dataTransfer.getData('text/plain');
+    setDragOverBreadcrumb(false);
+    setDraggingId(null);
+    if (artifactId) {
+      await handleMoveToSpace(artifactId, undefined);
+    }
+  }
+
+  // ── Derived data ─────────────────────────────────────────────────────────
+
+  const activeSpace = activeSpaceId ? spaces.find((s) => s.id === activeSpaceId) : null;
 
   const filteredItems = (() => {
     let filtered = items;
-    // When searching, also filter by tab (unless "all")
+    // Filter by tab type
     if (activeTab !== 'all' && searchQuery.trim()) {
       filtered = filtered.filter((i) => i.type === activeTab);
+    }
+    // Filter by active space
+    if (activeSpaceId) {
+      filtered = filtered.filter((i) => i.spaceId === activeSpaceId);
+    } else if (!searchQuery.trim()) {
+      // Root view: show items without a space, or items whose space no longer exists
+      const spaceIds = new Set(spaces.map((s) => s.id));
+      filtered = filtered.filter((i) => !i.spaceId || !spaceIds.has(i.spaceId));
     }
     return sortItems(filtered, sortBy);
   })();
 
-  // ── Render helpers ───────────────────────────────────────────────────────
+  // Count items in each space
+  function spaceItemCount(spaceId: string): number {
+    return items.filter((i) => i.spaceId === spaceId).length;
+  }
+
+  // ── Render: inline name ──────────────────────────────────────────────────
+
+  function renderName(id: string, name: string, type: 'item' | 'space') {
+    if (renamingId === id) {
+      return (
+        <input
+          ref={renameInputRef}
+          style={S.inlineInput}
+          value={renameValue}
+          onChange={(e) => setRenameValue(e.target.value)}
+          onBlur={commitRename}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commitRename();
+            if (e.key === 'Escape') setRenamingId(null);
+          }}
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+    }
+    return (
+      <h3
+        style={S.cardName}
+        title={name}
+        onClick={(e) => {
+          e.stopPropagation();
+          startRename(id, name, type);
+        }}
+      >
+        {name}
+      </h3>
+    );
+  }
+
+  // ── Render: context menu ─────────────────────────────────────────────────
+
+  function renderContextMenu(id: string, type: 'item' | 'space', itemName: string) {
+    if (menuOpenId !== id) return null;
+
+    if (type === 'space') {
+      return (
+        <div ref={menuRef} style={S.contextMenu} onClick={(e) => e.stopPropagation()}>
+          <button
+            style={S.menuItem}
+            onMouseEnter={() => setMoveSubMenuOpen(false)}
+            onClick={() => startRename(id, itemName, 'space')}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>edit</span>
+            Rename
+          </button>
+          <div style={S.menuDivider} />
+          <button
+            style={{ ...S.menuItem, ...S.menuItemDanger }}
+            onClick={() => handleDeleteSpace(id)}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>
+            Delete
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div ref={menuRef} style={S.contextMenu} onClick={(e) => e.stopPropagation()}>
+        <button
+          style={S.menuItem}
+          onMouseEnter={() => setMoveSubMenuOpen(false)}
+          onClick={() => startRename(id, itemName, 'item')}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>edit</span>
+          Rename
+        </button>
+        <button
+          style={S.menuItem}
+          onMouseEnter={() => setMoveSubMenuOpen(false)}
+          onClick={() => handleDuplicate(id)}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>content_copy</span>
+          Duplicate
+        </button>
+        <div style={{ position: 'relative' as const }}>
+          <button
+            style={S.menuItem}
+            onMouseEnter={() => setMoveSubMenuOpen(true)}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>drive_file_move</span>
+            Move to Space
+            <span className="material-symbols-outlined" style={{ fontSize: 14, marginLeft: 'auto' }}>chevron_right</span>
+          </button>
+          {moveSubMenuOpen && (
+            <div style={S.subMenu}>
+              <button
+                style={S.menuItem}
+                onClick={() => handleMoveToSpace(id, undefined)}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>home</span>
+                Root (no space)
+              </button>
+              {spaces.map((sp) => (
+                <button
+                  key={sp.id}
+                  style={S.menuItem}
+                  onClick={() => handleMoveToSpace(id, sp.id)}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>folder</span>
+                  {sp.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={S.menuDivider} />
+        <button
+          style={{ ...S.menuItem, ...S.menuItemDanger }}
+          onMouseEnter={() => setMoveSubMenuOpen(false)}
+          onClick={() => handleDeleteItem(id)}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>
+          Delete
+        </button>
+      </div>
+    );
+  }
+
+  // ── Render: space card ─────────────────────────────────────────────────
+
+  function renderSpaceCard(space: Space) {
+    const isHovered = hoveredCard === `space-${space.id}`;
+    const isDragOver = dragOverId === space.id;
+    return (
+      <div
+        key={`space-${space.id}`}
+        style={{
+          ...S.card(true),
+          ...(isHovered ? S.cardHover : {}),
+          ...(isDragOver ? S.dragOver : {}),
+        }}
+        onMouseEnter={() => setHoveredCard(`space-${space.id}`)}
+        onMouseLeave={() => setHoveredCard(null)}
+        onClick={() => setActiveSpaceId(space.id)}
+        onDragOver={(e) => handleDragOverSpace(e, space.id)}
+        onDragLeave={handleDragLeaveSpace}
+        onDrop={(e) => handleDropOnSpace(e, space.id)}
+      >
+        <div style={S.cardHeader}>
+          <div style={S.cardTitleRow}>
+            <span className="material-symbols-outlined" style={{ ...S.typeIcon, color: 'var(--text-muted, #5f6368)' }}>
+              folder
+            </span>
+            {renderName(space.id, space.name, 'space')}
+          </div>
+          <button
+            style={S.moreBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpenId(menuOpenId === space.id ? null : space.id);
+              setMoveSubMenuOpen(false);
+            }}
+          >
+            <span className="material-symbols-outlined">more_vert</span>
+          </button>
+        </div>
+        <div style={S.metaRow}>
+          <span>{spaceItemCount(space.id)} items</span>
+          <span>{relativeTime(space.updatedAt)}</span>
+        </div>
+        {renderContextMenu(space.id, 'space', space.name)}
+      </div>
+    );
+  }
+
+  // ── Render: item card ──────────────────────────────────────────────────
+
+  function renderItemCard(item: SavedArtifact) {
+    const isHovered = hoveredCard === item.id;
+    const isDragging = draggingId === item.id;
+    const firstSql = item.steps?.[0]?.cachedSql;
+    const stepCount = item.steps?.length || 0;
+    const paramCount = item.parameters?.length || 0;
+
+    return (
+      <div
+        key={item.id}
+        style={{
+          ...S.card(false),
+          ...(isHovered ? S.cardHover : {}),
+          ...(isDragging ? S.dragging : {}),
+        }}
+        onMouseEnter={() => setHoveredCard(item.id)}
+        onMouseLeave={() => setHoveredCard(null)}
+        draggable
+        onDragStart={(e) => handleDragStart(e, item.id)}
+        onDragEnd={handleDragEnd}
+      >
+        <div style={S.cardHeader}>
+          <div style={S.cardTitleRow}>
+            <span className="material-symbols-outlined" style={S.typeIcon}>
+              {TYPE_ICONS[item.type] || 'description'}
+            </span>
+            {renderName(item.id, item.name, 'item')}
+          </div>
+          <button
+            style={S.moreBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpenId(menuOpenId === item.id ? null : item.id);
+              setMoveSubMenuOpen(false);
+            }}
+          >
+            <span className="material-symbols-outlined">more_vert</span>
+          </button>
+        </div>
+
+        {item.description && (
+          <div style={S.cardDesc}>{item.description}</div>
+        )}
+
+        {firstSql && (
+          <div style={S.sqlPreview} title={firstSql}>{firstSql}</div>
+        )}
+
+        <div style={S.metaRow}>
+          <span>{TYPE_LABELS[item.type] || item.type}</span>
+          {stepCount > 1 && <span>{stepCount} steps</span>}
+          {paramCount > 0 && <span>{paramCount} params</span>}
+          {item.runCount > 0 && <span>Run {item.runCount}x</span>}
+          {item.project && <span>{item.project}</span>}
+          {item.updatedAt && <span>{relativeTime(item.updatedAt)}</span>}
+        </div>
+
+        {item.tags && item.tags.length > 0 && (
+          <div style={S.tagsRow}>
+            {item.tags.map((tag) => (
+              <span key={tag} style={S.tag}>{tag}</span>
+            ))}
+          </div>
+        )}
+
+        <div style={S.actions}>
+          <button style={S.runBtn} onClick={() => onRun(item)}>Run</button>
+        </div>
+
+        {renderContextMenu(item.id, 'item', item.name)}
+      </div>
+    );
+  }
+
+  // ── Render: list view ──────────────────────────────────────────────────
+
+  function renderSpaceRow(space: Space) {
+    const isDragOver = dragOverId === space.id;
+    return (
+      <tr
+        key={`space-${space.id}`}
+        style={{
+          ...S.listRow(true),
+          ...(isDragOver ? S.dragOver : {}),
+        }}
+        onClick={() => setActiveSpaceId(space.id)}
+        onDragOver={(e) => handleDragOverSpace(e, space.id)}
+        onDragLeave={handleDragLeaveSpace}
+        onDrop={(e) => handleDropOnSpace(e, space.id)}
+      >
+        <td style={{ ...S.listCell, width: 32 }} />
+        <td style={{ ...S.listCell, width: 32 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--text-muted, #5f6368)' }}>
+            folder
+          </span>
+        </td>
+        <td style={S.listCell}>
+          {renderName(space.id, space.name, 'space')}
+        </td>
+        <td style={S.listCellMuted} />
+        <td style={S.listCellMuted}>{spaceItemCount(space.id)} items</td>
+        <td style={S.listCellMuted}>{relativeTime(space.updatedAt)}</td>
+        <td style={{ ...S.listCell, width: 40, position: 'relative' as const }}>
+          <button
+            style={S.moreBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpenId(menuOpenId === space.id ? null : space.id);
+              setMoveSubMenuOpen(false);
+            }}
+          >
+            <span className="material-symbols-outlined">more_vert</span>
+          </button>
+          {renderContextMenu(space.id, 'space', space.name)}
+        </td>
+      </tr>
+    );
+  }
+
+  function renderItemRow(item: SavedArtifact) {
+    const isDragging = draggingId === item.id;
+    return (
+      <tr
+        key={item.id}
+        style={{
+          ...S.listRow(false),
+          ...(isDragging ? S.dragging : {}),
+        }}
+        draggable
+        onDragStart={(e) => handleDragStart(e, item.id)}
+        onDragEnd={handleDragEnd}
+      >
+        <td style={{ ...S.listCell, width: 32 }}>
+          <span className="material-symbols-outlined" style={S.dragHandle}>drag_indicator</span>
+        </td>
+        <td style={{ ...S.listCell, width: 32 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--accent, #1967d2)' }}>
+            {TYPE_ICONS[item.type] || 'description'}
+          </span>
+        </td>
+        <td style={S.listCell}>
+          {renderName(item.id, item.name, 'item')}
+        </td>
+        <td style={S.listCellMuted}>
+          <span style={S.typeBadge}>{TYPE_LABELS[item.type] || item.type}</span>
+        </td>
+        <td style={S.listCellMuted}>
+          {item.runCount > 0 ? `${item.runCount}x` : ''}
+        </td>
+        <td style={S.listCellMuted}>{relativeTime(item.updatedAt)}</td>
+        <td style={{ ...S.listCell, width: 40, position: 'relative' as const }}>
+          <button
+            style={S.moreBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpenId(menuOpenId === item.id ? null : item.id);
+              setMoveSubMenuOpen(false);
+            }}
+          >
+            <span className="material-symbols-outlined">more_vert</span>
+          </button>
+          {renderContextMenu(item.id, 'item', item.name)}
+        </td>
+      </tr>
+    );
+  }
+
+  // ── Render: skeleton / empty ───────────────────────────────────────────
 
   function renderSkeleton() {
     return (
-      <div style={styles.grid}>
+      <div style={S.grid}>
         {[1, 2, 3, 4, 5, 6].map((n) => (
-          <div key={n} style={styles.skeletonCard}>
-            <div style={styles.skeletonLine('60%', 16)} />
-            <div style={styles.skeletonLine('90%')} />
-            <div style={styles.skeletonLine('40%')} />
-            <div style={styles.skeletonLine('70%', 12)} />
+          <div key={n} style={S.skeletonCard}>
+            <div style={S.skeletonLine('60%', 16)} />
+            <div style={S.skeletonLine('90%')} />
+            <div style={S.skeletonLine('40%')} />
+            <div style={S.skeletonLine('70%', 12)} />
           </div>
         ))}
       </div>
@@ -478,114 +1179,103 @@ export function SavedPage({ userId, onRun, onNavigate }: SavedPageProps) {
   function renderEmpty() {
     const tabLabel = activeTab === 'all' ? 'saved items' : TABS.find((t) => t.key === activeTab)?.label.toLowerCase() || 'items';
     return (
-      <div style={styles.emptyState}>
-        <span className="material-symbols-outlined" style={styles.emptyIcon}>
-          bookmark_border
+      <div style={S.emptyState}>
+        <span className="material-symbols-outlined" style={S.emptyIcon}>
+          folder_open
         </span>
-        <div style={styles.emptyTitle}>
-          {searchQuery.trim() ? 'No results found' : `No ${tabLabel} yet`}
+        <div style={S.emptyTitle}>
+          {searchQuery.trim() ? 'No results found' : activeSpaceId ? 'This space is empty' : `No ${tabLabel} yet`}
         </div>
-        <div style={styles.emptyDesc}>
+        <div style={S.emptyDesc}>
           {searchQuery.trim()
             ? `No items match "${searchQuery}". Try a different search term.`
-            : `Items you save will appear here. Use the save button on any result to add it.`}
+            : activeSpaceId
+              ? 'Drag items here or use the context menu to move items into this space.'
+              : 'Items you save will appear here. Use the save button on any result to add it.'}
         </div>
       </div>
     );
   }
 
-  function renderCard(item: SavedArtifact) {
-    const isDeleting = deletingId === item.id;
-    const isHovered = hoveredCard === item.id;
-    const firstSql = item.steps?.[0]?.cachedSql;
-    const stepCount = item.steps?.length || 0;
-    const paramCount = item.parameters?.length || 0;
+  // ── Render: new space inline input ─────────────────────────────────────
+
+  function renderNewSpaceInput() {
+    if (!creatingSpace) return null;
+
+    if (viewMode === 'list') {
+      return (
+        <tr>
+          <td colSpan={7} style={S.listCell}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--accent, #1967d2)' }}>
+                create_new_folder
+              </span>
+              <input
+                ref={newSpaceInputRef}
+                style={S.inlineInput}
+                value={newSpaceName}
+                placeholder="Space name..."
+                onChange={(e) => setNewSpaceName(e.target.value)}
+                onBlur={handleCreateSpace}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleCreateSpace();
+                  if (e.key === 'Escape') { setCreatingSpace(false); setNewSpaceName(''); }
+                }}
+              />
+            </div>
+          </td>
+        </tr>
+      );
+    }
 
     return (
-      <div
-        key={item.id}
-        style={{
-          ...styles.card,
-          ...(isHovered ? styles.cardHover : {}),
-        }}
-        onMouseEnter={() => setHoveredCard(item.id)}
-        onMouseLeave={() => setHoveredCard(null)}
-      >
-        {/* Header: icon, name, pin */}
-        <div style={styles.cardHeader}>
-          <div style={styles.cardTitleRow}>
-            <span className="material-symbols-outlined" style={styles.typeIcon}>
-              {TYPE_ICONS[item.type] || 'description'}
-            </span>
-            <h3 style={styles.cardName} title={item.name}>
-              {item.name}
-            </h3>
-          </div>
-          <button
-            onClick={() => handleTogglePin(item)}
-            style={styles.pinBtn(!!item.pinned)}
-            title={item.pinned ? 'Unpin' : 'Pin'}
-          >
-            <span className="material-symbols-outlined">
-              {item.pinned ? 'bookmark' : 'bookmark_border'}
-            </span>
-          </button>
-        </div>
+      <div style={S.newSpaceInput}>
+        <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--accent, #1967d2)' }}>
+          create_new_folder
+        </span>
+        <input
+          ref={newSpaceInputRef}
+          style={{ ...S.inlineInput, flex: 1 }}
+          value={newSpaceName}
+          placeholder="Space name..."
+          onChange={(e) => setNewSpaceName(e.target.value)}
+          onBlur={handleCreateSpace}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleCreateSpace();
+            if (e.key === 'Escape') { setCreatingSpace(false); setNewSpaceName(''); }
+          }}
+        />
+      </div>
+    );
+  }
 
-        {/* Description */}
-        {item.description && (
-          <div style={styles.cardDesc}>{item.description}</div>
-        )}
+  // ── Render: content ────────────────────────────────────────────────────
 
-        {/* SQL preview (queries and single-step items) */}
-        {firstSql && (
-          <div style={styles.sqlPreview} title={firstSql}>
-            {firstSql}
-          </div>
-        )}
+  function renderContent() {
+    if (loading) return renderSkeleton();
 
-        {/* Metadata row */}
-        <div style={styles.metaRow}>
-          <span>{TYPE_LABELS[item.type] || item.type}</span>
-          {stepCount > 1 && <span>{stepCount} steps</span>}
-          {paramCount > 0 && <span>{paramCount} params</span>}
-          {item.runCount > 0 && <span>Run {item.runCount}x</span>}
-          {item.project && <span>{item.project}</span>}
-          {item.updatedAt && <span>{relativeTime(item.updatedAt)}</span>}
-        </div>
+    const showSpaces = !activeSpaceId && !searchQuery.trim();
+    const hasContent = filteredItems.length > 0 || (showSpaces && spaces.length > 0) || creatingSpace;
 
-        {/* Tags */}
-        {item.tags && item.tags.length > 0 && (
-          <div style={styles.tagsRow}>
-            {item.tags.map((tag) => (
-              <span key={tag} style={styles.tag}>
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
+    if (!hasContent) return renderEmpty();
 
-        {/* Actions */}
-        {isDeleting ? (
-          <div style={styles.confirmRow}>
-            <span style={styles.confirmLabel}>Are you sure?</span>
-            <button style={styles.confirmBtn} onClick={() => handleDelete(item.id)}>
-              Delete
-            </button>
-            <button style={styles.cancelBtn} onClick={() => setDeletingId(null)}>
-              Cancel
-            </button>
-          </div>
-        ) : (
-          <div style={styles.actions}>
-            <button style={styles.deleteBtn} onClick={() => setDeletingId(item.id)}>
-              Delete
-            </button>
-            <button style={styles.runBtn} onClick={() => onRun(item)}>
-              Run
-            </button>
-          </div>
-        )}
+    if (viewMode === 'list') {
+      return (
+        <table style={S.listTable}>
+          <tbody>
+            {showSpaces && creatingSpace && renderNewSpaceInput()}
+            {showSpaces && spaces.map((sp) => renderSpaceRow(sp))}
+            {filteredItems.map((item) => renderItemRow(item))}
+          </tbody>
+        </table>
+      );
+    }
+
+    return (
+      <div style={S.grid}>
+        {showSpaces && creatingSpace && renderNewSpaceInput()}
+        {showSpaces && spaces.map((sp) => renderSpaceCard(sp))}
+        {filteredItems.map((item) => renderItemCard(item))}
       </div>
     );
   }
@@ -593,16 +1283,43 @@ export function SavedPage({ userId, onRun, onNavigate }: SavedPageProps) {
   // ── Main render ──────────────────────────────────────────────────────────
 
   return (
-    <div style={styles.container}>
+    <div style={S.container}>
       {/* Header */}
-      <div style={styles.header}>
-        <h1 style={styles.title}>Saved</h1>
-        <div style={styles.headerRight}>
-          <div style={styles.searchBox}>
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: 18, color: '#80868b' }}
+      <div style={S.header}>
+        <div style={S.titleRow}>
+          <h1 style={S.title}>Spaces</h1>
+          <div style={S.viewToggle}>
+            <button
+              style={S.viewBtn(viewMode === 'card')}
+              onClick={() => setViewMode('card')}
+              title="Card view"
             >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>grid_view</span>
+            </button>
+            <button
+              style={S.viewBtn(viewMode === 'list')}
+              onClick={() => setViewMode('list')}
+              title="List view"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>view_list</span>
+            </button>
+          </div>
+          {!activeSpaceId && (
+            <button
+              style={S.newSpaceBtn}
+              onClick={() => {
+                setCreatingSpace(true);
+                setNewSpaceName('');
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
+              New Space
+            </button>
+          )}
+        </div>
+        <div style={S.headerRight}>
+          <div style={S.searchBox}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#80868b' }}>
               search
             </span>
             <input
@@ -610,13 +1327,13 @@ export function SavedPage({ userId, onRun, onNavigate }: SavedPageProps) {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search saved items..."
-              style={styles.searchInput}
+              style={S.searchInput}
             />
           </div>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortMode)}
-            style={styles.sortSelect}
+            style={S.sortSelect}
           >
             <option value="recent">Recent</option>
             <option value="name">Name</option>
@@ -627,11 +1344,11 @@ export function SavedPage({ userId, onRun, onNavigate }: SavedPageProps) {
       </div>
 
       {/* Filter tabs */}
-      <div style={styles.tabs}>
+      <div style={S.tabs}>
         {TABS.map((tab) => (
           <button
             key={tab.key}
-            style={styles.tab(activeTab === tab.key)}
+            style={S.tab(activeTab === tab.key)}
             onClick={() => handleTabChange(tab.key)}
           >
             {tab.label}
@@ -639,16 +1356,28 @@ export function SavedPage({ userId, onRun, onNavigate }: SavedPageProps) {
         ))}
       </div>
 
-      {/* Content */}
-      {loading ? (
-        renderSkeleton()
-      ) : filteredItems.length === 0 ? (
-        renderEmpty()
-      ) : (
-        <div style={styles.grid}>
-          {filteredItems.map((item) => renderCard(item))}
+      {/* Breadcrumb */}
+      {activeSpaceId && activeSpace && (
+        <div style={S.breadcrumb}>
+          <button
+            style={{
+              ...S.breadcrumbLink,
+              ...(dragOverBreadcrumb ? { background: 'color-mix(in srgb, var(--accent, #1967d2) 10%, transparent)' } : {}),
+            }}
+            onClick={() => setActiveSpaceId(null)}
+            onDragOver={handleDragOverBreadcrumb}
+            onDragLeave={handleDragLeaveBreadcrumb}
+            onDrop={handleDropOnBreadcrumb}
+          >
+            Spaces
+          </button>
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chevron_right</span>
+          <span style={S.breadcrumbCurrent}>{activeSpace.name}</span>
         </div>
       )}
+
+      {/* Content */}
+      {renderContent()}
 
       {/* Skeleton animation keyframes */}
       <style>{`
