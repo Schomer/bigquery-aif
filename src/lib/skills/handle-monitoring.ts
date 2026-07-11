@@ -364,6 +364,7 @@ export async function handleMonitoring(
   }
 
   // Helper: BigQuery timestamps may be epoch-ms numbers, {value:'...'} objects, or ISO strings
+  // Returns a human-readable date string (e.g. "Jul 11, 2026 3:25 AM")
   function normalizeTimestamp(val: unknown): string {
     if (val == null) return '';
     // If it's an object with a .value property (BigQuery client format)
@@ -372,21 +373,28 @@ export async function handleMonitoring(
     }
     // If it's a number, treat as epoch milliseconds
     if (typeof val === 'number') {
-      // BigQuery sometimes uses microseconds -- if > year 5000 in ms, assume micros
+      // BigQuery sometimes uses microseconds -- if >year 5000 in ms, assume micros
       const ms = val > 1e16 ? val / 1000 : val;
-      return new Date(ms).toISOString();
+      return formatTimestamp(new Date(ms));
     }
     const s = String(val);
     // If it's a purely numeric string, parse as epoch
     if (/^\d{10,}$/.test(s)) {
       const num = Number(s);
       const ms = num > 1e16 ? num / 1000 : num;
-      return new Date(ms).toISOString();
+      return formatTimestamp(new Date(ms));
     }
-    // Try parsing as-is -- if valid, return ISO
+    // Try parsing as-is -- if valid, return formatted
     const d = new Date(s);
-    if (!isNaN(d.getTime())) return d.toISOString();
+    if (!isNaN(d.getTime())) return formatTimestamp(d);
     return s;
+  }
+
+  function formatTimestamp(d: Date): string {
+    return d.toLocaleString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true,
+    });
   }
 
   // STORAGE_BREAKDOWN -- hierarchical treemap of storage by dataset and table
