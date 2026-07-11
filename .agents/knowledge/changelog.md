@@ -2,6 +2,17 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-11: Auto-hide scrollbar on main content areas
+
+**Context**: Scrollbars were always visible on the main content areas. User wanted them hidden unless actively scrolling/interacting.
+
+**Changes**:
+- `globals.css`: Global `::-webkit-scrollbar-thumb` set to `transparent` by default with a 0.3s transition. On hover of `.gc-content`, `.results-panel`, and `.chat-sidebar-messages`, the thumb becomes visible. Firefox handled via `scrollbar-color`. Dark mode (both media query and `.dark-theme` class) updated similarly.
+
+**Files changed**: `globals.css`.
+
+---
+
 ## 2026-07-11: Single hierarchical sidebar in split layout
 
 **Context**: Split layout (chat-left/chat-right) was rendering two sidebars side by side: ChatSidebar (chat list) and ResultsSidebar (thread). User wanted a single sidebar with hierarchical navigation -- chat list view, click to drill into a thread, back button to return.

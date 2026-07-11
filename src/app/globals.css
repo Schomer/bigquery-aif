@@ -2029,12 +2029,12 @@ details>summary::marker {
 /* User bubble in sidebar mode -- more compact */
 .chat-sidebar .chat-sidebar-user-msg {
   max-width: 100%;
-  background: var(--accent-dim);
-  border: 1px solid #c5d8fb;
+  background: #d3e3fd;
+  border: none;
   border-radius: 14px 14px 4px 14px;
   padding: 8px 14px;
   font-size: 13px;
-  color: #0d3b7a;
+  color: #1a2744;
   line-height: 1.45;
   align-self: flex-end;
   word-break: break-word;

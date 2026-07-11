@@ -398,11 +398,11 @@ export function ChatThread({
                   onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !loading) onStartEdit(i, msg.content); }}
                   style={{
                     maxWidth: '70%',
-                    background: 'var(--accent-dim)',
+                    background: '#d3e3fd',
                     borderRadius: '16px 16px 4px 16px',
                     padding: '10px 16px',
-                    fontSize: 14,
-                    color: '#3c4043',
+                    fontSize: 15,
+                    color: '#1a2744',
                     lineHeight: 1.5,
                     cursor: loading ? 'default' : 'text',
                     userSelect: 'text',
