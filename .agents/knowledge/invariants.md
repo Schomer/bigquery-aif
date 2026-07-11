@@ -21,6 +21,7 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **Model**: Always `gemini-3.5-flash`. Never change to any other model variant. Verify: `grep -rn "gemini-" src/ scripts/`
 - **No emojis**: Not in code, comments, UI text, log messages, commit messages, or any output.
 - **Backtick-wrap table refs**: All fully qualified BigQuery table references must be wrapped in literal backticks: `` `project.dataset.table` ``. Project names often contain hyphens which break unquoted SQL.
+- **INFORMATION_SCHEMA outside backticks**: INFORMATION_SCHEMA views must be OUTSIDE the backtick-quoted identifier. Correct: `` `project.dataset`.INFORMATION_SCHEMA.VIEW_NAME ``. Wrong: `` `project.dataset.INFORMATION_SCHEMA.VIEW_NAME` ``. The wrong form causes BigQuery to interpret `dataset.INFORMATION_SCHEMA` as a dataset name. Verify: `grep -rn 'INFORMATION_SCHEMA' src/lib/skills/` and check that no INFORMATION_SCHEMA reference is inside a backtick pair.
 - **Build before deploy**: Run `npm run build` after every source change. This project uses SSR, not static export.
 - **Deploy after build**: `git add -A && git commit && git push` then `node scripts/deploy.mjs`. User tests on deployed app, not localhost.
 
