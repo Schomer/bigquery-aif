@@ -144,7 +144,7 @@ function EntryRow({
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onClick={() => onSendMessage(`Show me the schema for ${entry.tableRef}`)}
+      onClick={() => onSendMessage(`Show me ${entry.tableRef}`)}
       style={{
         display: 'flex',
         alignItems: 'flex-start',

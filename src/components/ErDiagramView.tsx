@@ -239,7 +239,7 @@ export function ErDiagramView({ data, onSendMessage }: Props) {
               isHovered={hoveredCard === card.table.name}
               onMouseEnter={() => setHoveredCard(card.table.name)}
               onMouseLeave={() => setHoveredCard(null)}
-              onClick={() => send(`Show me the schema for ${data.dataset}.${card.table.name}`)}
+              onClick={() => send(`Show me ${data.dataset}.${card.table.name}`)}
             />
           ))}
 

@@ -22,7 +22,7 @@ export function DataQualityView({ result, onSendMessage }: Props) {
           label="Table"
           value={tableName ?? table}
           mono
-          onClick={() => send(`Show me the schema for ${table}`)}
+          onClick={() => send(`Show me ${table}`)}
         />
         <Stat label="Rows scanned" value={summary.rowsScanned.toLocaleString()} />
         <Stat label="Issues found" value={String(summary.issuesFound)} />

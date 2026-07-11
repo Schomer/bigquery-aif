@@ -360,9 +360,9 @@ export default function Home() {
                           className="recent-item-chip"
                           onClick={() => {
                             if (item.type === 'table' && item.dataset) {
-                              chat.sendMessage(`Show me the schema for ${item.dataset}.${item.name}`);
+                              chat.sendMessage(`Show me ${item.dataset}.${item.name}`);
                             } else if (item.type === 'table') {
-                              chat.sendMessage(`Show me the schema for ${item.name}`);
+                              chat.sendMessage(`Show me ${item.name}`);
                             } else {
                               chat.sendMessage(`What tables are in the ${item.name} dataset?`);
                             }

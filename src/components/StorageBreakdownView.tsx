@@ -184,7 +184,7 @@ export function StorageBreakdownView({ result, onSendMessage }: Props) {
       setDrilledDataset(rect.item);
       setTooltip(null);
     } else if (rect.item.type === 'TABLE') {
-      send(`Show me the schema for ${rect.item.ref}`);
+      send(`Show me ${rect.item.ref}`);
     }
   }
 

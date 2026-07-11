@@ -143,7 +143,7 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
               title={isPinned ? 'Using as context' : 'Use as context'}
               style={{ flexShrink: 0, marginTop: 1 }}
             >
-              <img src="/icons/add_to_context.svg" alt="Add to context" width={16} height={16} style={{ opacity: 0.7 }} />
+              <img src="/icons/add_to_context.svg" alt="Add to context" width={18} height={18} style={{ opacity: 0.7 }} />
             </button>
           )}
           {hasExportableData && !envelope.requiresConfirmation && (

@@ -306,9 +306,9 @@ export function ResultsSidebar({
             className="recent-item-chip"
             onClick={() => {
               if (item.type === 'table' && item.dataset) {
-                onSend(`Show me the schema for ${item.dataset}.${item.name}`);
+                onSend(`Show me ${item.dataset}.${item.name}`);
               } else if (item.type === 'table') {
-                onSend(`Show me the schema for ${item.name}`);
+                onSend(`Show me ${item.name}`);
               } else {
                 onSend(`What tables are in the ${item.name} dataset?`);
               }

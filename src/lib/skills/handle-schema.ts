@@ -523,6 +523,7 @@ export const manifest: SkillManifest = {
     { phrase: 'details about', weight: 2 },
     { phrase: 'explore', weight: 1 },
     { phrase: 'look at', weight: 1 },
+    { phrase: 'show me', weight: 2 },
     { phrase: 'find the', weight: 1 },
     { phrase: 'find dataset', weight: 2 },
   ],
