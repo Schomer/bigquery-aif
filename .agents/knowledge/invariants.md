@@ -205,4 +205,7 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **The page key for saved items is `'spaces'`** (renamed from `'saved'`): Updated in SideNav, page.tsx, page-context.tsx, and all hide-list conditions. The component export is `SpacesPage` from `SavedPage.tsx`.
 - **Spaces are stored in `users/{uid}/spaces/{id}`**: Each space is a `{ id, name, createdAt, updatedAt }` object. Deleting a space moves its items back to root (spaceId = undefined), not deleted.
 - **`SavedArtifact.spaceId` is optional**: Items not in a space have `spaceId` as undefined. Items in a space store the space's ID.
+- **Overview page was removed**: The nav item and page rendering for 'overview' are gone. The default page is 'chat' (displayed as "AI" in the sidebar).
+- **"Chat" is displayed as "AI"** in the sidebar nav with the `auto_awesome` icon. The page key remains `'chat'`.
+- **Chat history lives in ChatSidebar.tsx, not SideNav.tsx**: The conversation list was moved from the SideNav "Recents" section to a slide-out `ChatSidebar` panel toggled by a button in the chat area.
 
