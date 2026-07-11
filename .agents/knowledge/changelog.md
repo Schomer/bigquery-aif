@@ -4,6 +4,12 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-10: Fix overview recent activity SQL syntax error
+
+**What changed**: Backtick-quoted the `region-XX` identifier in the JOBS_BY_PROJECT query in `OverviewDashboard.tsx`. The hyphen was being parsed as a minus operator, causing "Expected end of input but got '-'" errors.
+
+---
+
 ## 2026-07-10: Adaptive Query Pipeline (Tool-Calling Agent)
 
 **What changed**:

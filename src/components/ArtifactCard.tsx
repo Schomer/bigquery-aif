@@ -137,43 +137,7 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
           onSendMessage={handleInlineClick}
         />
 
-        {envelope.insight && (
-          <div style={{
-            marginTop: 16,
-            padding: '12px 16px',
-            background: '#f5f3ff',
-            border: '1px solid #ddd6fe',
-            borderRadius: 8,
-          }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              marginBottom: 4,
-            }}>
-              <span style={{
-                fontSize: 10,
-                fontWeight: 600,
-                color: '#6d28d9',
-                background: '#ede9fe',
-                padding: '2px 6px',
-                borderRadius: 4,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-              }}>
-                Insight
-              </span>
-            </div>
-            <p style={{
-              margin: 0,
-              fontSize: 13,
-              color: 'var(--text)',
-              lineHeight: 1.4,
-            }}>
-              {typeof envelope.insight === 'string' ? envelope.insight : String(envelope.insight ?? '')}
-            </p>
-          </div>
-        )}
+
 
         {/* Quality flags: dismissible data quality annotations */}
         {envelope.qualityFlags && envelope.qualityFlags.length > 0 && (() => {
@@ -401,12 +365,20 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
                 {action.label}
               </button>
             ))}
+            {(envelope.skill === 'query' || envelope.skill === 'schema' || envelope.skill === 'data-quality' || envelope.skill === 'monitoring') && (
+              <button
+                className="chip"
+                onClick={() => handleInlineClick('Generate insights about these results')}
+              >
+                Generate insights
+              </button>
+            )}
           </div>
         )}
 
         {/* Fallback: suggest next steps */}
         {!envelope.requiresConfirmation && envelope.nextActions.length === 0 && (
-          <div style={{ marginTop: 10 }}>
+          <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button
               className="chip"
               style={{ opacity: 0.7, fontSize: 11 }}
@@ -414,6 +386,14 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
             >
               Suggest next steps
             </button>
+            {(envelope.skill === 'query' || envelope.skill === 'schema' || envelope.skill === 'data-quality' || envelope.skill === 'monitoring') && (
+              <button
+                className="chip"
+                onClick={() => handleInlineClick('Generate insights about these results')}
+              >
+                Generate insights
+              </button>
+            )}
           </div>
         )}
 

@@ -12,6 +12,15 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 
 ---
 
+### 2026-07-10: Backtick-quote region identifier in overview JOBS_BY_PROJECT query
+**Scope**: OverviewDashboard.tsx
+**What broke**: Overview page showed "Could not load recent activity: Syntax error: Expected end of input but got '-' at [11:34]".
+**Root cause**: The SQL for fetching recent jobs used `region-${region}` unquoted. The hyphen in `region-us` was parsed as a minus operator. This violates the existing invariant about backtick-wrapping identifiers containing hyphens.
+**Fix**: Changed to `` \`region-${region}\` `` (backtick-quoted).
+**Rule**: Already documented in invariants -- all identifiers containing hyphens must be backtick-quoted. This was a missed instance.
+
+---
+
 ### 2026-07-10: Replace rigid query pipeline with Gemini tool-calling agent
 **Scope**: handle-query.ts, gemini-client.ts, bq-tools.ts (new)
 **What broke**: Simple queries like "show first 10 rows" took minutes due to ~30 BigQuery API calls in `buildSchemaContext()` fetching schema for all tables in the dataset.
