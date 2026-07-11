@@ -4,6 +4,23 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-10: Rewrite SavedPage into SpacesPage -- folder-based organization
+
+**What changed**:
+- Completely rewrote `src/components/SavedPage.tsx`. Export renamed from `SavedPage` to `SpacesPage`.
+- Added Spaces (folders): users can create named spaces, drag items into them, navigate via breadcrumb.
+- Card/list view toggle: two-button toggle in the header switches between grid cards and a table-like list view.
+- Context menus: three-dot "..." button on each item/space shows Rename, Duplicate, Move to Space, Delete actions.
+- Inline rename: clicking any item or space name turns it into an editable input.
+- Drag and drop: HTML5 drag-and-drop for moving items into spaces (or out via breadcrumb drop target).
+- Filter tabs: added "Apps" tab alongside existing All/Queries/Workflows/Pipelines.
+- Uses `createSpace`, `getSpaces`, `renameSpace`, `deleteSpace`, `moveToSpace`, `duplicateArtifact` from `saved-work.ts`.
+
+**Files changed**: `src/components/SavedPage.tsx` (full rewrite, ~920 lines)
+**Knowledge updated**: component-map.md (SpacesPage entry, saved-work line count)
+
+---
+
 ## 2026-07-10: Rewrite OverviewDashboard -- replace KPI cards with Recent Charts and Recently Saved
 
 **What changed**:

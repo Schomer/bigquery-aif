@@ -170,11 +170,13 @@ UI Components (src/components/)
 
 ---
 
-### `src/lib/saved-work.ts` (~302 lines)
-**Responsibility**: CRUD persistence layer for saved artifacts.
+### `src/lib/saved-work.ts` (~380 lines)
+**Responsibility**: CRUD persistence layer for saved artifacts and spaces.
 - Uses single-document Firestore pattern (`savedWork.{id}` under `users/{uid}`)
 - `migrateItem()` converts legacy `SavedItem` records to new `SavedArtifact` shape on read
-- New API: `saveArtifact`, `getArtifacts`, `getArtifact`, `updateArtifact`, `deleteArtifact`, `searchArtifacts`, `recordRun`, `getPinnedArtifacts`
+- Artifact API: `saveArtifact`, `getArtifacts`, `getArtifact`, `updateArtifact`, `deleteArtifact`, `searchArtifacts`, `recordRun`, `getPinnedArtifacts`
+- Space API: `createSpace`, `getSpaces`, `renameSpace`, `deleteSpace`
+- Utility API: `moveToSpace`, `duplicateArtifact`
 - Deprecated wrappers: `saveItem`, `getItems`, etc. (for backward compat)
 
 ---
@@ -354,6 +356,7 @@ UI Components (src/components/)
 | ConfirmationCard.tsx | 6KB | Destructive op confirmation UI |
 | CrystalBallSpinner.tsx | 6KB | Loading spinner |
 | ChartView.tsx | 3KB | Chart rendering dispatcher |
+| SavedPage.tsx (SpacesPage) | 28KB | Spaces/folder management, card/list view toggle, drag-and-drop, inline rename, context menus, breadcrumb nav |
 | FavoritesPage.tsx | 14KB | Starred chats + pinned artifacts grid with filter tabs |
 
 ---
