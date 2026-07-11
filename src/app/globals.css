@@ -54,8 +54,9 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #dadce0;
+    background: transparent;
     border-radius: 3px;
+    transition: background 0.3s;
   }
 
   ::-webkit-scrollbar-thumb:hover {
@@ -1391,6 +1392,15 @@ details>summary::marker {
   display: flex;
   flex-direction: column;
   box-shadow: 0 -1px 0 var(--border);
+  scrollbar-color: transparent transparent;
+}
+
+.gc-content:hover {
+  scrollbar-color: #dadce0 transparent;
+}
+
+.gc-content:hover::-webkit-scrollbar-thumb {
+  background: #dadce0;
 }
 
 .gc-content--nav-collapsed {
@@ -1913,6 +1923,15 @@ details>summary::marker {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  scrollbar-color: transparent transparent;
+}
+
+.chat-sidebar-messages:hover {
+  scrollbar-color: #dadce0 transparent;
+}
+
+.chat-sidebar-messages:hover::-webkit-scrollbar-thumb {
+  background: #dadce0;
 }
 
 /* Input bar docked to bottom of sidebar */
@@ -1967,6 +1986,15 @@ details>summary::marker {
   display: flex;
   flex-direction: column;
   background: var(--surface);
+  scrollbar-color: transparent transparent;
+}
+
+.results-panel:hover {
+  scrollbar-color: #dadce0 transparent;
+}
+
+.results-panel:hover::-webkit-scrollbar-thumb {
+  background: #dadce0;
 }
 
 .layout-chat-right .results-panel {
@@ -2499,10 +2527,22 @@ details>summary::marker {
 
   /* -- Scrollbar for dark mode -- */
   ::-webkit-scrollbar-thumb {
-    background: #3a3a5a;
+    background: transparent;
   }
   ::-webkit-scrollbar-thumb:hover {
     background: #4a4a6a;
+  }
+
+  .gc-content:hover::-webkit-scrollbar-thumb,
+  .results-panel:hover::-webkit-scrollbar-thumb,
+  .chat-sidebar-messages:hover::-webkit-scrollbar-thumb {
+    background: #3a3a5a;
+  }
+
+  .gc-content:hover,
+  .results-panel:hover,
+  .chat-sidebar-messages:hover {
+    scrollbar-color: #3a3a5a transparent;
   }
 
   /* -- Hardcoded color overrides for dark mode -- */
@@ -2811,10 +2851,22 @@ details>summary::marker {
 
 /* Scrollbar in .dark-theme */
 .dark-theme ::-webkit-scrollbar-thumb {
-  background: #3a3a5a;
+  background: transparent;
 }
 .dark-theme ::-webkit-scrollbar-thumb:hover {
   background: #4a4a6a;
+}
+
+.dark-theme .gc-content:hover::-webkit-scrollbar-thumb,
+.dark-theme .results-panel:hover::-webkit-scrollbar-thumb,
+.dark-theme .chat-sidebar-messages:hover::-webkit-scrollbar-thumb {
+  background: #3a3a5a;
+}
+
+.dark-theme .gc-content:hover,
+.dark-theme .results-panel:hover,
+.dark-theme .chat-sidebar-messages:hover {
+  scrollbar-color: #3a3a5a transparent;
 }
 
 /* Hardcoded color overrides for .dark-theme */
