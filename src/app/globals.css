@@ -1969,6 +1969,13 @@ details>summary::marker {
   transform: translateY(-1px);
 }
 
+.chat-sidebar-input-inner.mystic-prompt-container,
+.chat-sidebar-input-inner.mystic-prompt-container:hover,
+.chat-sidebar-input-inner.mystic-prompt-container:focus-within {
+  box-shadow: none;
+  transform: none;
+}
+
 /* Results panel */
 .results-panel {
   flex: 1;
@@ -2768,6 +2775,13 @@ details>summary::marker {
       0 2px 8px rgba(168, 85, 247, 0.15);
   }
 
+  .chat-sidebar-input-inner.mystic-prompt-container,
+  .chat-sidebar-input-inner.mystic-prompt-container:hover,
+  .chat-sidebar-input-inner.mystic-prompt-container:focus-within {
+    box-shadow: none;
+    transform: none;
+  }
+
   /* -- Artifact link buttons -- */
   .chat-sidebar-artifact-link {
     background: #ffffff;
@@ -2961,6 +2975,13 @@ details>summary::marker {
     0 0 0 1px rgba(99, 102, 241, 0.15),
     0 8px 32px rgba(99, 102, 241, 0.2),
     0 2px 8px rgba(168, 85, 247, 0.15);
+}
+
+.dark-theme .chat-sidebar-input-inner.mystic-prompt-container,
+.dark-theme .chat-sidebar-input-inner.mystic-prompt-container:hover,
+.dark-theme .chat-sidebar-input-inner.mystic-prompt-container:focus-within {
+  box-shadow: none;
+  transform: none;
 }
 
 .dark-theme .chat-sidebar-artifact-link { background: #23232a; border-color: #3a3a44; color: #b0b0bc; }
