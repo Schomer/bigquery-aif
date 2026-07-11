@@ -297,17 +297,15 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
 
   const persistConversation = useCallback(async (msgs: ChatMessage[]) => {
     if (!user || msgs.length === 0) return;
-    const firstUserMsg = msgs.find((m) => m.role === 'user')?.content ?? 'New conversation';
-    const title = titleSetRef.current
-      ? undefined
-      : autoTitle(firstUserMsg);
-    if (title) titleSetRef.current = true;
+    // Use the most recent user message as the conversation title
+    const userMsgs = msgs.filter((m) => m.role === 'user');
+    const lastUserMsg = userMsgs.length > 0 ? userMsgs[userMsgs.length - 1].content : 'New conversation';
 
     const existing = await getConversations(user.uid).then((c) => c.find((x) => x.id === conversationId)).catch(() => undefined);
 
     await saveConversation(user.uid, {
       id: conversationId,
-      title: title ?? existing?.title ?? autoTitle(firstUserMsg),
+      title: autoTitle(lastUserMsg),
       createdAt: existing?.createdAt ?? nowISO(),
       updatedAt: nowISO(),
       project: activeProject || context.project || '',

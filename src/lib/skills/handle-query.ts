@@ -288,6 +288,18 @@ export const manifest: SkillManifest = {
     { phrase: 'AI.GENERATE_TEXT', weight: 3 },
     { phrase: 'AI.FORECAST', weight: 3 },
     { phrase: 'AI.DETECT_ANOMALIES', weight: 3 },
+    // Visualization intent signals — must route to query, not schema
+    { phrase: 'pie chart', weight: 4 },
+    { phrase: 'bar chart', weight: 4 },
+    { phrase: 'line chart', weight: 4 },
+    { phrase: 'chart', weight: 3 },
+    { phrase: 'visualize', weight: 3 },
+    { phrase: 'graph', weight: 2 },
+    { phrase: 'plot', weight: 2 },
+    { phrase: 'histogram', weight: 3 },
+    { phrase: 'revenue', weight: 2 },
+    { phrase: 'by status', weight: 2 },
+    { phrase: 'busiest', weight: 2 },
   ],
   handle: handleQuery,
 };

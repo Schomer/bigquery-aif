@@ -30,13 +30,13 @@ function relativeTime(iso: string | undefined): string {
 // -- Component ---------------------------------------------------------------
 
 interface ChatSidebarProps {
-  open: boolean;
-  onClose: () => void;
+  visible: boolean;
+  onSelectChat?: () => void;
 }
 
 export function ChatSidebar({
-  open,
-  onClose,
+  visible,
+  onSelectChat,
 }: ChatSidebarProps) {
   const { user } = useAuth();
   const { conversationId, loadConversation, newConversation } = useConversation();
@@ -127,6 +127,7 @@ export function ChatSidebar({
 
   function handleSelectConversation(id: string) {
     loadConversation(id);
+    onSelectChat?.();
   }
 
   function handleNewConversation() {
@@ -177,23 +178,23 @@ export function ChatSidebar({
     });
   }
 
-  if (!open) return null;
-
   const filterLabel = filterMode === 'all' ? 'All chats' : 'Pinned';
 
   return (
     <div
       style={{
-        width: panelWidth,
-        minWidth: panelWidth,
+        width: visible ? panelWidth : 0,
+        minWidth: visible ? panelWidth : 0,
         flexShrink: 0,
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
         background: 'var(--chat-bg)',
-        borderRight: '1px solid var(--border)',
+        borderRight: visible ? '1px solid var(--border)' : 'none',
         position: 'relative',
         userSelect: 'none',
+        overflow: 'hidden',
+        transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
       {/* Header */}
@@ -204,6 +205,7 @@ export function ChatSidebar({
         padding: '14px 12px 6px',
         height: 48,
         flexShrink: 0,
+        whiteSpace: 'nowrap',
       }}>
         <span style={{
           fontSize: 18,
@@ -214,29 +216,6 @@ export function ChatSidebar({
         }}>
           Chats
         </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-          <button
-            onClick={onClose}
-            style={{
-              width: 32,
-              height: 32,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: '50%',
-              border: 'none',
-              background: 'none',
-              cursor: 'pointer',
-              color: 'var(--text-muted)',
-              transition: 'background 0.12s',
-            }}
-            title="Collapse"
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>left_panel_close</span>
-          </button>
-        </div>
       </div>
 
       {/* New + Filter row */}

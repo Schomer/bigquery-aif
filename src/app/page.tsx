@@ -29,7 +29,7 @@ export default function Home() {
   const { activeProject, user, projects, setActiveProject, accessToken } = useAuth();
   const { conversationId, loadConversation } = useConversation();
   const { activePage, setActivePage } = usePage();
-  const { layout, historyVisible } = useLayout();
+  const { layout } = useLayout();
 
   // ---- Chat orchestration hook ----
   const chat = useChatOrchestration();
@@ -37,8 +37,10 @@ export default function Home() {
   // ---- Refs ----
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // ---- Chat sidebar ----
-  const [chatSidebarOpen, setChatSidebarOpen] = useState(true);
+  // ---- Chat sidebar visibility ----
+  // In unified layout, clicking a chat animates the sidebar out.
+  // In split layout, clicking a chat transitions to the results sidebar.
+  const [chatSidebarVisible, setChatSidebarVisible] = useState(true);
 
   // ---- Favorite projects ----
   const FAVORITES_KEY = 'hdn_favorite_projects';
@@ -114,13 +116,12 @@ export default function Home() {
   const hasChat = chat.messages.length > 0;
   const isSplit = layout === 'chat-left' || layout === 'chat-right';
 
-  const historyHiddenBefore = useMemo(() => {
-    if (historyVisible || chat.messages.length <= 2) return 0;
-    for (let i = chat.messages.length - 1; i >= 0; i--) {
-      if (chat.messages[i].role === 'user') return i;
-    }
-    return 0;
-  }, [chat.messages, historyVisible]);
+  const historyHiddenBefore = 0;
+
+  // Re-show chat sidebar when starting a new conversation
+  useEffect(() => {
+    if (!hasChat) setChatSidebarVisible(true);
+  }, [hasChat]);
 
   // Focus input after send completes
   useEffect(() => {
@@ -196,40 +197,11 @@ export default function Home() {
 
           {/* Chat sidebar panel */}
           <ChatSidebar
-            open={chatSidebarOpen}
-            onClose={() => setChatSidebarOpen(false)}
+            visible={chatSidebarVisible}
+            onSelectChat={() => setChatSidebarVisible(false)}
           />
 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative' }}>
-
-          {/* Chat sidebar toggle */}
-          {!chatSidebarOpen && (
-            <button
-              onClick={() => setChatSidebarOpen(true)}
-              title="Show chats"
-              style={{
-                position: 'absolute',
-                left: 8,
-                top: 8,
-                zIndex: 10,
-                width: 36,
-                height: 36,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '50%',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-muted)',
-                transition: 'background 0.12s, color 0.15s',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--accent)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>left_panel_open</span>
-            </button>
-          )}
 
           {/* -- EMPTY STATE: centered hero + prompt -- */}
           {!hasChat && (
@@ -446,40 +418,49 @@ export default function Home() {
           className={`layout-split ${layout === 'chat-right' ? 'layout-chat-right' : 'layout-chat-left'}`}
           style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'spaces' || activePage === 'favorites') ? 'none' : 'flex', height: '100%' }}
         >
-          <ResultsSidebar
-            messages={chat.messages}
-            thinkingSteps={chat.thinkingSteps}
-            loading={chat.loading}
-            statusText={chat.statusText}
-            lastError={chat.lastError}
-            setLastError={chat.setLastError}
-            rerunningIdx={chat.rerunningIdx}
-            pinnedEnvelopeId={chat.pinnedEnvelopeId}
-            historyHiddenBefore={historyHiddenBefore}
-            layout={layout}
-            sidebarWidth={sidebarWidth}
-            setSidebarWidth={setSidebarWidth}
-            activeProject={activeProject}
-            input={chat.input}
-            setInput={chat.setInput}
-            contextItems={chat.contextItems}
-            onSend={chat.sendMessage}
-            onRemoveContext={chat.removeContextItem}
-            onKeyDown={chat.handleKeyDown}
-            onConfirm={chat.handleConfirm}
-            onCancel={chat.handleCancel}
-            onChipClick={chat.handleChipClick}
-            onRunSql={chat.handleRunSql}
-            onInlineClick={chat.handleInlineClick}
-            onPinContext={handlePinContext}
-            onRerun={chat.rerunMessage}
-            extractContextItems={chat.extractContextItems}
-            favoriteProjectIds={favoriteProjectIds}
-            recentProjectIds={recentProjectIds}
-            recentItems={recentItems}
-            setActiveProject={setActiveProject}
-            onSave={chat.saveEnvelopeAsArtifact}
+          {/* Chat list sidebar (visible until a chat is selected) */}
+          <ChatSidebar
+            visible={chatSidebarVisible}
+            onSelectChat={() => setChatSidebarVisible(false)}
           />
+
+          {/* Results sidebar (shown after a chat is selected) */}
+          {!chatSidebarVisible && (
+            <ResultsSidebar
+              messages={chat.messages}
+              thinkingSteps={chat.thinkingSteps}
+              loading={chat.loading}
+              statusText={chat.statusText}
+              lastError={chat.lastError}
+              setLastError={chat.setLastError}
+              rerunningIdx={chat.rerunningIdx}
+              pinnedEnvelopeId={chat.pinnedEnvelopeId}
+              historyHiddenBefore={historyHiddenBefore}
+              layout={layout}
+              sidebarWidth={sidebarWidth}
+              setSidebarWidth={setSidebarWidth}
+              activeProject={activeProject}
+              input={chat.input}
+              setInput={chat.setInput}
+              contextItems={chat.contextItems}
+              onSend={chat.sendMessage}
+              onRemoveContext={chat.removeContextItem}
+              onKeyDown={chat.handleKeyDown}
+              onConfirm={chat.handleConfirm}
+              onCancel={chat.handleCancel}
+              onChipClick={chat.handleChipClick}
+              onRunSql={chat.handleRunSql}
+              onInlineClick={chat.handleInlineClick}
+              onPinContext={handlePinContext}
+              onRerun={chat.rerunMessage}
+              extractContextItems={chat.extractContextItems}
+              favoriteProjectIds={favoriteProjectIds}
+              recentProjectIds={recentProjectIds}
+              recentItems={recentItems}
+              setActiveProject={setActiveProject}
+              onSave={chat.saveEnvelopeAsArtifact}
+            />
+          )}
         </div>
       )}
 
