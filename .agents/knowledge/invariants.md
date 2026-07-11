@@ -209,7 +209,8 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **`SavedArtifact.spaceId` is optional**: Items not in a space have `spaceId` as undefined. Items in a space store the space's ID.
 - **Overview page was removed**: The nav item and page rendering for 'overview' are gone. The default page is 'chat' (displayed as "AI" in the sidebar).
 - **"Chat" is displayed as "AI"** in the sidebar nav with the `auto_awesome` icon. The page key remains `'chat'`.
-- **Chat history lives in ChatSidebar.tsx, not SideNav.tsx**: The conversation list was moved from the SideNav "Recents" section to a slide-out `ChatSidebar` panel toggled by a button in the chat area.
+- **Chat history lives in ChatSidebar.tsx**: The conversation list is in the `ChatSidebar` panel in both unified and split layouts. The sidebar cannot be manually hidden -- it is always visible when no conversation is active. When a chat is selected, it animates out in unified mode (CSS width transition) or transitions to the ResultsSidebar in split mode. It reappears when starting a new conversation.
+- **Chat titles use the most recent user prompt**: `persistConversation` always sets the title to `autoTitle(lastUserMsg)` where `lastUserMsg` is the last message with `role === 'user'`. The `titleSetRef` guard was removed.
 
 ---
 

@@ -128,6 +128,13 @@ function TableSchemaView({ result, onSendMessage }: { result: SchemaResult; onSe
     { id: 'profile', label: 'Profile' },
   ];
 
+  // Auto-switch to Schema tab when sample data has no rows (common for views)
+  useEffect(() => {
+    if (preview && preview.sample.rows.length === 0 && activeTab === 'sample') {
+      setActiveTab('schema');
+    }
+  }, [preview]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
       {/* Table stats */}

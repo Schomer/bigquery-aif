@@ -4,6 +4,22 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-10 (night): Chat title = latest prompt, sidebar toggle removed, layout-aware chat selection
+
+**What changed**:
+- Chat conversation titles in the sidebar now reflect the most recent user prompt, not the first message. The `persistConversation` function in `useChatOrchestration.ts` was changed to always use `autoTitle(lastUserMsg)`.
+- Removed the ability to hide/show the chat sidebar: removed the close button from `ChatSidebar.tsx` header, the toggle button from `page.tsx`, and the history toggle from `TopBar.tsx`.
+- ChatSidebar now uses CSS transition animation (`width`/`min-width` with `overflow: hidden`) to smoothly animate in/out instead of hard show/hide.
+- When clicking a chat in the list:
+  - Unified layout: sidebar animates out completely
+  - Split layout (chat-left/chat-right): sidebar animates out and ResultsSidebar takes its place
+- Sidebar automatically reappears when starting a new conversation (no messages).
+- `historyHiddenBefore` is now always 0 (all history visible).
+
+**Files touched**: `useChatOrchestration.ts`, `ChatSidebar.tsx`, `page.tsx`, `TopBar.tsx`.
+
+---
+
 ## 2026-07-10 (night): Revert ChatSidebar to list-only mode
 
 **What changed**:

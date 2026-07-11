@@ -214,7 +214,7 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[]): Compos
   // The LLM summary is written assuming data will be returned, so it produces
   // misleading headlines like "Discover your storage footprint" for an empty result.
   if (result.rowCount === 0) {
-    headlineText = buildQueryHeadline(0, result.sql);
+    headlineText = buildQueryHeadline(0, result.sql, result.columns, result.rows);
   } else {
     // Prefer LLM-generated summary only if it's a clean, short natural-language string.
     // The agent loop sometimes returns raw JSON envelopes or verbose dumps as textResponse.
@@ -230,7 +230,7 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[]): Compos
       headlineText = rawSummary;
       basis = 'DIRECT_ANSWER';
     } else {
-      headlineText = buildQueryHeadline(result.rowCount, result.sql);
+      headlineText = buildQueryHeadline(result.rowCount, result.sql, result.columns, result.rows);
     }
   }
 
@@ -246,9 +246,13 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[]): Compos
   const insight = result.notableFindings ?? null;
 
   // Force TABLE for zero-row results -- chart components would receive empty data
+  // Force TABLE for sample/preview queries -- charting random sample data is nonsensical
+  const isSampleQuery = /SELECT\s+\*\s+FROM\b/i.test(result.sql) && /\bLIMIT\s+\d+\b/i.test(result.sql);
   const artifactType = result.rowCount === 0
     ? 'TABLE' as ArtifactType
-    : inferVisualizationType(result);
+    : isSampleQuery
+      ? 'TABLE' as ArtifactType
+      : inferVisualizationType(result);
 
   const nextActions: HandoffEnvelope[] = [];
   if (result.rowCount === 0) {
@@ -1036,7 +1040,12 @@ function extractFullTableRef(sql: string): string | null {
   return match?.[1] ?? null;
 }
 
-function buildQueryHeadline(rowCount: number, sql: string): string {
+function buildQueryHeadline(
+  rowCount: number,
+  sql: string,
+  columns?: string[],
+  rows?: unknown[][],
+): string {
   if (!rowCount || rowCount === 0) {
     const upper = sql.toUpperCase();
     if (upper.includes('INFORMATION_SCHEMA')) {
@@ -1050,9 +1059,48 @@ function buildQueryHeadline(rowCount: number, sql: string): string {
     }
     return 'Query returned no results -- the table may be empty or filters too restrictive';
   }
+
+  const table = extractTableFromSql(sql);
+
+  // KPI-style: 1 row with 1-2 columns -- surface the value prominently
+  if (rowCount === 1 && columns && rows && rows.length > 0 && columns.length <= 2) {
+    const val = rows[0]?.[columns.length - 1]; // prefer the last (usually the metric)
+    const colName = humanizeColumnName(columns[columns.length - 1] ?? '');
+    if (val !== null && val !== undefined) {
+      const formatted = typeof val === 'number' || (typeof val === 'string' && /^\d+(\.\d+)?$/.test(val))
+        ? Number(val).toLocaleString()
+        : String(val);
+      return `${colName}: ${formatted}`;
+    }
+  }
+
+  // Multi-row: try to describe what the data represents
+  if (columns && columns.length >= 2) {
+    const catCols = columns.filter((c, i) => {
+      if (!rows || rows.length === 0) return false;
+      const v = rows[0]?.[i];
+      return typeof v === 'string' && !/^\d+(\.\d+)?$/.test(v);
+    });
+    const numCols = columns.filter((c, i) => {
+      if (!rows || rows.length === 0) return false;
+      const v = rows[0]?.[i];
+      return typeof v === 'number' || (typeof v === 'string' && /^\d+(\.\d+)?$/.test(v));
+    });
+
+    if (catCols.length > 0 && numCols.length > 0) {
+      const catLabel = humanizeColumnName(catCols[0]);
+      const numLabel = humanizeColumnName(numCols[0]);
+      const count = rowCount.toLocaleString();
+      if (rowCount <= 20) {
+        return `${count} ${catLabel.toLowerCase()}s by ${numLabel.toLowerCase()}`;
+      }
+      return `${count} rows: ${catLabel} by ${numLabel}`;
+    }
+  }
+
+  // Fallback with table name
   const count = rowCount.toLocaleString();
   const rowWord = rowCount === 1 ? 'row' : 'rows';
-  const table = extractTableFromSql(sql);
   if (table) {
     return `${count} ${rowWord} from \`${table}\``;
   }
