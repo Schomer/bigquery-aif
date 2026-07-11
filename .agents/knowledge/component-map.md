@@ -336,7 +336,7 @@ UI Components (src/components/)
 | MultistepView.tsx | 15KB | Multi-step workflow cards |
 | ErDiagramView.tsx | 14KB | Entity-relationship diagrams |
 | LineageDagView.tsx | 14KB | Data lineage DAG visualization |
-| ArtifactCard.tsx | 22KB | Generic artifact rendering wrapper, includes pin-to-context button, ProvenancePanel |
+| ArtifactCard.tsx | 28KB | Artifact rendering wrapper with two paths: default (fixed chrome) and custom (thin container, view owns layout). Includes CustomArtifact dispatcher. |
 | ProvenancePanel.tsx | 14KB | Collapsible provenance panel (SQL, cost, job, tables, quality flags) |
 | HowItWorksPanel.tsx | 8KB | Static trust/transparency page (security, queries, costs) |
 | CostAnalysisView.tsx | 15KB | Cost breakdown visualizations |
@@ -353,6 +353,8 @@ UI Components (src/components/)
 | GlobalSearch.tsx | 7KB | Command palette / global search |
 | MonitoringView.tsx | 6KB | Job/resource monitoring |
 | FreshnessView.tsx | 6KB | Table freshness checks |
+| GovernanceView.tsx | 15KB | Access audit, security policies, PII scan, data classification. Uses CustomViewProps (presentation: 'custom') -- owns its full layout via CardParts building blocks. |
+| ui/CardParts.tsx | 10KB | Composable building blocks: CardHeader, CardChips, SqlPanel, CardMeta. Used by views with presentation: 'custom'. |
 | ConfirmationCard.tsx | 6KB | Destructive op confirmation UI |
 | CrystalBallSpinner.tsx | 6KB | Loading spinner |
 | ChartView.tsx | 3KB | Chart rendering dispatcher |

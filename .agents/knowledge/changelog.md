@@ -2,6 +2,21 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-11: Polymorphic response rendering (Tier 2+3)
+
+**Context**: All responses were rendered through the same ArtifactCard frame (headline bar + stat boxes + callout + divider + chips + provenance), regardless of the query. Zero-result governance checks showed stat boxes with all zeroes, wasting space and looking identical to data-rich results.
+
+**Architecture changes**:
+1. **`CompositionEnvelope.presentation`**: New `'custom'` mode where ArtifactCard is just a thin white container and the view component owns its full layout.
+2. **`CustomViewProps` interface**: Views that opt into custom mode receive the full envelope + all action callbacks (onChipClick, onSave, onPin, onRunSql, etc.).
+3. **`CardParts.tsx`**: Composable building blocks extracted from ArtifactCard: `CardHeader`, `CardChips`, `SqlPanel`, `CardMeta`. Custom views import and place these wherever they want.
+4. **`ArtifactCard.tsx`**: Two rendering paths -- `'custom'` dispatches to `CustomArtifact`, default preserves existing behavior.
+5. **`GovernanceView.tsx`**: Fully rewritten. Each sub-type (ACCESS_AUDIT, TABLE_SECURITY, SENSITIVE_DATA_SCAN, DATA_CLASSIFICATION) has a purpose-built layout. Zero-result cases render as lightweight sentence + note + chips. Data-rich cases render stat boxes only for non-zero values + tables + badges.
+
+**Files changed**: `types.ts`, `composer.ts`, `ArtifactCard.tsx`, `GovernanceView.tsx`, new `ui/CardParts.tsx`.
+
+---
+
 ## 2026-07-11: Rework chat sidebar for three view modes
 
 **Context**: Chat sidebar behavior was broken -- unified mode had no way to re-open the sidebar after selecting a chat, split modes couldn't navigate between chats list and thread view, and the AI button in SideNav had no toggle behavior.

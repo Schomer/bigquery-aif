@@ -10,6 +10,18 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+### 2026-07-11: Polymorphic response rendering
+
+**What changed**: Added `presentation: 'custom'` mode to `CompositionEnvelope`. ArtifactCard now has two paths: default (existing chrome) and custom (thin container, view owns layout). Created `CardParts.tsx` with composable building blocks (`CardHeader`, `CardChips`, `SqlPanel`, `CardMeta`). Migrated GovernanceView as the first custom-mode view.
+
+**What worked**: Governance views now render context-appropriate layouts. Zero-result access audit is 3 lines instead of a full card with stat boxes showing zeroes. With-data cases still show tables and badges but skip the redundant SCOPE stat box.
+
+**What broke**: React rules of hooks -- the initial implementation called `useState`/`useEffect` after a conditional early return in ArtifactCard. Fixed by moving all hooks above the conditional.
+
+**Rule**: When adding an early-return rendering path to a React component, all hooks MUST be called before the conditional. Move hooks above the branch, even if only one path uses them.
+
+**Rule**: To migrate a view to custom mode: (1) set `presentation: 'custom'` in the compose function, (2) update the view to accept `CustomViewProps`, (3) add a case in `CustomArtifact` dispatcher, (4) update the old `Artifact` case to a fallback.
+
 ### 2026-07-11: UX evaluation -- systemic fixes
 
 **What changed**: 8 fixes based on a 25-scenario UX evaluation with screenshot analysis.
