@@ -14,9 +14,13 @@ A record of what changed in each coding session. Read this to understand recent 
 - Title font weight increased to 600 to match Neptune's bolder style.
 - Added `@keyframes chat-sidebar-spin` animation in `globals.css` for the active chat spinner.
 - Pin state is persisted in `localStorage` under key `bqaif_pinned_chats`.
+- Replaced preview text (second line) with relative timestamps (e.g. "3h ago", "2d ago").
+- Added two-state sidebar: list view and detail view. Clicking a chat or creating a new one navigates into the detail view showing the conversation's messages and a docked prompt input at the bottom. Back arrow returns to list.
+- `ChatSidebar` now receives chat orchestration props (`messages`, `chatLoading`, `input`, `setInput`, `activeProject`, `contextItems`, `onSend`, `onRemoveContext`, `onKeyDown`) from `page.tsx`.
 
 **Files**:
-- `src/components/ChatSidebar.tsx` -- full rewrite
+- `src/components/ChatSidebar.tsx` -- full rewrite (two-state list/detail view)
+- `src/app/page.tsx` -- updated ChatSidebar usage to pass chat state props
 - `src/app/globals.css` -- added spinner animation
 
 ---

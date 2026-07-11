@@ -674,7 +674,7 @@ export function ChatSidebar({
       </div>
 
       {/* Conversation list */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 6px 8px' }}>
+      <div className="chat-sidebar-item-list" style={{ flex: 1, overflowY: 'auto', padding: '0 6px 8px' }}>
         {loading && (
           <>
             {[1, 2, 3, 4, 5].map((i) => (

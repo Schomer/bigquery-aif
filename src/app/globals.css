@@ -2844,3 +2844,9 @@ div:hover > .chat-sidebar-actions { opacity: 1; }
 .chat-sidebar-spinner {
   animation: chat-sidebar-spin 1.2s linear infinite;
 }
+
+/* Hide scrollbar in chat sidebar panels */
+.chat-sidebar-messages { scrollbar-width: none; }
+.chat-sidebar-messages::-webkit-scrollbar { display: none; }
+.chat-sidebar-item-list { scrollbar-width: none; }
+.chat-sidebar-item-list::-webkit-scrollbar { display: none; }
