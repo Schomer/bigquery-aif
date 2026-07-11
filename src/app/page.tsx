@@ -29,7 +29,7 @@ export default function Home() {
   const { activeProject, user, projects, setActiveProject, accessToken } = useAuth();
   const { conversationId, loadConversation } = useConversation();
   const { activePage, setActivePage } = usePage();
-  const { layout, chatListOpen, setChatListOpen } = useLayout();
+  const { layout, chatListOpen, setChatListOpen, historyVisible } = useLayout();
 
   // ---- Chat orchestration hook ----
   const chat = useChatOrchestration();
@@ -113,7 +113,13 @@ export default function Home() {
   const hasChat = chat.messages.length > 0;
   const isSplit = layout === 'chat-left' || layout === 'chat-right';
 
-  const historyHiddenBefore = 0;
+  const historyHiddenBefore = useMemo(() => {
+    if (historyVisible || chat.messages.length <= 2) return 0;
+    for (let i = chat.messages.length - 1; i >= 0; i--) {
+      if (chat.messages[i].role === 'user') return i;
+    }
+    return 0;
+  }, [chat.messages, historyVisible]);
 
   // In split layout, tracks whether the sidebar shows the chat list or the active thread
   const [splitView, setSplitView] = useState<'list' | 'thread'>('list');
