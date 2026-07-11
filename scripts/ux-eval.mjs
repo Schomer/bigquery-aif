@@ -282,9 +282,22 @@ async function waitForResponse(page, timeoutMs = 120000) {
 }
 
 async function startNewConversation(page, browser) {
+  // Clear conversation-related localStorage to prevent results from accumulating.
+  // Preserves auth tokens (bqaif_*, gis_*) and settings.
+  try {
+    await page.evaluate(() => {
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('hdn_chat') || key.startsWith('hdn_sidebar') || key === 'bqaif_pinned_chats')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+    });
+  } catch { /* page might be detached */ }
+
   // Navigate to a fresh URL with a cache-busting param to force React remount.
-  // This is the proven pattern from visual-test.mjs -- more reliable than
-  // clicking #new-btn or page.reload(), which leave stale content.
   const freshUrl = `${APP_URL}?t=${Date.now()}`;
   try {
     await page.goto(freshUrl, { waitUntil: 'networkidle2', timeout: 30000 });
@@ -356,33 +369,46 @@ async function extractDomMetadata(page) {
       visibleText: '',
     };
 
-    // Headline: look for the artifact card headline (font-weight 500, inside card header)
-    const headlineEls = document.querySelectorAll('[class*="tone-"] *');
-    for (const el of headlineEls) {
-      const style = window.getComputedStyle(el);
-      if (style.fontWeight >= 500 && style.fontSize.startsWith('14') && el.textContent.trim().length > 3) {
-        meta.headline = el.textContent.trim();
-        break;
+    // Headline: look for the LAST artifact card headline (most recent response).
+    // Prior code used the FIRST card, which returned stale headlines from previous tests.
+    const allCards = document.querySelectorAll('[class*="tone-"]');
+    const lastCard = allCards.length > 0 ? allCards[allCards.length - 1] : null;
+    if (lastCard) {
+      const headlineEls = lastCard.querySelectorAll('*');
+      for (const el of headlineEls) {
+        const style = window.getComputedStyle(el);
+        if (style.fontWeight >= 500 && style.fontSize.startsWith('14') && el.textContent.trim().length > 3) {
+          meta.headline = el.textContent.trim();
+          break;
+        }
       }
-    }
-    // Fallback: look for any element that looks like a headline in card headers
-    if (!meta.headline) {
-      const cards = document.querySelectorAll('[class*="tone-neutral"], [class*="tone-positive"], [class*="tone-attention"]');
-      for (const card of cards) {
-        const firstChild = card.querySelector('div > div > span, div > div > div');
+      // Fallback: first text child of card header
+      if (!meta.headline) {
+        const firstChild = lastCard.querySelector('div > div > span, div > div > div');
         if (firstChild && firstChild.textContent.trim().length > 3) {
           meta.headline = firstChild.textContent.trim().slice(0, 200);
-          break;
         }
       }
     }
 
-    // Suggestion chips
-    const chipEls = document.querySelectorAll('.chip, [class*="chip"]');
-    for (const chip of chipEls) {
-      const text = chip.textContent.trim();
-      if (text.length > 0 && text.length < 100) {
-        meta.chips.push(text);
+    // Suggestion chips -- only from the LAST card's chip container
+    if (lastCard) {
+      const chipEls = lastCard.querySelectorAll('.chip, [class*="chip"]');
+      for (const chip of chipEls) {
+        const text = chip.textContent.trim();
+        if (text.length > 0 && text.length < 100) {
+          meta.chips.push(text);
+        }
+      }
+    }
+    // Also check chips at the bottom of the page (outside cards)
+    if (meta.chips.length === 0) {
+      const globalChips = document.querySelectorAll('.chip, [class*="chip"]');
+      for (const chip of globalChips) {
+        const text = chip.textContent.trim();
+        if (text.length > 0 && text.length < 100) {
+          meta.chips.push(text);
+        }
       }
     }
 
@@ -787,7 +813,7 @@ Tests run: ${totalTests} | Evaluated: ${evalCount} | Passing (avg 4+): ${passing
 
       report += `**Critique**:\n`;
       for (const dim of DIMENSIONS) {
-        if (e.critique[dim]) {
+        if (e.critique && e.critique[dim]) {
           const marker = e.scores[dim] < 4 ? '[!]' : '';
           report += `- ${DIM_LABELS[dim]} (${e.scores[dim]}): ${e.critique[dim]} ${marker}\n`;
         }

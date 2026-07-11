@@ -195,7 +195,19 @@ export default function Home() {
         <div style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'spaces' || activePage === 'favorites') ? 'none' : 'flex', height: '100%', background: 'var(--chat-bg)' }}>
 
           {/* Chat sidebar panel */}
-          <ChatSidebar open={chatSidebarOpen} onClose={() => setChatSidebarOpen(false)} />
+          <ChatSidebar
+            open={chatSidebarOpen}
+            onClose={() => setChatSidebarOpen(false)}
+            messages={chat.messages}
+            chatLoading={chat.loading}
+            input={chat.input}
+            setInput={chat.setInput}
+            activeProject={activeProject}
+            contextItems={chat.contextItems}
+            onSend={chat.sendMessage}
+            onRemoveContext={chat.removeContextItem}
+            onKeyDown={chat.handleKeyDown}
+          />
 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative' }}>
 

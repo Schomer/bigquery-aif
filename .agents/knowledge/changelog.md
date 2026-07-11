@@ -4,6 +4,23 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-10 (night): ChatSidebar redesigned to match Neptune
+
+**What changed**:
+- Rewrote `ChatSidebar.tsx` to match the Neptune project sidebar design.
+- Added blue dot status indicators for each conversation (filled dot for completed, spinning `progress_activity` for active).
+- Added pin/unpin support: context menu option, pin icon on pinned items, pinned items sorted first.
+- "All chats" is now a dropdown filter with options for "All chats" and "Pinned".
+- Title font weight increased to 600 to match Neptune's bolder style.
+- Added `@keyframes chat-sidebar-spin` animation in `globals.css` for the active chat spinner.
+- Pin state is persisted in `localStorage` under key `bqaif_pinned_chats`.
+
+**Files**:
+- `src/components/ChatSidebar.tsx` -- full rewrite
+- `src/app/globals.css` -- added spinner animation
+
+---
+
 ## 2026-07-10 (late): browser-testing skill correction
 
 **What changed**:
