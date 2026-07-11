@@ -107,6 +107,8 @@ export interface ResultsSidebarProps {
   onRerun: (assistantIdx: number) => Promise<void>;
   extractContextItems: (env: CompositionEnvelope) => ContextItem[];
   onSave?: (envelope: CompositionEnvelope) => void;
+  /** When provided, renders a "back to chats" button at the top for hierarchical navigation. */
+  onBackToChats?: () => void;
   // Empty-state project selection
   favoriteProjectIds: string[];
   recentProjectIds: string[];
@@ -145,6 +147,7 @@ export function ResultsSidebar({
   onRerun,
   extractContextItems,
   onSave,
+  onBackToChats,
   favoriteProjectIds,
   recentProjectIds,
   recentItems,
@@ -331,6 +334,39 @@ export function ResultsSidebar({
     <>
       {/* -- Chat sidebar -- */}
       <div className="chat-sidebar" style={{ width: sidebarWidth, minWidth: 280, maxWidth: 600 }}>
+        {/* Back to chats button (split layout hierarchical nav) */}
+        {onBackToChats && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: '10px 8px 4px',
+            flexShrink: 0,
+          }}>
+            <button
+              onClick={onBackToChats}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-muted)',
+                fontSize: 13,
+                fontWeight: 500,
+                fontFamily: "'Google Sans', sans-serif",
+                padding: '6px 8px',
+                borderRadius: 8,
+                transition: 'background 0.12s, color 0.12s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--text)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_back</span>
+              All chats
+            </button>
+          </div>
+        )}
         <div className="chat-sidebar-messages">
           {!hasChat && (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>

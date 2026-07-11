@@ -115,8 +115,13 @@ export default function Home() {
 
   const historyHiddenBefore = 0;
 
+  // In split layout, tracks whether the sidebar shows the chat list or the active thread
+  const [splitView, setSplitView] = useState<'list' | 'thread'>('list');
 
-
+  // Reset to list view when conversation is cleared (new conversation)
+  useEffect(() => {
+    if (!hasChat) setSplitView('list');
+  }, [hasChat]);
   // Focus input after send completes
   useEffect(() => {
     if (!chat.loading) {
@@ -189,11 +194,10 @@ export default function Home() {
       {!isSplit && (
         <div style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'spaces' || activePage === 'favorites') ? 'none' : 'flex', height: '100%', background: 'var(--chat-bg)' }}>
 
-          {/* Chat sidebar overlay panel */}
+          {/* Chat sidebar panel */}
           <ChatSidebar
             visible={chatListOpen}
             onSelectChat={() => setChatListOpen(false)}
-            mode="overlay"
             activeLoading={chat.loading}
           />
 
@@ -407,56 +411,61 @@ export default function Home() {
       )}
 
       {/* ============================================================
-         SPLIT LAYOUT (chat sidebar + results panel)
+         SPLIT LAYOUT (single sidebar: chat list OR results thread)
          ============================================================ */}
       {isSplit && (
         <div
           className={`layout-split ${layout === 'chat-right' ? 'layout-chat-right' : 'layout-chat-left'}`}
           style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'spaces' || activePage === 'favorites') ? 'none' : 'flex', height: '100%' }}
         >
-          {/* Persistent chat sidebar (always visible, internal list/thread navigation) */}
-          <ChatSidebar
-            visible
-            mode="persistent"
-            side={layout === 'chat-right' ? 'left' : 'right'}
-            activeLoading={chat.loading}
-          />
+          {/* Chat list view */}
+          {splitView === 'list' && (
+            <ChatSidebar
+              visible
+              side={layout === 'chat-right' ? 'left' : 'right'}
+              activeLoading={chat.loading}
+              onSelectChat={() => setSplitView('thread')}
+            />
+          )}
 
-          {/* Results panel (always visible alongside the sidebar) */}
-          <ResultsSidebar
-            messages={chat.messages}
-            thinkingSteps={chat.thinkingSteps}
-            loading={chat.loading}
-            statusText={chat.statusText}
-            lastError={chat.lastError}
-            setLastError={chat.setLastError}
-            rerunningIdx={chat.rerunningIdx}
-            pinnedEnvelopeId={chat.pinnedEnvelopeId}
-            historyHiddenBefore={historyHiddenBefore}
-            layout={layout}
-            sidebarWidth={sidebarWidth}
-            setSidebarWidth={setSidebarWidth}
-            activeProject={activeProject}
-            input={chat.input}
-            setInput={chat.setInput}
-            contextItems={chat.contextItems}
-            onSend={chat.sendMessage}
-            onRemoveContext={chat.removeContextItem}
-            onKeyDown={chat.handleKeyDown}
-            onConfirm={chat.handleConfirm}
-            onCancel={chat.handleCancel}
-            onChipClick={chat.handleChipClick}
-            onRunSql={chat.handleRunSql}
-            onInlineClick={chat.handleInlineClick}
-            onPinContext={handlePinContext}
-            onRerun={chat.rerunMessage}
-            extractContextItems={chat.extractContextItems}
-            favoriteProjectIds={favoriteProjectIds}
-            recentProjectIds={recentProjectIds}
-            recentItems={recentItems}
-            setActiveProject={setActiveProject}
-            onSave={chat.saveEnvelopeAsArtifact}
-          />
+          {/* Thread/results view (replaces the chat list when a chat is selected) */}
+          {splitView === 'thread' && (
+            <ResultsSidebar
+              messages={chat.messages}
+              thinkingSteps={chat.thinkingSteps}
+              loading={chat.loading}
+              statusText={chat.statusText}
+              lastError={chat.lastError}
+              setLastError={chat.setLastError}
+              rerunningIdx={chat.rerunningIdx}
+              pinnedEnvelopeId={chat.pinnedEnvelopeId}
+              historyHiddenBefore={historyHiddenBefore}
+              layout={layout}
+              sidebarWidth={sidebarWidth}
+              setSidebarWidth={setSidebarWidth}
+              activeProject={activeProject}
+              input={chat.input}
+              setInput={chat.setInput}
+              contextItems={chat.contextItems}
+              onSend={chat.sendMessage}
+              onRemoveContext={chat.removeContextItem}
+              onKeyDown={chat.handleKeyDown}
+              onConfirm={chat.handleConfirm}
+              onCancel={chat.handleCancel}
+              onChipClick={chat.handleChipClick}
+              onRunSql={chat.handleRunSql}
+              onInlineClick={chat.handleInlineClick}
+              onPinContext={handlePinContext}
+              onRerun={chat.rerunMessage}
+              extractContextItems={chat.extractContextItems}
+              favoriteProjectIds={favoriteProjectIds}
+              recentProjectIds={recentProjectIds}
+              recentItems={recentItems}
+              setActiveProject={setActiveProject}
+              onSave={chat.saveEnvelopeAsArtifact}
+              onBackToChats={() => setSplitView('list')}
+            />
+          )}
         </div>
       )}
 

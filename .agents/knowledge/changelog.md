@@ -2,6 +2,18 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-11: State-driven sidebar status indicators
+
+**Context**: Chat sidebar showed a spinner on the active chat and a blue dot on every other chat regardless of state. User wanted semantic indicators: spinner when processing, blue dot for unseen results, nothing when idle/seen.
+
+**Changes**:
+1. **`ChatSidebar.tsx`**: Added `activeLoading` prop. Spinner shows only when `isActive && activeLoading`. Blue dot shows when `conv.updatedAt` is newer than the user's last-seen timestamp for that conversation. No indicator when idle and seen. Seen timestamps persisted in localStorage (`bqaif_chat_seen`).
+2. **`page.tsx`**: Passes `chat.loading` as `activeLoading` to both ChatSidebar instances (overlay and persistent modes).
+
+**Files changed**: `ChatSidebar.tsx`, `page.tsx`.
+
+---
+
 ## 2026-07-11: Polymorphic response rendering (Tier 2+3)
 
 **Context**: All responses were rendered through the same ArtifactCard frame (headline bar + stat boxes + callout + divider + chips + provenance), regardless of the query. Zero-result governance checks showed stat boxes with all zeroes, wasting space and looking identical to data-rich results.
