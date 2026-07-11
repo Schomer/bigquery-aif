@@ -1977,7 +1977,7 @@ details>summary::marker {
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  background: var(--surface);
+  background: var(--chat-bg);
   scrollbar-color: transparent transparent;
 }
 
