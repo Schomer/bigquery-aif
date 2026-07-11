@@ -67,11 +67,11 @@ export function SchemaView({ result, onSendMessage }: Props) {
             >
               <IconBadge icon={badge.icon} color={badge.color} />
               <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
+              {t.columnCount != null && (
+                <span style={metaStyle}>{t.columnCount} col{t.columnCount !== 1 ? 's' : ''}</span>
+              )}
               {t.rowCount != null && (
                 <span style={metaStyle}>{t.rowCount.toLocaleString()} rows</span>
-              )}
-              {t.sizeBytes != null && (
-                <span style={metaStyle}>{formatBytes(t.sizeBytes)}</span>
               )}
               {createdStr && (
                 <span style={{ ...metaStyle, minWidth: 130 }}>{createdStr}</span>

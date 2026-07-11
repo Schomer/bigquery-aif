@@ -151,18 +151,41 @@ async function fetchDatasetSchema(project: string, dataset: string): Promise<Sch
     pageToken = data.nextPageToken;
   } while (pageToken);
 
-  const columns: SchemaColumn[] = allTables.map((t: any) => ({
-    name: t.tableReference?.tableId ?? '',
-    type: t.type ?? 'TABLE',
-    mode: 'NULLABLE' as const,
-    description: t.friendlyName || null,
-    fields: [],
-    rowCount: t.numRows ? parseInt(t.numRows, 10) : null,
-    sizeBytes: t.numBytes ? parseInt(t.numBytes, 10) : null,
-    creationTime: t.creationTime
-      ? new Date(parseInt(t.creationTime, 10)).toISOString()
-      : null,
-  }));
+  // Fetch column counts for all tables in one INFORMATION_SCHEMA batch query.
+  // This is metadata-only — no data scan cost.
+  const columnCountMap = new Map<string, number>();
+  if (allTables.length > 0) {
+    try {
+      const { rows } = await bqQuery(
+        `SELECT table_name, COUNT(*) AS column_count FROM \`${project}.${dataset}\`.INFORMATION_SCHEMA.COLUMNS GROUP BY table_name`,
+        project,
+      );
+      for (const row of rows) {
+        const tableName = String(row[0] ?? '');
+        const count = parseInt(String(row[1] ?? '0'), 10);
+        if (tableName) columnCountMap.set(tableName, count);
+      }
+    } catch {
+      // Non-fatal — column counts will be omitted rather than blocking the listing
+    }
+  }
+
+  const columns: SchemaColumn[] = allTables.map((t: any) => {
+    const tableId: string = t.tableReference?.tableId ?? '';
+    return {
+      name: tableId,
+      type: t.type ?? 'TABLE',
+      mode: 'NULLABLE' as const,
+      description: t.friendlyName || null,
+      fields: [],
+      rowCount: t.numRows ? parseInt(t.numRows, 10) : null,
+      columnCount: columnCountMap.has(tableId) ? columnCountMap.get(tableId)! : null,
+      sizeBytes: t.numBytes ? parseInt(t.numBytes, 10) : null,
+      creationTime: t.creationTime
+        ? new Date(parseInt(t.creationTime, 10)).toISOString()
+        : null,
+    };
+  });
 
   return {
     skill: 'schema', scope: 'DATASET', project, dataset, table: null,

@@ -226,6 +226,7 @@ export interface SchemaColumn {
   fields?: SchemaColumn[];
   // Dataset-level table metadata (populated when scope === 'DATASET')
   rowCount?: number | null;
+  columnCount?: number | null;
   sizeBytes?: number | null;
   creationTime?: string | null;
   // Project-level dataset metadata (populated when scope === 'PROJECT')
