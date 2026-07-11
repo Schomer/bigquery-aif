@@ -281,18 +281,30 @@ async function waitForResponse(page, timeoutMs = 120000) {
   return false;
 }
 
-async function startNewConversation(page) {
+async function startNewConversation(page, browser) {
   // Click the #new-btn button (the "+ New" button in the sidebar).
   // This calls React's newConversation() which resets state properly.
+  try {
+    // Check if page is still usable
+    await page.evaluate(() => true);
+  } catch {
+    // Page is detached -- get a fresh one
+    const pages = await browser.pages();
+    page = pages[pages.length - 1] || await browser.newPage();
+    await page.goto(APP_URL, { waitUntil: 'networkidle2', timeout: 30000 });
+    await delay(3000);
+    await page.waitForSelector('textarea', { timeout: 10000 });
+    return page;
+  }
+
   try {
     await page.click('#new-btn');
     console.log('[eval] Clicked #new-btn');
     await delay(2000);
   } catch (err) {
-    // Fallback: navigate to fresh URL
-    console.log(`[eval] #new-btn click failed (${err.message}), falling back to URL navigation`);
-    const freshUrl = `${APP_URL}?t=${Date.now()}`;
-    await page.goto(freshUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+    // Fallback: reload the page
+    console.log(`[eval] #new-btn click failed (${err.message}), reloading...`);
+    await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
     await delay(3000);
   }
 
@@ -304,15 +316,15 @@ async function startNewConversation(page) {
     return document.querySelectorAll('[class*="tone-"]').length;
   });
   if (hasResults > 0) {
-    // Stale results still showing -- force a full page reload
-    console.log('[eval] Stale results detected, forcing reload');
-    await page.goto(APP_URL, { waitUntil: 'networkidle2', timeout: 30000 });
+    // Stale results still showing -- force reload
+    console.log('[eval] Stale results detected, reloading...');
+    await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
     await delay(3000);
     await page.waitForSelector('textarea', { timeout: 10000 });
   }
 
   await delay(500);
-  return true;
+  return page;
 }
 
 async function clearAndType(page, text) {
@@ -874,7 +886,7 @@ async function main() {
     ignoreDefaultArgs: ['--enable-automation'],
   });
 
-  const page = (await browser.pages())[0] || (await browser.newPage());
+  let page = (await browser.pages())[0] || (await browser.newPage());
 
   await page.evaluateOnNewDocument(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => false });
@@ -910,7 +922,7 @@ async function main() {
     try {
       // New conversation for each test
       if (i > 0) {
-        await startNewConversation(page);
+        page = await startNewConversation(page, browser);
       }
 
       // Type and submit

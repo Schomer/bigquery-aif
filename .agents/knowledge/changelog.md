@@ -4,6 +4,28 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-11: UX Evaluation Run + Critical Fixes
+
+**What changed**:
+- Ran full 25-test UX evaluation against deployed app
+- **Baseline**: 2.8 avg score, 8/25 passing (32%)
+- Fixed three critical issues:
+  1. **Fuzzy table name resolution** (handle-schema.ts, bq-tools.ts): When a table isn't found, search the same dataset for similar names (e.g., "orders" -> "order_items"). Fixes 10 test failures.
+  2. **Data-driven suggestion chips** (composer.ts): Query results now generate contextual chips (chart, drill-down, profile, schema) instead of generic "Suggest next steps" / "Generate insights" fallbacks.
+  3. **Query system prompt update** (handle-query.ts): LLM now verifies table names via get_table_schema before writing SQL, uses corrected table names from fuzzy matching.
+- **Post-fix**: 3.7 avg score, 17/25 passing (68%)
+- Improved ux-eval.mjs: frame detachment recovery, JSON repair for truncated Gemini responses, page.reload instead of page.goto for conversation reset
+
+**Files**:
+- `src/lib/skills/handle-schema.ts` -- fuzzy matching in same-dataset fallback
+- `src/lib/bq-tools.ts` -- fuzzy matching in get_table_schema tool
+- `src/lib/skills/handle-query.ts` -- updated system prompt for table verification
+- `src/lib/composer.ts` -- data-driven chip generation for query results
+- `scripts/ux-eval.mjs` -- evaluation harness improvements
+
+---
+
+
 ## 2026-07-10: UX Evaluation Script
 
 **What changed**:

@@ -209,3 +209,19 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **"Chat" is displayed as "AI"** in the sidebar nav with the `auto_awesome` icon. The page key remains `'chat'`.
 - **Chat history lives in ChatSidebar.tsx, not SideNav.tsx**: The conversation list was moved from the SideNav "Recents" section to a slide-out `ChatSidebar` panel toggled by a button in the chat area.
 
+---
+
+## Table Name Resolution
+
+- **Fuzzy table name matching on "Not found"**: Both `handle-schema.ts` and `bq-tools.ts:get_table_schema` perform fuzzy matching when a table is not found in its dataset. The search order is: exact variants (plural/singular, `v_` prefix), then substring matching on the dataset's table list. The shortest substring match wins.
+- **Query handler must verify table names before writing SQL**: The system prompt in `handle-query.ts` instructs the LLM to call `get_table_schema` first to verify tables exist. If the tool returns `actualTableName`, the LLM must use that name in SQL.
+
+---
+
+## Suggestion Chips
+
+- **Query results must generate data-driven chips**: The `composeQuery()` function in `composer.ts` generates suggestion chips based on the actual result data (chart suggestions, drill-down by top value, profile source table, view schema). The UI fallback chips ("Suggest next steps", "Generate insights") only appear when the composer returns zero `nextActions`.
+- **Chip cap is 4**: All chip generation logic must respect the 4-chip limit. Quality flag chips take priority, then data-driven chips fill remaining slots.
+
+
+
