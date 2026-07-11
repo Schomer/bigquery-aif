@@ -169,6 +169,7 @@ export function ChatSidebar({
 
   function handleNewConversation() {
     newConversation();
+    onSelectChat?.();
   }
 
   // Resize handle
@@ -361,7 +362,7 @@ export function ChatSidebar({
         </div>
       </div>
 
-      {/* Search */}
+      {/* Search -- hidden for now
       <div style={{ padding: '0 8px 6px', flexShrink: 0 }}>
         <div style={{
           display: 'flex',
@@ -398,6 +399,7 @@ export function ChatSidebar({
           )}
         </div>
       </div>
+      */}
 
       {/* Conversation list */}
       <div className="chat-sidebar-item-list" style={{ flex: 1, overflowY: 'auto', padding: '0 6px 8px' }}>
