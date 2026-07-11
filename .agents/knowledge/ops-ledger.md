@@ -10,6 +10,18 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+### 2026-07-11: "show me a map" rendered as schema table, not GEO_POINT_MAP
+
+**What broke**: Prompting "show me a map with pins on each racetrack location" returned a SCHEMA_VIEW table listing instead of an interactive Google Maps view with pins.
+
+**Root cause (routing)**: The query manifest had signals for "chart", "visualize", "histogram", etc. but no signal for "map". The word "map" didn't score for query, so the router matched schema's "show me" signals.
+
+**Root cause (inference)**: `inferVisualizationType` in composer.ts had no lat/lng column detection. Even if query ran, results with `lat`/`lng` columns defaulted to TABLE. The `GeoPointMapRenderer` existed and worked but was never auto-selected.
+
+**Fix**: Added `map`, `map with pins`, `on a map` signals (weight 3-4) to query manifest. Added early lat/lng column name detection in `inferVisualizationType` to return `GEO_POINT_MAP` when both lat and lng columns are present.
+
+**Rule**: When adding a new visualization renderer, also add: (1) routing signals in the query manifest, (2) auto-detection logic in `inferVisualizationType`. Without both, the renderer exists but is unreachable.
+
 ### 2026-07-11: splitView not synced on layout switch
 
 **What broke**: Clicking a chat in unified mode, then switching to split layout (Chat left/Chat right) showed the chat list instead of the loaded chat thread.

@@ -2,6 +2,14 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-11: Fix map visualization routing and auto-detection
+
+**Context**: "show me a map with pins on each racetrack location" rendered as a schema table instead of an interactive map. Two issues: no "map" routing signal in query manifest, and no lat/lng auto-detection in `inferVisualizationType`.
+
+**Changes**:
+- `handle-query.ts`: Added `map` (weight 3), `map with pins` (weight 4), `on a map` (weight 4) to query manifest signals.
+- `composer.ts`: Added lat/lng column detection early in `inferVisualizationType` -- checks for columns named lat/latitude + lng/longitude/lon/long and returns `GEO_POINT_MAP`.
+
 ## 2026-07-11: Close chat sidebar when starting new chat
 
 **Context**: After signing in, clicking a "recent" chip or submitting a prompt from the empty state left the Chats list sidebar open instead of transitioning to the chat view.
