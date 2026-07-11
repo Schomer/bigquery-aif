@@ -2831,3 +2831,7 @@ details>summary::marker {
 
 .dark-theme .layout-drag-handle:hover,
 .dark-theme .layout-drag-handle--active { background: rgba(138, 180, 248, 0.12); }
+
+/* Chat sidebar panel (conversation list) */
+.chat-sidebar-actions { opacity: 0; transition: opacity 0.1s; }
+div:hover > .chat-sidebar-actions { opacity: 1; }

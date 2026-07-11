@@ -13,7 +13,7 @@ import { HowItWorksPanel } from '@/components/HowItWorksPanel';
 import { ChatThread } from '@/components/chat/ChatThread';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { ResultsSidebar } from '@/components/chat/ResultsSidebar';
-import { OverviewDashboard } from '@/components/OverviewDashboard';
+import { ChatSidebar } from '@/components/ChatSidebar';
 import { SpacesPage } from '@/components/SavedPage';
 import { FavoritesPage } from '@/components/FavoritesPage';
 import { SaveModal } from '@/components/SaveModal';
@@ -36,6 +36,9 @@ export default function Home() {
 
   // ---- Refs ----
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // ---- Chat sidebar ----
+  const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
 
   // ---- Favorite projects ----
   const FAVORITES_KEY = 'hdn_favorite_projects';
@@ -139,17 +142,7 @@ export default function Home() {
       {/* -- How it works page -- */}
       {activePage === 'how-it-works' && <HowItWorksPanel />}
 
-      {/* -- Overview dashboard -- */}
-      {activePage === 'overview' && activeProject && (
-        <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
-          <OverviewDashboard
-            project={activeProject}
-            accessToken={accessToken ?? ''}
-            onNavigate={(page) => setActivePage(page)}
-            onPrompt={(text) => { chat.setInput(text); setActivePage('chat'); setTimeout(() => inputRef.current?.focus(), 50); }}
-          />
-        </div>
-      )}
+      {/* -- Overview removed -- */}
 
       {/* -- Favorites page -- */}
       {activePage === 'favorites' && user && (
@@ -199,7 +192,43 @@ export default function Home() {
          UNIFIED LAYOUT (original single-pane)
          ============================================================ */}
       {!isSplit && (
-        <div style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'overview' || activePage === 'spaces' || activePage === 'favorites') ? 'none' : 'flex', flexDirection: 'column', height: '100%', background: 'var(--chat-bg)' }}>
+        <div style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'spaces' || activePage === 'favorites') ? 'none' : 'flex', height: '100%', background: 'var(--chat-bg)' }}>
+
+          {/* Chat sidebar panel */}
+          <ChatSidebar open={chatSidebarOpen} onClose={() => setChatSidebarOpen(false)} />
+
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative' }}>
+
+          {/* Chat sidebar toggle */}
+          {!chatSidebarOpen && (
+            <button
+              onClick={() => setChatSidebarOpen(true)}
+              title="Show chat history"
+              style={{
+                position: 'absolute',
+                left: 8,
+                top: 8,
+                zIndex: 10,
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                padding: '6px 8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                color: 'var(--text-muted)',
+                fontSize: 12,
+                fontFamily: "'Google Sans', sans-serif",
+                boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                transition: 'border-color 0.15s, color 0.15s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>forum</span>
+            </button>
+          )}
 
           {/* -- EMPTY STATE: centered hero + prompt -- */}
           {!hasChat && (
@@ -404,6 +433,7 @@ export default function Home() {
               variant="floating"
             />
           )}
+          </div>
         </div>
       )}
 
@@ -413,7 +443,7 @@ export default function Home() {
       {isSplit && (
         <div
           className={`layout-split ${layout === 'chat-right' ? 'layout-chat-right' : 'layout-chat-left'}`}
-          style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'overview' || activePage === 'how-it-works' || activePage === 'spaces' || activePage === 'favorites') ? 'none' : 'flex', height: '100%' }}
+          style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'spaces' || activePage === 'favorites') ? 'none' : 'flex', height: '100%' }}
         >
           <ResultsSidebar
             messages={chat.messages}

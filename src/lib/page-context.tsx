@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, type ReactNode } from 'react';
 
-export type AppPage = 'chat' | 'prompts' | 'overview' | 'favorites' | 'spaces' | string;
+export type AppPage = 'chat' | 'prompts' | 'favorites' | 'spaces' | string;
 
 interface PageContextValue {
   activePage: AppPage;
