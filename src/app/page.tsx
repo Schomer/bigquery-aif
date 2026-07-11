@@ -128,6 +128,11 @@ export default function Home() {
   useEffect(() => {
     if (!hasChat) setSplitView('list');
   }, [hasChat]);
+
+  // When entering split layout with a chat already loaded, show the thread
+  useEffect(() => {
+    if (isSplit && hasChat) setSplitView('thread');
+  }, [isSplit, hasChat]);
   // Focus input after send completes
   useEffect(() => {
     if (!chat.loading) {
