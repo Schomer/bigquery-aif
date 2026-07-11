@@ -5,7 +5,7 @@
   :root {
     /* ── Google Material light theme ── */
     --bg: #F0F5FE;
-    --chat-bg: #F9FBFF;
+    --chat-bg: #FAFBFF;
     --surface: #ffffff;
     --surface-2: #f8f9fa;
     --border: #dadce0;
@@ -65,21 +65,13 @@
 }
 
 /* Tone-based card accents */
-.tone-neutral {
-  border-left: 3px solid var(--border);
-}
+.tone-neutral {}
 
-.tone-positive {
-  border-left: 3px solid var(--positive);
-}
+.tone-positive {}
 
-.tone-attention {
-  border-left: 3px solid var(--attention);
-}
+.tone-attention {}
 
-.tone-issue {
-  border-left: 3px solid var(--issue);
-}
+.tone-issue {}
 
 /* Monospace for SQL */
 .sql-block {
