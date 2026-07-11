@@ -62,6 +62,7 @@ Available datasets in project ${project}: ${available.join(', ')}${lastTableLine
 Today's date: ${new Date().toISOString().split('T')[0]}
 
 CRITICAL: Always wrap fully qualified table references in literal backticks: \`${project}.DATASET.tablename\` (e.g. \`${project}.ecomm.orders\`). This is CRITICAL to prevent syntax errors when project names contain dashes/hyphens.
+INFORMATION_SCHEMA exception: INFORMATION_SCHEMA views must be OUTSIDE the backtick-quoted identifier. Correct: \`${project}.dataset\`.INFORMATION_SCHEMA.COLUMNS. Wrong: \`${project}.dataset.INFORMATION_SCHEMA.COLUMNS\`.
 
 You have tools to interact with BigQuery. Follow these rules strictly:
 

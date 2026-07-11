@@ -25,7 +25,7 @@ import { FreshnessView } from './FreshnessView';
 import { PipelineView } from './PipelineView';
 import TaskWorkflowView from './TaskWorkflowView';
 import { GovernanceView } from './GovernanceView';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 interface Props {
   envelope: CompositionEnvelope;
@@ -53,6 +53,27 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
   const [sqlEditing, setSqlEditing] = useState(false);
   const [editedSql, setEditedSql] = useState(envelope.provenance.sql ?? '');
   const sqlTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [kebabOpen, setKebabOpen] = useState(false);
+  const kebabRef = useRef<HTMLDivElement>(null);
+
+  // Close kebab menu on outside click
+  useEffect(() => {
+    if (!kebabOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (kebabRef.current && !kebabRef.current.contains(e.target as Node)) {
+        setKebabOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [kebabOpen]);
+
+  // Determine if this card has exportable data (SQL + rows)
+  const hasExportableData = (() => {
+    if (!envelope.provenance.sql) return false;
+    const d = envelope.primaryArtifact.data as Record<string, unknown> | undefined;
+    return Array.isArray((d as { rows?: unknown })?.rows) && ((d as { rows: unknown[] }).rows.length > 0);
+  })();
 
   // Auto-size the textarea to fit content
   const autoSizeTextarea = useCallback(() => {
@@ -124,6 +145,66 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
             >
               <img src="/icons/add_to_context.svg" alt="Add to context" width={16} height={16} style={{ opacity: 0.7 }} />
             </button>
+          )}
+          {hasExportableData && !envelope.requiresConfirmation && (
+            <div ref={kebabRef} style={{ position: 'relative', flexShrink: 0, marginTop: 1 }}>
+              <button
+                className="context-action-btn"
+                onClick={() => setKebabOpen(v => !v)}
+                title="More actions"
+                aria-label="More actions"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16, opacity: 0.7 }}>more_vert</span>
+              </button>
+              {kebabOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: 4,
+                  background: '#fff',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                  minWidth: 160,
+                  zIndex: 20,
+                  overflow: 'hidden',
+                }}>
+                  <button
+                    onClick={() => {
+                      setKebabOpen(false);
+                      onChipClick?.({
+                        targetSkill: 'data-loading',
+                        label: 'Export results',
+                        context: { sql: envelope.provenance.sql },
+                        sourceSkill: envelope.skill,
+                        sourceResultRef: envelope.id,
+                      });
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '10px 14px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      fontWeight: 400,
+                      color: 'var(--text)',
+                      fontFamily: 'inherit',
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f5f5f5)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>download</span>
+                    Export results
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -377,12 +458,20 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
         )}
 
         {/* Fallback: suggest next steps */}
-        {!envelope.requiresConfirmation && envelope.nextActions.length === 0 && (
+        {!envelope.requiresConfirmation && envelope.nextActions.length === 0 && (() => {
+          // Build a context-aware fallback message instead of a generic one
+          const data = envelope.primaryArtifact.data as Record<string, unknown> | null;
+          const tbl = data?.table as string | undefined;
+          const ds = data?.dataset as string | undefined;
+          const fallbackMsg = tbl
+            ? `What are some useful queries I can run on ${ds ? `${ds}.` : ''}${tbl}?`
+            : 'What can I do next with these results?';
+          return (
           <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button
               className="chip"
               style={{ opacity: 0.7, fontSize: 11 }}
-              onClick={() => handleInlineClick('What can I do next with these results?')}
+              onClick={() => handleInlineClick(fallbackMsg)}
             >
               Suggest next steps
             </button>
@@ -395,7 +484,8 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
               </button>
             )}
           </div>
-        )}
+          );
+        })()}
 
         {/* Provenance panel -- deep-dive into how this result was computed */}
         <ProvenancePanel

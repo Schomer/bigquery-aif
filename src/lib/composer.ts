@@ -149,7 +149,28 @@ function composeSchema(result: SchemaResult): CompositionEnvelope {
       headlineText = `\`${result.table}\` — ${colCount} columns, ${rowCount} rows`;
     }
 
-    // Sample rows and profile are now surfaced inline as tabs in SchemaView — no chips needed.
+    // Contextual next-action chips for TABLE scope
+    nextActions.push({
+      targetSkill: 'query',
+      label: `Query ${result.table}`,
+      context: { dataset: result.dataset, table: result.table, project: result.project },
+      sourceSkill: 'schema',
+      sourceResultRef: id,
+    });
+    nextActions.push({
+      targetSkill: 'data-quality',
+      label: `Profile ${result.table}`,
+      context: { dataset: result.dataset, table: result.table, project: result.project, checkType: 'PROFILE' },
+      sourceSkill: 'schema',
+      sourceResultRef: id,
+    });
+    nextActions.push({
+      targetSkill: 'monitoring',
+      label: 'Check data freshness',
+      context: { dataset: result.dataset, table: result.table, project: result.project, monitoringType: 'FRESHNESS' },
+      sourceSkill: 'schema',
+      sourceResultRef: id,
+    });
   }
 
   return {
@@ -220,23 +241,8 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[]): Compos
   const artifactType = vizTypeToArtifactType(result.suggestedVisualization);
 
   const nextActions: HandoffEnvelope[] = [];
-  // Always offer export if there are results
-  if (result.rowCount > 0) {
-    nextActions.push({
-      targetSkill: 'data-loading',
-      label: 'Export results',
-      context: { sql: result.sql },
-      sourceSkill: 'query',
-      sourceResultRef: id,
-    });
-    nextActions.push({
-      targetSkill: 'data-loading',
-      label: 'Save this query',
-      context: { sql: result.sql, saveAction: 'query' },
-      sourceSkill: 'query',
-      sourceResultRef: id,
-    });
-  }
+  // "Export results" moved to kebab menu in ArtifactCard header
+  // "Save this query" removed -- dedicated save button exists in header
   // If anomalies or nulls might be present, offer Data Quality
   if (result.notableFindings) {
     nextActions.push({

@@ -4,6 +4,31 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-10: Move export action from suggestion chips to kebab overflow menu
+
+**What changed**:
+- Removed "Export results" and "Save this query" from `nextActions` in `composer.ts` (lines 222-238).
+- Added a kebab (three-dot) overflow menu button to the ArtifactCard header in `ArtifactCard.tsx`, positioned after the pin button.
+- The kebab menu contains a single "Export results" item that triggers the same `onChipClick` handoff as the old chip.
+- The kebab only appears when the card has exportable data (SQL + rows) and is not a confirmation card.
+- "Save this query" was dropped entirely since a dedicated save button already exists in the header.
+
+**Why**: Export and save chips cluttered the suggestion area, which should focus on analytical follow-up actions. The kebab menu is a standard pattern for secondary actions.
+
+---
+
+## 2026-07-10: Move insights from auto-display to on-demand chip
+
+**What changed**:
+- Removed the purple "INSIGHT" section that appeared in every response card (ArtifactCard.tsx lines 140-176).
+- Added a "Generate insights" suggestion chip in the nextActions area for query, schema, data-quality, and monitoring results.
+- Clicking the chip sends "Generate insights about these results" as a follow-up message, which produces a new response card with insights.
+- The `insight` field on `CompositionEnvelope` is preserved for the save modal default description, but no longer rendered inline.
+
+**Why**: The purple insight box added visual noise to every response. Making insights on-demand gives users control over when they want analysis.
+
+---
+
 ## 2026-07-10: Fix overview recent activity SQL syntax error
 
 **What changed**: Backtick-quoted the `region-XX` identifier in the JOBS_BY_PROJECT query in `OverviewDashboard.tsx`. The hyphen was being parsed as a minus operator, causing "Expected end of input but got '-'" errors.

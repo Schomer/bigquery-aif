@@ -107,7 +107,7 @@ async function handleAccessAudit(
   privilege_type AS role,
   table_schema,
   table_name
-FROM \`${project}.${dataset}.INFORMATION_SCHEMA.OBJECT_PRIVILEGES\`
+FROM \`${project}.${dataset}\`.INFORMATION_SCHEMA.OBJECT_PRIVILEGES
 ${table ? `WHERE table_name = '${table}'` : ''}
 ORDER BY grantee, privilege_type`;
 
@@ -181,7 +181,7 @@ async function handleTableSecurity(
   // 1. Row access policies
   try {
     const rapSql = `SELECT COUNT(*) AS cnt
-FROM \`${project}.${dataset}.INFORMATION_SCHEMA.ROW_ACCESS_POLICIES\`
+FROM \`${project}.${dataset}\`.INFORMATION_SCHEMA.ROW_ACCESS_POLICIES
 ${table ? `WHERE table_name = '${table}'` : ''}`;
     sqlParts.push(rapSql);
     const rapResult = await executeQuery(rapSql, project);
@@ -195,7 +195,7 @@ ${table ? `WHERE table_name = '${table}'` : ''}`;
   // 2. Column field paths with policy tags
   try {
     const cfpSql = `SELECT column_name, data_type
-FROM \`${project}.${dataset}.INFORMATION_SCHEMA.COLUMN_FIELD_PATHS\`
+FROM \`${project}.${dataset}\`.INFORMATION_SCHEMA.COLUMN_FIELD_PATHS
 WHERE policy_tags IS NOT NULL
 ${table ? `AND table_name = '${table}'` : ''}`;
     sqlParts.push(cfpSql);
@@ -240,7 +240,7 @@ async function handleSensitiveDataScan(
 
   // First, get STRING columns from INFORMATION_SCHEMA.COLUMNS
   const colSql = `SELECT column_name
-FROM \`${project}.${dataset}.INFORMATION_SCHEMA.COLUMNS\`
+FROM \`${project}.${dataset}\`.INFORMATION_SCHEMA.COLUMNS
 WHERE table_name = '${table}'
 AND data_type IN ('STRING', 'BYTES')
 ORDER BY ordinal_position`;
@@ -369,7 +369,7 @@ async function handleDataClassification(
   const tablesSql = `SELECT
   table_name,
   IFNULL(option_value, '') AS description
-FROM \`${project}.${dataset}.INFORMATION_SCHEMA.TABLE_OPTIONS\`
+FROM \`${project}.${dataset}\`.INFORMATION_SCHEMA.TABLE_OPTIONS
 WHERE option_name = 'description'
 ${table ? `AND table_name = '${table}'` : ''}`;
 
@@ -377,7 +377,7 @@ ${table ? `AND table_name = '${table}'` : ''}`;
   table_name,
   column_name,
   description
-FROM \`${project}.${dataset}.INFORMATION_SCHEMA.COLUMNS\`
+FROM \`${project}.${dataset}\`.INFORMATION_SCHEMA.COLUMNS
 ${table ? `WHERE table_name = '${table}'` : ''}
 ORDER BY table_name, ordinal_position`;
 
@@ -386,7 +386,7 @@ ORDER BY table_name, ordinal_position`;
   table_name,
   option_name,
   option_value
-FROM \`${project}.${dataset}.INFORMATION_SCHEMA.TABLE_OPTIONS\`
+FROM \`${project}.${dataset}\`.INFORMATION_SCHEMA.TABLE_OPTIONS
 WHERE option_name = 'labels'
 ${table ? `AND table_name = '${table}'` : ''}`;
 
