@@ -10,10 +10,11 @@ import type {
   ParameterDef,
   ArtifactStep,
   SkillName,
+  Space,
 } from './types';
 
 // Re-export for consumers
-export type { SavedArtifact, SavedArtifactType, ParameterDef } from './types';
+export type { SavedArtifact, SavedArtifactType, ParameterDef, Space } from './types';
 
 // ── Legacy type alias (deprecated) ──────────────────────────────────────────
 
@@ -232,6 +233,83 @@ export async function recordRun(
 export async function getPinnedArtifacts(userId: string): Promise<SavedArtifact[]> {
   const items = await getArtifacts(userId);
   return items.filter((item) => item.pinned === true);
+}
+
+// ── Space CRUD Operations ───────────────────────────────────────────────────────
+
+export async function createSpace(
+  userId: string,
+  name: string
+): Promise<string> {
+  const id = generateId();
+  const now = nowISO();
+  const space: Space = { id, name, createdAt: now, updatedAt: now };
+  await setDoc(userDoc(userId), {
+    spaces: { [id]: space },
+  }, { merge: true });
+  return id;
+}
+
+export async function getSpaces(userId: string): Promise<Space[]> {
+  const state = await getUserData(userId);
+  const spaceMap = (state.spaces || {}) as Record<string, Space>;
+  return Object.values(spaceMap).sort(
+    (a, b) => a.name.localeCompare(b.name)
+  );
+}
+
+export async function renameSpace(
+  userId: string,
+  spaceId: string,
+  newName: string
+): Promise<void> {
+  const state = await getUserData(userId);
+  const spaceMap = (state.spaces || {}) as Record<string, Space>;
+  const existing = spaceMap[spaceId];
+  if (!existing) return;
+  const updated: Space = { ...existing, name: newName, updatedAt: nowISO() };
+  await setDoc(userDoc(userId), {
+    spaces: { [spaceId]: updated },
+  }, { merge: true });
+}
+
+export async function deleteSpace(
+  userId: string,
+  spaceId: string
+): Promise<void> {
+  // Move all items in this space back to root
+  const items = await getArtifacts(userId);
+  const inSpace = items.filter((i) => i.spaceId === spaceId);
+  for (const item of inSpace) {
+    await updateArtifact(userId, item.id, { spaceId: undefined });
+  }
+  // Delete the space entry
+  await updateDoc(userDoc(userId), {
+    [`spaces.${spaceId}`]: deleteField(),
+  });
+}
+
+// ── Artifact Utilities ────────────────────────────────────────────────────────
+
+export async function moveToSpace(
+  userId: string,
+  artifactId: string,
+  spaceId: string | undefined
+): Promise<void> {
+  await updateArtifact(userId, artifactId, { spaceId });
+}
+
+export async function duplicateArtifact(
+  userId: string,
+  artifactId: string
+): Promise<string | null> {
+  const original = await getArtifact(userId, artifactId);
+  if (!original) return null;
+  const { id: _id, createdAt: _ca, updatedAt: _ua, runCount: _rc, lastRunAt: _lr, ...rest } = original;
+  return saveArtifact(userId, {
+    ...rest,
+    name: `${original.name} (copy)`,
+  });
 }
 
 // ── Deprecated wrappers (old API surface) ────────────────────────────────────

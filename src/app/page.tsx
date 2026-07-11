@@ -14,7 +14,8 @@ import { ChatThread } from '@/components/chat/ChatThread';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { ResultsSidebar } from '@/components/chat/ResultsSidebar';
 import { OverviewDashboard } from '@/components/OverviewDashboard';
-import { SavedPage } from '@/components/SavedPage';
+import { SpacesPage } from '@/components/SavedPage';
+import { FavoritesPage } from '@/components/FavoritesPage';
 import { SaveModal } from '@/components/SaveModal';
 import type { SavedArtifact } from '@/lib/types';
 import {
@@ -26,7 +27,7 @@ import type { RecentItem } from '@/lib/firestore-service';
 
 export default function Home() {
   const { activeProject, user, projects, setActiveProject, accessToken } = useAuth();
-  const { conversationId } = useConversation();
+  const { conversationId, loadConversation } = useConversation();
   const { activePage, setActivePage } = usePage();
   const { layout, historyVisible } = useLayout();
 
@@ -150,9 +151,27 @@ export default function Home() {
         </div>
       )}
 
-      {/* -- Saved page -- */}
-      {activePage === 'saved' && user && (
-        <SavedPage
+      {/* -- Favorites page -- */}
+      {activePage === 'favorites' && user && (
+        <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
+          <FavoritesPage
+            userId={user.uid}
+            onLoadConversation={(convId) => { loadConversation(convId); setActivePage('chat'); }}
+            onRunArtifact={(artifact: SavedArtifact) => {
+              chat.setInput(`run my ${artifact.name}`);
+              setActivePage('chat');
+              setTimeout(() => {
+                inputRef.current?.focus();
+                chat.sendMessage(`run my ${artifact.name}`);
+              }, 50);
+            }}
+          />
+        </div>
+      )}
+
+      {/* -- Spaces page -- */}
+      {activePage === 'spaces' && user && (
+        <SpacesPage
           userId={user.uid}
           onRun={(artifact: SavedArtifact) => {
             chat.setInput(`run my ${artifact.name}`);
@@ -180,7 +199,7 @@ export default function Home() {
          UNIFIED LAYOUT (original single-pane)
          ============================================================ */}
       {!isSplit && (
-        <div style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'overview' || activePage === 'saved') ? 'none' : 'flex', flexDirection: 'column', height: '100%', background: 'var(--chat-bg)' }}>
+        <div style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'overview' || activePage === 'spaces' || activePage === 'favorites') ? 'none' : 'flex', flexDirection: 'column', height: '100%', background: 'var(--chat-bg)' }}>
 
           {/* -- EMPTY STATE: centered hero + prompt -- */}
           {!hasChat && (
@@ -394,7 +413,7 @@ export default function Home() {
       {isSplit && (
         <div
           className={`layout-split ${layout === 'chat-right' ? 'layout-chat-right' : 'layout-chat-left'}`}
-          style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'overview' || activePage === 'how-it-works' || activePage === 'saved') ? 'none' : 'flex', height: '100%' }}
+          style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'overview' || activePage === 'how-it-works' || activePage === 'spaces' || activePage === 'favorites') ? 'none' : 'flex', height: '100%' }}
         >
           <ResultsSidebar
             messages={chat.messages}

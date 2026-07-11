@@ -68,6 +68,15 @@ export interface ParameterDef {
   required: boolean;
 }
 
+// ─── Spaces (folder-like grouping for saved artifacts) ───────────────────────
+
+export interface Space {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Composition envelope (bigquery-response-composition.md §2) ──────────────
 
 export type Tone = 'NEUTRAL' | 'POSITIVE' | 'ATTENTION';
@@ -376,6 +385,7 @@ export interface SavedArtifact {
   pinned: boolean;
   runCount: number;
   lastRunAt?: string;
+  spaceId?: string;
 }
 
 // ─── Chat message ─────────────────────────────────────────────────────────────
