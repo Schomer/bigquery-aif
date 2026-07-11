@@ -98,7 +98,7 @@ export async function selfReviewEnvelope(
 The output's skill type is: ${envelope.skill}
 The artifact type is: ${envelope.primaryArtifact.type}
 
-Evaluate these four dimensions:
+Evaluate these five dimensions:
 
 1. COMPREHENSION: Is the headline clear and informative? Does it tell the user what they are looking at in plain language? If not, write a better one. A good headline leads with the key finding or answers the user's question directly -- not just "N rows from table" or generic status text.
 
@@ -112,12 +112,16 @@ Evaluate these four dimensions:
    - For data with columns: which columns/series are the most important to the user's question and should be visually emphasized? Which are supporting detail that should be de-emphasized so the layout feels clean and focused?
    - Write a designNotes field with brief, actionable guidance on spacing, hierarchy, or emphasis that would elevate the visual quality (e.g., "Lead with the total revenue KPI, group the breakdown below", "De-emphasize the ID columns to reduce clutter").
 
+5. BRIEFING: Write a short conversational summary (1-2 sentences) that the user will see above the data card. It should explain what was done and what the results show, written from the assistant's perspective (e.g., "I queried the orders table and found 48,920 records across 12 regions."). Optionally include up to 4 key findings as label/value pairs that highlight the most important numbers or takeaways (e.g., {label: "Top Region", value: "US-West", detail: "38% of total orders"}). Always write a briefingNarrative. Only include briefingFindings when the data has notable metrics worth calling out.
+
 Rules:
-- Only return fields where you have an actual improvement. Leave fields empty/null if the current output is already good.
+- Only return fields where you have an actual improvement. Leave fields empty/null if the current output is already good. Exception: always return briefingNarrative.
 - Do not repeat what is already there -- only override if you can make it measurably better.
 - Keep headlines under 120 characters. Write them as a human analyst would speak, not as a system status message.
 - Keep insights under 200 characters.
 - designNotes should be under 200 characters.
+- briefingNarrative should be under 250 characters. Write it as natural speech, not a system message.
+- briefingFindings should have at most 4 items. Each label should be 1-3 words. Each value should be concise.
 - For highlightColumns and deemphasizeColumns, use exact column names from the data (only applies to query results with columns).
 - CRITICAL: If the result has zero rows (rowCount = 0 or zeroRows = true), the headline MUST acknowledge that the query returned no data and suggest a likely reason (permissions, region, filter, empty table). Do NOT write an optimistic or descriptive headline for an empty result.`;
 
@@ -182,6 +186,14 @@ ${JSON.stringify(snapshot, null, 2)}`,
       updated.primaryArtifact.emphasis = {
         highlight: review.highlightColumns ?? [],
         deemphasize: review.deemphasizeColumns ?? [],
+      };
+    }
+
+    // Apply briefing (conversational summary for the user)
+    if (review.briefingNarrative) {
+      updated.briefing = {
+        narrative: review.briefingNarrative,
+        findings: review.briefingFindings?.length ? review.briefingFindings : undefined,
       };
     }
 

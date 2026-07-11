@@ -376,6 +376,19 @@ export const SelfReviewResponseSchema = {
     highlightColumns: { type: 'ARRAY', items: { type: 'STRING' } },
     deemphasizeColumns: { type: 'ARRAY', items: { type: 'STRING' } },
     designNotes: { type: 'STRING' },
+    briefingNarrative: { type: 'STRING' },
+    briefingFindings: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          label: { type: 'STRING' },
+          value: { type: 'STRING' },
+          detail: { type: 'STRING' },
+        },
+        required: ['label', 'value'],
+      },
+    },
   },
   required: [],
 };

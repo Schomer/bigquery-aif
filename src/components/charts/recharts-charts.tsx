@@ -172,7 +172,7 @@ export function BarChartRenderer({ result, onSendMessage }: ChartProps) {
     >
       <CartesianGrid {...GRID_STYLE} />
       <XAxis type="number" {...AXIS_STYLE} tickFormatter={tickFmt} />
-      <YAxis type="category" dataKey={xKey} {...AXIS_STYLE} width={100} />
+      <YAxis type="category" dataKey={xKey} {...AXIS_STYLE} width={160} />
       <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
       {yKeys.map((k, i) => (
         <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} />

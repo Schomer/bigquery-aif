@@ -2,6 +2,17 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-11: Data quality table layout and styling fixes
+
+**Context**: The data quality findings table had four issues: gray background, layout shift on row hover (buttons appearing/disappearing), column headers not spanning full width, and column names too light.
+
+**Changes**:
+- `DataQualityView.tsx`: Removed `background: var(--surface-2)` from wrapper. Changed action buttons from conditional rendering (`hovered && ...`) to `visibility: hidden/visible` so they always occupy space. Added a 5th `<th>` (width 120px) for the actions column so headers match body columns. Changed header color from `var(--text-dim)` to `var(--text)` and fontWeight from 500 to 600. Added `tableLayout: 'fixed'` to prevent column width shifts.
+
+**Files changed**: `DataQualityView.tsx`.
+
+---
+
 ## 2026-07-11: Restore history toggle button in top bar
 
 **Context**: The history toggle button (Material icon `history`) in the TopBar right section was accidentally removed in commit 7b962d0. This button toggles between showing the full conversation thread and showing only the latest user prompt + response.

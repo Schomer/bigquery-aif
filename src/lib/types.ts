@@ -158,6 +158,15 @@ export interface CompositionEnvelope {
   insight?: string | null;
   qualityFlags?: import('./result-quality').QualityFlag[];
   extractedParameters?: ParameterDef[];
+  /** Conversational summary shown above the artifact card. */
+  briefing?: {
+    narrative: string;
+    findings?: Array<{
+      label: string;
+      value: string;
+      detail?: string;
+    }>;
+  };
 }
 
 /** Props passed to view components that use presentation: 'custom'.
