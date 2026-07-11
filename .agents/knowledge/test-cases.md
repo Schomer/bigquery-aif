@@ -268,3 +268,22 @@ These test the schema skill's behavior.
 | G8 | "audit access to the sales dataset" | governance | ACCESS_AUDIT | high |
 | G9 | "data classification for analytics" | governance | DATA_CLASSIFICATION | high |
 | G10 | "compliance check on this dataset" | governance | ACCESS_AUDIT | high |
+
+---
+
+## UX Evaluation Scenarios
+
+These test the app from the **user's perspective** -- not routing or mechanics, but whether the output is genuinely good. Run via `node scripts/ux-eval.mjs`.
+
+25 scenarios across all skills are evaluated on 6 dimensions (1-5 scale, minimum 4 to pass):
+- **Task Completion**: Did the app do what the user asked?
+- **Headline Quality**: Does the title add value and accurately describe the result?
+- **Visual Clarity**: Is the result easy to read, well-formatted, and visually informative?
+- **Data Insight**: Does the output help the user understand their data?
+- **Suggestion Quality**: Are next-step suggestions specific, relevant, and useful?
+- **Overall Intelligence**: Does this feel like a smart assistant or a dumb query runner?
+
+Test IDs: F1-F5 (Foundation), Q1-Q6 (Query), DQ1-DQ3 (Data Quality), M1-M3 (Monitoring), D1-D2 (Discovery), V1-V2 (Visualization), G1 (Governance), DL1 (Data Loading), P1 (Pipeline), C1 (Conversation).
+
+Results: `test-results/ux-eval-report.md` and `test-results/ux-eval-results.json`.
+Screenshots: `test-screenshots/ux-eval/`.
