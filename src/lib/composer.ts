@@ -224,7 +224,7 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[]): Compos
     headlineText = rawSummary;
     basis = 'DIRECT_ANSWER';
   } else {
-    headlineText = buildQueryHeadline(result.rowCount, result.sql);
+    headlineText = buildQueryHeadline(result.rowCount, result.sql, result);
   }
 
   // Set tone based on result characteristics
@@ -238,7 +238,7 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[]): Compos
 
   const insight = result.notableFindings ?? null;
 
-  const artifactType = vizTypeToArtifactType(result.suggestedVisualization);
+  const artifactType = inferVisualizationType(result);
 
   const nextActions: HandoffEnvelope[] = [];
   // "Export results" moved to kebab menu in ArtifactCard header
@@ -890,41 +890,92 @@ function composeFreshness(result: FreshnessResult): CompositionEnvelope {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function vizTypeToArtifactType(viz: QueryResult['suggestedVisualization']): ArtifactType {
-  const map: Record<string, ArtifactType> = {
-    TABLE: 'TABLE',
-    // Recharts native
-    LINE_CHART: 'LINE_CHART',
-    BAR_CHART: 'BAR_CHART',
-    AREA_CHART: 'AREA_CHART',
-    SCATTER: 'SCATTER',
-    PIE_CHART: 'PIE_CHART',
-    DONUT_CHART: 'DONUT_CHART',
-    COLUMN_CHART: 'COLUMN_CHART',
-    HISTOGRAM: 'HISTOGRAM',
-    SPARKLINE: 'SPARKLINE',
-    RADAR: 'RADAR',
-    FUNNEL: 'FUNNEL',
-    TREEMAP: 'TREEMAP',
-    SANKEY: 'SANKEY',
-    COMPOSED_CHART: 'COMPOSED_CHART',
-    // Custom SVG
-    GAUGE: 'GAUGE',
-    HEATMAP: 'HEATMAP',
-    BOXPLOT: 'BOXPLOT',
-    CANDLESTICK: 'CANDLESTICK',
-    VIOLIN: 'VIOLIN',
-    DENSITY_PLOT: 'DENSITY_PLOT',
-    RIDGELINE: 'RIDGELINE',
-    NETWORK_GRAPH: 'NETWORK_GRAPH',
-    TILE_MAP: 'TILE_MAP',
-    // Maps
-    GEO_POINT_MAP: 'GEO_POINT_MAP',
-    USA_MAP: 'USA_MAP',
-    WORLD_MAP: 'WORLD_MAP',
-    KPI_CARD: 'KPI_CARD',
-  };
-  return map[viz] ?? 'TABLE';
+// Date/time column detection patterns
+const DATE_COL_PATTERN = /^(date|time|timestamp|created|updated|modified|month|year|quarter|day|week|hour|period|dt|ts|_at$)/i;
+const DATE_SUFFIX_PATTERN = /(_date|_time|_at|_ts|_dt|_month|_year|_day|_week|_quarter)$/i;
+
+function isDateColumn(colName: string, sampleValues: unknown[]): boolean {
+  if (DATE_COL_PATTERN.test(colName) || DATE_SUFFIX_PATTERN.test(colName)) return true;
+  // Check if sample values look like dates
+  const sample = sampleValues.filter(v => v != null).slice(0, 5);
+  if (sample.length === 0) return false;
+  return sample.every(v => {
+    const s = String(v);
+    // ISO dates, YYYY-MM-DD, date-like strings
+    return /^\d{4}-\d{2}(-\d{2})?/.test(s) || /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(s);
+  });
+}
+
+function isNumericValue(v: unknown): boolean {
+  if (typeof v === 'number') return true;
+  if (typeof v === 'string' && v !== '' && !isNaN(Number(v))) return true;
+  return false;
+}
+
+/**
+ * Infer the best visualization type from the actual data shape.
+ * The LLM's suggestedVisualization is used as a tiebreaker, not the primary signal.
+ * Follows the chart-type-by-data-shape mapping from the response-composition spec.
+ */
+function inferVisualizationType(result: QueryResult): ArtifactType {
+  const { columns, rows, rowCount } = result;
+  if (!columns || columns.length === 0 || !rows || rows.length === 0) return 'TABLE';
+
+  // Classify each column as numeric, date, or categorical based on actual values
+  const colTypes: ('numeric' | 'date' | 'categorical')[] = columns.map((col, i) => {
+    const sampleValues = rows.slice(0, 10).map(r => (r as unknown[])[i]);
+    const nonNull = sampleValues.filter(v => v != null);
+    if (nonNull.length === 0) return 'categorical';
+
+    if (isDateColumn(col, nonNull)) return 'date';
+
+    const numericCount = nonNull.filter(isNumericValue).length;
+    if (numericCount / nonNull.length >= 0.8) return 'numeric';
+
+    return 'categorical';
+  });
+
+  const numericCols = columns.filter((_, i) => colTypes[i] === 'numeric');
+  const dateCols = columns.filter((_, i) => colTypes[i] === 'date');
+  const catCols = columns.filter((_, i) => colTypes[i] === 'categorical');
+
+  // 1 row, 1 numeric column -> KPI card
+  if (rowCount === 1 && numericCols.length === 1 && columns.length <= 2) {
+    return 'KPI_CARD';
+  }
+
+  // 1 date column + 1+ numeric columns -> line chart
+  if (dateCols.length === 1 && numericCols.length >= 1 && rowCount >= 2) {
+    return 'LINE_CHART';
+  }
+
+  // 1 categorical column + 1+ numeric columns, <=20 rows -> bar chart
+  if (catCols.length === 1 && numericCols.length >= 1 && rowCount >= 2 && rowCount <= 20) {
+    // <=8 categories with a single numeric column that looks like parts-of-whole -> pie chart
+    if (rowCount <= 8 && numericCols.length === 1) {
+      // Check if values sum to a plausible total (heuristic for parts-of-whole)
+      const numIdx = columns.indexOf(numericCols[0]);
+      const values = rows.map(r => Number((r as unknown[])[numIdx]) || 0);
+      const allPositive = values.every(v => v >= 0);
+      if (allPositive && rowCount <= 6) {
+        return 'PIE_CHART';
+      }
+    }
+    return 'BAR_CHART';
+  }
+
+  // 2 numeric columns + optional grouping -> scatter
+  if (numericCols.length === 2 && catCols.length <= 1 && dateCols.length === 0 && rowCount >= 5) {
+    return 'SCATTER';
+  }
+
+  // If the LLM suggested something specific (not TABLE), and we have no strong
+  // shape-based opinion, respect the hint
+  if (result.suggestedVisualization && result.suggestedVisualization !== 'TABLE') {
+    return result.suggestedVisualization as ArtifactType;
+  }
+
+  return 'TABLE';
 }
 
 
@@ -947,10 +998,45 @@ function extractProjectFromSql(sql: string): string | undefined {
   return match?.[1] ?? undefined;
 }
 
-function buildQueryHeadline(rowCount: number, sql: string): string {
+function buildQueryHeadline(rowCount: number, sql: string, result?: QueryResult): string {
   if (!rowCount || rowCount === 0) {
     return 'Query returned no results -- try broadening your criteria or checking the table name';
   }
+
+  // Try to build a descriptive headline from data shape
+  if (result && result.columns.length >= 2 && result.rows.length >= 2) {
+    const colTypes: ('numeric' | 'date' | 'categorical')[] = result.columns.map((col, i) => {
+      const sampleValues = result.rows.slice(0, 10).map(r => (r as unknown[])[i]);
+      const nonNull = sampleValues.filter(v => v != null);
+      if (nonNull.length === 0) return 'categorical';
+      if (isDateColumn(col, nonNull)) return 'date';
+      const numericCount = nonNull.filter(isNumericValue).length;
+      if (numericCount / nonNull.length >= 0.8) return 'numeric';
+      return 'categorical';
+    });
+
+    const catCols = result.columns.filter((_, i) => colTypes[i] === 'categorical');
+    const numericCols = result.columns.filter((_, i) => colTypes[i] === 'numeric');
+    const dateCols = result.columns.filter((_, i) => colTypes[i] === 'date');
+
+    // Categorical breakdown: "Status breakdown" or "Revenue by region"
+    if (catCols.length === 1 && numericCols.length >= 1) {
+      const catLabel = humanizeColumnName(catCols[0]);
+      if (numericCols.length === 1) {
+        const numLabel = humanizeColumnName(numericCols[0]);
+        return `${numLabel} by ${catLabel.toLowerCase()}`;
+      }
+      return `${catLabel} breakdown`;
+    }
+
+    // Time series: "Revenue over time" or "Monthly orders"
+    if (dateCols.length === 1 && numericCols.length >= 1) {
+      const numLabel = humanizeColumnName(numericCols[0]);
+      return `${numLabel} over time`;
+    }
+  }
+
+  // Fallback: "N rows from `table`"
   const count = rowCount.toLocaleString();
   const rowWord = rowCount === 1 ? 'row' : 'rows';
   const table = extractTableFromSql(sql);
@@ -958,6 +1044,18 @@ function buildQueryHeadline(rowCount: number, sql: string): string {
     return `${count} ${rowWord} from \`${table}\``;
   }
   return `${count} ${rowWord} returned`;
+}
+
+/**
+ * Convert a SQL column name like "order_count" or "totalRevenue" into
+ * a human-readable label like "Order count" or "Total revenue".
+ */
+function humanizeColumnName(col: string): string {
+  // Replace underscores and split camelCase
+  let label = col.replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2');
+  // Capitalize first letter
+  label = label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
+  return label;
 }
 
 // ─── Data Quality composition ─────────────────────────────────────────────────
