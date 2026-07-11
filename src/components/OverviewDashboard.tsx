@@ -295,7 +295,7 @@ export function OverviewDashboard({ project, accessToken, onNavigate, onPrompt }
           TIMESTAMP_DIFF(end_time, start_time, MILLISECOND) AS duration_ms,
           SUBSTR(query, 1, 200) AS query_snippet,
           error_result.reason AS error_reason
-        FROM \`${project}\`.region-${region}.INFORMATION_SCHEMA.JOBS_BY_PROJECT
+        FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT
         WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
         ORDER BY creation_time DESC
         LIMIT 10
