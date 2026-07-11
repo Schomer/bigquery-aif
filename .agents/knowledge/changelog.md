@@ -2,6 +2,18 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-11: Restore history toggle button in top bar
+
+**Context**: The history toggle button (Material icon `history`) in the TopBar right section was accidentally removed in commit 7b962d0. This button toggles between showing the full conversation thread and showing only the latest user prompt + response.
+
+**Changes**:
+- `TopBar.tsx`: Re-added the `gc-history-toggle` button before the layout switcher. Re-destructured `historyVisible` and `setHistoryVisible` from `useLayout()`.
+- `page.tsx`: Replaced hardcoded `historyHiddenBefore = 0` with the original `useMemo` computation that finds the last user message index when `historyVisible` is false. Re-destructured `historyVisible` from `useLayout()`.
+
+**Files changed**: `TopBar.tsx`, `page.tsx`.
+
+---
+
 ## 2026-07-11: Auto-hide scrollbar on main content areas
 
 **Context**: Scrollbars were always visible on the main content areas. User wanted them hidden unless actively scrolling/interacting.

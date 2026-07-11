@@ -48,14 +48,13 @@ export function DataQualityView({ result, onSendMessage }: Props) {
         </div>
       ) : (
         <div style={{
-          background: 'var(--surface-2)',
           border: '1px solid var(--border)',
           borderRadius: 8,
           overflow: 'hidden',
           maxHeight: 480,
           overflowY: 'auto',
         }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
             <thead>
               <tr style={{ background: 'var(--surface)' }}>
                 {['Column', 'Metric', 'Value', 'Severity'].map((h) => (
@@ -64,8 +63,8 @@ export function DataQualityView({ result, onSendMessage }: Props) {
                     style={{
                       padding: '7px 12px',
                       textAlign: 'left',
-                      color: 'var(--text-dim)',
-                      fontWeight: 500,
+                      color: 'var(--text)',
+                      fontWeight: 600,
                       fontSize: 11,
                       borderBottom: '1px solid var(--border-subtle)',
                       position: 'sticky',
@@ -78,6 +77,18 @@ export function DataQualityView({ result, onSendMessage }: Props) {
                     {h}
                   </th>
                 ))}
+                <th
+                  style={{
+                    width: 120,
+                    padding: '7px 8px',
+                    borderBottom: '1px solid var(--border-subtle)',
+                    position: 'sticky',
+                    top: 0,
+                    background: 'var(--surface)',
+                    zIndex: 1,
+                    boxShadow: '0 1px 0 var(--border-subtle)',
+                  }}
+                />
               </tr>
             </thead>
             <tbody>
@@ -178,9 +189,9 @@ function FindingRow({
         <SeverityBadge severity={f.severity} />
       </td>
       {/* Inline action buttons — visible on hover */}
-      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
-        {hovered && actions.length > 0 && (
-          <div style={{ display: 'flex', gap: 4 }}>
+      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap', width: 120 }}>
+        {actions.length > 0 && (
+          <div style={{ display: 'flex', gap: 4, visibility: hovered ? 'visible' : 'hidden' }}>
             {actions.map((a) => (
               <button
                 key={a.label}
