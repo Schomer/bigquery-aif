@@ -35,6 +35,7 @@ export function buildReviewSnapshot(envelope: CompositionEnvelope): Record<strin
     snapshot.visualization = qd.suggestedVisualization;
     snapshot.columns = qd.columns;
     snapshot.rowCount = qd.rowCount;
+    snapshot.zeroRows = qd.rowCount === 0;
     snapshot.sampleRows = qd.rows.slice(0, 5).map((row) =>
       Object.fromEntries(qd.columns.map((col, i) => [col, (row as unknown[])[i]]))
     );
@@ -117,7 +118,8 @@ Rules:
 - Keep headlines under 120 characters. Write them as a human analyst would speak, not as a system status message.
 - Keep insights under 200 characters.
 - designNotes should be under 200 characters.
-- For highlightColumns and deemphasizeColumns, use exact column names from the data (only applies to query results with columns).`;
+- For highlightColumns and deemphasizeColumns, use exact column names from the data (only applies to query results with columns).
+- CRITICAL: If the result has zero rows (rowCount = 0 or zeroRows = true), the headline MUST acknowledge that the query returned no data and suggest a likely reason (permissions, region, filter, empty table). Do NOT write an optimistic or descriptive headline for an empty result.`;
 
   try {
     const review = await callGemini({

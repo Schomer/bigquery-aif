@@ -101,7 +101,23 @@ export function DataTable({ result, onSendMessage }: Props) {
             </tr>
           </thead>
           <tbody>
-            {filtered.slice(0, 200).map((row, ri) => (
+            {filtered.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={columns.length || 1}
+                  style={{
+                    padding: '24px 12px',
+                    textAlign: 'center',
+                    color: 'var(--text-dim)',
+                    fontStyle: 'italic',
+                    fontSize: 12,
+                  }}
+                >
+                  No rows returned.
+                </td>
+              </tr>
+            ) : (
+            filtered.slice(0, 200).map((row, ri) => (
               <tr
                 key={ri}
                 style={{ borderBottom: '1px solid var(--border-subtle)' }}
@@ -155,7 +171,8 @@ export function DataTable({ result, onSendMessage }: Props) {
                   </td>
                 ))}
               </tr>
-            ))}
+            ))
+            )}
           </tbody>
         </table>
       </div>

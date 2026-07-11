@@ -154,10 +154,22 @@ function checkLowRowCount(
   if (rows.length === 0) {
     const tableMatch = sql.match(/`([^`]+\.[^`]+\.[^`]+)`/);
     const tableName = tableMatch ? tableMatch[1] : undefined;
+    const upper = sql.toUpperCase();
+
+    // SQL-aware diagnostic message
+    let message: string;
+    if (upper.includes('INFORMATION_SCHEMA')) {
+      message = 'Query returned 0 rows. INFORMATION_SCHEMA queries require the correct region and appropriate permissions.';
+    } else if (/\bWHERE\b/i.test(sql)) {
+      message = 'Query returned 0 rows. The filter conditions may not match any data in the table.';
+    } else {
+      message = 'Query returned 0 rows. The table may be empty or the filter may be too restrictive.';
+    }
+
     const flag: QualityFlag = {
       type: 'LOW_ROW_COUNT',
       severity: 'info',
-      message: 'Query returned 0 rows. The table may be empty or the filter may be too restrictive.',
+      message,
     };
     if (tableName) {
       flag.suggestedAction = {

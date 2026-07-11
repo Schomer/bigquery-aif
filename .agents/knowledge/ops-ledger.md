@@ -10,6 +10,16 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+### 2026-07-10 (night): Zero-row query experience improvement
+
+**What changed**: When a query returns 0 rows, the app now (1) blocks the LLM-generated summary headline, using a SQL-aware diagnostic headline instead, (2) generates recovery next-action chips (sample table, view schema), (3) forces TABLE artifact type to prevent empty charts, (4) shows "No rows returned" in DataTable, (5) shows "--" in KpiCard for undefined values, (6) produces SQL-aware quality flag messages, and (7) instructs self-review not to generate optimistic headlines for empty results.
+
+**What broke before**: The LLM summary was written assuming data would be returned, producing misleading headlines like "Discover and optimize your malloy-data storage footprint" for a 0-row INFORMATION_SCHEMA.TABLE_STORAGE query. No recovery chips were generated. DataTable rendered an empty tbody. KpiCard showed undefined.
+
+**Root cause**: The composer's headline logic checked `isCleanSummary` before checking `rowCount === 0`, so the LLM summary always won. Next-action chip generation was gated on `rowCount > 0` with no zero-row alternative. No UI components had empty-state handling.
+
+**Derived rule**: For zero-row results, always use the diagnostic headline builder, never the LLM summary. The LLM summary is written at query-generation time before results are known, so it cannot account for empty results.
+
 ### 2026-07-10 (late): Composer now infers chart type from data shape
 
 **What changed**: Replaced `vizTypeToArtifactType()` (a passthrough of the LLM hint) with `inferVisualizationType()` that classifies columns as numeric/date/categorical and picks the right chart. Also improved `buildQueryHeadline()` to generate descriptive summaries from column names.

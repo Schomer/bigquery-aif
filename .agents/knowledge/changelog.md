@@ -4,6 +4,28 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-10 (night): Zero-row query experience improvement
+
+**What changed**:
+- **Diagnostic headlines** (composer.ts): Zero-row results now always use `buildQueryHeadline()` instead of the LLM summary. Headlines are SQL-aware: INFORMATION_SCHEMA queries get "No metadata returned -- check region and permissions", WHERE-filtered queries get "No rows matched your filter criteria", and generic queries get "Query returned no results -- the table may be empty or filters too restrictive".
+- **Recovery chips** (composer.ts): Zero-row results generate "Sample [table]" and "View [table] schema" next-action chips instead of the previous empty chip set.
+- **Force TABLE artifact** (composer.ts): Zero-row results force TABLE artifact type regardless of LLM suggestion, preventing chart components from receiving empty data.
+- **SQL-aware quality flags** (result-quality.ts): `checkLowRowCount()` now produces different diagnostic messages for INFORMATION_SCHEMA queries, filtered queries, and generic queries.
+- **Self-review zero-row awareness** (self-review.ts): Added `zeroRows` flag to review snapshot and a CRITICAL instruction preventing the self-review from generating optimistic headlines for empty results.
+- **DataTable empty state** (DataTable.tsx): Shows "No rows returned." in a styled row instead of blank tbody.
+- **KpiCard empty guard** (KpiCard.tsx): Shows "--" instead of displaying undefined.
+
+**Files**:
+- `src/lib/composer.ts` -- zero-row headline guard, recovery chips, TABLE type force, `extractFullTableRef()` helper
+- `src/lib/result-quality.ts` -- SQL-aware `checkLowRowCount()` messages
+- `src/lib/self-review.ts` -- `zeroRows` snapshot flag, review prompt addition
+- `src/components/DataTable.tsx` -- empty-state row
+- `src/components/KpiCard.tsx` -- undefined value guard
+
+**Derived rule**: For zero-row results, always use the diagnostic headline builder, never the LLM summary.
+
+---
+
 ## 2026-07-10 (late): Chart-first visualization and descriptive headlines
 
 **What changed**:

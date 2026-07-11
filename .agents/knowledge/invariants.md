@@ -77,6 +77,7 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **Null/undefined cells must not throw**: Table rendering code must handle null, undefined, and empty string cell values gracefully.
 - **Next-action chips are capped at 4 per envelope**: Each composed result generates at most 4 handoff chips. This is a UX constraint. Quality flag suggested actions also count toward this cap.
 - **Quality flags are capped at 5 per result**: `analyzeResultQuality()` returns at most 5 flags to avoid overwhelming the UI.
+- **Zero-row results always use diagnostic headlines, never LLM summaries**: When `rowCount === 0`, the composer skips the LLM `resultSummary` and uses `buildQueryHeadline()` which generates SQL-aware diagnostic messages (INFORMATION_SCHEMA, WHERE-filtered, or generic). The LLM summary is written at query-generation time before results are known, so it cannot account for empty results. Zero-row results also force TABLE artifact type and generate recovery chips (sample table, view schema).
 
 ---
 

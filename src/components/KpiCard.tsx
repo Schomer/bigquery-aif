@@ -28,7 +28,7 @@ export function KpiCard({ result }: Props) {
         fontVariantNumeric: 'tabular-nums',
         lineHeight: 1,
       }}>
-        {formatDisplayValue(value, label)}
+        {value === undefined || value === null ? '--' : formatDisplayValue(value, label)}
       </span>
     </div>
   );
