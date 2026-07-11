@@ -2,6 +2,13 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-11: Close chat sidebar when starting new chat
+
+**Context**: After signing in, clicking a "recent" chip or submitting a prompt from the empty state left the Chats list sidebar open instead of transitioning to the chat view.
+
+**Changes**:
+- `page.tsx`: Added `setChatListOpen(false)` to recent chip click handlers and wrapped the hero ChatInput's `onSend` to also close the sidebar.
+
 ## 2026-07-11: Wire +New button and hide search in chat sidebar
 
 **Changes**:

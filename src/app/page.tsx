@@ -459,7 +459,7 @@ export default function Home() {
               input={chat.input}
               setInput={chat.setInput}
               contextItems={chat.contextItems}
-              onSend={chat.sendMessage}
+              onSend={(text?: string) => { setChatListOpen(false); return chat.sendMessage(text); }}
               onRemoveContext={chat.removeContextItem}
               onKeyDown={chat.handleKeyDown}
               onConfirm={chat.handleConfirm}

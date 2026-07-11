@@ -65,13 +65,13 @@
 }
 
 /* Tone-based card accents */
-.tone-neutral {}
+.tone-neutral { border: none; }
 
-.tone-positive {}
+.tone-positive { border: none; }
 
-.tone-attention {}
+.tone-attention { border: none; }
 
-.tone-issue {}
+.tone-issue { border: none; }
 
 /* Monospace for SQL */
 .sql-block {
