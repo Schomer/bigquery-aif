@@ -68,8 +68,27 @@ function ChartTip() {
 
 function useChartSetup(result: QueryResult) {
   const { columns, rows, xAxis, yAxis } = result;
-  const data = buildChartData(columns, rows);
+  let data = buildChartData(columns, rows);
   const { xKey, yKeys } = resolveAxes(columns, xAxis, yAxis);
+
+  // Sort time-series data chronologically (oldest first) so line charts
+  // read left-to-right in temporal order
+  if (data.length >= 2) {
+    const firstX = data[0]?.[xKey];
+    const isDateLike = typeof firstX === 'string' && (
+      /^\d{4}-\d{2}/.test(firstX) || // ISO date: 2022-01-01
+      /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(firstX) || // US date
+      !isNaN(Date.parse(firstX)) // any parseable date
+    );
+    if (isDateLike) {
+      data = [...data].sort((a, b) => {
+        const da = new Date(a[xKey] as string).getTime();
+        const db = new Date(b[xKey] as string).getTime();
+        return da - db;
+      });
+    }
+  }
+
   // Currency-aware formatters based on the primary y-axis column name
   const primaryY = yKeys[0] ?? '';
   const tickFmt = (v: number) => formatCompactValue(v, primaryY);

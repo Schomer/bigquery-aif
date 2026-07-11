@@ -96,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const prevUserRef = useRef<GoogleUser | null>(null);
   const autoRefreshAttempted = useRef(false);
+  const signingIn = useRef(false);
 
   // Sync token to both React state and the module-level store
   const setAccessToken = useCallback((token: string | null) => {
@@ -118,6 +119,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
         setUserStable(toGoogleUser(fbUser));
+        // If signIn() is in progress, it will handle the token itself.
+        // Skip auto-refresh to avoid opening a second popup.
+        if (signingIn.current) {
+          return;
+        }
         // Restore token from localStorage if available and not expired
         const storedToken = getAccessToken();
         if (storedToken && !isTokenLikelyExpired()) {
@@ -168,6 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const signIn = useCallback(async (): Promise<boolean> => {
+    signingIn.current = true;
     try {
       setIsLoading(true);
       const result = await signInWithPopup(auth, consentProvider);
@@ -203,6 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } finally {
+      signingIn.current = false;
       setIsLoading(false);
     }
   }, [setAccessToken]);
