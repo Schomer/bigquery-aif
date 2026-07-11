@@ -2,6 +2,19 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-11: Single hierarchical sidebar in split layout
+
+**Context**: Split layout (chat-left/chat-right) was rendering two sidebars side by side: ChatSidebar (chat list) and ResultsSidebar (thread). User wanted a single sidebar with hierarchical navigation -- chat list view, click to drill into a thread, back button to return.
+
+**Changes**:
+- `page.tsx`: Added `splitView` state (`'list'` | `'thread'`) to conditionally render either ChatSidebar or ResultsSidebar in the same slot. Reset to `'list'` when conversation is cleared.
+- `ResultsSidebar.tsx`: Added `onBackToChats` optional prop. When provided, renders an "All chats" back button at the top of the sidebar.
+- `ChatSidebar.tsx`: Removed `mode` prop and all persistent mode code (thread view, `sidebarView` state). ChatSidebar is now always a chat list -- the parent manages view switching.
+
+**Files changed**: `page.tsx`, `ResultsSidebar.tsx`, `ChatSidebar.tsx`.
+
+---
+
 ## 2026-07-11: State-driven sidebar status indicators
 
 **Context**: Chat sidebar showed a spinner on the active chat and a blue dot on every other chat regardless of state. User wanted semantic indicators: spinner when processing, blue dot for unseen results, nothing when idle/seen.
