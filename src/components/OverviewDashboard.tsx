@@ -1,9 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { StatCard } from '@/components/ui/StatCard';
 import { Badge } from '@/components/ui/Badge';
 import { formatBytes, relativeTime, truncateLabel } from '@/lib/format';
+import { getConversations, type SavedConversation } from '@/lib/firestore-service';
+import { getArtifacts, type SavedArtifact } from '@/lib/saved-work';
+import { useAuth } from '@/lib/auth-context';
+import { useConversation } from '@/lib/conversation-context';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -14,13 +17,6 @@ interface OverviewDashboardProps {
   accessToken: string;
   onNavigate: (page: string) => void;
   onPrompt: (text: string) => void;
-}
-
-interface ProjectSummary {
-  datasetCount: number;
-  tableCount: number;
-  totalStorageBytes: number;
-  recentJobCount: number;
 }
 
 interface RecentJob {
@@ -34,7 +30,28 @@ interface RecentJob {
   errorMessage: string | null;
 }
 
+interface RecentChart {
+  conversationId: string;
+  conversationTitle: string;
+  headline: string;
+  chartType: string;
+  updatedAt: string;
+}
+
 type SectionState<T> = { status: 'loading' } | { status: 'loaded'; data: T } | { status: 'error'; message: string };
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const TYPE_ICONS: Record<string, string> = {
+  query: 'query_stats',
+  workflow: 'conversion_path',
+  pipeline: 'schedule',
+  app: 'apps',
+};
+
+const CHART_ICON = 'bar_chart';
 
 // ---------------------------------------------------------------------------
 // BigQuery fetch helpers (uses the user's OAuth token directly)
@@ -203,76 +220,70 @@ function JobStatusIcon({ state }: { state: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Chart extraction helper
+// ---------------------------------------------------------------------------
+
+function extractRecentCharts(conversations: SavedConversation[], limit: number): RecentChart[] {
+  const charts: RecentChart[] = [];
+  for (const conv of conversations) {
+    if (charts.length >= limit) break;
+    for (const msg of conv.messages) {
+      if (charts.length >= limit) break;
+      if (msg.role !== 'assistant' || !msg.envelopes) continue;
+      for (const env of msg.envelopes) {
+        if (charts.length >= limit) break;
+        const artType = env.primaryArtifact?.type;
+        if (typeof artType === 'string' && artType.includes('chart')) {
+          charts.push({
+            conversationId: conv.id,
+            conversationTitle: conv.title || 'Untitled conversation',
+            headline: env.headline?.text || 'Chart',
+            chartType: artType,
+            updatedAt: msg.timestamp || conv.updatedAt || conv.createdAt,
+          });
+        }
+      }
+    }
+  }
+  return charts;
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
 export function OverviewDashboard({ project, accessToken, onNavigate, onPrompt }: OverviewDashboardProps) {
-  const [summary, setSummary] = useState<SectionState<ProjectSummary>>({ status: 'loading' });
+  const { user } = useAuth();
+  const { loadConversation } = useConversation();
+
   const [recentJobs, setRecentJobs] = useState<SectionState<RecentJob[]>>({ status: 'loading' });
+  const [recentCharts, setRecentCharts] = useState<SectionState<RecentChart[]>>({ status: 'loading' });
+  const [savedItems, setSavedItems] = useState<SectionState<SavedArtifact[]>>({ status: 'loading' });
 
-  // -- Fetch project summary --
-  const fetchSummary = useCallback(async () => {
-    setSummary({ status: 'loading' });
+  // -- Fetch recent charts from conversations --
+  const fetchRecentCharts = useCallback(async () => {
+    if (!user) return;
+    setRecentCharts({ status: 'loading' });
     try {
-      // Fetch datasets list
-      const dsData = await bqGet(
-        `${BQ_BASE}/${encodeURIComponent(project)}/datasets?maxResults=200`,
-        accessToken,
-      );
-      const datasets: Array<{ datasetId: string; location: string }> = (dsData.datasets || []).map((ds: any) => ({
-        datasetId: ds.datasetReference?.datasetId || '',
-        location: (ds.location || 'US').toLowerCase(),
-      }));
-
-      const datasetCount = datasets.length;
-
-      // Pick a region from the first dataset for INFORMATION_SCHEMA queries
-      const region = datasets[0]?.location || 'us';
-
-      // Fetch table count and storage in parallel
-      const [tableCountResult, storageResult, jobCountResult] = await Promise.allSettled([
-        bqQuery(
-          `SELECT COUNT(*) AS cnt FROM \`${project}\`.region-${region}.INFORMATION_SCHEMA.TABLES`,
-          project,
-          accessToken,
-        ),
-        bqQuery(
-          `SELECT COALESCE(SUM(total_logical_bytes), 0) AS total_bytes FROM \`${project}\`.region-${region}.INFORMATION_SCHEMA.TABLE_STORAGE`,
-          project,
-          accessToken,
-        ),
-        bqQuery(
-          `SELECT COUNT(*) AS cnt FROM \`${project}\`.region-${region}.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)`,
-          project,
-          accessToken,
-        ),
-      ]);
-
-      const tableCount = tableCountResult.status === 'fulfilled'
-        ? parseInt(tableCountResult.value.rows?.[0]?.f?.[0]?.v || '0', 10)
-        : 0;
-
-      const totalStorageBytes = storageResult.status === 'fulfilled'
-        ? parseInt(storageResult.value.rows?.[0]?.f?.[0]?.v || '0', 10)
-        : 0;
-
-      const recentJobCount = jobCountResult.status === 'fulfilled'
-        ? parseInt(jobCountResult.value.rows?.[0]?.f?.[0]?.v || '0', 10)
-        : 0;
-
-      setSummary({
-        status: 'loaded',
-        data: { datasetCount, tableCount, totalStorageBytes, recentJobCount },
-      });
+      const conversations = await getConversations(user.uid);
+      const charts = extractRecentCharts(conversations, 6);
+      setRecentCharts({ status: 'loaded', data: charts });
     } catch (err: any) {
-      const msg = err?.message || 'Unknown error';
-      if (msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('access denied')) {
-        setSummary({ status: 'error', message: 'Missing permissions. Ensure the BigQuery Data Viewer and Job User roles are granted.' });
-      } else {
-        setSummary({ status: 'error', message: `Could not load project summary: ${msg}` });
-      }
+      setRecentCharts({ status: 'error', message: err?.message || 'Could not load recent charts' });
     }
-  }, [project, accessToken]);
+  }, [user]);
+
+  // -- Fetch saved artifacts --
+  const fetchSavedItems = useCallback(async () => {
+    if (!user) return;
+    setSavedItems({ status: 'loading' });
+    try {
+      const artifacts = await getArtifacts(user.uid);
+      setSavedItems({ status: 'loaded', data: artifacts.slice(0, 6) });
+    } catch (err: any) {
+      setSavedItems({ status: 'error', message: err?.message || 'Could not load saved items' });
+    }
+  }, [user]);
 
   // -- Fetch recent jobs --
   const fetchRecentJobs = useCallback(async () => {
@@ -322,9 +333,12 @@ export function OverviewDashboard({ project, accessToken, onNavigate, onPrompt }
   }, [project, accessToken]);
 
   useEffect(() => {
-    fetchSummary();
     fetchRecentJobs();
-  }, [fetchSummary, fetchRecentJobs]);
+    if (user) {
+      fetchRecentCharts();
+      fetchSavedItems();
+    }
+  }, [fetchRecentJobs, fetchRecentCharts, fetchSavedItems, user]);
 
   // -- Quick actions --
   const quickActions: QuickAction[] = [
@@ -392,46 +406,173 @@ export function OverviewDashboard({ project, accessToken, onNavigate, onPrompt }
       </div>
 
       {/* ============================================================
-         Section 1: Project Summary (StatCards)
+         Section 1: Recent Charts
          ============================================================ */}
-      {summary.status === 'loading' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
-      )}
-      {summary.status === 'error' && (
-        <SectionError message={summary.message} onRetry={fetchSummary} />
-      )}
-      {summary.status === 'loaded' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
-          <StatCard
-            label="Datasets"
-            value={summary.data.datasetCount.toLocaleString()}
-            icon="dataset"
-          />
-          <StatCard
-            label="Tables"
-            value={summary.data.tableCount.toLocaleString()}
-            icon="table_chart"
-          />
-          <StatCard
-            label="Storage"
-            value={formatBytes(summary.data.totalStorageBytes)}
-            icon="storage"
-          />
-          <StatCard
-            label="Jobs (24h)"
-            value={summary.data.recentJobCount.toLocaleString()}
-            icon="work_history"
-          />
+      {user && (
+        <div>
+          <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>
+            Recent Charts
+          </h3>
+
+          {recentCharts.status === 'loading' && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+              {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}
+            </div>
+          )}
+
+          {recentCharts.status === 'error' && (
+            <SectionError message={recentCharts.message} onRetry={fetchRecentCharts} />
+          )}
+
+          {recentCharts.status === 'loaded' && recentCharts.data.length === 0 && (
+            <div style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 10,
+              padding: '24px 16px',
+              textAlign: 'center',
+              color: 'var(--text-muted)',
+              fontSize: 13,
+            }}>
+              No charts found in recent conversations
+            </div>
+          )}
+
+          {recentCharts.status === 'loaded' && recentCharts.data.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+              {recentCharts.data.map((chart, i) => (
+                <button
+                  key={`${chart.conversationId}-${i}`}
+                  onClick={() => { loadConversation(chart.conversationId); onNavigate('chat'); }}
+                  style={{
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 10,
+                    padding: '16px 18px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                    flex: '1 1 180px',
+                    minWidth: 160,
+                    maxWidth: 320,
+                    transition: 'border-color 0.15s, box-shadow 0.15s',
+                    fontFamily: "'Google Sans', sans-serif",
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = 'var(--accent)';
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(26, 115, 232, 0.08)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = 'var(--border)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 22, color: 'var(--accent)' }}>{CHART_ICON}</span>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {truncateLabel(chart.headline, 40)}
+                  </span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {truncateLabel(chart.conversationTitle, 36)}
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                    {relativeTime(chart.updatedAt)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* ============================================================
-         Section 2: Recent Activity
+         Section 2: Recently Saved
+         ============================================================ */}
+      {user && (
+        <div>
+          <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>
+            Recently Saved
+          </h3>
+
+          {savedItems.status === 'loading' && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+              {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}
+            </div>
+          )}
+
+          {savedItems.status === 'error' && (
+            <SectionError message={savedItems.message} onRetry={fetchSavedItems} />
+          )}
+
+          {savedItems.status === 'loaded' && savedItems.data.length === 0 && (
+            <div style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 10,
+              padding: '24px 16px',
+              textAlign: 'center',
+              color: 'var(--text-muted)',
+              fontSize: 13,
+            }}>
+              No saved items yet
+            </div>
+          )}
+
+          {savedItems.status === 'loaded' && savedItems.data.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+              {savedItems.data.map((artifact) => (
+                <button
+                  key={artifact.id}
+                  onClick={() => { onPrompt(`run my ${artifact.name}`); }}
+                  style={{
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 10,
+                    padding: '16px 18px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                    flex: '1 1 180px',
+                    minWidth: 160,
+                    maxWidth: 320,
+                    transition: 'border-color 0.15s, box-shadow 0.15s',
+                    fontFamily: "'Google Sans', sans-serif",
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = 'var(--accent)';
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(26, 115, 232, 0.08)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = 'var(--border)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 22, color: 'var(--accent)' }}>
+                    {TYPE_ICONS[artifact.type] || 'description'}
+                  </span>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {truncateLabel(artifact.name, 36)}
+                  </span>
+                  {artifact.description && (
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {truncateLabel(artifact.description, 50)}
+                    </span>
+                  )}
+                  <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                    {relativeTime(artifact.updatedAt || artifact.createdAt)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ============================================================
+         Section 3: Recent Activity
          ============================================================ */}
       <div>
         <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>
@@ -535,7 +676,7 @@ export function OverviewDashboard({ project, accessToken, onNavigate, onPrompt }
       </div>
 
       {/* ============================================================
-         Section 3: Quick Actions
+         Section 4: Quick Actions
          ============================================================ */}
       <div>
         <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>

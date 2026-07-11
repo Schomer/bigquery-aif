@@ -351,6 +351,7 @@ UI Components (src/components/)
 | ConfirmationCard.tsx | 6KB | Destructive op confirmation UI |
 | CrystalBallSpinner.tsx | 6KB | Loading spinner |
 | ChartView.tsx | 3KB | Chart rendering dispatcher |
+| FavoritesPage.tsx | 14KB | Starred chats + pinned artifacts grid with filter tabs |
 
 ---
 

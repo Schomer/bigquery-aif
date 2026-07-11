@@ -4,6 +4,17 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-10: Add FavoritesPage component
+
+**What changed**:
+- New file `src/components/FavoritesPage.tsx`: Dedicated page showing cards for favorited chats (from `getFavorites`) and pinned saved artifacts (from `getPinnedArtifacts`).
+- Features: filter tabs (All/Chats/Queries/Workflows/Pipelines), card grid, unfavorite/unpin actions, Run button on artifact cards, loading skeleton, empty state.
+- Already imported by `page.tsx` (line 18) -- no wiring changes needed.
+
+**Why**: The app needed a consolidated view for starred/pinned items, previously scattered across the sidebar and SavedPage.
+
+---
+
 ## 2026-07-10: Fix "Suggest next steps" error after table schema view
 
 **What changed**:
