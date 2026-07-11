@@ -373,16 +373,18 @@ export async function handleMonitoring(
     }
     // If it's a number, treat as epoch milliseconds
     if (typeof val === 'number') {
-      // BigQuery sometimes uses microseconds -- if >year 5000 in ms, assume micros
-      const ms = val > 1e16 ? val / 1000 : val;
+      // Detect epoch scale: seconds (~1e9), milliseconds (~1e12), or microseconds (~1e15+)
+      const ms = val > 1e16 ? val / 1000 : val > 1e12 ? val : val * 1000;
       return formatTimestamp(new Date(ms));
     }
     const s = String(val);
-    // If it's a purely numeric string, parse as epoch
-    if (/^\d{10,}$/.test(s)) {
-      const num = Number(s);
-      const ms = num > 1e16 ? num / 1000 : num;
-      return formatTimestamp(new Date(ms));
+    // If it's a numeric string (pure digits or scientific notation like "1.78E9")
+    const num = Number(s);
+    if (!isNaN(num) && isFinite(num) && num > 1e8) {
+      // Looks like an epoch value: seconds (~1e9), milliseconds (~1e12), or microseconds (~1e15)
+      const ms = num > 1e16 ? num / 1000 : num > 1e12 ? num : num * 1000;
+      const d = new Date(ms);
+      if (!isNaN(d.getTime())) return formatTimestamp(d);
     }
     // Try parsing as-is -- if valid, return formatted
     const d = new Date(s);
