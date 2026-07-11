@@ -282,45 +282,36 @@ async function waitForResponse(page, timeoutMs = 120000) {
 }
 
 async function startNewConversation(page, browser) {
-  // Click the #new-btn button (the "+ New" button in the sidebar).
-  // This calls React's newConversation() which resets state properly.
+  // Navigate to a fresh URL with a cache-busting param to force React remount.
+  // This is the proven pattern from visual-test.mjs -- more reliable than
+  // clicking #new-btn or page.reload(), which leave stale content.
+  const freshUrl = `${APP_URL}?t=${Date.now()}`;
   try {
-    // Check if page is still usable
-    await page.evaluate(() => true);
+    await page.goto(freshUrl, { waitUntil: 'networkidle2', timeout: 30000 });
   } catch {
-    // Page is detached -- get a fresh one
+    // If goto fails, get a fresh page from the browser
     const pages = await browser.pages();
     page = pages[pages.length - 1] || await browser.newPage();
-    await page.goto(APP_URL, { waitUntil: 'networkidle2', timeout: 30000 });
-    await delay(3000);
-    await page.waitForSelector('textarea', { timeout: 10000 });
-    return page;
+    await page.goto(freshUrl, { waitUntil: 'networkidle2', timeout: 30000 });
   }
+  await delay(3000);
+  await page.waitForSelector('textarea', { timeout: 15000 });
 
-  try {
-    await page.click('#new-btn');
-    console.log('[eval] Clicked #new-btn');
-    await delay(2000);
-  } catch (err) {
-    // Fallback: reload the page
-    console.log(`[eval] #new-btn click failed (${err.message}), reloading...`);
-    await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
-    await delay(3000);
-  }
-
-  // Wait for textarea
-  await page.waitForSelector('textarea', { timeout: 10000 });
-
-  // Verify the page is in a clean state (no result cards visible)
-  const hasResults = await page.evaluate(() => {
-    return document.querySelectorAll('[class*="tone-"]').length;
+  // Verify textarea is empty
+  const taValue = await page.evaluate(() => {
+    const ta = document.querySelector('textarea');
+    return ta ? ta.value : null;
   });
-  if (hasResults > 0) {
-    // Stale results still showing -- force reload
-    console.log('[eval] Stale results detected, reloading...');
-    await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
-    await delay(3000);
-    await page.waitForSelector('textarea', { timeout: 10000 });
+  if (taValue && taValue.length > 0) {
+    await page.evaluate(() => {
+      const ta = document.querySelector('textarea');
+      if (!ta) return;
+      const nativeSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype, 'value'
+      ).set;
+      nativeSetter.call(ta, '');
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    });
   }
 
   await delay(500);
@@ -963,8 +954,10 @@ async function main() {
         console.warn(`[eval] WARNING: No new artifact card detected (before=${cardCountBefore}, after=${cardCountAfter})`);
       }
 
-      // Screenshot
-      await page.screenshot({ path: screenshotPath, fullPage: false });
+      // Screenshot -- capture to buffer first, then write to disk explicitly
+      // (Puppeteer's { path } option sometimes doesn't flush on macOS)
+      const screenshotBuffer = await page.screenshot({ fullPage: false, encoding: 'binary' });
+      writeFileSync(screenshotPath, screenshotBuffer);
       console.log(`[eval] Screenshot: ${test.id}.png`);
 
       // Extract DOM metadata

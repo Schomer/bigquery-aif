@@ -38,7 +38,7 @@ export default function Home() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // ---- Chat sidebar ----
-  const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
+  const [chatSidebarOpen, setChatSidebarOpen] = useState(true);
 
   // ---- Favorite projects ----
   const FAVORITES_KEY = 'hdn_favorite_projects';
@@ -203,30 +203,28 @@ export default function Home() {
           {!chatSidebarOpen && (
             <button
               onClick={() => setChatSidebarOpen(true)}
-              title="Show chat history"
+              title="Show chats"
               style={{
                 position: 'absolute',
                 left: 8,
                 top: 8,
                 zIndex: 10,
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                padding: '6px 8px',
-                cursor: 'pointer',
+                width: 36,
+                height: 36,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 4,
+                justifyContent: 'center',
+                borderRadius: '50%',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
                 color: 'var(--text-muted)',
-                fontSize: 12,
-                fontFamily: "'Google Sans', sans-serif",
-                boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-                transition: 'border-color 0.15s, color 0.15s',
+                transition: 'background 0.12s, color 0.15s',
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--accent)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-muted)'; }}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>forum</span>
+              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>left_panel_open</span>
             </button>
           )}
 
