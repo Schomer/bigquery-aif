@@ -12,6 +12,18 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 
 ---
 
+### 2026-07-10: Sidebar & pages restructuring -- Spaces, Favorites, Overview revamp
+
+**What changed**: Renamed "Saved" to "Spaces" in sidebar. Created SpacesPage with folder-like spaces, drag-and-drop, card/list view switcher, inline rename, context menus, and breadcrumb navigation. Created dedicated FavoritesPage showing favorited chats and pinned artifacts. Rewrote OverviewDashboard to remove broken KPI StatCards and replace with Recent Charts and Recently Saved sections. Added Space type, spaceId to SavedArtifact, and space CRUD operations to saved-work.ts.
+
+**What worked**: Using subagents in parallel to write the three large page components (Overview, Favorites, Spaces) while the main agent handled types, data layer, routing, and sidebar changes. All three compiled cleanly.
+
+**What to watch**: The `onLoadConversation` callback in FavoritesPage receives a favorite item ID, not a conversation ID. FavoriteItem doesn't store the originating conversation ID, so loading the actual conversation may not work as expected.
+
+**Derived rule**: When a saved concept (like FavoriteItem) is created to reference another entity (like a conversation), always store the source entity's ID at creation time.
+
+---
+
 ### 2026-07-10: Fix "Suggest next steps" error after table schema view
 **Scope**: composer.ts, handle-governance.ts, handle-query.ts, ArtifactCard.tsx
 **What broke**: Clicking "Suggest next steps" after viewing a table schema produced `Not found: Dataset malloy-data:ecomm.INFORMATION_SCHEMA was not found in location US`.

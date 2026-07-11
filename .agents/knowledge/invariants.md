@@ -202,4 +202,7 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **Saved artifacts execute cached SQL directly, not via Gemini**: The `handle-saved.ts` skill handler runs `executeQuery(step.cachedSql)` without calling the LLM. This is intentional -- saved items should not burn Gemini tokens on re-execution.
 - **Parameter extraction happens at query-generation time, not at save time**: The `QueryResponseSchema` includes a `parameters` field that Gemini populates alongside SQL. This avoids a second LLM call when saving.
 - **Old `SavedItem` format is migrated on read**: `saved-work.ts` checks `isNewFormat()` (presence of `steps` array) and calls `migrateItem()` for legacy records. Both old and new formats coexist in the same `savedWork.{id}` Firestore location.
-- **The page key for saved items is `'saved'`** (not `'saved-work'`): Updated in SideNav, page.tsx, and all hide-list conditions.
+- **The page key for saved items is `'spaces'`** (renamed from `'saved'`): Updated in SideNav, page.tsx, page-context.tsx, and all hide-list conditions. The component export is `SpacesPage` from `SavedPage.tsx`.
+- **Spaces are stored in `users/{uid}/spaces/{id}`**: Each space is a `{ id, name, createdAt, updatedAt }` object. Deleting a space moves its items back to root (spaceId = undefined), not deleted.
+- **`SavedArtifact.spaceId` is optional**: Items not in a space have `spaceId` as undefined. Items in a space store the space's ID.
+
