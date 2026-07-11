@@ -4,6 +4,19 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-10 (late): browser-testing skill correction
+
+**What changed**:
+- Rewrote `.agents/skills/browser-testing/SKILL.md` to remove the false claim that `browser_subagent` does not work on macOS.
+- Added `browser_subagent` as the primary method for ad-hoc visual testing (screenshots, UI verification, interactive exploration).
+- Retained the Puppeteer script documentation as Method 2 for the full automated test suite.
+- Removed the "Do NOT Use" section that was blocking `browser_subagent` and `open_browser_url` tools.
+
+**Files**:
+- `.agents/skills/browser-testing/SKILL.md` -- full rewrite
+
+---
+
 ## 2026-07-10 (night): Zero-row query experience improvement
 
 **What changed**:

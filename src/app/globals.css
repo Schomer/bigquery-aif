@@ -2835,3 +2835,12 @@ details>summary::marker {
 /* Chat sidebar panel (conversation list) */
 .chat-sidebar-actions { opacity: 0; transition: opacity 0.1s; }
 div:hover > .chat-sidebar-actions { opacity: 1; }
+
+/* Neptune-style spinning indicator for active chat */
+@keyframes chat-sidebar-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.chat-sidebar-spinner {
+  animation: chat-sidebar-spin 1.2s linear infinite;
+}

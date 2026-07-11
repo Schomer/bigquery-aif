@@ -10,6 +10,18 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+### 2026-07-10 (late): browser-testing skill correction
+
+**What changed**: Rewrote `.agents/skills/browser-testing/SKILL.md` to document that the `browser_subagent` tool works on macOS. The old skill file stated `browser_subagent` / `open_browser_url` "do not work on macOS -- they require Linux" and had a "Do NOT Use" section explicitly blocking those tools. This caused every new conversation to refuse browser-based visual testing.
+
+**What broke before**: New conversations would read the skill file and tell the user that browser testing is not possible on Mac, despite the `browser_subagent` tool being fully functional and having been used successfully in prior sessions.
+
+**Root cause**: The original skill file was written with an incorrect assumption about macOS compatibility. The "Do NOT Use" section at the bottom was authoritative enough that every new conversation treated it as a hard constraint.
+
+**Derived rule**: The `browser_subagent` tool works on macOS. Use it for ad-hoc visual checks (screenshots, verifying UI elements, interactive testing). Use the Puppeteer script (`scripts/visual-test.mjs`) for the full automated 20-test suite. The Puppeteer approach is still valuable for auth-protected pages since it uses a persistent Chrome profile.
+
+---
+
 ### 2026-07-10 (night): Zero-row query experience improvement
 
 **What changed**: When a query returns 0 rows, the app now (1) blocks the LLM-generated summary headline, using a SQL-aware diagnostic headline instead, (2) generates recovery next-action chips (sample table, view schema), (3) forces TABLE artifact type to prevent empty charts, (4) shows "No rows returned" in DataTable, (5) shows "--" in KpiCard for undefined values, (6) produces SQL-aware quality flag messages, and (7) instructs self-review not to generate optimistic headlines for empty results.
