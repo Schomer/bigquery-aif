@@ -143,6 +143,7 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **Error boundaries wrap skill-specific views**: Each view component should gracefully handle missing or malformed data from the orchestrator.
 - **Google Sans is the only non-code font**: All UI text must use `'Google Sans', sans-serif`. Do not introduce Inter, Roboto, or other font families. Monospace (`var(--font-mono)`) is reserved for code blocks, SQL, and technical identifiers -- not table data cells.
 - **Confirmation cards block execution**: `ConfirmationCard` and `CostConfirmCard` must prevent any data-modifying operation until the user explicitly confirms.
+- **No CSS class names ending in `-body`**: Tailwind 4's CSS processor extracts element selectors from class name suffixes. A class like `.my-component-body` compiles to a bare `body{}` rule in the output, corrupting global layout. Use `-list`, `-content`, `-wrap`, `-container`, or `-inner` instead. Verify: after build, `grep -o 'body{[^}]*}' .next/static/chunks/*.css` must return only one rule.
 
 ---
 

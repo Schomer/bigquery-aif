@@ -10,6 +10,18 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+### 2026-07-10 (late): Tailwind 4 -body class name collision
+
+**What changed**: Renamed `.gc-project-dropdown-body` to `.gc-project-dropdown-list` and `.chat-sidebar-thinking-body` to `.chat-sidebar-thinking-content` in globals.css, TopBar.tsx, and ResultsSidebar.tsx.
+
+**What broke**: The entire app was capped at 320px tall and could not scale with window resize.
+
+**Root cause**: Tailwind 4's CSS processor (`@import "tailwindcss"`) was extracting `body` from class names ending in `-body` and generating bare `body{}` rules in the compiled CSS. `.gc-project-dropdown-body { max-height: 320px }` compiled to `body { max-height: 320px }`, limiting the page height. `.chat-sidebar-thinking-body { border-left: 2px; flex-direction: column }` compiled to another spurious `body{}` rule.
+
+**Rule**: Never use CSS class names that end with `-body` when Tailwind 4 (`@import "tailwindcss"`) is active. The Tailwind CSS processor treats the suffix as the `body` element selector. Use alternatives like `-list`, `-content`, `-wrap`, `-container`, `-inner`.
+
+**Verification**: After build, check `grep -o 'body{[^}]*}' .next/static/chunks/*.css` -- should return only one rule with the expected properties (height, background, overflow, font-family, margin).
+
 ### 2026-07-10 (late): browser-testing skill correction
 
 **What changed**: Rewrote `.agents/skills/browser-testing/SKILL.md` to document that the `browser_subagent` tool works on macOS. The old skill file stated `browser_subagent` / `open_browser_url` "do not work on macOS -- they require Linux" and had a "Do NOT Use" section explicitly blocking those tools. This caused every new conversation to refuse browser-based visual testing.

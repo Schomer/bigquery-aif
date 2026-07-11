@@ -4,6 +4,16 @@ A record of what changed in each coding session. Read this to understand recent 
 
 ---
 
+## 2026-07-10 (night): Fix app not scaling with window resize
+
+**What changed**:
+- Renamed `.gc-project-dropdown-body` to `.gc-project-dropdown-list` and `.chat-sidebar-thinking-body` to `.chat-sidebar-thinking-content`.
+- Tailwind 4's CSS processor was extracting `body` from these class names and generating bare `body{}` rules in the compiled output. The `.gc-project-dropdown-body` rule compiled to `body{max-height:320px}`, capping the entire app at 320px tall.
+
+**Files touched**: `globals.css`, `TopBar.tsx`, `ResultsSidebar.tsx`.
+
+---
+
 ## 2026-07-10 (night): Table click prompt simplified
 
 **What changed**:
