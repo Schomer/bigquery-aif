@@ -1010,6 +1010,12 @@ function inferVisualizationType(result: QueryResult): ArtifactType {
   const { columns, rows, rowCount } = result;
   if (!columns || columns.length === 0 || !rows || rows.length === 0) return 'TABLE';
 
+  // Geo-point detection: if data has lat/lng columns, render as a map
+  const lowerCols = columns.map(c => c.toLowerCase());
+  const hasLat = lowerCols.some(c => c === 'lat' || c === 'latitude');
+  const hasLng = lowerCols.some(c => c === 'lng' || c === 'longitude' || c === 'lon' || c === 'long');
+  if (hasLat && hasLng) return 'GEO_POINT_MAP';
+
   // Classify each column as numeric, date, or categorical based on actual values
   const colTypes: ('numeric' | 'date' | 'categorical')[] = columns.map((col, i) => {
     const sampleValues = rows.slice(0, 10).map(r => (r as unknown[])[i]);
