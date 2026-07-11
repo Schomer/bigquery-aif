@@ -139,6 +139,14 @@ export function ChatSidebar({
     setMenuId(null);
   }
 
+  async function handleClearAll() {
+    if (!user || conversations.length === 0) return;
+    if (!window.confirm('Delete all chats? This cannot be undone.')) return;
+    await Promise.all(conversations.map((c) => deleteConversation(user.uid, c.id)));
+    setConversations([]);
+    newConversation();
+  }
+
   async function handleRename(id: string) {
     if (!user || !renameValue.trim()) { setRenamingId(null); return; }
     const conv = conversations.find((c) => c.id === id);
@@ -654,6 +662,41 @@ export function ChatSidebar({
             </div>
           );
         })}
+
+        {/* Clear all button */}
+        {!loading && conversations.length > 0 && (
+          <div style={{ padding: '8px 6px 4px', borderTop: '1px solid var(--border)' }}>
+            <button
+              onClick={handleClearAll}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                width: '100%',
+                padding: '8px 10px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-muted)',
+                fontSize: 12,
+                fontFamily: "'Google Sans', sans-serif",
+                borderRadius: 8,
+                transition: 'background 0.12s, color 0.12s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--surface-2)';
+                e.currentTarget.style.color = 'var(--issue)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'none';
+                e.currentTarget.style.color = 'var(--text-muted)';
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>delete_sweep</span>
+              Clear all chats
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Resize handle */}
