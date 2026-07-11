@@ -36,6 +36,26 @@ interface ChatSidebarProps {
   mode?: 'overlay' | 'persistent';
   /** Which side the border goes on. Default 'right'. */
   side?: 'left' | 'right';
+  /** Whether the active chat is currently processing a request. */
+  activeLoading?: boolean;
+}
+
+// Key for localStorage seen-timestamps map
+const SEEN_KEY = 'bqaif_chat_seen';
+
+function readSeenMap(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(SEEN_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function markSeen(id: string) {
+  const map = readSeenMap();
+  map[id] = new Date().toISOString();
+  try { localStorage.setItem(SEEN_KEY, JSON.stringify(map)); } catch {}
 }
 
 export function ChatSidebar({
@@ -43,6 +63,7 @@ export function ChatSidebar({
   onSelectChat,
   mode = 'overlay',
   side = 'right',
+  activeLoading = false,
 }: ChatSidebarProps) {
   const { user } = useAuth();
   const { conversationId, loadConversation, newConversation } = useConversation();
@@ -135,7 +156,20 @@ export function ChatSidebar({
     setRenamingId(null);
   }
 
+  // Track seen state
+  const [seenMap, setSeenMap] = useState<Record<string, string>>(() => readSeenMap());
+
+  // Mark current conversation as seen whenever it changes or loading finishes
+  useEffect(() => {
+    if (conversationId && !activeLoading) {
+      markSeen(conversationId);
+      setSeenMap(readSeenMap());
+    }
+  }, [conversationId, activeLoading]);
+
   function handleSelectConversation(id: string) {
+    markSeen(id);
+    setSeenMap(readSeenMap());
     loadConversation(id);
     if (mode === 'persistent') {
       // In persistent mode, navigate to the thread view within the sidebar
@@ -507,24 +541,28 @@ export function ChatSidebar({
             >
               {/* Status indicator column */}
               <div style={{ width: 16, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', height: 20, marginTop: 1 }}>
-                {isActive ? (
+                {isActive && activeLoading ? (
                   <span
                     className="material-symbols-outlined chat-sidebar-spinner"
                     style={{ fontSize: 16, color: 'var(--accent)' }}
                   >
                     progress_activity
                   </span>
-                ) : (
-                  <span style={{
-                    display: 'inline-block',
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: 'var(--accent)',
-                    opacity: 0.65,
-                    flexShrink: 0,
-                  }} />
-                )}
+                ) : (() => {
+                  const lastSeen = seenMap[conv.id];
+                  const hasUnseen = conv.updatedAt && (!lastSeen || conv.updatedAt > lastSeen);
+                  return hasUnseen ? (
+                    <span style={{
+                      display: 'inline-block',
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: 'var(--accent)',
+                      opacity: 0.65,
+                      flexShrink: 0,
+                    }} />
+                  ) : null;
+                })()}
               </div>
 
               {/* Content */}

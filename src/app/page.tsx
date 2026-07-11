@@ -194,6 +194,7 @@ export default function Home() {
             visible={chatListOpen}
             onSelectChat={() => setChatListOpen(false)}
             mode="overlay"
+            activeLoading={chat.loading}
           />
 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative' }}>
@@ -418,6 +419,7 @@ export default function Home() {
             visible
             mode="persistent"
             side={layout === 'chat-right' ? 'left' : 'right'}
+            activeLoading={chat.loading}
           />
 
           {/* Results panel (always visible alongside the sidebar) */}
