@@ -475,12 +475,14 @@ function composeGovernance(result: GovernanceResult): CompositionEnvelope {
   let tone: Tone = 'NEUTRAL';
   const basis: HeadlineBasis = 'STATUS';
   const nextActions: HandoffEnvelope[] = [];
+  let isLightweight = false; // true when result has no substantive data
 
   switch (result.governanceType) {
     case 'ACCESS_AUDIT': {
       const count = result.accessEntries?.length ?? 0;
       if (count === 0) {
-        headlineText = `No explicit access entries found for ${result.scope}`;
+        headlineText = `No explicit access entries found for \`${result.scope}\` -- permissions may be inherited from the project level`;
+        isLightweight = true;
       } else {
         // Group by role for a descriptive headline
         const roleGroups: Record<string, number> = {};
@@ -490,9 +492,9 @@ function composeGovernance(result: GovernanceResult): CompositionEnvelope {
         const uniqueEntities = new Set(result.accessEntries!.map(e => e.entity)).size;
         const topRole = Object.entries(roleGroups).sort(([, a], [, b]) => b - a)[0];
         if (topRole) {
-          headlineText = `${uniqueEntities} principal${uniqueEntities !== 1 ? 's' : ''} have access to ${result.scope} -- most common role: ${topRole[0]}`;
+          headlineText = `${uniqueEntities} principal${uniqueEntities !== 1 ? 's' : ''} have access to \`${result.scope}\` -- most common role: ${topRole[0]}`;
         } else {
-          headlineText = `${count} access entries for ${result.scope}`;
+          headlineText = `${count} access entries for \`${result.scope}\``;
         }
       }
       nextActions.push({
@@ -518,10 +520,11 @@ function composeGovernance(result: GovernanceResult): CompositionEnvelope {
       if (p.columnLevelMasking > 0) parts.push(`${p.columnLevelMasking} column mask${p.columnLevelMasking !== 1 ? 's' : ''}`);
       if (p.policyTags.length > 0) parts.push(`${p.policyTags.length} policy tag${p.policyTags.length !== 1 ? 's' : ''}`);
       if (parts.length === 0) {
-        headlineText = `No security policies found on ${result.scope}`;
+        headlineText = `No active row-level or column-level security policies detected on \`${result.scope}\``;
         tone = 'ATTENTION';
+        isLightweight = true;
       } else {
-        headlineText = `${result.scope}: ${parts.join(', ')}`;
+        headlineText = `\`${result.scope}\`: ${parts.join(', ')}`;
         tone = 'POSITIVE';
       }
       nextActions.push({
@@ -543,15 +546,16 @@ function composeGovernance(result: GovernanceResult): CompositionEnvelope {
     case 'SENSITIVE_DATA_SCAN': {
       const count = result.sensitiveFindings?.length ?? 0;
       if (count === 0) {
-        headlineText = `No sensitive data patterns detected in ${result.scope}`;
+        headlineText = `No sensitive data patterns detected in \`${result.scope}\``;
         tone = 'POSITIVE';
+        isLightweight = true;
       } else {
         const highCount = result.sensitiveFindings!.filter(f => f.confidence === 'high').length;
         if (highCount > 0) {
-          headlineText = `${count} potential PII pattern${count !== 1 ? 's' : ''} found in ${result.scope} (${highCount} high confidence)`;
+          headlineText = `${count} potential PII pattern${count !== 1 ? 's' : ''} found in \`${result.scope}\` (${highCount} high confidence)`;
           tone = 'ATTENTION';
         } else {
-          headlineText = `${count} potential PII pattern${count !== 1 ? 's' : ''} found in ${result.scope}`;
+          headlineText = `${count} potential PII pattern${count !== 1 ? 's' : ''} found in \`${result.scope}\``;
           tone = 'ATTENTION';
         }
       }
@@ -576,10 +580,10 @@ function composeGovernance(result: GovernanceResult): CompositionEnvelope {
       const totalTables = cls.documentedTables + cls.undocumentedTables;
       const pct = totalTables > 0 ? Math.round((cls.documentedTables / totalTables) * 100) : 0;
       if (cls.undocumentedTables === 0) {
-        headlineText = `All ${totalTables} tables in ${result.scope} are documented`;
+        headlineText = `All ${totalTables} tables in \`${result.scope}\` are documented`;
         tone = 'POSITIVE';
       } else {
-        headlineText = `${pct}% documentation coverage in ${result.scope} -- ${cls.undocumentedTables} table${cls.undocumentedTables !== 1 ? 's' : ''} undocumented`;
+        headlineText = `${pct}% documentation coverage in \`${result.scope}\` -- ${cls.undocumentedTables} table${cls.undocumentedTables !== 1 ? 's' : ''} undocumented`;
         tone = cls.undocumentedTables > 5 ? 'ATTENTION' : 'NEUTRAL';
       }
       nextActions.push({
@@ -609,6 +613,7 @@ function composeGovernance(result: GovernanceResult): CompositionEnvelope {
       ? { visibility: 'COLLAPSED', sql: result.sql }
       : { visibility: 'COLLAPSED' },
     nextActions,
+    ...(isLightweight ? { presentation: 'inline' as const } : {}),
   };
 }
 

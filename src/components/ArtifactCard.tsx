@@ -26,6 +26,7 @@ import { PipelineView } from './PipelineView';
 import TaskWorkflowView from './TaskWorkflowView';
 import { GovernanceView } from './GovernanceView';
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { usePreferences } from '@/lib/preferences-context';
 
 interface Props {
   envelope: CompositionEnvelope;
@@ -48,6 +49,7 @@ const TONE_CLASSES: Record<string, string> = {
 export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInlineClick, onSave, onPin, onRunSql, isPinned }: Props) {
 
   const toneClass = TONE_CLASSES[envelope.headline.tone] ?? 'tone-neutral';
+  const { showProvenance, showSuggestions } = usePreferences();
   const [dismissedFlags, setDismissedFlags] = useState<Set<number>>(new Set());
   const [sqlOpen, setSqlOpen] = useState(false);
   const [sqlEditing, setSqlEditing] = useState(false);
@@ -425,12 +427,12 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
         })()}
 
         {/* Divider before suggestions */}
-        {!envelope.requiresConfirmation && (
+        {!envelope.requiresConfirmation && showSuggestions && (
           <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 12 }} />
         )}
 
         {/* Next actions */}
-        {!envelope.requiresConfirmation && envelope.nextActions.length > 0 && (
+        {!envelope.requiresConfirmation && showSuggestions && envelope.nextActions.length > 0 && (
           <div style={{
             marginTop: 10,
             display: 'flex',
@@ -458,7 +460,7 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
         )}
 
         {/* Fallback: suggest next steps */}
-        {!envelope.requiresConfirmation && envelope.nextActions.length === 0 && (() => {
+        {!envelope.requiresConfirmation && showSuggestions && envelope.nextActions.length === 0 && (() => {
           // Build a context-aware fallback message instead of a generic one
           const data = envelope.primaryArtifact.data as Record<string, unknown> | null;
           const tbl = data?.table as string | undefined;
@@ -488,10 +490,12 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
         })()}
 
         {/* Provenance panel -- deep-dive into how this result was computed */}
-        <ProvenancePanel
-          envelope={envelope}
-          defaultExpanded={envelope.provenance.visibility === 'VISIBLE' || envelope.skill === 'monitoring' || envelope.skill === 'discovery'}
-        />
+        {showProvenance && (
+          <ProvenancePanel
+            envelope={envelope}
+            defaultExpanded={envelope.provenance.visibility === 'VISIBLE' || envelope.skill === 'monitoring' || envelope.skill === 'discovery'}
+          />
+        )}
       </div>
 
     </div>

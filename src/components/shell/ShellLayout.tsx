@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth-context';
 import { ConversationProvider } from '@/lib/conversation-context';
 import { PageProvider } from '@/lib/page-context';
 import { LayoutProvider } from '@/lib/layout-context';
+import { PreferencesProvider } from '@/lib/preferences-context';
 import { TopBar } from './TopBar';
 import { SideNav } from './SideNav';
 import { SignedOutPage } from './SignedOutPage';
@@ -38,6 +39,7 @@ export function ShellLayout({ children }: ShellLayoutProps) {
     <ConversationProvider>
       <PageProvider>
         <LayoutProvider>
+          <PreferencesProvider>
           <GlobalSearch />
           <TopBar onNavToggle={() => setCollapsed((c) => !c)} />
           <div className="gc-shell">
@@ -49,6 +51,7 @@ export function ShellLayout({ children }: ShellLayoutProps) {
               {children}
             </main>
           </div>
+          </PreferencesProvider>
         </LayoutProvider>
       </PageProvider>
     </ConversationProvider>

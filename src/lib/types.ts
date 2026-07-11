@@ -147,6 +147,11 @@ export interface CompositionEnvelope {
     project?: string;
   };
   nextActions: HandoffEnvelope[];
+  /** Controls how much visual chrome ArtifactCard renders.
+   *  'card' (default) = full card with dividers, provenance panel.
+   *  'inline' = lightweight -- headline is the main content,
+   *             suppresses divider-before-chips and provenance panel. */
+  presentation?: 'card' | 'inline';
   requiresConfirmation?: boolean;
   skipSelfReview?: boolean;
   insight?: string | null;

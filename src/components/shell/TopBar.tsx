@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useLayout, type ChatLayout } from '@/lib/layout-context';
+import { usePreferences } from '@/lib/preferences-context';
 import { getFavoriteProjects, saveFavoriteProjects } from '@/lib/firestore-service';
 
 interface TopBarProps {
@@ -27,6 +28,7 @@ function saveFavorites(favs: Set<string>) {
 export function TopBar({ onNavToggle }: TopBarProps) {
   const { user, accessToken, projects, activeProject, isLoading, signIn, signOut, setActiveProject } = useAuth();
   const { layout, setLayout } = useLayout();
+  const { showProvenance, setShowProvenance, showSuggestions, setShowSuggestions } = usePreferences();
 
   const LAYOUT_OPTIONS: { value: ChatLayout; icon: string; label: string; flip?: boolean }[] = [
     { value: 'unified', icon: 'view_stream', label: 'Unified' },
@@ -36,12 +38,14 @@ export function TopBar({ onNavToggle }: TopBarProps) {
 
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
+  const [kebabMenuOpen, setKebabMenuOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [liveResults, setLiveResults] = useState<string[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const projectMenuRef = useRef<HTMLDivElement>(null);
   const avatarMenuRef = useRef<HTMLDivElement>(null);
+  const kebabMenuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Load favorites: localStorage first (instant), then Firestore (authoritative)
@@ -144,6 +148,9 @@ export function TopBar({ onNavToggle }: TopBarProps) {
       }
       if (avatarMenuRef.current && !avatarMenuRef.current.contains(e.target as Node)) {
         setAvatarMenuOpen(false);
+      }
+      if (kebabMenuRef.current && !kebabMenuRef.current.contains(e.target as Node)) {
+        setKebabMenuOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClick);
@@ -377,6 +384,44 @@ export function TopBar({ onNavToggle }: TopBarProps) {
             <path d="M18 17v-6c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v6H4v2h16v-2zm-2 0H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5zm-4 5c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2"/>
           </svg>
         </button>
+
+        {/* ── Kebab settings menu ── */}
+        <div className="gc-kebab-wrap" ref={kebabMenuRef}>
+          <button
+            className="gc-icon-btn"
+            aria-label="Display settings"
+            aria-expanded={kebabMenuOpen}
+            onClick={() => setKebabMenuOpen((o) => !o)}
+          >
+            <span className="material-symbols-outlined">more_vert</span>
+          </button>
+
+          {kebabMenuOpen && (
+            <div className="gc-kebab-menu" role="menu">
+              <div className="gc-kebab-menu-header">Display settings</div>
+              <label className="gc-kebab-menu-toggle" role="menuitemcheckbox" aria-checked={showProvenance}>
+                <span className="gc-kebab-menu-toggle-label">Show "How was this computed?"</span>
+                <button
+                  className={`gc-toggle-switch${showProvenance ? ' gc-toggle-switch--on' : ''}`}
+                  onClick={() => setShowProvenance(!showProvenance)}
+                  aria-label={showProvenance ? 'Hide provenance' : 'Show provenance'}
+                >
+                  <span className="gc-toggle-switch-knob" />
+                </button>
+              </label>
+              <label className="gc-kebab-menu-toggle" role="menuitemcheckbox" aria-checked={showSuggestions}>
+                <span className="gc-kebab-menu-toggle-label">Show suggestions</span>
+                <button
+                  className={`gc-toggle-switch${showSuggestions ? ' gc-toggle-switch--on' : ''}`}
+                  onClick={() => setShowSuggestions(!showSuggestions)}
+                  aria-label={showSuggestions ? 'Hide suggestions' : 'Show suggestions'}
+                >
+                  <span className="gc-toggle-switch-knob" />
+                </button>
+              </label>
+            </div>
+          )}
+        </div>
 
         {/* ── Avatar / auth menu ── */}
         {isLoading ? (

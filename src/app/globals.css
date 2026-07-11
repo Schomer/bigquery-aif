@@ -868,6 +868,90 @@ details>summary::marker {
   pointer-events: none;
 }
 
+/* Kebab (three-dot) settings menu */
+.gc-kebab-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.gc-kebab-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--gc-surface);
+  border: 1px solid var(--gc-border);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, .14);
+  min-width: 260px;
+  z-index: 200;
+  overflow: hidden;
+  font-family: 'Google Sans', sans-serif;
+  padding: 4px 0;
+}
+
+.gc-kebab-menu-header {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--gc-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 10px 16px 6px;
+}
+
+.gc-kebab-menu-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.gc-kebab-menu-toggle:hover {
+  background: rgba(60, 64, 67, .06);
+}
+
+.gc-kebab-menu-toggle-label {
+  font-size: 13px;
+  color: var(--gc-text-primary);
+  user-select: none;
+}
+
+/* Toggle switch */
+.gc-toggle-switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  background: #dadce0;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s;
+  padding: 0;
+}
+
+.gc-toggle-switch--on {
+  background: var(--gc-blue, #1a73e8);
+}
+
+.gc-toggle-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.gc-toggle-switch--on .gc-toggle-switch-knob {
+  transform: translateX(16px);
+}
+
 /* Avatar */
 .gc-avatar-wrap {
   position: relative;
@@ -2781,6 +2865,12 @@ details>summary::marker {
 
 .dark-theme .gc-avatar-menu { background: #1e1e2e; border-color: #333355; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4); }
 .dark-theme .gc-avatar-menu-item:hover { background: rgba(255, 255, 255, 0.06); }
+
+.dark-theme .gc-kebab-menu { background: #1e1e2e; border-color: #333355; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4); }
+.dark-theme .gc-kebab-menu-toggle:hover { background: rgba(255, 255, 255, 0.06); }
+.dark-theme .gc-kebab-menu-toggle-label { color: #e0e0e0; }
+.dark-theme .gc-toggle-switch { background: #555; }
+.dark-theme .gc-toggle-switch--on { background: #8ab4f8; }
 
 .dark-theme .gc-icon-btn:hover { background: rgba(255, 255, 255, 0.08); }
 
