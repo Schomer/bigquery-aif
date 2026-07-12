@@ -229,6 +229,7 @@ Always wrap fully qualified table references in literal backticks: \`${project}.
   onStatus?.(`Estimating cost for ${plan.operation} on ${plan.table || dataset}...`);
   const costResult = await dryRun(plan.executionSql, project);
 
+  const isDestructive = ['DELETE', 'TRUNCATE', 'DROP_TABLE'].includes(plan.operation);
   const confirmResult: DataManagementResult = {
     skill: 'data-management',
     requiresConfirmation: true,
@@ -238,6 +239,7 @@ Always wrap fully qualified table references in literal backticks: \`${project}.
     costEstimate: costResult,
     executionSql: plan.executionSql,
     snapshotRowIds: [],
+    snapshotOffer: isDestructive && affectedRowCount > 0,  // W2-19
   };
   return [compose('data-management', confirmResult)];
 }

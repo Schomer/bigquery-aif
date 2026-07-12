@@ -48,8 +48,46 @@ export function SchemaView({ result, onSendMessage }: Props) {
 
   if (result.scope === 'DATASET') {
     const metaStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0, minWidth: 90, textAlign: 'right' };
+
+    // W2-13: "Start here" — top 2-3 tables by query frequency
+    const startHereTables = result.columns
+      .filter(t => (t.queryFrequency ?? 0) > 0)
+      .slice(0, 3);
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+
+        {/* W2-13: Start here entry points */}
+        {startHereTables.length >= 2 && (
+          <div style={{
+            background: 'rgba(99,102,241,0.05)',
+            border: '1px solid rgba(99,102,241,0.2)',
+            borderRadius: 8,
+            padding: '10px 14px',
+            marginBottom: 4,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Start here
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {startHereTables.map(t => (
+                <div key={t.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    onClick={() => send(`Show me more about ${result.dataset}.${t.name}`)}
+                    style={{ fontSize: 12, fontWeight: 500, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+                  >
+                    {t.name}
+                  </button>
+                  <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                    queried {t.queryFrequency}x/30d
+                    {t.rowCount ? ` · ${t.rowCount.toLocaleString()} rows` : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {result.columns.map((t, i) => {
           const badge = TYPE_BADGE_MAP[t.type ?? ''] ?? { icon: 'help_outline', color: '#94a3b8', label: t.type ?? 'Unknown' };
           let createdStr: string | null = null;
@@ -77,6 +115,12 @@ export function SchemaView({ result, onSendMessage }: Props) {
             >
               <IconBadge icon={badge.icon} color={badge.color} />
               <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
+              {/* W2-12: frequency badge */}
+              {(t.queryFrequency ?? 0) > 0 && (
+                <span style={{ fontSize: 10, color: '#6366f1', background: 'rgba(99,102,241,0.1)', borderRadius: 3, padding: '1px 5px', flexShrink: 0 }}>
+                  {t.queryFrequency}x
+                </span>
+              )}
               {t.columnCount != null && (
                 <span style={metaStyle}>{t.columnCount} col{t.columnCount !== 1 ? 's' : ''}</span>
               )}
@@ -108,6 +152,7 @@ export function SchemaView({ result, onSendMessage }: Props) {
       </div>
     );
   }
+
 
   // TABLE scope — render tabbed view
   return <TableSchemaView result={result} onSendMessage={send} />;

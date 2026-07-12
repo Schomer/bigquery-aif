@@ -13,6 +13,23 @@ import type {
   CostBucket, CostAnalysisResult, FreshnessEntry, FreshnessResult,
 } from '../types';
 
+// W2-17: Extract time range from natural language
+function extractTimeRangeDays(msg: string): number {
+  const lower = msg.toLowerCase();
+  if (/\btoday\b/.test(lower)) return 1;
+  if (/\byesterday\b/.test(lower)) return 2;
+  if (/\blast\s+7\s+days?\b/.test(lower) || /\bthis\s+week\b/.test(lower) || /\blast\s+week\b/.test(lower)) return 7;
+  if (/\blast\s+14\s+days?\b/.test(lower) || /\b2\s+weeks?\b/.test(lower)) return 14;
+  if (/\blast\s+90\s+days?\b/.test(lower) || /\b3\s+months?\b/.test(lower) || /\blast\s+quarter\b/.test(lower)) return 90;
+  if (/\blast\s+(\d+)\s+days?\b/.test(lower)) {
+    const m = lower.match(/last\s+(\d+)\s+days?/);
+    if (m) return Math.min(90, parseInt(m[1], 10));
+  }
+  if (/\blast\s+24\s*h/.test(lower) || /\blast\s+hour/.test(lower)) return 1;
+  if (/\bthis\s+month\b/.test(lower) || /\blast\s+month\b/.test(lower) || /\blast\s+30\s+days?\b/.test(lower)) return 30;
+  return 30; // default
+}
+
 export async function handleMonitoring(
   message: string,
   _history: ChatMessage[],
@@ -23,6 +40,7 @@ export async function handleMonitoring(
   const region = await detectBqRegion(project);
   const uid = context?.uid;
   const hc = context?.handoffContext;
+  const timeRangeDays = extractTimeRangeDays(message); // W2-17: dynamic time range
 
   // --- Handle save_check / schedule_check actions from alert chips ---
   if (hc?.action === 'save_check' && hc?.checkSql && uid) {
@@ -696,8 +714,8 @@ export async function handleMonitoring(
 
   // COST_ANALYSIS -- query costs over time by user
   if (monitoringType === 'COST_ANALYSIS') {
-    const costSql = `SELECT DATE(creation_time) AS period, user_email, SUM(total_bytes_processed) AS total_bytes, COUNT(*) AS job_count FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) AND total_bytes_processed > 0 GROUP BY period, user_email ORDER BY period DESC, total_bytes DESC LIMIT 500`;
-    onStatus?.(`Analyzing query costs for project ${project}...`);
+    const costSql = `SELECT DATE(creation_time) AS period, user_email, SUM(total_bytes_processed) AS total_bytes, COUNT(*) AS job_count FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL ${timeRangeDays} DAY) AND total_bytes_processed > 0 GROUP BY period, user_email ORDER BY period DESC, total_bytes DESC LIMIT 500`;
+    onStatus?.(`Analyzing query costs for last ${timeRangeDays}d in project ${project}...`);
     try {
       const executed = await executeQuery(costSql, project);
       const costPerTb = 6.25; // BigQuery on-demand pricing per TB
@@ -713,7 +731,7 @@ export async function handleMonitoring(
       });
       const totalCost = buckets.reduce((acc, b) => acc + b.estimatedCostUsd, 0);
       const now = new Date();
-      const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const start = new Date(now.getTime() - timeRangeDays * 24 * 60 * 60 * 1000);
       const result: CostAnalysisResult = {
         skill: 'monitoring',
         monitoringType: 'COST_ANALYSIS',
@@ -724,7 +742,8 @@ export async function handleMonitoring(
       return [compose('monitoring', result as unknown as MonitoringResult)];
     } catch {
       const now = new Date();
-      const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const start = new Date(now.getTime() - timeRangeDays * 24 * 60 * 60 * 1000);
+
       const result: CostAnalysisResult = {
         skill: 'monitoring', monitoringType: 'COST_ANALYSIS',
         timeRange: { start: start.toISOString(), end: now.toISOString() },
@@ -831,9 +850,10 @@ export async function handleMonitoring(
   }
 
   // JOBS (default) -- existing INFORMATION_SCHEMA.JOBS query
-  const sql = `SELECT job_id, user_email, statement_type, state, creation_time, total_bytes_processed, error_result, referenced_tables FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR) ORDER BY creation_time DESC LIMIT 50`;
+  const timeRangeLabel = timeRangeDays === 1 ? '24h' : `${timeRangeDays}d`;
+  const sql = `SELECT job_id, user_email, statement_type, state, creation_time, total_bytes_processed, error_result, referenced_tables FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL ${timeRangeDays} DAY) ORDER BY creation_time DESC LIMIT 50`;
 
-  onStatus?.(`Fetching last 24h of job history for project ${project}...`);
+  onStatus?.(`Fetching last ${timeRangeLabel} of job history for project ${project}...`);
   const executed = await executeQuery(sql, project);
 
   // Map column indices

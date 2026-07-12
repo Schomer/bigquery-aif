@@ -29,6 +29,34 @@ function stateLabel(state: string): string {
   return s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, ' ');
 }
 
+// W2-18: Health dot strip
+function HealthDotStrip({ dots }: { dots: NonNullable<NonNullable<PipelineResult['schedules']>[0]['healthDots']> }) {
+  if (dots.length === 0) return <span style={{ color: 'var(--text-dim)', fontSize: 11 }}>no data</span>;
+  return (
+    <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', maxWidth: 160, alignItems: 'center' }}>
+      {dots.map((dot, i) => {
+        const color = dot.status === 'success' ? '#10b981' : dot.status === 'failure' ? '#ef4444' : dot.status === 'running' ? '#3b82f6' : '#9ca3af';
+        const durS = dot.durationMs ? `${(dot.durationMs / 1000).toFixed(0)}s` : '';
+        return (
+          <div
+            key={i}
+            title={`${dot.date} · ${dot.status}${durS ? ` · ${durS}` : ''}`}
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              backgroundColor: color,
+              flexShrink: 0,
+              cursor: 'default',
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+
 // -- Main component -----------------------------------------------------------
 
 export function PipelineView({ result, onSendMessage }: Props) {
@@ -76,6 +104,7 @@ function ScheduleList({ result, onSendMessage }: Props) {
               <th style={thStyle}>Schedule</th>
               <th style={thStyle}>Status</th>
               <th style={thStyle}>Next Run</th>
+              <th style={thStyle}>Health (recent)</th>
               <th style={thStyle}>Actions</th>
             </tr>
           </thead>
@@ -98,6 +127,9 @@ function ScheduleList({ result, onSendMessage }: Props) {
                 </td>
                 <td style={{ ...tdStyle, color: 'var(--text-muted)' }}>
                   {s.nextRunTime ? relativeTime(s.nextRunTime) : '--'}
+                </td>
+                <td style={tdStyle}>
+                  {s.healthDots ? <HealthDotStrip dots={s.healthDots} /> : <span style={{ color: 'var(--text-dim)', fontSize: 11 }}>--</span>}
                 </td>
                 <td style={tdStyle}>
                   <div style={{ display: 'flex', gap: 4 }}>

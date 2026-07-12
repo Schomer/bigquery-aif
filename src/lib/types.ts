@@ -229,6 +229,7 @@ export interface SchemaColumn {
   columnCount?: number | null;
   sizeBytes?: number | null;
   creationTime?: string | null;
+  queryFrequency?: number;          // W2-12: # queries in last 30d (for sort order)
   // Project-level dataset metadata (populated when scope === 'PROJECT')
   tableCount?: number | null;
 }
@@ -341,6 +342,7 @@ export interface DataManagementConfirmResult {
   tiebreakerDirection?: 'KEEP_LATEST' | 'KEEP_EARLIEST';
   executionSql: string;
   snapshotRowIds?: (string | number)[];
+  snapshotOffer?: boolean;  // W2-19: show snapshot suggestion before confirm
 }
 
 export interface DataManagementCompleteResult {
@@ -370,6 +372,7 @@ export interface DqFinding {
   metric: string;
   value: number | string | null;
   severity: DqSeverity;
+  sampleRows?: Array<Record<string, unknown>>; // W2-14: up to 5 failing rows
 }
 
 export interface DataQualityResult {
@@ -688,6 +691,11 @@ export interface PipelineResult {
     nextRunTime?: string;
     sql?: string;
     destinationTable?: string;
+    healthDots?: Array<{      // W2-18: recent run statuses for dot strip
+      date: string;           // ISO date string
+      status: 'success' | 'failure' | 'running' | 'pending';
+      durationMs?: number;
+    }>;
   }>;
   runs?: Array<{
     runId: string;

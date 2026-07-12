@@ -151,24 +151,48 @@ async function fetchDatasetSchema(project: string, dataset: string): Promise<Sch
     pageToken = data.nextPageToken;
   } while (pageToken);
 
-  // Fetch column counts for all tables in one INFORMATION_SCHEMA batch query.
-  // This is metadata-only — no data scan cost.
-  const columnCountMap = new Map<string, number>();
-  if (allTables.length > 0) {
-    try {
-      const { rows } = await bqQuery(
-        `SELECT table_name, COUNT(*) AS column_count FROM \`${project}.${dataset}\`.INFORMATION_SCHEMA.COLUMNS GROUP BY table_name`,
-        project,
-      );
-      for (const row of rows) {
-        const tableName = String(row[0] ?? '');
-        const count = parseInt(String(row[1] ?? '0'), 10);
-        if (tableName) columnCountMap.set(tableName, count);
+  // W2-12: Fetch query frequency per table from INFORMATION_SCHEMA in parallel with column counts
+  const queryFreqMap = new Map<string, number>();
+  const [columnCountMapResult] = await Promise.allSettled([
+    (async () => {
+      const map = new Map<string, number>();
+      if (allTables.length > 0) {
+        try {
+          const { rows } = await bqQuery(
+            `SELECT table_name, COUNT(*) AS column_count FROM \`${project}.${dataset}\`.INFORMATION_SCHEMA.COLUMNS GROUP BY table_name`,
+            project,
+          );
+          for (const row of rows) {
+            const tableName = String(row[0] ?? '');
+            const count = parseInt(String(row[1] ?? '0'), 10);
+            if (tableName) map.set(tableName, count);
+          }
+        } catch { /* non-fatal */ }
       }
-    } catch {
-      // Non-fatal — column counts will be omitted rather than blocking the listing
-    }
-  }
+      return map;
+    })(),
+    (async () => {
+      try {
+        const { rows } = await bqQuery(
+          `SELECT REGEXP_EXTRACT(ref.project_id||'.'||ref.dataset_id||'.'||ref.table_id, r'[^.]+$') AS table_name, COUNT(*) AS freq
+           FROM \`${project}\`.\`region-us\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT, UNNEST(referenced_tables) AS ref
+           WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+             AND ref.dataset_id = '${dataset}'
+             AND ref.project_id = '${project}'
+             AND statement_type = 'SELECT'
+           GROUP BY table_name ORDER BY freq DESC LIMIT 50`,
+          project,
+        );
+        for (const row of rows) {
+          const tName = String(row[0] ?? '');
+          const freq = Number(row[1] ?? 0);
+          if (tName) queryFreqMap.set(tName, freq);
+        }
+      } catch { /* non-fatal — query freq unavailable */ }
+    })(),
+  ]);
+
+  const columnCountMap = columnCountMapResult.status === 'fulfilled' ? columnCountMapResult.value : new Map<string, number>();
 
   const columns: SchemaColumn[] = allTables.map((t: any) => {
     const tableId: string = t.tableReference?.tableId ?? '';
@@ -184,8 +208,21 @@ async function fetchDatasetSchema(project: string, dataset: string): Promise<Sch
       creationTime: t.creationTime
         ? new Date(parseInt(t.creationTime, 10)).toISOString()
         : null,
+      queryFrequency: queryFreqMap.get(tableId) ?? 0,  // W2-12: frequency for sort
     };
   });
+
+  // W2-12: Sort by frequency (desc), then row count (desc), then name (asc)
+  if (queryFreqMap.size > 0) {
+    columns.sort((a, b) => {
+      const freqDiff = (b.queryFrequency ?? 0) - (a.queryFrequency ?? 0);
+      if (freqDiff !== 0) return freqDiff;
+      const rowDiff = (b.rowCount ?? 0) - (a.rowCount ?? 0);
+      if (rowDiff !== 0) return rowDiff;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
 
   return {
     skill: 'schema', scope: 'DATASET', project, dataset, table: null,

@@ -7,7 +7,7 @@ import {
   ScatterChart, Scatter, PieChart, Pie, Cell,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   FunnelChart, Funnel, Treemap, Sankey, ComposedChart,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList, ReferenceLine,
 } from 'recharts';
 import {
   COLORS, AXIS_STYLE, TOOLTIP_STYLE, GRID_STYLE, CHART_HEIGHT, CHART_MARGIN,
@@ -136,10 +136,17 @@ function useChartSetup(result: QueryResult) {
 }
 
 // ---------------------------------------------------------------------------
+function computeAvg(data: Record<string, unknown>[], key: string): number | null {
+  const vals = data.map(r => Number(r[key])).filter(v => !isNaN(v));
+  if (vals.length < 4) return null;
+  return vals.reduce((s, v) => s + v, 0) / vals.length;
+}
+
 // 1. LineChartRenderer
 // ---------------------------------------------------------------------------
 export function LineChartRenderer({ result, onSendMessage }: ChartProps) {
   const { data, xKey, yKeys, tickFmt, tipFmt, xTickFmt } = useChartSetup(result);
+  const avg = yKeys.length === 1 ? computeAvg(data, yKeys[0]) : null;
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
@@ -159,6 +166,15 @@ export function LineChartRenderer({ result, onSendMessage }: ChartProps) {
               activeDot={{ r: 4 }}
             />
           ))}
+          {avg !== null && (
+            <ReferenceLine
+              y={avg}
+              stroke="rgba(148,163,184,0.6)"
+              strokeDasharray="4 4"
+              strokeWidth={1}
+              label={{ value: `avg ${tickFmt(avg)}`, fill: 'var(--text-muted)', fontSize: 10, position: 'insideTopRight' }}
+            />
+          )}
           {yKeys.length > 1 && <Legend iconSize={8} iconType="circle" />}
         </LineChart>
       </ResponsiveContainer>
@@ -166,6 +182,7 @@ export function LineChartRenderer({ result, onSendMessage }: ChartProps) {
     </div>
   );
 }
+
 
 // ---------------------------------------------------------------------------
 // 2. BarChartRenderer (horizontal bars)
@@ -260,6 +277,7 @@ export function ColumnChartRenderer({ result, onSendMessage }: ChartProps) {
 // ---------------------------------------------------------------------------
 export function AreaChartRenderer({ result, onSendMessage }: ChartProps) {
   const { data, xKey, yKeys, tickFmt, tipFmt, xTickFmt } = useChartSetup(result);
+  const avg = yKeys.length === 1 ? computeAvg(data, yKeys[0]) : null;
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
@@ -279,6 +297,15 @@ export function AreaChartRenderer({ result, onSendMessage }: ChartProps) {
               strokeWidth={2}
             />
           ))}
+          {avg !== null && (
+            <ReferenceLine
+              y={avg}
+              stroke="rgba(148,163,184,0.6)"
+              strokeDasharray="4 4"
+              strokeWidth={1}
+              label={{ value: `avg ${tickFmt(avg)}`, fill: 'var(--text-muted)', fontSize: 10, position: 'insideTopRight' }}
+            />
+          )}
           {yKeys.length > 1 && <Legend iconSize={8} iconType="circle" />}
         </AreaChart>
       </ResponsiveContainer>
@@ -286,6 +313,7 @@ export function AreaChartRenderer({ result, onSendMessage }: ChartProps) {
     </div>
   );
 }
+
 
 // ---------------------------------------------------------------------------
 // 5. ScatterChartRenderer

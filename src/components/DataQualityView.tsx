@@ -1,6 +1,6 @@
 'use client';
 
-import type { DataQualityResult, DqSeverity } from '@/lib/types';
+import type { DataQualityResult, DqFinding, DqSeverity } from '@/lib/types';
 import { useState } from 'react';
 
 interface Props {
@@ -165,7 +165,7 @@ function FindingRow({
   total,
   onSendMessage,
 }: {
-  finding: { column: string; metric: string; value: number | string | null; severity: DqSeverity };
+  finding: DqFinding;
   table: string;
   index: number;
   total: number;
@@ -193,52 +193,87 @@ function FindingRow({
   }
 
   const actions = getActions();
+  const hasSamples = f.sampleRows && f.sampleRows.length > 0;
+  const sampleCols = hasSamples ? Object.keys(f.sampleRows![0]).slice(0, 6) : [];
 
   return (
-    <tr
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        borderBottom: index < total - 1 ? '1px solid var(--border-subtle)' : undefined,
-        background: hovered ? 'var(--accent-dim)' : rowBg(f.severity),
-        transition: 'background 0.1s',
-        cursor: actions.length > 0 ? 'default' : 'default',
-      }}
-    >
-      <td style={{ padding: '6px 12px', fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>{f.column}</td>
-      <td style={{ padding: '6px 12px', color: 'var(--text-muted)' }}>{f.metric}</td>
-      <td style={{ padding: '6px 12px', fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>
-        {f.value === null ? <span style={{ color: 'var(--text-dim)' }}>null</span> : String(f.value)}
-      </td>
-      <td style={{ padding: '6px 12px' }}>
-        <SeverityBadge severity={f.severity} />
-      </td>
-      {/* Inline action buttons — visible on hover */}
-      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap', width: 120 }}>
-        {actions.length > 0 && (
-          <div style={{ display: 'flex', gap: 4, visibility: hovered ? 'visible' : 'hidden' }}>
-            {actions.map((a) => (
-              <button
-                key={a.label}
-                onClick={() => onSendMessage(a.msg)}
-                style={{
-                  fontSize: 10,
-                  padding: '2px 7px',
-                  borderRadius: 4,
-                  border: '1px solid var(--border)',
-                  background: 'var(--surface)',
-                  color: 'var(--accent)',
-                  cursor: 'pointer',
-                  fontWeight: 500,
-                }}
-              >
-                {a.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </td>
-    </tr>
+    <>
+      <tr
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          borderBottom: !hasSamples && index < total - 1 ? '1px solid var(--border-subtle)' : undefined,
+          background: hovered ? 'var(--accent-dim)' : rowBg(f.severity),
+          transition: 'background 0.1s',
+        }}
+      >
+        <td style={{ padding: '6px 12px', fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>{f.column}</td>
+        <td style={{ padding: '6px 12px', color: 'var(--text-muted)' }}>{f.metric}</td>
+        <td style={{ padding: '6px 12px', fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>
+          {f.value === null ? <span style={{ color: 'var(--text-dim)' }}>null</span> : String(f.value)}
+        </td>
+        <td style={{ padding: '6px 12px' }}>
+          <SeverityBadge severity={f.severity} />
+        </td>
+        {/* Inline action buttons — visible on hover */}
+        <td style={{ padding: '4px 8px', whiteSpace: 'nowrap', width: 120 }}>
+          {actions.length > 0 && (
+            <div style={{ display: 'flex', gap: 4, visibility: hovered ? 'visible' : 'hidden' }}>
+              {actions.map((a) => (
+                <button
+                  key={a.label}
+                  onClick={() => onSendMessage(a.msg)}
+                  style={{
+                    fontSize: 10,
+                    padding: '2px 7px',
+                    borderRadius: 4,
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface)',
+                    color: 'var(--accent)',
+                    cursor: 'pointer',
+                    fontWeight: 500,
+                  }}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </td>
+      </tr>
+      {/* W2-14: Sample failing rows inline */}
+      {hasSamples && (
+        <tr style={{ background: 'rgba(239,68,68,0.02)', borderBottom: index < total - 1 ? '1px solid var(--border-subtle)' : undefined }}>
+          <td colSpan={5} style={{ padding: '0 12px 8px 24px' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
+              Sample rows where {f.column} IS NULL ({f.sampleRows!.length} shown):
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ fontSize: 11, borderCollapse: 'collapse', minWidth: '100%' }}>
+                <thead>
+                  <tr>
+                    {sampleCols.map(col => (
+                      <th key={col} style={{ padding: '2px 8px', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 500, borderBottom: '1px solid var(--border-subtle)', fontFamily: 'var(--font-mono)' }}>{col}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {f.sampleRows!.map((row, ri) => (
+                    <tr key={ri}>
+                      {sampleCols.map(col => (
+                        <td key={col} style={{ padding: '2px 8px', fontFamily: 'var(--font-mono)', color: row[col] == null ? 'var(--text-dim)' : 'var(--text)' }}>
+                          {row[col] == null ? 'NULL' : String(row[col]).slice(0, 40)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 

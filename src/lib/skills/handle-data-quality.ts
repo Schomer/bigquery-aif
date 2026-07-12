@@ -221,6 +221,23 @@ export async function handleDataQuality(
       severity: overallCompleteness < 0.8 ? 'ISSUE' : overallCompleteness < 0.95 ? 'WARNING' : 'INFO',
     });
 
+    // W2-14: Attach sample failing rows for ISSUE-severity columns (null checks)
+    const issueFindings = findings.filter(f => f.severity === 'ISSUE' && f.metric === 'fill_rate');
+    if (issueFindings.length > 0) {
+      const samplePromises = issueFindings.slice(0, 3).map(async (finding) => {
+        try {
+          const sampleSql = `SELECT * FROM ${fqTable} WHERE \`${finding.column}\` IS NULL LIMIT 5`;
+          const sampleResult = await executeQuery(sampleSql, project);
+          if (sampleResult.rows.length > 0) {
+            finding.sampleRows = sampleResult.rows.map(row =>
+              Object.fromEntries(sampleResult.columns.map((col, i) => [col, row[i]]))
+            );
+          }
+        } catch { /* sample rows are non-critical */ }
+      });
+      await Promise.all(samplePromises);
+    }
+
     const issueCount = findings.filter((f) => f.severity !== 'INFO').length;
     const result: DataQualityResult = {
       skill: 'data-quality', checkType: 'COMPLETENESS', table: fqTable, sql,

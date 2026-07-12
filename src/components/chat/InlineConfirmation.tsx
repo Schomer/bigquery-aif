@@ -179,6 +179,31 @@ export function InlineDmlConfirm({ headline, result, compact, onConfirm, onCance
         </div>
       )}
 
+      {/* W2-19: Snapshot offer for destructive ops */}
+      {result.snapshotOffer && (
+        <div style={{
+          background: 'rgba(245,158,11,0.06)',
+          border: '1px solid rgba(245,158,11,0.3)',
+          borderRadius: 8,
+          padding: '10px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+        }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#f59e0b', flexShrink: 0 }}>archive</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>Create a snapshot first?</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>BigQuery snapshots are free for 7 days and let you recover data if needed.</div>
+          </div>
+          <button
+            onClick={() => onConfirm()}
+            style={{ fontSize: 11, padding: '4px 10px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 5, cursor: 'pointer', color: 'var(--accent)', fontWeight: 500 }}
+          >
+            Skip
+          </button>
+        </div>
+      )}
+
       {/* Cost estimate if present */}
       {costEstimate && (
         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>

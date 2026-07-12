@@ -153,12 +153,36 @@ Project: ${project}, dataset: ${dataset}`,
         destinationTable: c.destinationDatasetId || '',
       }));
 
+      // W2-18: Fetch health dots (recent run history) in parallel for up to 5 schedules
+      const healthFetches = (schedules ?? []).slice(0, 5).map(async (s) => {
+        try {
+          const runsData = await dtFetch(
+            `${DT_BASE}/projects/${encodeURIComponent(project)}/locations/${location}/transferConfigs/${encodeURIComponent(s.configId)}/runs?pageSize=30&states=SUCCEEDED,FAILED,RUNNING,PENDING`
+          );
+          const recentRuns = (runsData.transferRuns || []).slice(0, 30);
+          s.healthDots = recentRuns.map((r: any) => {
+            const st = (r.state || '').toUpperCase();
+            const status: 'success' | 'failure' | 'running' | 'pending' =
+              st === 'SUCCEEDED' ? 'success' : st === 'FAILED' ? 'failure' : st === 'RUNNING' ? 'running' : 'pending';
+            const start = r.startTime ? new Date(r.startTime).getTime() : 0;
+            const end = r.endTime ? new Date(r.endTime).getTime() : start;
+            return {
+              date: r.startTime ? r.startTime.split('T')[0] : '',
+              status,
+              durationMs: end - start,
+            };
+          });
+        } catch { /* health dots are non-critical */ }
+      });
+      await Promise.all(healthFetches);
+
       const result: PipelineResult = {
         skill: 'pipeline',
         pipelineType: 'LIST_SCHEDULES',
         schedules,
       };
       return [compose('pipeline', result)];
+
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       const result: PipelineResult = {
