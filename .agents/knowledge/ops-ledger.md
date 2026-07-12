@@ -10,6 +10,29 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+## 2026-07-12: Wave 3 — All Items Implemented
+
+**Items completed in this session**: W3-05, W3-08, W3-11, W3-12, W3-13, W3-14, W3-15, W3-16, W3-17, W3-18, W3-19, W3-20 (previous session covered W3-01 through W3-10).
+
+**Key changes**:
+- **W3-05 (Annotation write-back)**: Added annotation verbs to MUTATING_VERBS router (`annotate`, `describe column`, `set description`, etc.). Added `ALTER TABLE ... ALTER COLUMN SET OPTIONS (description=...)` DDL to data-management skill doc. Routed to existing LLM-driven DML handler.
+- **W3-08 (Calendar heatmap)**: Added monthly coverage grid inside `DateRangeVizLarge` in `SchemaView.tsx`. Computes month buckets from min/max dates, renders 12-col grid with intensity gradient.
+- **W3-11/12 (Firestore types)**: Added `SavedDashboard`, `DashboardTile`, `JoinDefinition` types to `types.ts`.
+- **W3-13 (Join discovery)**: Added `JOIN_DISCOVERY` to discovery LLM prompt and handler. Extracts overlapping column names, prefers *_id/*_key patterns, runs match rate SQL against top candidate.
+- **W3-14 (Query parameterization UI)**: Extended `SaveModal` with `sql` prop, auto-detects `@param` patterns, shows collapsible parameter editor with type/default fields.
+- **W3-15 (Dashboard editor)**: New `/dashboard` page with split-panel layout: saved dashboard list + artifact picker on left, CSS grid tile canvas on right. Saves to `users/{uid}/savedDashboards` Firestore collection.
+- **W3-16 (URL sharing)**: Added `ShareLinkButton` to ArtifactCard kebab menu. Writes to `sharedArtifacts/{id}` Firestore collection, copies URL to clipboard.
+- **W3-17 (Pipeline DAG)**: Added pipeline flow diagram to `ScheduleDetails`. Extracts source tables from SQL via FROM/JOIN regex, renders source → schedule job → destination node flow.
+- **W3-18 (Slot utilization)**: Changed SLOTS monitoring handler to return `LINE_CHART` `QueryResult` instead of `JOB_LIST`. Reuses existing chart infrastructure.
+- **W3-19 (Monitoring history)**: New `src/lib/monitoring-history.ts` module with `saveMonitoringSnapshot()` / `getMonitoringHistory()`. Wired fire-and-forget calls into FRESHNESS and COMPLETENESS DQ handlers.
+
+**Rules derived**:
+1. `DiscoveryResult.query` must be optional (`?`) when adding new discoveryType variants that don't use a query string.
+2. `ParameterDef` type uses lowercase type values (`'string'`, `'number'`, `'date'`) and `default` field (not `defaultValue`).
+3. When adding new Firestore collections to client-side code, use dynamic `import()` to avoid server-side SSR errors.
+4. `getArtifacts(userId)` in `saved-work.ts` only accepts `(userId, type?)` — no limit parameter.
+5. The monitoring SLOTS handler can reuse the existing `compose('query', ...)` path with `LINE_CHART` suggestion — no new chart component needed.
+
 ### 2026-07-12: Batch 3-6 Bug Fixes from Visual Test Suite
 
 **What changed**: Four bugs found from the 20-prompt Puppeteer test suite and fixed:

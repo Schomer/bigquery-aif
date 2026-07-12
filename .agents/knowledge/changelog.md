@@ -2,6 +2,25 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-12: Wave 3 Complete — All 20 Items Shipped
+
+**Context**: Continuation of the multi-wave implementation plan. Wave 3 covers new features: visualization improvements, Firestore types, new skill capabilities, and new pages.
+
+**W3 items completed this session** (W3-01 through W3-10 were done in the prior session):
+
+- **W3-05**: Annotation write-back via `ALTER TABLE ... ALTER COLUMN SET OPTIONS`. Added `annotate`/`describe column`/`set description` to `MUTATING_VERBS` router. Added example DDL to data-management skill doc.
+- **W3-08**: Calendar heatmap in date column profiling panel (`DateRangeVizLarge`). Shows monthly grid with intensity gradient.
+- **W3-11/12**: `SavedDashboard`, `DashboardTile`, `JoinDefinition` TypeScript types added to `types.ts`.
+- **W3-13**: `JOIN_DISCOVERY` handler in `handle-discovery.ts`. Finds overlapping column names, prefers `*_id` pattern columns, runs match rate SQL for top candidate.
+- **W3-14**: `SaveModal` extended with `sql` prop, auto-detects `@param` patterns, shows collapsible parameter form.
+- **W3-15**: New `/dashboard` page — split-panel dashboard editor. Artifact picker sidebar + CSS grid tile canvas + save to Firestore.
+- **W3-16**: `ShareLinkButton` in ArtifactCard kebab menu. Writes to `sharedArtifacts` Firestore collection, copies URL.
+- **W3-17**: Pipeline DAG visualization in `ScheduleDetails`. Extracts source tables from SQL, renders flow diagram.
+- **W3-18**: SLOTS monitoring returns `LINE_CHART` `QueryResult` (reuses chart renderer, no new component needed).
+- **W3-19**: New `src/lib/monitoring-history.ts` persistence layer. Fire-and-forget Firestore writes after FRESHNESS and COMPLETENESS DQ checks.
+
+**Deploy commits**: 48cb90b (W3-A), 94d33da (W3-B), 95ace1c (W3-C), ec5355b (W3-D), ea6c0c9 (W3-E), + W3-F in flight.
+
 ## 2026-07-11: Thread schema columns through context to skip redundant get_table_schema
 
 **Context**: After a schema-view turn, the next query turn called `get_table_schema` again even though the schema was already known. Two problems: (1) `context.lastTableSchema` didn't exist so columns weren't passed forward, and (2) the prompt instruction was too soft to prevent the LLM from calling the tool anyway.
