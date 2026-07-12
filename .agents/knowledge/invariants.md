@@ -59,6 +59,8 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **Dataset name vs project name guard**: `fetchSchema()` in `src/lib/skills/schema.ts` checks if the requested dataset name equals the project name and ignores it if so. This prevents the confusing case where the project name is treated as a dataset.
 - **callGemini retries transient errors 3 times**: 429, 5xx, and errors containing 'demand', 'temporary', 'limit', 'quota', or 'resource' get exponential backoff with jitter. Auth errors (401/403) are never retried.
 - **No dry run for queries**: The dry run step was removed. Queries execute directly. Do not re-introduce `dryRun()` in the query handler.
+- **Schema columns from prior turns are threaded through `lastTableSchema` in context**: `ChatContext.lastTableSchema` stores the columns from the most recent table-scope SCHEMA_VIEW result. `handleQuery()` checks this first before calling `fetchSchema`. When present, it is used directly (no fetch at all) and the LLM prompt states the schema is "complete and authoritative -- do NOT call get_table_schema under any circumstances." Do not weaken this instruction to a suggestion.
+
 
 ---
 

@@ -2,7 +2,17 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-11: Thread schema columns through context to skip redundant get_table_schema
+
+**Context**: After a schema-view turn, the next query turn called `get_table_schema` again even though the schema was already known. Two problems: (1) `context.lastTableSchema` didn't exist so columns weren't passed forward, and (2) the prompt instruction was too soft to prevent the LLM from calling the tool anyway.
+
+**Changes**:
+- `useChatOrchestration.ts`: Added `lastTableSchema` to `ChatContext`. `extractContextFromEnvelope()` populates it from `SCHEMA_VIEW` artifact columns (table scope only). `deriveContextFromItems()` carries it forward via `...context` spread.
+- `chat-orchestrator.ts`: Added `lastTableSchema` to `ProcessMessageArgs` context so it flows to handlers via `enrichedContext`.
+- `handle-query.ts`: Added `lastTableSchema` to context param. If present and non-empty, uses it directly (skipping `fetchSchema`). Strengthened prompt rule 2 to say the schema is "complete and authoritative -- do NOT call get_table_schema under any circumstances."
+
 ## 2026-07-11: Pre-fetch table list to reduce tool-call iterations
+
 
 **Context**: Simple queries like "which drivers had the most points" were burning all 10 tool-call iterations because the LLM had to call list_tables and list_datasets before it could write SQL. Sometimes it never reached the actual query.
 

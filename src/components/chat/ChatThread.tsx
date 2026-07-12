@@ -463,7 +463,7 @@ export function ChatThread({
                 );
               })}
               {!msg.envelopes && msg.content && (
-                <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>
+                <div style={{ color: 'var(--text)', fontSize: 15 }}>
                   {typeof msg.content === 'string' ? msg.content : String(msg.content)}
                 </div>
               )}

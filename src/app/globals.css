@@ -2042,6 +2042,7 @@ details>summary::marker {
 /* Assistant text in sidebar mode */
 .chat-sidebar .chat-sidebar-assistant-text {
   font-size: 13px;
+  font-weight: 500;
   color: var(--text);
   line-height: 1.4;
   padding: 2px 0;

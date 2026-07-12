@@ -10,6 +10,21 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+### 2026-07-11: Follow-up queries redundantly called get_table_schema
+
+**What broke**: After a schema-view turn ("Show me ecomm.order_items"), the next query turn ("show totals for order status") still called `get_table_schema` in its thinking steps, even though the schema was already fetched and visible on screen.
+
+**Root cause**: The schema columns were never threaded through the context object between turns. `handleQuery` could pre-fetch and inject schema into the system prompt via the existing `context.lastTable` path (which triggered a cached `fetchSchema` call), but the LLM still called `get_table_schema` anyway because the prompt instruction wasn't forceful enough ("do not call get_table_schema first" is soft). Additionally, `context.lastTableSchema` didn't exist, so the pre-fetched columns weren't distinguishable from a fresh fetch.
+
+**Fix**:
+- Added `lastTableSchema` to `ChatContext` and `ProcessMessageArgs`.
+- `extractContextFromEnvelope()` now populates `lastTableSchema` from `SCHEMA_VIEW` artifact columns (table scope only).
+- `handleQuery` checks `context.lastTableSchema` first; if present and non-empty, uses it directly (no fetch, not even a cache lookup).
+- Strengthened the system prompt instruction: when schema is pre-injected, the LLM now reads "it is complete and authoritative. Do NOT call get_table_schema under any circumstances."
+- `deriveContextFromItems()` carries `lastTableSchema` forward automatically via `...context` spread.
+
+**Rule**: Schema columns fetched in any prior turn should be stored in context and passed to subsequent turns. Any instruction telling an LLM "you don't need to call this tool" must be absolute and name the tool explicitly -- hedged language like "you don't need to do this first" leaves room for the model to rationalize a call anyway.
+
 ### 2026-07-11: Query handler wasted iterations on list_tables/list_datasets
 
 **What broke**: Simple questions like "which drivers had the most points" burned through all 10 tool-call iterations without answering the question. The LLM spent iterations on list_datasets, list_tables, and exploratory queries before reaching the real query.
