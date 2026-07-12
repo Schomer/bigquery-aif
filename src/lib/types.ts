@@ -239,6 +239,7 @@ export interface SchemaColumn {
   queryFrequency?: number;          // W2-12: # queries in last 30d (for sort order)
   // Project-level dataset metadata (populated when scope === 'PROJECT')
   tableCount?: number | null;
+  policyTags?: string[];  // W3-07: policy tag names applied to this column
 }
 
 export interface SchemaUsageSignals {

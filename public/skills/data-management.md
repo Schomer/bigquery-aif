@@ -104,6 +104,9 @@ ALTER TABLE `project.dataset.table` SET OPTIONS (clustering_fields=['col1', 'col
 -- Set table description
 ALTER TABLE `project.dataset.table` SET OPTIONS (description='Updated description')
 
+-- W3-05: Set COLUMN description (annotation write-back)
+ALTER TABLE `project.dataset.table` ALTER COLUMN column_name SET OPTIONS (description='Column description here')
+
 -- Set expiration
 ALTER TABLE `project.dataset.table` SET OPTIONS (expiration_timestamp=TIMESTAMP '2026-12-31')
 ```

@@ -28,6 +28,9 @@ const MUTATING_VERBS = [
   'make a table', 'make a new table', 'make table',
   // Merge/upsert variants
   'upsert', 'merge into',
+  // W3-05: annotation write-back
+  'annotate', 'annotate column', 'describe column', 'set description', 'add description to',
+  'add a description', 'update description', 'label column',
 ];
 
 // Pre-compiled word-boundary patterns for mutating verbs.

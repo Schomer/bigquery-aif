@@ -1751,7 +1751,27 @@ function ColumnRow({
         </td>
         <td style={{ padding: '7px 12px', color: 'var(--text-muted)', fontSize: 11 }}>
           {col.description ?? ''}
+          {/* W3-07: policy tag badges */}
+          {col.policyTags && col.policyTags.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: col.description ? 4 : 0 }}>
+              {col.policyTags.map(tag => {
+                const tagName = tag.split('/').pop() ?? tag;
+                return (
+                  <span key={tag} title={tag} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 3,
+                    padding: '1px 6px', borderRadius: 4,
+                    background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.25)',
+                    fontSize: 10, color: '#fb923c', fontWeight: 500,
+                  }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 10 }}>lock</span>
+                    {tagName}
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </td>
+
         {/* Inline column actions — visible on hover */}
         <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
           {hovered && (

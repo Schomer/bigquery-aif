@@ -278,6 +278,7 @@ function mapField(field: {
   mode?: string;
   description?: string;
   fields?: unknown[];
+  policyTags?: { names?: string[] };
 }): SchemaColumn {
   return {
     name: field.name,
@@ -287,6 +288,8 @@ function mapField(field: {
     fields: (field.fields ?? []).map((f) =>
       mapField(f as Parameters<typeof mapField>[0])
     ),
+    // W3-07: extract policy tag names if present
+    policyTags: field.policyTags?.names?.length ? field.policyTags.names : undefined,
   };
 }
 
