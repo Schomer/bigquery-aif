@@ -376,6 +376,7 @@ export interface DqFinding {
   value: number | string | null;
   severity: DqSeverity;
   sampleRows?: Array<Record<string, unknown>>; // W2-14: up to 5 failing rows
+  histogram?: Array<{ bucket: string; count: number }>; // W2-15: numeric distribution
 }
 
 export interface DataQualityResult {

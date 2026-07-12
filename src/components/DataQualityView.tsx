@@ -273,6 +273,41 @@ function FindingRow({
           </td>
         </tr>
       )}
+      {/* W2-16: Inline histogram for numeric columns */}
+      {f.histogram && f.histogram.length > 0 && (() => {
+        const maxCount = Math.max(...f.histogram!.map(b => b.count));
+        return (
+          <tr style={{ borderBottom: index < total - 1 ? '1px solid var(--border-subtle)' : undefined }}>
+            <td colSpan={5} style={{ padding: '0 12px 10px 24px' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+                Distribution — {f.column}
+              </div>
+              <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 48, width: '100%', maxWidth: 360 }}>
+                {f.histogram!.map((bin, bi) => (
+                  <div key={bi} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                    <div
+                      title={`${bin.bucket}: ${bin.count.toLocaleString()}`}
+                      style={{
+                        width: '100%',
+                        height: `${Math.max(4, (bin.count / maxCount) * 40)}px`,
+                        background: 'var(--accent)',
+                        borderRadius: '2px 2px 0 0',
+                        opacity: 0.7,
+                        transition: 'height 0.2s',
+                        cursor: 'default',
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-dim)', maxWidth: 360, marginTop: 2 }}>
+                <span>{f.histogram![0].bucket.split('–')[0]}</span>
+                <span>{f.histogram![f.histogram!.length - 1].bucket.split('–')[1]}</span>
+              </div>
+            </td>
+          </tr>
+        );
+      })()}
     </>
   );
 }

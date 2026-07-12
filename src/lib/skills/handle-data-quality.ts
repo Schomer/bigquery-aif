@@ -575,6 +575,44 @@ export async function handleDataQuality(
     }
   }
 
+  // W2-15: Fetch histograms for numeric columns in parallel (up to 3, for PROFILE only)
+  if (intent.checkType === 'PROFILE') {
+    const numericFindingCols = columns
+      .filter(c => ['INT64', 'FLOAT64', 'NUMERIC', 'BIGNUMERIC', 'INTEGER', 'FLOAT'].includes(c.type))
+      .slice(0, 3);
+
+    const histogramPromises = numericFindingCols.map(async (col) => {
+      try {
+        const histSql = `
+          SELECT
+            CAST(FLOOR(CAST(${col.name} AS FLOAT64) / ((MAX(CAST(${col.name} AS FLOAT64)) - MIN(CAST(${col.name} AS FLOAT64))) / 10 + 0.00001)) AS INT64) AS bucket_idx,
+            MIN(CAST(${col.name} AS FLOAT64)) OVER () AS global_min,
+            (MAX(CAST(${col.name} AS FLOAT64)) OVER () - MIN(CAST(${col.name} AS FLOAT64)) OVER ()) / 10.0 AS bucket_size,
+            COUNT(*) AS cnt
+          FROM ${fqTable} WHERE ${col.name} IS NOT NULL
+          GROUP BY bucket_idx, global_min, bucket_size
+          ORDER BY bucket_idx LIMIT 15`;
+        const histResult = await executeQuery(histSql, project);
+        if (histResult.rows.length > 0) {
+          const bins: Array<{ bucket: string; count: number }> = histResult.rows.map(r => {
+            const rr = r as unknown[];
+            const idx = Number(rr[0] ?? 0);
+            const gmin = Number(rr[1] ?? 0);
+            const bsize = Number(rr[2] ?? 1);
+            const cnt = Number(rr[3] ?? 0);
+            const lo = (gmin + idx * bsize).toFixed(1);
+            const hi = (gmin + (idx + 1) * bsize).toFixed(1);
+            return { bucket: `${lo}–${hi}`, count: cnt };
+          });
+          // Attach to the distinct_count finding for this column
+          const targetFinding = findings.find(f => f.column === col.name && f.metric === 'distinct_count');
+          if (targetFinding) targetFinding.histogram = bins;
+        }
+      } catch { /* histograms are non-critical */ }
+    });
+    await Promise.all(histogramPromises);
+  }
+
   const issueCount = findings.filter((f) => f.severity !== 'INFO').length;
   const result: DataQualityResult = {
     skill: 'data-quality', checkType: intent.checkType as DataQualityResult['checkType'],
