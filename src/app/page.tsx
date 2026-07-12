@@ -105,6 +105,10 @@ export default function Home() {
       const match = convs.find((c) => c.id === conversationId);
       if (match) {
         chat.setMessages(match.messages);
+        // Restore the project that was active when this conversation was saved
+        if (match.project) {
+          setActiveProject(match.project);
+        }
       }
     }).catch(() => {});
   }, [conversationId, user]); // eslint-disable-line react-hooks/exhaustive-deps
