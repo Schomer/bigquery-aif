@@ -10,9 +10,9 @@ interface PreferencesContextValue {
 }
 
 const PreferencesContext = createContext<PreferencesContextValue>({
-  showProvenance: true,
+  showProvenance: false,
   setShowProvenance: () => {},
-  showSuggestions: true,
+  showSuggestions: false,
   setShowSuggestions: () => {},
 });
 
@@ -20,8 +20,8 @@ const PROVENANCE_KEY = 'hdn_show_provenance';
 const SUGGESTIONS_KEY = 'hdn_show_suggestions';
 
 export function PreferencesProvider({ children }: { children: ReactNode }) {
-  const [showProvenance, setShowProvenanceState] = useState(true);
-  const [showSuggestions, setShowSuggestionsState] = useState(true);
+  const [showProvenance, setShowProvenanceState] = useState(false);
+  const [showSuggestions, setShowSuggestionsState] = useState(false);
 
   // Hydrate from localStorage on mount
   useEffect(() => {
