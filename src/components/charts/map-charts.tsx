@@ -15,6 +15,15 @@ declare global {
 // Shared hook: Google Maps script loader
 // ---------------------------------------------------------------------------
 
+// Shared error setter so gm_authFailure can update all mounted map instances
+let _mapsAuthError: (() => void) | null = null;
+
+if (typeof window !== 'undefined') {
+  (window as any).gm_authFailure = () => {
+    if (_mapsAuthError) _mapsAuthError();
+  };
+}
+
 function useGoogleMaps(): { loaded: boolean; error: string | null } {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +36,10 @@ function useGoogleMaps(): { loaded: boolean; error: string | null } {
       setError('Google Maps API key not configured. Go to Settings to add one.');
       return;
     }
+
+    // Register auth failure handler so gm_authFailure can trigger fallback
+    _mapsAuthError = () => setError('Google Maps API key is invalid or restricted for this domain.');
+
     if (window.google?.maps) {
       setLoaded(true);
       return;
@@ -48,6 +61,8 @@ function useGoogleMaps(): { loaded: boolean; error: string | null } {
     script.onload = () => setLoaded(true);
     script.onerror = () => setError('Failed to load Google Maps. Check your API key.');
     document.head.appendChild(script);
+
+    return () => { _mapsAuthError = null; };
   }, []);
 
   return { loaded, error };
@@ -328,11 +343,7 @@ export function GeoPointMapRenderer({ result, onSendMessage }: ChartProps) {
     };
   }, [loaded, data, latCol, lngCol, valueCol, center]);
 
-  if (error) {
-    const isNoKey = error.includes('not configured');
-    if (isNoKey) return <BarChartRenderer result={result} onSendMessage={onSendMessage} />;
-    return <MapFallback message={error} />;
-  }
+  if (error) return <BarChartRenderer result={result} onSendMessage={onSendMessage} />;
   if (!latCol || !lngCol) {
     return <MapFallback message="Could not detect latitude/longitude columns. Expected column names like lat, latitude, lng, longitude." />;
   }
@@ -431,12 +442,7 @@ export function USAMapRenderer({ result, onSendMessage }: ChartProps) {
     };
   }, [loaded, data, xKey, valueKey, maxValue]);
 
-  if (error) {
-    // No Maps API key — fall back to a bar chart so data is still visible
-    const isNoKey = error.includes('not configured');
-    if (isNoKey) return <BarChartRenderer result={result} onSendMessage={onSendMessage} />;
-    return <MapFallback message={error} />;
-  }
+  if (error) return <BarChartRenderer result={result} onSendMessage={onSendMessage} />;
   if (!loaded) return <MapFallback message="Loading Google Maps..." />;
 
   return (
@@ -534,11 +540,7 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
     };
   }, [loaded, data, xKey, valueKey, maxValue]);
 
-  if (error) {
-    const isNoKey = error.includes('not configured');
-    if (isNoKey) return <BarChartRenderer result={result} onSendMessage={onSendMessage} />;
-    return <MapFallback message={error} />;
-  }
+  if (error) return <BarChartRenderer result={result} onSendMessage={onSendMessage} />;
   if (!loaded) return <MapFallback message="Loading Google Maps..." />;
 
   return (
