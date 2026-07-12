@@ -36,7 +36,7 @@ export async function handleDiscovery(
     onStatus?.(`Running ${intent.discoveryType} (from handoff)...`);
   } else {
     intent = await callGemini({
-      systemInstruction: `You are a BigQuery discovery assistant. Classify the user's request as either SEARCH (find tables/views matching a term), COMPARISON (compare two specific tables' schemas), LINEAGE (trace where data comes from or what depends on a table), or ER_DIAGRAM (show entity relationships, foreign keys, table relationships in a dataset). Extract the search term or table name into 'query'. For COMPARISON, extract the second table into 'secondTable'. For LINEAGE, extract the table name into 'tableName'. For ER_DIAGRAM, extract the dataset name into 'query'. The active project is ${project}, available datasets are: ${available.join(', ')}.`,
+      systemInstruction: `You are a BigQuery discovery assistant. Classify the user's request as one of: SEARCH (find tables/views matching a term), COMPARISON (compare two specific tables' schemas), LINEAGE (trace where data comes from or what depends on a table), ER_DIAGRAM (show entity relationships, foreign keys, table relationships in a dataset), or JOIN_DISCOVERY (find potential join keys between two tables, or ask how to join two tables). Extract the search term or table name into 'query'. For COMPARISON and JOIN_DISCOVERY, extract the second table into 'secondTable'. For LINEAGE, extract the table name into 'tableName'. For ER_DIAGRAM, extract the dataset name into 'query'. The active project is ${project}, available datasets are: ${available.join(', ')}.`,
       prompt: message,
       schema: DiscoveryResponseSchema,
       project,
@@ -287,6 +287,89 @@ export async function handleDiscovery(
       },
     };
     return [compose('discovery', result)];
+  }
+
+  // W3-13: JOIN_DISCOVERY — find potential join keys between two tables and compute match rates
+  if (intent.discoveryType === 'JOIN_DISCOVERY') {
+    const leftTableRaw = intent.query || intent.tableName || '';
+    const rightTableRaw = intent.secondTable || '';
+    if (!leftTableRaw || !rightTableRaw) {
+      // Fall through to SEARCH if tables not identified
+    } else {
+      onStatus?.(`Finding join keys between ${leftTableRaw} and ${rightTableRaw}...`);
+      // Resolve datasets for each table
+      const resolveTable = async (ref: string): Promise<{ dataset: string; table: string } | null> => {
+        const parts = ref.replace(/`/g, '').split('.');
+        if (parts.length >= 2) return { dataset: parts[parts.length - 2], table: parts[parts.length - 1] };
+        // Search available datasets for a table with this name
+        for (const ds of available) {
+          try {
+            const dsSchema = await fetchSchema(ds, undefined, project);
+            const match = dsSchema.columns.find(c => c.name.toLowerCase() === ref.toLowerCase());
+            if (match) return { dataset: ds, table: ref };
+          } catch { /* ignore */ }
+        }
+        return null;
+      };
+      const [leftRef, rightRef] = await Promise.all([resolveTable(leftTableRaw), resolveTable(rightTableRaw)]);
+      if (leftRef && rightRef) {
+        const [leftSchema, rightSchema] = await Promise.all([
+          fetchSchema(leftRef.dataset, leftRef.table, project).catch(() => null),
+          fetchSchema(rightRef.dataset, rightRef.table, project).catch(() => null),
+        ]);
+        if (leftSchema && rightSchema) {
+          const leftCols = new Set(leftSchema.columns.map(c => c.name.toLowerCase()));
+          const rightCols = new Set(rightSchema.columns.map(c => c.name.toLowerCase()));
+          // Find overlapping column names
+          const overlaps = [...leftCols].filter(c => rightCols.has(c));
+          // Prefer columns that look like keys: *_id, id, *_key, *_code
+          const keyPatterns = /^(id$|.*_id$|.*_key$|.*_code$|.*_no$)/i;
+          const joinCandidates = overlaps.filter(c => keyPatterns.test(c));
+          const candidates = joinCandidates.length > 0 ? joinCandidates : overlaps.slice(0, 3);
+          // Build match rate SQL for the top candidate
+          const topJoinKey = candidates[0];
+          let matchRatePct: number | undefined;
+          if (topJoinKey) {
+            try {
+              const matchSql = `
+                WITH left_keys AS (SELECT DISTINCT \`${topJoinKey}\` AS jk FROM \`${project}.${leftRef.dataset}.${leftRef.table}\` WHERE \`${topJoinKey}\` IS NOT NULL),
+                     right_keys AS (SELECT DISTINCT \`${topJoinKey}\` AS jk FROM \`${project}.${rightRef.dataset}.${rightRef.table}\` WHERE \`${topJoinKey}\` IS NOT NULL),
+                     matched AS (SELECT COUNT(*) AS cnt FROM left_keys l JOIN right_keys r ON l.jk = r.jk)
+                SELECT ROUND(100.0 * (SELECT cnt FROM matched) / NULLIF((SELECT COUNT(*) FROM left_keys), 0), 1) AS match_rate_pct
+              `;
+              onStatus?.(`Computing match rate for join key: ${topJoinKey}...`);
+              const matchResult = await executeQuery(matchSql, project).catch(() => null);
+              if (matchResult && matchResult.rows.length > 0) {
+                matchRatePct = Number(matchResult.rows[0][0] ?? 0);
+              }
+            } catch { /* non-critical */ }
+          }
+          const joinDefinition = {
+            leftTable: `${project}.${leftRef.dataset}.${leftRef.table}`,
+            rightTable: `${project}.${rightRef.dataset}.${rightRef.table}`,
+            candidates,
+            topJoinKey,
+            matchRatePct,
+            overlaps,
+          };
+          const joinResult: DiscoveryResult = {
+            skill: 'discovery',
+            discoveryType: 'JOIN_DISCOVERY',
+            results: candidates.map(c => ({
+              type: 'TABLE' as const,
+              ref: `${project}.${leftRef.dataset}.${leftRef.table} ↔ ${project}.${rightRef.dataset}.${rightRef.table}`,
+              matchedOn: `column:${c}`,
+              description: c === topJoinKey && matchRatePct !== undefined
+                ? `Join on \`${c}\` — ${matchRatePct}% of left rows match right`
+                : `Potential join key: \`${c}\``,
+            })),
+            joinDefinition,
+          };
+          return [compose('discovery', joinResult)];
+
+        }
+      }
+    }
   }
 
   // SEARCH: query INFORMATION_SCHEMA across all datasets

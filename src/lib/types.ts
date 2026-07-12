@@ -448,6 +448,45 @@ export interface SavedArtifact {
   spaceId?: string;
 }
 
+// ─── W3-11: Saved Dashboard (Firestore: savedDashboards/{id}) ────────────────
+
+export interface DashboardTile {
+  id: string;
+  artifactId: string;              // references SavedArtifact.id
+  title: string;
+  col: number;                     // 0-indexed column in 12-column grid
+  row: number;                     // 0-indexed row
+  colSpan: number;                 // 1–12
+  rowSpan: number;                 // 1–4
+}
+
+export interface SavedDashboard {
+  id: string;
+  userId: string;
+  name: string;
+  description: string;
+  tiles: DashboardTile[];
+  project?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── W3-12: Join Definition (Firestore: joinDefinitions/{id}) ────────────────
+
+export interface JoinDefinition {
+  id: string;
+  userId: string;
+  project: string;
+  leftTable: string;              // fully qualified: project.dataset.table
+  rightTable: string;
+  joinKey: string;                // e.g. "left.customer_id = right.id"
+  joinType: 'INNER' | 'LEFT' | 'RIGHT' | 'FULL';
+  matchRateSql?: string;          // auto-generated SQL for match rate check
+  matchRatePct?: number;          // last computed match rate (0–100)
+  discoveredAt: string;
+  notes?: string;
+}
+
 // ─── Chat message ─────────────────────────────────────────────────────────────
 
 export interface ChatMessage {
@@ -533,8 +572,8 @@ export interface DiscoverySearchResult {
 
 export interface DiscoveryResult {
   skill: 'discovery'
-  discoveryType: 'SEARCH' | 'COMPARISON' | 'LINEAGE' | 'ER_DIAGRAM'
-  query: string
+  discoveryType: 'SEARCH' | 'COMPARISON' | 'LINEAGE' | 'ER_DIAGRAM' | 'JOIN_DISCOVERY'
+  query?: string
   results: DiscoverySearchResult[]
   comparison?: {
     left: string
@@ -551,6 +590,15 @@ export interface DiscoveryResult {
     edges?: LineageEdge[];
   } | null
   erDiagram?: ErDiagramData | null
+  // W3-13: join discovery results
+  joinDefinition?: {
+    leftTable: string;
+    rightTable: string;
+    candidates: string[];
+    topJoinKey?: string;
+    matchRatePct?: number;
+    overlaps: string[];
+  } | null
 }
 
 // ─── Table Preview Types ──────────────────────────────────────────────────────

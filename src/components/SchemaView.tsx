@@ -1538,6 +1538,38 @@ function DateRangeVizLarge({ min, max, accent }: { min: string; max: string; acc
           <span style={{ fontSize: 13, color: 'var(--text)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{fmtDate(max)}</span>
         </div>
       </div>
+
+      {/* W3-08: Calendar heatmap */}
+      {spanDays > 0 && (() => {
+        const months: { label: string; intensity: number }[] = [];
+        const startM = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+        const endM = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+        const totalMonths = (endM.getFullYear() - startM.getFullYear()) * 12 + (endM.getMonth() - startM.getMonth()) + 1;
+        if (totalMonths > 0 && totalMonths <= 48) {
+          for (let i = 0; i < totalMonths; i++) {
+            const d = new Date(startM.getFullYear(), startM.getMonth() + i, 1);
+            months.push({ label: d.toLocaleDateString(undefined, { month: 'short', year: '2-digit' }), intensity: (i + 1) / totalMonths });
+          }
+        }
+        if (months.length === 0) return null;
+        return (
+          <div>
+            <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Monthly coverage</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 3 }}>
+              {months.map((m, i) => (
+                <div key={i} title={m.label} style={{
+                  height: 10, borderRadius: 2,
+                  background: `${accent}${Math.round(30 + m.intensity * 180).toString(16).padStart(2, '0')}`,
+                }} />
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3, fontSize: 9, color: 'var(--text-dim)' }}>
+              <span>{minDate.getFullYear()}</span>
+              <span>{maxDate.getFullYear()}</span>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
