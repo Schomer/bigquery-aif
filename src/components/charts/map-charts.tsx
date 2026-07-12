@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { COLORS, buildChartData, resolveAxes, drillDownMessage } from './chart-utils';
 import type { QueryResult } from '@/lib/types';
+import { BarChartRenderer } from './recharts-charts';
 
 declare global {
   interface Window {
@@ -326,7 +327,11 @@ export function GeoPointMapRenderer({ result, onSendMessage }: ChartProps) {
     };
   }, [loaded, data, latCol, lngCol, valueCol, center]);
 
-  if (error) return <MapFallback message={error} />;
+  if (error) {
+    const isNoKey = error.includes('not configured');
+    if (isNoKey) return <BarChartRenderer result={result} onSendMessage={onSendMessage} />;
+    return <MapFallback message={error} />;
+  }
   if (!latCol || !lngCol) {
     return <MapFallback message="Could not detect latitude/longitude columns. Expected column names like lat, latitude, lng, longitude." />;
   }
@@ -431,7 +436,12 @@ export function USAMapRenderer({ result, onSendMessage }: ChartProps) {
     };
   }, [loaded, data, xKey, valueKey, maxValue]);
 
-  if (error) return <MapFallback message={error} />;
+  if (error) {
+    // No Maps API key — fall back to a bar chart so data is still visible
+    const isNoKey = error.includes('not configured');
+    if (isNoKey) return <BarChartRenderer result={result} onSendMessage={onSendMessage} />;
+    return <MapFallback message={error} />;
+  }
   if (!loaded) return <MapFallback message="Loading Google Maps..." />;
 
   return (
@@ -533,7 +543,11 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
     };
   }, [loaded, data, xKey, valueKey, maxValue]);
 
-  if (error) return <MapFallback message={error} />;
+  if (error) {
+    const isNoKey = error.includes('not configured');
+    if (isNoKey) return <BarChartRenderer result={result} onSendMessage={onSendMessage} />;
+    return <MapFallback message={error} />;
+  }
   if (!loaded) return <MapFallback message="Loading Google Maps..." />;
 
   return (

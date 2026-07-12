@@ -75,17 +75,21 @@ function useChartSetup(result: QueryResult) {
   // read left-to-right in temporal order
   if (data.length >= 2) {
     const firstX = data[0]?.[xKey];
-    const isDateLike = typeof firstX === 'string' && (
+    const isDateLikeStr = typeof firstX === 'string' && (
       /^\d{4}-\d{2}/.test(firstX) || // ISO date: 2022-01-01
       /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(firstX) || // US date
       !isNaN(Date.parse(firstX)) // any parseable date
     );
-    if (isDateLike) {
+    // Numeric epoch timestamps (seconds since 1970): 9-11 digit numbers
+    const isEpochSecs = typeof firstX === 'number' && firstX > 1e8 && firstX < 2e10;
+    if (isDateLikeStr) {
       data = [...data].sort((a, b) => {
         const da = new Date(a[xKey] as string).getTime();
         const db = new Date(b[xKey] as string).getTime();
         return da - db;
       });
+    } else if (isEpochSecs) {
+      data = [...data].sort((a, b) => (a[xKey] as number) - (b[xKey] as number));
     }
   }
 
@@ -98,20 +102,50 @@ function useChartSetup(result: QueryResult) {
     if (isNaN(num)) return [String(v ?? ''), colName];
     return [formatDisplayValue(num, colName), colName];
   };
-  return { data, xKey, yKeys, tickFmt, tipFmt };
+
+  // X-axis tick formatter: convert epoch seconds or ISO date strings to readable labels
+  const xTickFmt = (v: unknown): string => {
+    if (v === null || v === undefined || v === '') return '';
+    // Numeric epoch (seconds)
+    if (typeof v === 'number' && v > 1e8 && v < 2e10) {
+      const d = new Date(v * 1000);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      }
+    }
+    // Numeric epoch (milliseconds)
+    if (typeof v === 'number' && v > 1e11 && v < 2e13) {
+      const d = new Date(v);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      }
+    }
+    // ISO date string
+    if (typeof v === 'string' && /^\d{4}-\d{2}/.test(v)) {
+      const d = new Date(v);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      }
+    }
+    // Fallback: truncate long strings
+    const s = String(v);
+    return s.length > 12 ? s.slice(0, 12) + '…' : s;
+  };
+
+  return { data, xKey, yKeys, tickFmt, tipFmt, xTickFmt };
 }
 
 // ---------------------------------------------------------------------------
 // 1. LineChartRenderer
 // ---------------------------------------------------------------------------
 export function LineChartRenderer({ result, onSendMessage }: ChartProps) {
-  const { data, xKey, yKeys, tickFmt, tipFmt } = useChartSetup(result);
+  const { data, xKey, yKeys, tickFmt, tipFmt, xTickFmt } = useChartSetup(result);
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
         <LineChart data={data} margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage)}>
           <CartesianGrid {...GRID_STYLE} />
-          <XAxis dataKey={xKey} {...AXIS_STYLE} />
+          <XAxis dataKey={xKey} {...AXIS_STYLE} tickFormatter={xTickFmt} />
           <YAxis {...AXIS_STYLE} tickFormatter={tickFmt} />
           <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
           {yKeys.map((k, i) => (
@@ -201,13 +235,13 @@ export function BarChartRenderer({ result, onSendMessage }: ChartProps) {
 // 3. ColumnChartRenderer (vertical bars, standard)
 // ---------------------------------------------------------------------------
 export function ColumnChartRenderer({ result, onSendMessage }: ChartProps) {
-  const { data, xKey, yKeys, tickFmt, tipFmt } = useChartSetup(result);
+  const { data, xKey, yKeys, tickFmt, tipFmt, xTickFmt } = useChartSetup(result);
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
         <BarChart data={data} margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage)}>
           <CartesianGrid {...GRID_STYLE} />
-          <XAxis dataKey={xKey} {...AXIS_STYLE} />
+          <XAxis dataKey={xKey} {...AXIS_STYLE} tickFormatter={xTickFmt} />
           <YAxis {...AXIS_STYLE} tickFormatter={tickFmt} />
           <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
           {yKeys.map((k, i) => (
@@ -225,13 +259,13 @@ export function ColumnChartRenderer({ result, onSendMessage }: ChartProps) {
 // 4. AreaChartRenderer
 // ---------------------------------------------------------------------------
 export function AreaChartRenderer({ result, onSendMessage }: ChartProps) {
-  const { data, xKey, yKeys, tickFmt, tipFmt } = useChartSetup(result);
+  const { data, xKey, yKeys, tickFmt, tipFmt, xTickFmt } = useChartSetup(result);
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
         <AreaChart data={data} margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage)}>
           <CartesianGrid {...GRID_STYLE} />
-          <XAxis dataKey={xKey} {...AXIS_STYLE} />
+          <XAxis dataKey={xKey} {...AXIS_STYLE} tickFormatter={xTickFmt} />
           <YAxis {...AXIS_STYLE} tickFormatter={tickFmt} />
           <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
           {yKeys.map((k, i) => (
