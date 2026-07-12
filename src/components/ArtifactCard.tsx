@@ -150,7 +150,7 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
             margin: 0,
             fontSize: 15,
             fontWeight: 500,
-            color: 'var(--text)',
+            color: '#334155',
             lineHeight: 1.5,
             flex: 1,
           }}>
