@@ -241,7 +241,9 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[]): Compos
       && !rawSummary.includes('"skill"')
       && !rawSummary.includes('"columns"')
       && !rawSummary.trimStart().startsWith('{')
-      && !rawSummary.trimStart().startsWith('```');
+      && !rawSummary.trimStart().startsWith('```')
+      && !rawSummary.includes('maximum tool-call iterations')
+      && !rawSummary.includes('No results to display');
 
     if (isCleanSummary) {
       headlineText = rawSummary;
