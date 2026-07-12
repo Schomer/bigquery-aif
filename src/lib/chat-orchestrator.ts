@@ -55,7 +55,10 @@ export interface ProcessMessageArgs {
     handoffContext?: Record<string, unknown>;
   };
   onStatus?: StatusCallback;
+  /** Optional AbortSignal -- if aborted, in-flight work should stop as soon as possible. */
+  signal?: AbortSignal;
 }
+
 
 export interface OrchestrationResult {
   envelopes: CompositionEnvelope[];

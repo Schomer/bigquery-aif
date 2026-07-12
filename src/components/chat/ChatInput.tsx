@@ -14,6 +14,12 @@ export interface ChatInputProps {
   onSend: (text?: string) => Promise<void>;
   onRemoveContext: (id: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  /** Called when the user clicks the Stop button during a loading request. */
+  onStop?: () => void;
+  /** Currently queued follow-up prompt (typed while another was in flight). */
+  queuedPrompt?: string | null;
+  /** Clears the queued prompt without sending it. */
+  onClearQueue?: () => void;
   /** 'floating' for the fixed-position bar in unified chat, 'docked' for sidebar bottom */
   variant?: 'hero' | 'floating' | 'docked';
 }
@@ -29,6 +35,9 @@ export function ChatInput({
   onSend,
   onRemoveContext,
   onKeyDown,
+  onStop,
+  queuedPrompt,
+  onClearQueue,
   variant = 'hero',
 }: ChatInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -46,9 +55,12 @@ export function ChatInput({
   }, [input]);
 
   const hasContext = contextItems.length > 0;
+  const hasQueue = loading && !!queuedPrompt;
 
   const placeholder = activeProject
-    ? (variant === 'floating' ? 'Ask a follow-up...' : 'Ask about your data...')
+    ? (loading
+        ? 'Type a follow-up to queue it...'
+        : (variant === 'floating' ? 'Ask a follow-up...' : 'Ask about your data...'))
     : 'Select a project first...';
 
   const contextChipsRow = hasContext ? (
@@ -69,10 +81,64 @@ export function ChatInput({
     </div>
   ) : null;
 
-  const sendButton = (
+  // Queue banner: shown when a prompt is queued while loading
+  const queueBanner = hasQueue ? (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      padding: '5px 8px',
+      borderRadius: 8,
+      background: 'rgba(191, 219, 254, 0.35)',
+      border: '1px solid rgba(147, 197, 253, 0.5)',
+      marginBottom: 4,
+    }}>
+      <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#3b82f6', flexShrink: 0 }}>schedule</span>
+      <span style={{ flex: 1, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        Queued: {queuedPrompt}
+      </span>
+      <button
+        onClick={onClearQueue}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0 2px', fontSize: 13, lineHeight: 1, fontFamily: 'inherit' }}
+        aria-label="Discard queued prompt"
+      >
+        x
+      </button>
+    </div>
+  ) : null;
+
+  // Action button: Stop (when loading) or Send (when idle)
+  const actionButton = loading && onStop ? (
     <button
+      id="chat-stop-button"
+      onClick={onStop}
+      title="Stop"
+      style={{
+        width: 34,
+        height: 34,
+        flexShrink: 0,
+        borderRadius: '50%',
+        background: '#fee2e2',
+        border: '1px solid #fca5a5',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        transition: 'all 0.15s',
+        padding: 0,
+      }}
+    >
+      {/* Square stop icon */}
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1.5" y="1.5" width="9" height="9" rx="1.5" fill="#ef4444"/>
+      </svg>
+    </button>
+  ) : (
+    <button
+      id="chat-send-button"
       onClick={() => onSend()}
-      disabled={loading || !input.trim() || !activeProject}
+      disabled={!input.trim() || !activeProject}
+      title={loading ? 'Queue prompt' : 'Send'}
       style={{
         width: 34,
         height: 34,
@@ -125,17 +191,18 @@ export function ChatInput({
     return (
       <div className="mystic-prompt-container" style={{
         width: '100%',
-        borderRadius: hasContext ? 20 : 999,
-        padding: hasContext ? '8px 10px 10px 14px' : '10px 10px 10px 20px',
+        borderRadius: hasContext || hasQueue ? 20 : 999,
+        padding: hasContext || hasQueue ? '8px 10px 10px 14px' : '10px 10px 10px 20px',
         display: 'flex',
         flexDirection: 'column',
-        gap: hasContext ? 6 : 0,
+        gap: hasContext || hasQueue ? 6 : 0,
         ...(activeProject ? { background: '#fff', backgroundImage: 'none' } : {}),
       }}>
+        {queueBanner}
         {contextChipsRow}
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
           {textarea}
-          {sendButton}
+          {actionButton}
         </div>
       </div>
     );
@@ -151,19 +218,20 @@ export function ChatInput({
         transform: 'translateX(-50%)',
         marginLeft: 110,
         width: 'min(680px, calc(100vw - 268px))',
-        borderRadius: hasContext ? 20 : 999,
-        padding: hasContext ? '8px 10px 10px 14px' : '10px 10px 10px 20px',
+        borderRadius: hasContext || hasQueue ? 20 : 999,
+        padding: hasContext || hasQueue ? '8px 10px 10px 14px' : '10px 10px 10px 20px',
         display: 'flex',
         flexDirection: 'column',
-        gap: hasContext ? 6 : 0,
+        gap: hasContext || hasQueue ? 6 : 0,
         backdropFilter: 'blur(12px)',
         zIndex: 50,
         ...(activeProject ? { background: '#fff', backgroundImage: 'none' } : {}),
       }}>
+        {queueBanner}
         {contextChipsRow}
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
           {textarea}
-          {sendButton}
+          {actionButton}
         </div>
       </div>
     );
@@ -173,17 +241,18 @@ export function ChatInput({
   return (
     <div className="chat-sidebar-input">
       <div className="chat-sidebar-input-inner mystic-prompt-container" style={{
-        borderRadius: hasContext ? 16 : undefined,
-        padding: hasContext ? '8px 10px 10px 14px' : undefined,
-        display: hasContext ? 'flex' : undefined,
-        flexDirection: hasContext ? 'column' as const : undefined,
-        gap: hasContext ? 6 : undefined,
+        borderRadius: hasContext || hasQueue ? 16 : undefined,
+        padding: hasContext || hasQueue ? '8px 10px 10px 14px' : undefined,
+        display: hasContext || hasQueue ? 'flex' : undefined,
+        flexDirection: hasContext || hasQueue ? 'column' as const : undefined,
+        gap: hasContext || hasQueue ? 6 : undefined,
         ...(activeProject ? { background: '#fff', backgroundImage: 'none' } : {}),
       }}>
+        {queueBanner}
         {contextChipsRow}
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, width: '100%' }}>
           {textarea}
-          {sendButton}
+          {actionButton}
         </div>
       </div>
     </div>

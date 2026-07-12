@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useConversation } from '@/lib/conversation-context';
+import { useChatRunState } from '@/lib/chat-run-state-context';
 import { ChatOrchestrator } from '@/lib/chat-orchestrator';
 import type {
   ChatMessage,
@@ -70,6 +71,7 @@ export interface ChatOrchestrationReturn {
 
   // Actions
   sendMessage: (text?: string) => Promise<void>;
+  stopMessage: () => void;
   handleConfirm: (envelope: CompositionEnvelope) => Promise<void>;
   handleCancel: (envelope: CompositionEnvelope) => void;
   handleChipClick: (chip: HandoffEnvelope) => Promise<void>;
@@ -83,6 +85,10 @@ export interface ChatOrchestrationReturn {
   submitEdit: (userIdx: number) => Promise<void>;
   rerunMessage: (assistantIdx: number) => Promise<void>;
   handleKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+
+  // Queued prompt
+  queuedPrompt: string | null;
+  clearQueuedPrompt: () => void;
 
   // Refs
   titleSetRef: React.MutableRefObject<boolean>;
@@ -111,6 +117,7 @@ export interface ChatOrchestrationReturn {
 export function useChatOrchestration(): ChatOrchestrationReturn {
   const { activeProject, user, signIn, refreshAccessToken } = useAuth();
   const { conversationId, addOperation } = useConversation();
+  const { setRunning } = useChatRunState();
 
   // Core state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -137,6 +144,10 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
   const titleSetRef = useRef(false);
   const pendingStepsRef = useRef<(string | StepInfo)[]>([]);
   const authRetrying = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Queued prompt: stores a follow-up the user typed while something was loading
+  const [queuedPrompt, setQueuedPrompt] = useState<string | null>(null);
 
   // ---- Auth-retry wrapper ------------------------------------------------
 
@@ -399,11 +410,23 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
 
   async function sendMessage(messageText?: string) {
     const text = messageText ?? input.trim();
-    if (!text || loading) return;
+    if (!text) return;
+
+    // If already loading, queue this prompt instead of sending immediately
+    if (loading) {
+      setQueuedPrompt(text);
+      setInput('');
+      return;
+    }
 
     setInput('');
     setLoading(true);
+    setRunning(conversationId);
     pendingStepsRef.current = [];
+
+    // Create a fresh AbortController for this request
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     const userMsg: ChatMessage = {
       role: 'user',
@@ -413,13 +436,21 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     const updatedMsgs = [...messages, userMsg];
     setMessages(updatedMsgs);
 
+    let wasAborted = false;
+
     try {
       const derivedCtx = deriveContextFromItems();
       const data = await withAuthRetry(() => ChatOrchestrator.processMessage({
         message: text,
         history: messages,
         context: { ...derivedCtx, project: activeProject || derivedCtx.project, uid: user?.uid },
-        onStatus: (s: string | StepInfo) => { setStatusText(typeof s === 'string' ? s : s.text); pendingStepsRef.current.push(s); },
+        onStatus: (s: string | StepInfo) => {
+          // Drop status updates after abort
+          if (controller.signal.aborted) return;
+          setStatusText(typeof s === 'string' ? s : s.text);
+          pendingStepsRef.current.push(s);
+        },
+        signal: controller.signal,
       }));
 
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
@@ -451,49 +482,79 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       persistConversation(finalMsgs).catch((e) => console.warn('[persist]', e));
 
     } catch (err: any) {
-      console.error(err);
-      const msg = err?.message || String(err);
+      // Treat abort as a clean stop -- no error banner
+      if (err?.name === 'AbortError' || controller.signal.aborted) {
+        wasAborted = true;
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: 'Stopped.', timestamp: new Date().toISOString(), envelopes: [] },
+        ]);
+      } else {
+        console.error(err);
+        const msg = err?.message || String(err);
 
-      let errorType = 'unknown';
-      let errorText = msg;
+        let errorType = 'unknown';
+        let errorText = msg;
 
-      if (msg.includes('Gemini API failed')) {
-        errorType = 'gemini';
-        errorText = msg.replace('Gemini API failed: ', '');
-      } else if (msg.includes('access token') || msg.includes('credentials') || msg.includes('access_denied') || msg.includes('UNAUTHENTICATED') || msg.includes('authorized') || msg.includes('access not authorized') || msg.includes('sign in')) {
-        errorType = 'auth';
-        errorText = 'Your session has expired. Sign in to continue where you left off.';
-      } else if (msg.includes('quota') || msg.includes('rate limit') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('429')) {
-        errorType = 'rate_limit';
-        errorText = 'The service is temporarily busy. Try again in a few seconds.';
-      } else if (msg.includes('Syntax error') || msg.includes('query failed')) {
-        errorType = 'sql';
-        errorText = msg.replace('BigQuery query failed: ', '');
-      }
+        if (msg.includes('Gemini API failed')) {
+          errorType = 'gemini';
+          errorText = msg.replace('Gemini API failed: ', '');
+        } else if (msg.includes('access token') || msg.includes('credentials') || msg.includes('access_denied') || msg.includes('UNAUTHENTICATED') || msg.includes('authorized') || msg.includes('access not authorized') || msg.includes('sign in')) {
+          errorType = 'auth';
+          errorText = 'Your session has expired. Sign in to continue where you left off.';
+        } else if (msg.includes('quota') || msg.includes('rate limit') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('429')) {
+          errorType = 'rate_limit';
+          errorText = 'The service is temporarily busy. Try again in a few seconds.';
+        } else if (msg.includes('Syntax error') || msg.includes('query failed')) {
+          errorType = 'sql';
+          errorText = msg.replace('BigQuery query failed: ', '');
+        }
 
-      const retryFn = errorType === 'auth'
-        ? async () => {
-            const ok = await signIn();
-            if (ok) {
-              setMessages((prev) => prev.slice(0, -2));
-              sendMessage(text);
+        const retryFn = errorType === 'auth'
+          ? async () => {
+              const ok = await signIn();
+              if (ok) {
+                setMessages((prev) => prev.slice(0, -2));
+                sendMessage(text);
+              }
             }
-          }
-        : () => sendMessage(text);
-      setLastError({ message: errorText, type: errorType, retryFn });
+          : () => sendMessage(text);
+        setLastError({ message: errorText, type: errorType, retryFn });
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: '',
-          timestamp: new Date().toISOString(),
-        },
-      ]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: '',
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+      }
     } finally {
       setLoading(false);
+      setRunning(null);
       setStatusText(null);
+      abortRef.current = null;
+
+      // Fire queued prompt if one was set while this request ran (and we weren't aborted)
+      if (!wasAborted) {
+        setQueuedPrompt((pending) => {
+          if (pending) {
+            // Schedule after state flushes
+            setTimeout(() => sendMessage(pending), 0);
+          }
+          return null;
+        });
+      } else {
+        // If stopped, discard the queue
+        setQueuedPrompt(null);
+      }
     }
+  }
+
+  function stopMessage() {
+    abortRef.current?.abort();
+    // loading/status will be cleared by the finally block in sendMessage
   }
 
   async function handleConfirm(envelope: CompositionEnvelope) {
@@ -923,6 +984,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     rerunningIdx,
 
     sendMessage,
+    stopMessage,
     handleConfirm,
     handleCancel,
     handleChipClick,
@@ -948,5 +1010,8 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     handleSaveModalClose: () => setSaveModalState(null),
     saveChatAsWorkflow,
     runSavedArtifact,
+
+    queuedPrompt,
+    clearQueuedPrompt: () => setQueuedPrompt(null),
   };
 }

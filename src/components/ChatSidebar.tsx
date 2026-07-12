@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useConversation } from '@/lib/conversation-context';
+import { useChatRunState } from '@/lib/chat-run-state-context';
 import {
   getConversations,
   deleteConversation,
@@ -64,6 +65,7 @@ export function ChatSidebar({
 }: ChatSidebarProps) {
   const { user } = useAuth();
   const { conversationId, loadConversation, newConversation } = useConversation();
+  const { runningId } = useChatRunState();
 
   const [conversations, setConversations] = useState<SavedConversation[]>([]);
   const [search, setSearch] = useState('');
@@ -537,7 +539,22 @@ export function ChatSidebar({
                         {conv.title}
                       </p>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 0, flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                        {/* Running indicator */}
+                        {runningId === conv.id && (
+                          <span
+                            title="Running..."
+                            style={{
+                              width: 7,
+                              height: 7,
+                              borderRadius: '50%',
+                              background: '#3b82f6',
+                              flexShrink: 0,
+                              animation: 'bqaif-pulse 1.2s ease-in-out infinite',
+                            }}
+                          />
+                        )}
+
                         {/* Pin indicator */}
                         {isPinned && (
                           <span className="material-symbols-outlined" style={{

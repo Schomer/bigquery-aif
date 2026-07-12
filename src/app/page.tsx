@@ -382,6 +382,9 @@ export default function Home() {
                   onSend={(text?: string) => { setChatListOpen(false); return chat.sendMessage(text); }}
                   onRemoveContext={chat.removeContextItem}
                   onKeyDown={chat.handleKeyDown}
+                  onStop={chat.stopMessage}
+                  queuedPrompt={chat.queuedPrompt}
+                  onClearQueue={chat.clearQueuedPrompt}
                   variant="hero"
                 />
               </div>
@@ -446,6 +449,9 @@ export default function Home() {
               onSend={chat.sendMessage}
               onRemoveContext={chat.removeContextItem}
               onKeyDown={chat.handleKeyDown}
+              onStop={chat.stopMessage}
+              queuedPrompt={chat.queuedPrompt}
+              onClearQueue={chat.clearQueuedPrompt}
               variant="floating"
             />
           )}
@@ -493,6 +499,9 @@ export default function Home() {
               onSend={(text?: string) => { setChatListOpen(false); return chat.sendMessage(text); }}
               onRemoveContext={chat.removeContextItem}
               onKeyDown={chat.handleKeyDown}
+              onStop={chat.stopMessage}
+              queuedPrompt={chat.queuedPrompt}
+              onClearQueue={chat.clearQueuedPrompt}
               onConfirm={chat.handleConfirm}
               onCancel={chat.handleCancel}
               onChipClick={chat.handleChipClick}

@@ -98,6 +98,9 @@ export interface ResultsSidebarProps {
   onSend: (text?: string) => Promise<void>;
   onRemoveContext: (id: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  onStop?: () => void;
+  queuedPrompt?: string | null;
+  onClearQueue?: () => void;
   onConfirm: (envelope: CompositionEnvelope) => Promise<void>;
   onCancel: (envelope: CompositionEnvelope) => void;
   onChipClick: (chip: HandoffEnvelope) => Promise<void>;
@@ -138,6 +141,9 @@ export function ResultsSidebar({
   onSend,
   onRemoveContext,
   onKeyDown,
+  onStop,
+  queuedPrompt,
+  onClearQueue,
   onConfirm,
   onCancel,
   onChipClick,
@@ -606,6 +612,9 @@ export function ResultsSidebar({
           onSend={onSend}
           onRemoveContext={onRemoveContext}
           onKeyDown={onKeyDown}
+          onStop={onStop}
+          queuedPrompt={queuedPrompt}
+          onClearQueue={onClearQueue}
           variant="docked"
         />
       </div>

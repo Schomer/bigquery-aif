@@ -292,6 +292,11 @@ details>summary::marker {
   50% { opacity: 0.15; }
 }
 
+@keyframes bqaif-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.75); }
+}
+
 /* Prompt editor dialog animations */
 @keyframes fadeIn {
   from {

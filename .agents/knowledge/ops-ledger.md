@@ -521,3 +521,17 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 **What worked**: Ensured initial render state matches server-side render to prevent hydration flash.
 **Root cause**: Client-side state initialization differed from server-side, causing a visible flash during hydration.
 **Rule**: Initial state for any component that renders on first paint must produce the same HTML on server and client. Use CSS to hide content until hydrated if necessary, not conditional rendering.
+
+## 2026-07-12 — Profile tab: lazy-load behind Generate button
+
+**What changed:** `SchemaView.tsx` + `preview-client.ts`
+
+**Problem:** `fetchTablePreview` was called eagerly on mount, firing a full-table-scan profile query (COUNT DISTINCT, MIN, MAX, NULL rates for every column + top-values GROUP BY per string column) against the table/view immediately. On large views like `formula_1_all_data_view` this hung the UI for 30–60 seconds.
+
+**Fix:**
+- Added `sampleOnly = false` flag to `fetchTablePreview`. When true, only `SELECT * LIMIT 20` runs and profile is returned as an empty array.
+- Split `TableSchemaView` state: `sampleData` (fetched eagerly with `sampleOnly=true`) and `profileData` (fetched on demand).
+- `ProfileTab` now shows an analytics icon + "Generate Profile" button when no profile data exists. Clicking triggers `generateProfile()`, shows skeleton while running, then renders cards in-place.
+- Pulse dot in Profile tab header only shows while profile is actively generating.
+
+**Derived rule:** Never fire expensive full-table-scan queries eagerly on schema view load. Always gate them behind user intent.

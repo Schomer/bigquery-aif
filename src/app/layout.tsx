@@ -1,6 +1,7 @@
 // src/app/layout.tsx
 import type { Metadata } from 'next';
 import { AuthProvider } from '@/lib/auth-context';
+import { ChatRunStateProvider } from '@/lib/chat-run-state-context';
 import { ShellLayout } from '@/components/shell/ShellLayout';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import './globals.css';
@@ -34,9 +35,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ErrorBoundary>
           <AuthProvider>
-            <ShellLayout>
-              {children}
-            </ShellLayout>
+            <ChatRunStateProvider>
+              <ShellLayout>
+                {children}
+              </ShellLayout>
+            </ChatRunStateProvider>
           </AuthProvider>
         </ErrorBoundary>
       </body>
