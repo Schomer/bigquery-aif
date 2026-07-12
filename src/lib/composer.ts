@@ -387,14 +387,17 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[]): Compos
     }
   }
 
-  // Heuristic briefing for query results (overridden by self-review when it runs)
+  // Heuristic briefing for query results (overridden by self-review when it runs).
+  // Use the headline text as the briefing narrative -- it already contains a
+  // meaningful data description (e.g. "10 countries by race count") rather than
+  // a generic "I ran your query and got N rows" message.
   const queryBriefing: CompositionEnvelope['briefing'] = (() => {
-    const tableRef = extractTableFromSql(result.sql);
-    const tablePart = tableRef ? ` against \`${tableRef}\`` : '';
     if (result.rowCount === 0) {
-      return { narrative: `I ran your query${tablePart} but it returned no rows.` };
+      const tableRef = extractTableFromSql(result.sql);
+      const tablePart = tableRef ? ` against \`${tableRef}\`` : '';
+      return { narrative: `Ran your query${tablePart} but it returned no rows.` };
     }
-    return { narrative: `I ran your query${tablePart} and got ${result.rowCount.toLocaleString()} row${result.rowCount !== 1 ? 's' : ''}.` };
+    return { narrative: headlineText };
   })();
 
   return {

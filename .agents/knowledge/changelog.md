@@ -2,6 +2,13 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-11: Restore project when loading a saved conversation
+
+**Context**: Switching back to a previous chat left the prompt field disabled because `activeProject` was not restored from the conversation's stored project.
+
+**Changes**:
+- `page.tsx`: In the `conversationId` effect that loads saved messages, added a call to `setActiveProject(match.project)` when the conversation has a stored project. This unlocks the input field and restores the correct project context.
+
 ## 2026-07-11: Fix map visualization routing and auto-detection
 
 **Context**: "show me a map with pins on each racetrack location" rendered as a schema table instead of an interactive map. Two issues: no "map" routing signal in query manifest, and no lat/lng auto-detection in `inferVisualizationType`.
