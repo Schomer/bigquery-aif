@@ -7,6 +7,7 @@ import { ConfirmationCard } from './ConfirmationCard';
 import { CompletionCard } from './CompletionCard';
 import { ChartView } from './ChartView';
 import { KpiCard } from './KpiCard';
+import { StatRowCard } from './StatRowCard';
 import { CostConfirmCard } from './CostConfirmCard';
 import { formatBytes } from '@/lib/format';
 import { ProvenancePanel } from './ProvenancePanel';
@@ -597,6 +598,9 @@ function Artifact({
       return <ChartWithToggle result={data as import('@/lib/types').QueryResult} chartType={type} onSendMessage={onSendMessage} />;
     case 'KPI_CARD':
       return <KpiCard result={data as import('@/lib/types').QueryResult} />;
+    case 'STAT_ROW':
+      return <StatRowCard result={data as import('@/lib/types').QueryResult} />;
+
     case 'CONFIRMATION_CARD':
       return <ConfirmationCard result={data as import('@/lib/types').DataManagementConfirmResult} onConfirm={onConfirm} onCancel={onCancel} />;
     case 'COMPLETION_CARD':

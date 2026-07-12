@@ -113,8 +113,9 @@ function composeSchema(result: SchemaResult): CompositionEnvelope {
   } else if (result.scope === 'DATASET') {
     const count = result.columns.length;
     headlineText = `${result.dataset} has ${count} table${count !== 1 ? 's' : ''}`;
-    // Add a chip for each table (up to 4) so the user can inspect one immediately
-    result.columns.slice(0, 4).forEach((t) => {
+    // W2-05: Sort chips by query frequency (most-queried first) before taking top 4
+    const sortedCols = [...result.columns].sort((a, b) => (b.queryFrequency ?? 0) - (a.queryFrequency ?? 0));
+    sortedCols.slice(0, 4).forEach((t) => {
       nextActions.push({
         targetSkill: 'schema',
         label: `Inspect ${t.name}`,
@@ -131,6 +132,7 @@ function composeSchema(result: SchemaResult): CompositionEnvelope {
       sourceSkill: 'schema',
       sourceResultRef: id,
     });
+
   } else {
     // TABLE scope — lead with the most actionable structural fact
     const parts: string[] = [];
@@ -1141,6 +1143,11 @@ function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType |
   }
   if (rowCount <= 3 && numericCols.length >= 2 && catCols.length === 0 && dateCols.length === 0) {
     return 'KPI_CARD';
+  }
+
+  // W2-02: STAT_ROW — 2–5 rows with 1 categorical + 1–2 numeric columns → StatCard grid
+  if (rowCount >= 2 && rowCount <= 5 && catCols.length === 1 && numericCols.length >= 1 && numericCols.length <= 2 && dateCols.length === 0) {
+    return 'STAT_ROW';
   }
 
   // Step 3 — Geographic detection

@@ -100,6 +100,7 @@ export type ArtifactType =
   | 'GEO_POINT_MAP' | 'USA_MAP' | 'WORLD_MAP'
   // Non-chart artifact types
   | 'KPI_CARD'
+  | 'STAT_ROW'         // W2-02: 2–5 rows with cat+numeric → StatCard grid
   | 'SCHEMA_VIEW'
   | 'CONFIRMATION_CARD'
   | 'COMPLETION_CARD'
@@ -285,7 +286,9 @@ export type VisualizationType =
   | 'VIOLIN' | 'DENSITY_PLOT' | 'RIDGELINE' | 'NETWORK_GRAPH' | 'TILE_MAP'
   // Maps
   | 'GEO_POINT_MAP' | 'USA_MAP' | 'WORLD_MAP'
-  | 'KPI_CARD';
+  | 'KPI_CARD'
+  | 'STAT_ROW';         // W2-02: 2–5 row categorical+numeric grid
+
 
 export interface QueryResult {
   skill: 'query';
