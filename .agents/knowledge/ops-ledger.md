@@ -10,6 +10,55 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+## 2026-07-12: User Q&A Session -- A/B/C/D + Bug Fixes
+
+**What changed**: Addressed four open design questions and fixed four confirmed bugs.
+
+**A -- Shared link page** (`/shared`):
+- Built `/shared` static page that reads share ID from URL hash (`#share_xyz`) to avoid dynamic route segment incompatibility with `output: 'export'`.
+- ShareLinkButton URL updated from `/shared/${id}` to `/shared#${id}`.
+- Auth-gated: signed-in users see headline + SQL; others see sign-in prompt. 7-day expiry shown.
+
+**B -- Live-executing dashboard**:
+- Rewrote `/dashboard/page.tsx` from skeleton to functional dashboard.
+- Tiles re-run their `cachedSql` on open; show `lastSnapshot` instantly then update.
+- Added artifact picker modal, width/height span controls, refresh button, save to Firestore.
+- Extended `DashboardTile` type in `types.ts` with `cachedSql` and `lastSnapshot` fields.
+
+**C -- Quality trend sparkline**:
+- Added `QualityTrendSparkline` component to `DataQualityView.tsx`.
+- Reads last 30 snapshots from `monitoringHistory/{tableRef}/snapshots` via `getMonitoringHistory()`.
+- Renders SVG line chart (green = improving, red = worsening) with +/- delta. Hidden when < 2 points.
+- Fixed `getMonitoringHistory()` call: signature is `(tableRef, limit)` not `(tableRef, checkType, limit)`. Filter checkType client-side.
+
+**D -- Dashboard in sidebar**:
+- Added `{ label: 'Dashboards', icon: 'dashboard', page: 'dashboard' }` to SideNav top-level items.
+- Wired `activePage === 'dashboard'` in `page.tsx` with dynamic import and hide-list conditions for both unified and split layouts.
+
+**Bug: Top-N without metric**:
+- Strengthened `query.md` with explicit rule: "Top N entity with NO metric specified" must GROUP BY entity, pick best numeric column (revenue/price/amount), ORDER BY DESC LIMIT N. Never return scalar COUNT(*). Added wrong/correct examples.
+
+**Bug: CSV export dataset resolution**:
+- `handle-data-loading.ts` line 46: changed `if (!dataset && intent.dataset)` to `if (intent.dataset)`.
+- Root cause: when user named a specific dataset ("orders in ecomm"), the LLM-extracted dataset was ignored if context already had a dataset from a prior turn.
+
+**W1-14: Save as Workflow**:
+- `saveChatAsWorkflow()` was already implemented in `useChatOrchestration.ts` but had no UI entry point.
+- Added "Save as Workflow" button to `page.tsx` above ChatThread (visible only when `hasChat`).
+- Reuses `SaveModal` with `artifactType='workflow'`, wired to `chat.saveChatAsWorkflow`.
+
+**W1-12: Grain inference**:
+- Added `inferGrainStatement(result: SchemaResult): string | null` pure function to `SchemaView.tsx`.
+- Priority order: (1) explicit PK columns, (2) table name pattern + partition field, (3) table name pattern alone, (4) single _id column heuristic.
+- Renders as a subtle banner between stats row and tab bar. Returns null (no banner) for ambiguous cases.
+
+**Rules derived**:
+1. `output: 'export'` Next.js static config prohibits dynamic route segments like `[id]`. Use hash-based routing (`/page#id`) as the workaround for user-generated content URLs.
+2. `generateStaticParams` cannot be in a `'use client'` file. If needed, split into server wrapper + client component.
+3. Always prefer LLM-extracted explicit values over context when the user names something specific in their request (dataset, table, project).
+4. `getMonitoringHistory()` signature: `(tableRef: string, limit?: number)` — no checkType param. Filter client-side.
+5. New pages that replace the chat area must be added to BOTH the unified-layout hide condition AND the split-layout hide condition in `page.tsx`.
+
 ## 2026-07-12: Wave 3 — All Items Implemented
 
 **Items completed in this session**: W3-05, W3-08, W3-11, W3-12, W3-13, W3-14, W3-15, W3-16, W3-17, W3-18, W3-19, W3-20 (previous session covered W3-01 through W3-10).
