@@ -33,7 +33,7 @@ function useGoogleMaps(): { loaded: boolean; error: string | null } {
       || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
       || '';
     if (!apiKey) {
-      setError('Google Maps API key not configured. Go to Settings to add one.');
+      setError('Google Maps API key not configured. Set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in the environment.');
       return;
     }
 

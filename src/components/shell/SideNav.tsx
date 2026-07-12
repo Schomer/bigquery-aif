@@ -153,12 +153,7 @@ export function SideNav({ collapsed }: SideNavProps) {
           <span className="material-symbols-outlined">info</span>
           <span className="gc-nav-label">How it works</span>
         </a>
-        <a className={`gc-nav-item${activePage === 'settings' ? ' gc-nav-item--active' : ''}`} href="#" data-page="settings"
-          onClick={(e) => { e.preventDefault(); setActivePage('settings'); }}
-        >
-          <span className="material-symbols-outlined">settings</span>
-          <span className="gc-nav-label">Settings</span>
-        </a>
+
       </div>
 
     </nav>
