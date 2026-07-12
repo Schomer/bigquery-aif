@@ -20,7 +20,9 @@ function useGoogleMaps(): { loaded: boolean; error: string | null } {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const apiKey = localStorage.getItem('google_maps_api_key');
+    const apiKey = localStorage.getItem('google_maps_api_key')
+      || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+      || '';
     if (!apiKey) {
       setError('Google Maps API key not configured. Go to Settings to add one.');
       return;

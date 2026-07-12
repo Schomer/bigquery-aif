@@ -10,6 +10,24 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+### 2026-07-12: Batch 3-6 Bug Fixes from Visual Test Suite
+
+**What changed**: Four bugs found from the 20-prompt Puppeteer test suite and fixed:
+
+**Bug A (query skill)**: "Show me orders by status" returned raw rows (SELECT ... LIMIT 10) instead of an aggregation (SELECT status, COUNT(*) GROUP BY status). Root cause: query.md lacked explicit rules for "by X" questions. Fixed by adding a CRITICAL aggregation section with wrong/correct examples for 5 common patterns. Also fixed "top 10 products" which was returning a COUNT(*) KPI.
+
+**Bug B (W1-15)**: No inline optimization tips on cost analysis. Fixed by adding data-driven tips computed from bucket data: high avg bytes/job (>1GB suggests missing partition filter), single user domination (>80% of cost), and single-day cost spike (>3x daily avg). Each tip has an "Investigate" chip.
+
+**Bug C (maps)**: USA_MAP rendered an empty placeholder ("Google Maps API key not configured") when no API key is set. Fixed by falling back to BarChartRenderer when `error.includes('not configured')`. Applied to all three map renderers (USAMap, WorldMap, GeoPointMap).
+
+**Bug D (charts)**: DATE_TRUNC results returned from BigQuery serialize as Unix epoch SECONDS (e.g., 1577836800), which rendered as raw numbers on the x-axis. Fixed by adding `xTickFmt()` to `useChartSetup()` that detects epoch seconds (1e8–2e10) and epoch milliseconds (1e11–2e13) and formats them as "Jan '20" style labels. Applied to LineChart, ColumnChart, AreaChart.
+
+**Rules derived**:
+1. "By X" in user queries ALWAYS means GROUP BY X -- add explicit few-shot examples to skill prompts to prevent raw-row responses.
+2. Map charts need a graceful data-showing fallback when the API key is absent -- never show empty on good data.
+3. BigQuery TIMESTAMP and DATE_TRUNC results serialize as epoch SECONDS (not milliseconds) when returned through the jobs API. Always check the magnitude range to distinguish seconds vs milliseconds.
+4. Test promptly after each batch deploy; visual test suite caught issues that code review would not.
+
 ### 2026-07-12: Visualization Intelligence Overhaul (Five-Layer Decision System)
 
 **What changed**: Replaced the 6-case `inferVisualizationType` heuristic with a full 13-step expert decision tree. Added LLM semantic hint via `visualizationHint` parameter on the `run_query` tool. Added explicit user intent extraction via `extractVisualizationIntent()` in `viz-intent.ts`. Threaded `columnTypes` (authoritative BigQuery field types) from `parseQueryResponse` all the way to the decision tree.

@@ -23,3 +23,5 @@ env:
     value: AIzaSyBAmqEk0uffrau95ArrczJCmC7e3YBfONM
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
     value: malloy-data.firebaseapp.com
+  - variable: NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+    value: AIzaSyAsoANy35tQMCB_7kN43-kjCAfatt6jO4A
