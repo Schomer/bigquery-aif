@@ -318,7 +318,7 @@ export function ChatThread({
       style={{
         flex: 1,
         overflowY: 'auto',
-        padding: '24px 24px 140px',
+        padding: '24px 48px 140px',
         display: 'flex',
         flexDirection: 'column',
         gap: '24px',
