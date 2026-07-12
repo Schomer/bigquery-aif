@@ -67,6 +67,17 @@ If both `TABLESAMPLE` and `APPROX_*` functions are in play, say so explicitly --
 - "How many" with a single answer → `SELECT COUNT(*) ...` returning one row → `KPI_CARD`
 - NEVER answer a "by status/by category/by region/top N" question with raw rows
 
+**"Top N [entity]" with NO metric specified** — pick the best available numeric measure:
+- If the table has a revenue/sales/amount/price/total column → `SUM(that column)` 
+- If no revenue column → `COUNT(*) AS record_count`
+- NEVER return `SELECT COUNT(*) FROM table` (a single scalar) — that is a KPI, not a ranking
+- NEVER return raw rows `SELECT * FROM table LIMIT N` — that is not a ranking
+
+| User says | WRONG | CORRECT |
+|---|---|---|
+| "top 10 products" | `SELECT COUNT(*) FROM products` | `SELECT product_name, SUM(sale_price) AS total_revenue FROM orders JOIN products ... GROUP BY product_name ORDER BY total_revenue DESC LIMIT 10` |
+| "top 10 products" (simpler table) | `SELECT * FROM products LIMIT 10` | `SELECT name, COUNT(*) AS order_count FROM ... GROUP BY name ORDER BY order_count DESC LIMIT 10` |
+
 **For Top-N:** always use a meaningful name column (e.g., `product_name`, `category`, `name`), not the ID column. If there's no name column, use the ID but add a note.
 
 ### Window functions

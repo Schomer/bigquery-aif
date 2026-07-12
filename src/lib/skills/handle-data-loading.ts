@@ -42,8 +42,9 @@ export async function handleDataLoading(
     });
   }
 
-  // Use extracted dataset as fallback when context dataset is empty
-  if (!dataset && intent.dataset) dataset = intent.dataset;
+  // Prefer the explicitly extracted dataset over context — user may name a specific
+  // dataset in the request (e.g. "orders table in ecomm") that differs from context.
+  if (intent.dataset) dataset = intent.dataset;
 
   // SCHEDULE — create via Data Transfer API, fall back to guidance
   if (intent.operationType === 'SCHEDULE') {

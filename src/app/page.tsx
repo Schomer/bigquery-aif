@@ -39,6 +39,8 @@ export default function Home() {
   // ---- Refs ----
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // ---- W1-14: Save as Workflow modal state ----
+  const [workflowSaveOpen, setWorkflowSaveOpen] = useState(false);
 
 
   // ---- Favorite projects ----
@@ -389,6 +391,23 @@ export default function Home() {
 
           {/* -- ACTIVE CHAT: scrollable message thread -- */}
           {hasChat && (
+            <>
+              {/* Save as Workflow button (top-right of thread area) */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '6px 16px 0', flexShrink: 0 }}>
+                <button
+                  onClick={() => setWorkflowSaveOpen(true)}
+                  title="Save this conversation as a reusable workflow"
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', background: 'none', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 13 }}>save</span>
+                  Save as Workflow
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* -- ACTIVE CHAT: scrollable message thread -- */}
+          {hasChat && (
             <ChatThread
               messages={chat.messages}
               thinkingSteps={chat.thinkingSteps}
@@ -503,6 +522,17 @@ export default function Home() {
           defaultName={chat.saveModalState.defaultName}
           defaultDescription={chat.saveModalState.defaultDescription}
           artifactType={chat.saveModalState.type}
+        />
+      )}
+      {/* Save as Workflow modal */}
+      {workflowSaveOpen && (
+        <SaveModal
+          open={workflowSaveOpen}
+          onClose={() => setWorkflowSaveOpen(false)}
+          onSave={async (name, desc, tags) => { await chat.saveChatAsWorkflow(name, desc, tags); setWorkflowSaveOpen(false); }}
+          defaultName={`Workflow ${new Date().toLocaleDateString()}`}
+          defaultDescription=""
+          artifactType="workflow"
         />
       )}
     </>

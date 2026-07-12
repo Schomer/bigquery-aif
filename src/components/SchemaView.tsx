@@ -180,6 +180,66 @@ export function SchemaView({ result, onSendMessage }: Props) {
 
 type Tab = 'schema' | 'sample' | 'profile';
 
+// ─── W1-12: Grain statement inference ───────────────────────────────────────
+// Infers the table's grain (level of detail) from its structure without an LLM call.
+// Returns a sentence like "One row per order" or "One row per user per day".
+
+function inferGrainStatement(result: SchemaResult): string | null {
+  const pk = result.tableConstraints?.primaryKey ?? [];
+  const tableName = (result.table ?? '').toLowerCase();
+  const partitionField = result.partitioning?.field?.toLowerCase();
+  const cols = result.columns.map(c => c.name.toLowerCase());
+
+  // Explicit PK: describe by PK columns
+  if (pk.length > 0) {
+    if (pk.length === 1) return `One row per ${pk[0].replace(/_id$/, '').replace(/_/g, ' ')}`;
+    return `One row per ${pk.map(k => k.replace(/_id$/, '').replace(/_/g, ' ')).join(' per ')}`;
+  }
+
+  // Heuristic: infer from table name + partition field
+  const entityPatterns: [RegExp, string][] = [
+    [/order[s_]?/, 'order'],
+    [/transaction[s_]?/, 'transaction'],
+    [/event[s_]?/, 'event'],
+    [/session[s_]?/, 'session'],
+    [/user[s_]?/, 'user'],
+    [/customer[s_]?/, 'customer'],
+    [/product[s_]?/, 'product'],
+    [/impression[s_]?/, 'impression'],
+    [/click[s_]?/, 'click'],
+    [/sale[s_]?/, 'sale'],
+    [/invoice[s_]?/, 'invoice'],
+    [/shipment[s_]?/, 'shipment'],
+    [/payment[s_]?/, 'payment'],
+  ];
+
+  let entity: string | null = null;
+  for (const [pattern, label] of entityPatterns) {
+    if (pattern.test(tableName)) { entity = label; break; }
+  }
+
+  // If partitioned by a date/timestamp, grain includes time dimension
+  const isDatePartitioned = partitionField &&
+    (cols.includes(partitionField) || /date|time|created|updated|day|month|week/.test(partitionField));
+
+  if (entity && isDatePartitioned) {
+    const timeDim = partitionField!.replace(/_/g, ' ');
+    return `One row per ${entity} per ${timeDim}`;
+  }
+  if (entity) {
+    return `One row per ${entity}`;
+  }
+
+  // Fallback: check if table has obvious ID columns suggesting entity grain
+  const idCols = cols.filter(c => c.endsWith('_id') && !c.startsWith('created') && !c.startsWith('updated'));
+  if (idCols.length === 1) {
+    const entityFromId = idCols[0].replace(/_id$/, '').replace(/_/g, ' ');
+    return `One row per ${entityFromId}`;
+  }
+
+  return null; // cannot infer
+}
+
 function TableSchemaView({ result, onSendMessage }: { result: SchemaResult; onSendMessage: (msg: string) => void }) {
   const [activeTab, setActiveTab] = useState<Tab>('sample');
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
@@ -283,6 +343,17 @@ function TableSchemaView({ result, onSendMessage }: { result: SchemaResult; onSe
         </div>
       )}
 
+      {/* W1-12: Grain statement */}
+      {(() => {
+        const grain = inferGrainStatement(result);
+        if (!grain) return null;
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--surface-2, #f3f4f6)', borderRadius: 6, marginBottom: 10, border: '1px solid var(--border-subtle, #e8eaed)' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#6366f1', flexShrink: 0 }}>grain</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>{grain}</span>
+          </div>
+        );
+      })()}
 
       {/* Tab bar */}
       <div style={{
