@@ -234,20 +234,30 @@ export async function handleMonitoring(
       referencedTables: [],
     }));
 
-    const now = new Date();
-    const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const result: MonitoringResult = {
-      skill: 'monitoring',
-      monitoringType: 'JOB_LIST',
-      timeRange: { start: start.toISOString(), end: now.toISOString() },
-      items,
-      summary: {
-        totalJobs: items.length,
-        totalBytesProcessed: items.reduce((acc, j) => acc + j.totalBytesProcessed, 0),
-        errorCount: 0,
-      },
+    // W3-18: Return as a QueryResult with LINE_CHART for slot utilization timeline
+    const slotQueryResult = {
+      skill: 'query' as const,
+      sql: slotsSql,
+      requiresConfirmation: false,
+      costConfirm: null,
+      columns: ['period_start', 'slot_seconds', 'concurrent_jobs'],
+      rows: executed.rows.map(row => [
+        String(row[0] ?? ''),
+        Math.round(Number(row[1] ?? 0) / 1000), // slot_ms → slot_seconds
+        Number(row[2] ?? 0),
+      ]),
+      rowCount: executed.rowCount,
+      jobId: executed.jobId ?? undefined,
+      totalBytesProcessed: 0,
+      costTier: 1 as const,
+      suggestedVisualization: 'LINE_CHART' as const,
+      notableFindings: `Slot utilization over the last 24 hours across ${executed.rowCount} time periods.`,
+      resultSummary: `Slot utilization timeline for project ${project} (last 24h)`,
     };
-    return [compose('monitoring', result)];
+    const slotEnvelope = compose('query', slotQueryResult);
+    slotEnvelope.skipSelfReview = true;
+    return [slotEnvelope];
+
   }
 
   // QUERY_PLAN -- fetch real job details via jobs.get API

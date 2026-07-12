@@ -234,10 +234,13 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
                     <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>download</span>
                     Export results
                   </button>
+                  {/* W3-16: Copy shareable link */}
+                  <ShareLinkButton envelope={envelope} onClose={() => setKebabOpen(false)} />
                 </div>
               )}
             </div>
           )}
+
         </div>
       </div>
 
@@ -777,4 +780,58 @@ function CustomArtifact(props: import('@/lib/types').CustomViewProps) {
         </pre>
       );
   }
+}
+
+// W3-16: Share link button — writes to sharedArtifacts/{id} and copies URL
+function ShareLinkButton({ envelope, onClose }: { envelope: CompositionEnvelope; onClose: () => void }) {
+  const [state, setState] = useState<'idle' | 'loading' | 'copied' | 'error'>('idle');
+
+  const handleShare = async () => {
+    setState('loading');
+    try {
+      const { doc, setDoc, collection } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      const id = `share_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+      await setDoc(doc(collection(db, 'sharedArtifacts'), id), {
+        id,
+        envelopeId: envelope.id,
+        skill: envelope.skill,
+        headline: envelope.headline.text,
+        primaryArtifactType: envelope.primaryArtifact.type,
+        // Store a serializable subset of data — not the full data payload to limit size
+        sql: envelope.provenance?.sql ?? null,
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+      });
+      const url = `${window.location.origin}/shared/${id}`;
+      await navigator.clipboard.writeText(url);
+      setState('copied');
+      onClose();
+      setTimeout(() => setState('idle'), 2000);
+    } catch {
+      setState('error');
+      setTimeout(() => setState('idle'), 2000);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleShare}
+      disabled={state === 'loading'}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        width: '100%', padding: '10px 14px',
+        background: 'none', border: 'none', cursor: state === 'loading' ? 'wait' : 'pointer',
+        fontSize: 13, fontWeight: 400, color: state === 'copied' ? '#00897b' : state === 'error' ? '#c62828' : 'var(--text)',
+        fontFamily: 'inherit', textAlign: 'left',
+      }}
+      onMouseEnter={(e) => { if (state === 'idle') e.currentTarget.style.background = 'var(--surface-2, #f5f5f5)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+    >
+      <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>
+        {state === 'copied' ? 'check' : state === 'error' ? 'error' : 'link'}
+      </span>
+      {state === 'loading' ? 'Creating link...' : state === 'copied' ? 'Copied!' : state === 'error' ? 'Failed' : 'Copy link'}
+    </button>
+  );
 }
