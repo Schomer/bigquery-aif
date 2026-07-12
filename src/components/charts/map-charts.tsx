@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { COLORS, buildChartData, resolveAxes } from './chart-utils';
+import { COLORS, buildChartData, resolveAxes, drillDownMessage } from './chart-utils';
 import type { QueryResult } from '@/lib/types';
 
 declare global {
@@ -310,6 +310,10 @@ export function GeoPointMapRenderer({ result, onSendMessage }: ChartProps) {
         position: { lat, lng },
         title: valueCol ? `${valueCol}: ${row[valueCol]}` : `${lat.toFixed(2)}, ${lng.toFixed(2)}`,
       });
+      marker.addListener('click', () => {
+        if (!onSendMessage || !valueCol) return;
+        onSendMessage(drillDownMessage(valueCol, row[valueCol]));
+      });
       markers.push(marker);
     }
     markersRef.current = markers;
@@ -411,6 +415,10 @@ export function USAMapRenderer({ result, onSendMessage }: ChartProps) {
         content: el,
         title: `${coords.abbr}: ${isNaN(value) ? 'N/A' : value}`,
       });
+      marker.addListener('click', () => {
+        if (!onSendMessage) return;
+        onSendMessage(drillDownMessage(xKey, stateKey));
+      });
       markers.push(marker);
     }
     markersRef.current = markers;
@@ -508,6 +516,10 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
         position: { lat: coords.lat, lng: coords.lng },
         content: el,
         title: `${coords.name}: ${isNaN(value) ? 'N/A' : value}`,
+      });
+      marker.addListener('click', () => {
+        if (!onSendMessage) return;
+        onSendMessage(drillDownMessage(xKey, countryKey));
       });
       markers.push(marker);
     }

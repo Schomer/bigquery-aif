@@ -32,18 +32,21 @@ export const GRID_STYLE = {
   vertical: false,
 };
 
-export const CHART_HEIGHT = 260;
+export const CHART_HEIGHT = 280;
 
 export const CHART_MARGIN = { top: 4, right: 16, left: 0, bottom: 4 };
 
 /**
  * Maps columnar query results into an array of row objects keyed by column name.
+ * When sortByValue is true, sorts the result by the first numeric column descending
+ * (categorical ranking reads better). Pass xKey to skip natural-order time columns.
  */
 export function buildChartData(
   columns: string[],
   rows: unknown[][],
+  options?: { sortByValue?: boolean; xKey?: string },
 ): Record<string, unknown>[] {
-  return rows.map((row) => {
+  const data = rows.map((row) => {
     const obj: Record<string, unknown> = {};
     columns.forEach((col, i) => {
       const v = row[i];
@@ -60,6 +63,27 @@ export function buildChartData(
     });
     return obj;
   });
+
+  if (options?.sortByValue) {
+    // Skip natural-order columns (months, quarters, weeks, ordinal labels)
+    const xKey = options.xKey ?? columns[0];
+    const NATURAL_ORDER_PATTERN = /month|quarter|week|day|date|time|year|q[1-4]|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/i;
+    const shouldSkipSort = NATURAL_ORDER_PATTERN.test(xKey);
+
+    if (!shouldSkipSort) {
+      // Find the first numeric column that isn't the x-key
+      const numericKey = columns.find((c) => {
+        if (c === xKey) return false;
+        const sample = data.find((r) => r[c] != null);
+        return sample !== undefined && typeof sample[c] === 'number';
+      });
+      if (numericKey) {
+        data.sort((a, b) => (Number(b[numericKey]) || 0) - (Number(a[numericKey]) || 0));
+      }
+    }
+  }
+
+  return data;
 }
 
 

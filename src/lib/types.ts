@@ -350,7 +350,7 @@ export type DataManagementResult =
 // ─── Data Quality types (bigquery-skill-data-quality) ─────────────────────────
 
 export type DqCheckType = 'PROFILE' | 'NULLS' | 'DUPLICATES' | 'FRESHNESS' | 'COMPLETENESS' | 'RANGE_VALIDATION' | 'REFERENTIAL_INTEGRITY' | 'SCHEMA_DRIFT';
-export type DqSeverity = 'INFO' | 'WARNING' | 'ISSUE';
+export type DqSeverity = 'INFO' | 'WARNING' | 'ISSUE' | 'PASS';
 
 export interface DqFinding {
   column: string;

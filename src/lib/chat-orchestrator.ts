@@ -16,6 +16,7 @@ import {
   stepWithLink,
 } from './orchestrator-utils';
 import { selfReviewEnvelope } from './self-review';
+import { extractVisualizationIntent, isVizMutationOnly } from './viz-intent';
 
 // Skill handlers -- dispatched via manifest registry
 import { SKILL_MAP, SKILL_LABELS } from './skills';
@@ -27,6 +28,7 @@ import type {
   CompositionEnvelope,
   DataManagementResult,
   QueryResult,
+  ArtifactType,
   SkillName,
   StatusCallback,
 } from './types';
@@ -78,6 +80,45 @@ export class ChatOrchestrator {
 
     // -- Resolve referential language --
     const resolvedMessage = resolveReferences(message, context);
+
+    // -- Layer 1: Extract explicit visualization intent --
+    // Do this before routing so we can use it throughout the pipeline.
+    const userIntent: ArtifactType | null = extractVisualizationIntent(resolvedMessage);
+
+    // -- Viz mutation: pure chart-type-change without new data query --
+    // If the user says "make this a column chart" and we already have a result,
+    // recompose the existing data with the new chart type instead of re-querying.
+    if (userIntent && isVizMutationOnly(resolvedMessage) && context?.lastResultRef) {
+      // Find the last query envelope from history to recompose
+      const lastQueryEnvelope = history
+        .slice()
+        .reverse()
+        .flatMap((m) => {
+          try {
+            const parsed = typeof m.content === 'string' && m.content.startsWith('[{') ? JSON.parse(m.content) : null;
+            return Array.isArray(parsed) ? parsed : [];
+          } catch { return []; }
+        })
+        .find((env: any) => env?.skill === 'query' && env?.primaryArtifact?.data?.rows);
+
+      if (lastQueryEnvelope) {
+        const mutatedEnvelope: CompositionEnvelope = {
+          ...lastQueryEnvelope,
+          id: 'viz_mut_' + Date.now(),
+          primaryArtifact: {
+            ...lastQueryEnvelope.primaryArtifact,
+            type: userIntent,
+          },
+          headline: {
+            ...lastQueryEnvelope.headline,
+            text: `Showing as ${userIntent.replace(/_/g, ' ').toLowerCase()}`,
+          },
+          skipSelfReview: true,
+        };
+        return { envelopes: [mutatedEnvelope], skill: 'query' };
+      }
+      // If no recomposable envelope found, fall through to normal query
+    }
 
     let resolvedDataset = context?.resolvedDataset;
     let availableDatasets = context?.availableDatasets;
@@ -263,7 +304,7 @@ The user's new message is a continuation of this conversation. Treat it as a fol
     let envelopes: CompositionEnvelope[] = [];
 
     // Pass pre-resolved context to handlers to avoid redundant fetches
-    const enrichedContext = { ...context, resolvedDataset, availableDatasets };
+    const enrichedContext = { ...context, resolvedDataset, availableDatasets, userIntent };
 
     // Manifest-driven dispatch: look up handler from the registry.
     // All handlers have a standardized signature: (message, history, context, onStatus)
@@ -306,7 +347,8 @@ The user's new message is a continuation of this conversation. Treat it as a fol
         }
 
         // High-confidence + small result: review adds little value
-        if (routerConfidence === 'high' && data && 'rows' in data) {
+        // EXCEPTION: never skip when user explicitly requested a chart type
+        if (routerConfidence === 'high' && !userIntent && data && 'rows' in data) {
           const rows = (data as { rows: unknown[] }).rows;
           if (Array.isArray(rows) && rows.length < 100) {
             env.skipSelfReview = true;

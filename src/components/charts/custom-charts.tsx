@@ -202,9 +202,9 @@ export function GaugeRenderer({ result, onSendMessage }: ChartProps) {
 
   const handleClick = useCallback(() => {
     if (label) {
-      onSendMessage(drillDownMessage(xKey, currentValue));
+      onSendMessage(drillDownMessage(xKey, label));
     }
-  }, [label, currentValue, xKey, onSendMessage]);
+  }, [label, xKey, onSendMessage]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -873,7 +873,7 @@ export function DensityPlotRenderer({ result, onSendMessage }: ChartProps) {
       <div style={{ width: '100%', height: CHART_HEIGHT }}>
         <svg
           viewBox={`0 0 ${SVG_W} ${SVG_H}`}
-          style={{ width: '100%', height: '100%' }}
+          style={{ width: '100%', height: '100%', cursor: 'pointer' }}
           preserveAspectRatio="xMidYMid meet"
           onMouseMove={(e) => {
             const svg = e.currentTarget;
@@ -894,6 +894,21 @@ export function DensityPlotRenderer({ result, onSendMessage }: ChartProps) {
             }
           }}
           onMouseLeave={() => setTip(null)}
+          onClick={(e) => {
+            if (!onSendMessage) return;
+            const svg = e.currentTarget;
+            const pt = svg.createSVGPoint();
+            pt.x = e.clientX;
+            pt.y = e.clientY;
+            const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+            const dataX = dataMin + ((svgP.x - PAD.left) / plotW) * xRange;
+            if (svgP.x >= PAD.left && svgP.x <= SVG_W - PAD.right) {
+              const closest = points.reduce((best, p) =>
+                Math.abs(p.x - dataX) < Math.abs(best.x - dataX) ? p : best,
+              );
+              onSendMessage(drillDownMessage(valueCol, formatNum(closest.x)));
+            }
+          }}
         >
           {drawYAxis(0, densMax)}
           {/* X axis labels */}

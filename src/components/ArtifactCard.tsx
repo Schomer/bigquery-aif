@@ -25,6 +25,7 @@ import { FreshnessView } from './FreshnessView';
 import { PipelineView } from './PipelineView';
 import TaskWorkflowView from './TaskWorkflowView';
 import { GovernanceView } from './GovernanceView';
+import { BriefingBlock } from './BriefingBlock';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { usePreferences } from '@/lib/preferences-context';
 
@@ -239,7 +240,26 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
         </div>
       </div>
 
-      {/* Primary artifact -- onSendMessage threaded into every view */}
+      {/* Briefing + insight -- inside card boundary, below headline */}
+      {(envelope.briefing || envelope.insight) && (
+        <div style={{ padding: '0 20px 12px', borderBottom: '1px solid #ECF1FA', marginBottom: 4 }}>
+          {envelope.briefing && (
+            <BriefingBlock briefing={envelope.briefing} />
+          )}
+          {envelope.insight && (
+            <p style={{
+              margin: envelope.briefing ? '6px 0 0' : 0,
+              fontSize: 13,
+              lineHeight: 1.5,
+              color: 'var(--text-muted, #64748b)',
+              fontStyle: 'italic',
+            }}>
+              {envelope.insight}
+            </p>
+          )}
+        </div>
+      )}
+
       <div style={{ padding: '0 20px 16px' }}>
         <Artifact
           envelope={envelope}
@@ -547,7 +567,7 @@ function Artifact({
     case 'SCHEMA_VIEW':
       return <SchemaView result={data as import('@/lib/types').SchemaResult} onSendMessage={onSendMessage} />;
     case 'TABLE':
-      return <DataTable result={data as import('@/lib/types').QueryResult} onSendMessage={onSendMessage} />;
+      return <DataTable result={data as import('@/lib/types').QueryResult} emphasis={envelope.primaryArtifact.emphasis} onSendMessage={onSendMessage} />;
     case 'LINE_CHART':
     case 'BAR_CHART':
     case 'AREA_CHART':

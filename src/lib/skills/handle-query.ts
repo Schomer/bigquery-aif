@@ -11,14 +11,14 @@ import { compose } from '../composer';
 import { findReusablePlan, cachePlan } from '../plan-cache';
 import { analyzeResultQuality } from '../result-quality';
 import { BQ_TOOLS, BQ_TOOL_MAP } from '../bq-tools';
-import type { ChatMessage, CompositionEnvelope, QueryResult, SkillManifest, StatusCallback, VisualizationType } from '../types';
+import type { ChatMessage, CompositionEnvelope, QueryResult, SkillManifest, StatusCallback, VisualizationType, ArtifactType } from '../types';
 
 // ─── Tool-calling query handler ──────────────────────────────────────────────
 
 export async function handleQuery(
   message: string,
   history: ChatMessage[],
-  context?: { project?: string; dataset?: string; lastTable?: string; lastTableSchema?: { name: string; type: string; description?: string }[]; lastDatasetTables?: string[]; resolvedDataset?: string; availableDatasets?: string[] },
+  context?: { project?: string; dataset?: string; lastTable?: string; lastTableSchema?: { name: string; type: string; description?: string }[]; lastDatasetTables?: string[]; resolvedDataset?: string; availableDatasets?: string[]; userIntent?: ArtifactType | null },
   onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
   const project = context?.project || '';
@@ -240,7 +240,7 @@ After running the query, provide a brief one-line summary of what the results sh
     resultSummary: agentResult.textResponse || null,
   };
 
-  return [compose('query', result, qualityFlags)];
+  return [compose('query', result, qualityFlags, context?.userIntent ?? null)];
 }
 
 // ─── Execute a cached plan (unchanged from previous implementation) ───────────

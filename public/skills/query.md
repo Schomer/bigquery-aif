@@ -153,6 +153,17 @@ Pick `suggestedVisualization` based on result shape:
 | Ordered stages + 1 measure, monotonically non-increasing | `FUNNEL` | Each stage is a COUNT(DISTINCT id) or conditional aggregation |
 | Default / everything else | `TABLE` | When in doubt, table -- it degrades gracefully |
 
+### Setting `visualizationHint` on the run_query tool call
+
+When calling `run_query`, always set the `visualizationHint` parameter to the chart type that best fits the query's expected output. This is your semantic contribution to the visualization decision -- the system uses it as a high-priority signal when the data shape is ambiguous.
+
+**Rules:**
+- If the user explicitly requested a chart type ("show as a column chart", "make it a line chart"), use exactly that type.
+- If the query produces time-series data (date/timestamp + measure), use `LINE_CHART`.
+- If the query produces ranked categorical data (category + measure, no time axis), use `COLUMN_CHART` for short labels or `BAR_CHART` for long labels.
+- If the query returns a single aggregate value (COUNT, SUM, AVG), use `KPI_CARD` -- but only when there's 1 row and 1-3 columns.
+- If you cannot determine the right type without seeing the data, omit `visualizationHint` and the system will infer it from column types and data shape.
+
 ### Geographic results
 
 If the result contains lat/lng coordinates or region codes:

@@ -43,12 +43,13 @@ export function compose(
   skill: SkillName,
   result: SchemaResult | QueryResult | DataManagementResult | MonitoringResult | AlertResult | DiscoveryResult | DataQualityResult | DataLoadingResult | StorageBreakdownResult | AccessPatternResult | CostAnalysisResult | FreshnessResult | GovernanceResult | PipelineResult,
   qualityFlags?: QualityFlag[],
+  userIntent?: ArtifactType | null,
 ): CompositionEnvelope {
   switch (skill) {
     case 'schema':
       return composeSchema(result as SchemaResult);
     case 'query':
-      return composeQuery(result as QueryResult, qualityFlags);
+      return composeQuery(result as QueryResult, qualityFlags, userIntent);
     case 'data-management':
       return composeDataManagement(result as DataManagementResult);
     case 'monitoring': {
@@ -202,7 +203,7 @@ function composeSchema(result: SchemaResult): CompositionEnvelope {
 
 // ─── Query composition ────────────────────────────────────────────────────────
 
-function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[]): CompositionEnvelope {
+function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[], userIntent?: ArtifactType | null): CompositionEnvelope {
   const id = randomUUID();
 
   // Cost confirm card — don't show results
@@ -271,7 +272,7 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[]): Compos
     ? 'TABLE' as ArtifactType
     : isSampleQuery
       ? 'TABLE' as ArtifactType
-      : inferVisualizationType(result);
+      : inferVisualizationType(result, userIntent);
 
   const nextActions: HandoffEnvelope[] = [];
   if (result.rowCount === 0) {
@@ -1006,32 +1007,120 @@ function isNumericValue(v: unknown): boolean {
   return false;
 }
 
+// ─── Viz helper functions ──────────────────────────────────────────────────────
+
+function isIdColumn(name: string): boolean {
+  return /(_id|_key|_uuid|_hash|_guid|identifier|record_id)$/i.test(name) || /^(id|uuid|guid|hash)$/i.test(name);
+}
+
+// US state names and abbreviations for geographic detection
+const US_STATE_NAMES = new Set([
+  'alabama', 'alaska', 'arizona', 'arkansas', 'california', 'colorado',
+  'connecticut', 'delaware', 'florida', 'georgia', 'hawaii', 'idaho',
+  'illinois', 'indiana', 'iowa', 'kansas', 'kentucky', 'louisiana',
+  'maine', 'maryland', 'massachusetts', 'michigan', 'minnesota', 'mississippi',
+  'missouri', 'montana', 'nebraska', 'nevada', 'new hampshire', 'new jersey',
+  'new mexico', 'new york', 'north carolina', 'north dakota', 'ohio', 'oklahoma',
+  'oregon', 'pennsylvania', 'rhode island', 'south carolina', 'south dakota',
+  'tennessee', 'texas', 'utah', 'vermont', 'virginia', 'washington',
+  'west virginia', 'wisconsin', 'wyoming',
+  // Two-letter abbreviations
+  'al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'de', 'fl', 'ga', 'hi', 'id',
+  'il', 'in', 'ia', 'ks', 'ky', 'la', 'me', 'md', 'ma', 'mi', 'mn', 'ms',
+  'mo', 'mt', 'ne', 'nv', 'nh', 'nj', 'nm', 'ny', 'nc', 'nd', 'oh', 'ok',
+  'or', 'pa', 'ri', 'sc', 'sd', 'tn', 'tx', 'ut', 'vt', 'va', 'wa', 'wv',
+  'wi', 'wy',
+]);
+
+function isStateColumn(name: string, sampleValues: unknown[]): boolean {
+  if (/\b(state|us_state|state_name|state_code|region)\b/i.test(name)) return true;
+  // Check if sample values look like US states
+  const nonNull = sampleValues.filter(v => v != null).slice(0, 5);
+  if (nonNull.length < 2) return false;
+  const matchCount = nonNull.filter(v => US_STATE_NAMES.has(String(v).toLowerCase())).length;
+  return matchCount / nonNull.length >= 0.6;
+}
+
+const ISO_COUNTRY_CODES = new Set(['us', 'gb', 'de', 'fr', 'ca', 'au', 'jp', 'cn', 'in', 'br', 'mx', 'it', 'es', 'kr', 'ru', 'nl', 'ch', 'se', 'no', 'dk', 'fi', 'be', 'at', 'sg', 'hk', 'nz', 'za', 'ar', 'cl', 'co', 'pe', 'eg', 'ng', 'ke', 'gh', 'th', 'vn', 'id', 'my', 'ph', 'tr', 'sa', 'ae', 'il', 'ir', 'pk', 'bd', 'ua', 'pl', 'cz', 'ro', 'hu', 'pt']);
+
+function isCountryColumn(name: string, sampleValues: unknown[]): boolean {
+  if (/\b(country|country_name|country_code|iso_code|nation)\b/i.test(name)) return true;
+  const nonNull = sampleValues.filter(v => v != null).slice(0, 5);
+  if (nonNull.length < 2) return false;
+  const matchCount = nonNull.filter(v => ISO_COUNTRY_CODES.has(String(v).toLowerCase())).length;
+  return matchCount / nonNull.length >= 0.6;
+}
+
+function isMonotonicallyDecreasing(values: number[]): boolean {
+  if (values.length < 2) return false;
+  for (let i = 1; i < values.length; i++) {
+    if (values[i] > values[i - 1]) return false;
+  }
+  return true;
+}
+
+function isPartsOfWhole(colName: string, sql: string): boolean {
+  const combined = `${colName} ${sql}`.toLowerCase();
+  return /\b(share|portion|pct|percent|percentage|ratio|fraction|breakdown|composition|mix|split)\b/.test(combined);
+}
+
+function isCumulativePattern(colName: string): boolean {
+  return /\b(cumulative|running|ytd|mtd|qtd|total_to_date|running_total)\b/i.test(colName);
+}
+
+function isStagePattern(colName: string): boolean {
+  return /\b(stage|step|phase|funnel_stage|conversion_step)\b/i.test(colName);
+}
+
+function avgLabelLength(values: unknown[]): number {
+  const strs = values.slice(0, 20).filter(v => v != null).map(v => String(v));
+  if (strs.length === 0) return 0;
+  return strs.reduce((s, str) => s + str.length, 0) / strs.length;
+}
+
+function scaleRatio(col1Values: number[], col2Values: number[]): number {
+  const max1 = Math.max(...col1Values.filter(v => isFinite(v)));
+  const max2 = Math.max(...col2Values.filter(v => isFinite(v)));
+  if (max2 === 0) return 1;
+  return max1 / max2;
+}
+
+// BQ DATE/TIMESTAMP type names that authoritatively identify date columns
+const BQ_DATE_TYPES = new Set(['DATE', 'DATETIME', 'TIMESTAMP', 'TIME']);
+const BQ_NUMERIC_TYPES = new Set(['INTEGER', 'INT64', 'FLOAT', 'FLOAT64', 'NUMERIC', 'BIGNUMERIC', 'INT', 'SMALLINT', 'BIGINT']);
+
 /**
- * Infer the best visualization type from the actual data shape.
- * The LLM's suggestedVisualization is used as a tiebreaker, not the primary signal.
- * Follows the chart-type-by-data-shape mapping from the response-composition spec.
+ * Expert 13-step visualization decision tree.
+ * Layer 2 of the five-layer visualization decision system.
+ *
+ * @param result - The query result
+ * @param userIntent - Layer 1 explicit intent (highest authority)
  */
-function inferVisualizationType(result: QueryResult): ArtifactType {
-  const { columns, rows, rowCount } = result;
+function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType | null): ArtifactType {
+  // Step 0 — User explicit intent (highest authority)
+  if (userIntent && userIntent !== null) return userIntent;
+
+  const { columns, rows, rowCount, columnTypes, sql } = result;
   if (!columns || columns.length === 0 || !rows || rows.length === 0) return 'TABLE';
 
-  // Geo-point detection: if data has lat/lng columns, render as a map
-  const lowerCols = columns.map(c => c.toLowerCase());
-  const hasLat = lowerCols.some(c => c === 'lat' || c === 'latitude');
-  const hasLng = lowerCols.some(c => c === 'lng' || c === 'longitude' || c === 'lon' || c === 'long');
-  if (hasLat && hasLng) return 'GEO_POINT_MAP';
+  // Step 1 — Data validity gates
+  const allIdCols = columns.every((c) => isIdColumn(c));
+  if (allIdCols) return 'TABLE';
 
-  // Classify each column as numeric, date, or categorical based on actual values
+  // Use authoritative BQ types when available, fall back to sample-value inference
   const colTypes: ('numeric' | 'date' | 'categorical')[] = columns.map((col, i) => {
+    // Authoritative BQ type takes precedence
+    const bqType = columnTypes?.[i]?.toUpperCase();
+    if (bqType && BQ_DATE_TYPES.has(bqType)) return 'date';
+    if (bqType && BQ_NUMERIC_TYPES.has(bqType)) return 'numeric';
+
+    // Fall back to sample-value inference
     const sampleValues = rows.slice(0, 10).map(r => (r as unknown[])[i]);
     const nonNull = sampleValues.filter(v => v != null);
     if (nonNull.length === 0) return 'categorical';
-
     if (isDateColumn(col, nonNull)) return 'date';
-
     const numericCount = nonNull.filter(isNumericValue).length;
     if (numericCount / nonNull.length >= 0.8) return 'numeric';
-
     return 'categorical';
   });
 
@@ -1039,42 +1128,128 @@ function inferVisualizationType(result: QueryResult): ArtifactType {
   const dateCols = columns.filter((_, i) => colTypes[i] === 'date');
   const catCols = columns.filter((_, i) => colTypes[i] === 'categorical');
 
-  // 1 row, 1 numeric column -> KPI card
-  if (rowCount === 1 && numericCols.length === 1 && columns.length <= 2) {
+  const lowerCols = columns.map(c => c.toLowerCase());
+
+  // Step 1b — Geo-point detection (lat/lng columns → point map)
+  const hasLat = lowerCols.some(c => c === 'lat' || c === 'latitude');
+  const hasLng = lowerCols.some(c => c === 'lng' || c === 'longitude' || c === 'lon' || c === 'long');
+  if (hasLat && hasLng) return 'GEO_POINT_MAP';
+
+  // Step 2 — Single-value results (KPI card)
+  if (rowCount === 1 && numericCols.length >= 1 && columns.length <= 3 && catCols.length === 0 && dateCols.length === 0) {
+    return 'KPI_CARD';
+  }
+  if (rowCount <= 3 && numericCols.length >= 2 && catCols.length === 0 && dateCols.length === 0) {
     return 'KPI_CARD';
   }
 
-  // 1 date column + 1+ numeric columns -> line chart
+  // Step 3 — Geographic detection
+  for (let i = 0; i < columns.length; i++) {
+    if (colTypes[i] === 'categorical') {
+      const sampleValues = rows.slice(0, 10).map(r => (r as unknown[])[i]);
+      if (numericCols.length >= 1 && isStateColumn(columns[i], sampleValues)) return 'USA_MAP';
+      if (numericCols.length >= 1 && isCountryColumn(columns[i], sampleValues)) return 'WORLD_MAP';
+    }
+  }
+
+  // Step 4 — Structural specialty matches
+  // Candlestick: has open/high/low/close columns + 1 date
+  const ohlcNames = columns.map(c => c.toLowerCase());
+  const hasOpen = ohlcNames.some(c => /^open/.test(c));
+  const hasHigh = ohlcNames.some(c => /^high/.test(c));
+  const hasLow = ohlcNames.some(c => /^low/.test(c));
+  const hasClose = ohlcNames.some(c => /^close/.test(c));
+  if (hasOpen && hasHigh && hasLow && hasClose && dateCols.length >= 1) return 'CANDLESTICK';
+
+  // Sankey: source + target + numeric flow columns
+  const hasSankeySource = columns.some(c => /^(source|from|origin|src)$/i.test(c));
+  const hasSankeyTarget = columns.some(c => /^(target|to|destination|dest)$/i.test(c));
+  if (hasSankeySource && hasSankeyTarget && numericCols.length >= 1) return 'SANKEY';
+
+  // Heatmap via 2 categoricals + 1 numeric + sufficient rows
+  if (catCols.length === 2 && numericCols.length === 1 && rowCount >= 9 && rowCount <= 400) return 'HEATMAP';
+
+  // Step 5 — Time-series detection (1 date column + 1+ numeric)
   if (dateCols.length === 1 && numericCols.length >= 1 && rowCount >= 2) {
+    // Sparse data (< 5 rows): column chart looks better than lines
+    if (rowCount < 5) return 'COLUMN_CHART';
+    // Dual-scale series: use composed chart
+    if (numericCols.length >= 2) {
+      const numIdx1 = columns.indexOf(numericCols[0]);
+      const numIdx2 = columns.indexOf(numericCols[1]);
+      const vals1 = rows.slice(0, 20).map(r => Number((r as unknown[])[numIdx1]) || 0);
+      const vals2 = rows.slice(0, 20).map(r => Number((r as unknown[])[numIdx2]) || 0);
+      if (scaleRatio(vals1, vals2) > 10 || scaleRatio(vals2, vals1) > 10) return 'COMPOSED_CHART';
+    }
+    // Cumulative/running total: area chart
+    if (numericCols.some(c => isCumulativePattern(c))) return 'AREA_CHART';
+    // Standard time series
     return 'LINE_CHART';
   }
 
-  // 1 categorical column + 1+ numeric columns, <=20 rows -> bar chart
-  if (catCols.length === 1 && numericCols.length >= 1 && rowCount >= 2 && rowCount <= 20) {
-    // <=8 categories with a single numeric column that looks like parts-of-whole -> pie chart
-    if (rowCount <= 8 && numericCols.length === 1) {
-      // Check if values sum to a plausible total (heuristic for parts-of-whole)
-      const numIdx = columns.indexOf(numericCols[0]);
-      const values = rows.map(r => Number((r as unknown[])[numIdx]) || 0);
-      const allPositive = values.every(v => v >= 0);
-      if (allPositive && rowCount <= 6) {
-        return 'PIE_CHART';
-      }
+  // Step 6 — Distribution detection (1 numeric, no categorical, no date, many rows)
+  if (numericCols.length === 1 && catCols.length === 0 && dateCols.length === 0 && rowCount >= 20) {
+    return 'HISTOGRAM';
+  }
+
+  // Step 7 — Categorical + numeric (main branch)
+  if (catCols.length === 1 && numericCols.length >= 1 && rowCount >= 2) {
+    const catIdx = columns.indexOf(catCols[0]);
+    const numIdx = columns.indexOf(numericCols[0]);
+    const catValues = rows.map(r => (r as unknown[])[catIdx]);
+    const numValues = rows.map(r => Number((r as unknown[])[numIdx]) || 0);
+
+    // Too many categories → table
+    if (rowCount > 25) return 'TABLE';
+
+    // Funnel: monotonically decreasing values + stage-like column name
+    if (rowCount >= 2 && rowCount <= 8 && isMonotonicallyDecreasing(numValues) &&
+        (isStagePattern(catCols[0]) || numericCols.some(c => isStagePattern(c)))) {
+      return 'FUNNEL';
     }
+
+    // Parts-of-whole: ≤5 categories, all positive, and semantic signals
+    if (rowCount <= 5 && numericCols.length === 1 && numValues.every(v => v >= 0)) {
+      if (isPartsOfWhole(numericCols[0], sql ?? '')) return 'DONUT_CHART';
+    }
+
+    // Default: distinguish COLUMN vs BAR by actual label length
+    const avgLen = avgLabelLength(catValues);
+    if (avgLen <= 12 && rowCount <= 15) return 'COLUMN_CHART';
     return 'BAR_CHART';
   }
 
-  // 2 numeric columns + optional grouping -> scatter
-  if (numericCols.length === 2 && catCols.length <= 1 && dateCols.length === 0 && rowCount >= 5) {
-    return 'SCATTER';
+  // Step 8 — Multi-category (2 categoricals + 1 numeric)
+  if (catCols.length === 2 && numericCols.length === 1 && rowCount <= 400) return 'HEATMAP';
+  if (catCols.length >= 2 && numericCols.length >= 1) return 'BAR_CHART';
+
+  // Step 9 — Scatter (relationship detection)
+  if (numericCols.length === 2 && catCols.length <= 1 && dateCols.length === 0 && rowCount >= 10) {
+    // Don't scatter if both numerics look like IDs
+    if (!numericCols.every(c => isIdColumn(c))) return 'SCATTER';
   }
 
-  // If the LLM suggested something specific (not TABLE), and we have no strong
-  // shape-based opinion, respect the hint
+  // Step 10 — Multi-dimensional comparison (radar)
+  if (catCols.length === 1 && numericCols.length >= 3 && numericCols.length <= 8 && rowCount <= 10) {
+    return 'RADAR';
+  }
+
+  // Step 11 — Treemap (hierarchical parts-of-whole)
+  if (catCols.length >= 1 && catCols.length <= 2 && numericCols.length === 1 &&
+      rowCount >= 5 && rowCount <= 50) {
+    const numIdx = columns.indexOf(numericCols[0]);
+    const numValues = rows.map(r => Number((r as unknown[])[numIdx]) || 0);
+    if (numValues.every(v => v >= 0) && isPartsOfWhole(numericCols[0], sql ?? '')) {
+      return 'TREEMAP';
+    }
+  }
+
+  // Step 12 — LLM hint passthrough (suggestedVisualization from run_query tool)
   if (result.suggestedVisualization && result.suggestedVisualization !== 'TABLE') {
     return result.suggestedVisualization as ArtifactType;
   }
 
+  // Step 13 — TABLE (last resort)
   return 'TABLE';
 }
 

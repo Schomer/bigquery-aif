@@ -7,10 +7,11 @@ import { drillDownMessage } from './charts/chart-utils';
 
 interface Props {
   result: QueryResult;
+  emphasis?: { highlight: string[]; deemphasize: string[] };
   onSendMessage?: (msg: string) => void;
 }
 
-export function DataTable({ result, onSendMessage }: Props) {
+export function DataTable({ result, emphasis, onSendMessage }: Props) {
   const [filter, setFilter] = useState('');
   const [sortCol, setSortCol] = useState<number | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -73,31 +74,36 @@ export function DataTable({ result, onSendMessage }: Props) {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
-              {columns.map((col, i) => (
-                <th
-                  key={col}
-                  onClick={() => toggleSort(i)}
-                  style={{
-                    padding: '8px 12px',
-                    textAlign: 'left',
-                    color: 'var(--text-muted)',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    userSelect: 'none',
-                    transition: 'color 0.1s',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
-                >
-                  {col}
-                  {sortCol === i && (
-                    <span style={{ marginLeft: 4, opacity: 0.7 }}>
-                      {sortDir === 'asc' ? '↑' : '↓'}
-                    </span>
-                  )}
-                </th>
-              ))}
+              {columns.map((col, i) => {
+                const isHighlighted = emphasis?.highlight?.includes(col);
+                const isDeemphasized = emphasis?.deemphasize?.includes(col);
+                return (
+                  <th
+                    key={col}
+                    onClick={() => toggleSort(i)}
+                    style={{
+                      padding: '8px 12px',
+                      textAlign: 'left',
+                      color: isHighlighted ? 'var(--accent, #1a73e8)' : isDeemphasized ? 'var(--text-dim, #94a3b8)' : 'var(--text-muted)',
+                      fontWeight: isHighlighted ? 600 : 500,
+                      opacity: isDeemphasized ? 0.6 : 1,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      userSelect: 'none',
+                      transition: 'color 0.1s',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = isHighlighted ? 'var(--accent, #1a73e8)' : isDeemphasized ? 'var(--text-dim, #94a3b8)' : 'var(--text-muted)')}
+                  >
+                    {col}
+                    {sortCol === i && (
+                      <span style={{ marginLeft: 4, opacity: 0.7 }}>
+                        {sortDir === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>

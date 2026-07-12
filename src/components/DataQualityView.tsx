@@ -13,6 +13,12 @@ export function DataQualityView({ result, onSendMessage }: Props) {
   const { checkType, table, findings, summary } = result;
   const tableName = table.split('.').pop();
 
+  // W1-07: pass/fail summary counts
+  const passCount = findings.filter(f => f.severity === 'PASS').length;
+  const issueCount = findings.filter(f => f.severity === 'ISSUE').length;
+  const warnCount = findings.filter(f => f.severity === 'WARNING').length;
+  const totalChecks = findings.length;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Stat row */}
@@ -29,7 +35,26 @@ export function DataQualityView({ result, onSendMessage }: Props) {
         <Stat label="Checked at" value={new Date(summary.checkedAt).toLocaleString()} />
       </div>
 
-      {/* Findings table or empty state */}
+      {/* W1-07: pass/fail summary banner */}
+      {totalChecks > 0 && (
+        <div style={{
+          display: 'flex',
+          gap: 12,
+          padding: '8px 12px',
+          borderRadius: 6,
+          background: issueCount > 0 ? 'rgba(239,68,68,0.04)' : 'rgba(34,197,94,0.04)',
+          border: `1px solid ${issueCount > 0 ? 'rgba(239,68,68,0.2)' : 'rgba(34,197,94,0.2)'}`,
+          fontSize: 12,
+          fontWeight: 500,
+          alignItems: 'center',
+          flexWrap: 'wrap',
+        }}>
+          {passCount > 0 && <span style={{ color: '#16a34a' }}>{passCount} passed</span>}
+          {issueCount > 0 && <span style={{ color: '#ef4444' }}>{issueCount} {issueCount === 1 ? 'issue' : 'issues'}</span>}
+          {warnCount > 0 && <span style={{ color: '#f59e0b' }}>{warnCount} {warnCount === 1 ? 'warning' : 'warnings'}</span>}
+        </div>
+      )}
+
       {findings.length === 0 ? (
         <div style={{
           padding: '20px 16px',
@@ -218,7 +243,7 @@ function FindingRow({
 }
 
 function SeverityBadge({ severity }: { severity: DqSeverity }) {
-  const color = severity === 'ISSUE' ? '#ef4444' : severity === 'WARNING' ? '#f59e0b' : 'var(--text-muted)';
+  const color = severity === 'ISSUE' ? '#ef4444' : severity === 'WARNING' ? '#f59e0b' : severity === 'PASS' ? '#16a34a' : 'var(--text-muted)';
   return (
     <span style={{
       fontSize: 10,
@@ -236,5 +261,6 @@ function SeverityBadge({ severity }: { severity: DqSeverity }) {
 function rowBg(severity: DqSeverity): string {
   if (severity === 'ISSUE') return 'rgba(239,68,68,0.04)';
   if (severity === 'WARNING') return 'rgba(245,158,11,0.04)';
+  if (severity === 'PASS') return 'rgba(34,197,94,0.02)';
   return 'transparent';
 }

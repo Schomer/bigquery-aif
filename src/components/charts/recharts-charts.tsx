@@ -263,8 +263,8 @@ export function ScatterChartRenderer({ result, onSendMessage }: ChartProps) {
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
         <ScatterChart margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage)}>
           <CartesianGrid {...GRID_STYLE} />
-          <XAxis dataKey={xKey} {...AXIS_STYLE} />
-          <YAxis dataKey={yKeys[0]} {...AXIS_STYLE} tickFormatter={tickFmt} />
+          <XAxis dataKey={xKey} type="number" {...AXIS_STYLE} />
+          <YAxis dataKey={yKeys[0]} type="number" {...AXIS_STYLE} tickFormatter={tickFmt} />
           <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
           <Scatter data={data} fill={COLORS[0]} opacity={0.7} />
         </ScatterChart>
@@ -549,7 +549,9 @@ export function TreemapRenderer({ result, onSendMessage }: ChartProps) {
             const xValue = node.name;
             onSendMessage(drillDownMessage(xKey, xValue));
           }}
-        />
+        >
+          <Tooltip {...TOOLTIP_STYLE} />
+        </Treemap>
       </ResponsiveContainer>
       <ChartTip />
     </div>

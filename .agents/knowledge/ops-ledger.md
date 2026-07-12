@@ -10,6 +10,46 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+### 2026-07-12: Visualization Intelligence Overhaul (Five-Layer Decision System)
+
+**What changed**: Replaced the 6-case `inferVisualizationType` heuristic with a full 13-step expert decision tree. Added LLM semantic hint via `visualizationHint` parameter on the `run_query` tool. Added explicit user intent extraction via `extractVisualizationIntent()` in `viz-intent.ts`. Threaded `columnTypes` (authoritative BigQuery field types) from `parseQueryResponse` all the way to the decision tree.
+
+**What worked**: Using authoritative BQ column types (DATE, TIMESTAMP, INTEGER, etc.) as the primary type signal instead of re-deriving from sample values eliminated false positives on numeric-looking date strings. The 13-step tree now correctly identifies HEATMAP (2 categoricals + 1 numeric), FUNNEL (monotonically decreasing stages), DONUT_CHART (parts-of-whole by semantic signal), COMPOSED_CHART (dual-scale series), AREA_CHART (cumulative columns), COLUMN_CHART vs BAR_CHART by actual label length, HISTOGRAM (single numeric with many rows), and geographic maps.
+
+**What broke**: Nothing -- clean build, no TypeScript errors.
+
+**Rules derived**:
+1. ALWAYS use authoritative schema types (from the database) rather than re-deriving types from sample values. Sample values can mislead (numeric strings, sparse columns).
+2. Explicit user intent must be the highest-priority layer -- never let a heuristic override a user's explicit request.
+3. Self-review must NOT override a visualization that is already correct. Add explicit rules to the review prompt to prevent it.
+4. The LLM's `visualizationHint` (from tool call args) is a semantic signal, not authority. Use it as a tiebreaker when the data shape is ambiguous, not as the primary signal.
+
+### 2026-07-12: Chart Renderer Bug Fixes
+
+**What changed**: Fixed three renderer bugs: (1) ScatterChart X-axis was categorical (type not set), so points plotted at equal intervals instead of by value. Fixed by setting `type="number"` on both axes. (2) Treemap had no Tooltip, making it non-interactive visually. Added `<Tooltip>` inside `<Treemap>`. (3) DensityPlot had no `onClick` handler despite the UI showing a "Click to drill down" tip. Added an SVG onClick that sends a drillDownMessage for the closest data point.
+
+**What broke**: Gauge had a bug where `drillDownMessage` was passed `currentValue` (a number) instead of `label` (the category identifier). Fixed.
+
+**Rule**: After adding a new chart type to the rendering system, verify all interactive contracts: hover tooltip, click drill-down, and axis types. Missing any one of these makes the chart feel broken even if it renders correctly.
+
+### 2026-07-12: Map Drill-Down Clicks
+
+**What changed**: Added `marker.addListener('click', ...)` to all three Google Maps renderers (GeoPointMap, USAMap, WorldMap). Clicking a map marker now sends a `drillDownMessage` to the chat, consistent with clicking bars, pie slices, and treemap cells in other chart types.
+
+**Rule**: All chart types must support the same click-to-drill-down contract. When adding marker-based maps, the Google Maps AdvancedMarkerElement click uses `addListener('click', cb)` not an `onClick` prop.
+
+### 2026-07-12: Query Skill Doc -- visualizationHint Guidance
+
+**What changed**: Added a new section to `public/skills/query.md` instructing the LLM to always set the `visualizationHint` parameter on the `run_query` tool call. This is the LLM's semantic contribution to the five-layer decision system.
+
+**Rule**: Whenever a new tool parameter is added that the LLM needs to use, the skill doc MUST be updated to explain when and how to fill it in. Tool schema declarations alone are insufficient.
+
+### 2026-07-12: viz-intent.ts -- Explicit User Intent Extraction
+
+**What changed**: Created `src/lib/viz-intent.ts` with `extractVisualizationIntent()` and `isVizMutationOnly()`. These functions are used in `chat-orchestrator.ts` to detect when the user has explicitly requested a chart type and when a message is a pure chart-type-change (no new query needed).
+
+**Rule**: Explicit user visualization requests must be extracted BEFORE routing, not after. The intent needs to flow through the entire pipeline: orchestrator -> enrichedContext -> handleQuery -> compose -> inferVisualizationType.
+
 ### 2026-07-11: Follow-up queries redundantly called get_table_schema
 
 **What broke**: After a schema-view turn ("Show me ecomm.order_items"), the next query turn ("show totals for order status") still called `get_table_schema` in its thinking steps, even though the schema was already fetched and visible on screen.

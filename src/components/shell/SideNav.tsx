@@ -126,7 +126,12 @@ export function SideNav({ collapsed }: SideNavProps) {
               <div className="gc-nav-group-items">
                 {group.items.map((item) => (
                   <div className="gc-nav-item-row" key={item.page}>
-                    <a className="gc-nav-item" href="#" data-page={item.page}>
+                    <a
+                      className={`gc-nav-item${activePage === item.page ? ' gc-nav-item--active' : ''}`}
+                      href="#"
+                      data-page={item.page}
+                      onClick={(e) => { e.preventDefault(); setActivePage(item.page); }}
+                    >
                       <span className="material-symbols-outlined">{item.icon}</span>
                       <span className="gc-nav-label">{item.label}</span>
                     </a>

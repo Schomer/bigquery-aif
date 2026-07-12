@@ -5,7 +5,7 @@
 import { callGemini } from '../gemini-client';
 import { compose } from '../composer';
 import { getAccessToken } from '../gis-auth';
-import { dryRun } from '../bigquery-client';
+import { dryRun, detectBqRegion } from '../bigquery-client';
 import { formatBytes } from '@/lib/format';
 import type { ChatMessage, CompositionEnvelope, PipelineResult, SkillManifest, StatusCallback } from '../types';
 
@@ -86,7 +86,7 @@ export async function handlePipeline(
   const project = context?.project || '';
   const dataset = context?.resolvedDataset || context?.dataset || '';
   const hc = context?.handoffContext;
-  const location = 'us'; // Data Transfer API requires a location
+  const location = await detectBqRegion(project).catch(() => 'us'); // Data Transfer API requires a location
 
   // If handoff context carries a pre-classified pipeline type, skip LLM
   let intent: {

@@ -123,7 +123,8 @@ Rules:
 - briefingNarrative should be under 250 characters. Write it as natural speech, not a system message.
 - briefingFindings should have at most 4 items. Each label should be 1-3 words. Each value should be concise.
 - For highlightColumns and deemphasizeColumns, use exact column names from the data (only applies to query results with columns).
-- CRITICAL: If the result has zero rows (rowCount = 0 or zeroRows = true), the headline MUST acknowledge that the query returned no data and suggest a likely reason (permissions, region, filter, empty table). Do NOT write an optimistic or descriptive headline for an empty result.`;
+- CRITICAL: If the result has zero rows (rowCount = 0 or zeroRows = true), the headline MUST acknowledge that the query returned no data and suggest a likely reason (permissions, region, filter, empty table). Do NOT write an optimistic or descriptive headline for an empty result.
+- CRITICAL VIZ OVERRIDE RULE: Only suggest betterVisualization if the current chart type is genuinely wrong for the data shape. Do NOT override a chart type that is already appropriate. For example: do NOT change LINE_CHART for time-series data, do NOT change BAR_CHART or COLUMN_CHART for ranked categorical data with >5 items. If the user explicitly asked for a chart type (e.g., "show as column chart"), NEVER override it -- leave betterVisualization null.`;
 
   try {
     const review = await callGemini({
@@ -160,7 +161,7 @@ ${JSON.stringify(snapshot, null, 2)}`,
         const updatedData = { ...qd, suggestedVisualization: review.betterVisualization };
         if (review.improvedXAxis) updatedData.xAxis = review.improvedXAxis;
         if (review.improvedYAxis && review.improvedYAxis.length > 0) updatedData.yAxis = review.improvedYAxis;
-        const recomposed = compose('query', updatedData);
+        const recomposed = compose('query', updatedData, undefined, null);
         if (review.improvedHeadline) recomposed.headline.text = review.improvedHeadline;
         if (review.additionalInsight) recomposed.insight = review.additionalInsight;
         if (review.highlightColumns?.length || review.deemphasizeColumns?.length) {
