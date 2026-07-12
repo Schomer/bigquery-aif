@@ -254,7 +254,15 @@ export function ChatThread({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-scroll to latest message
+  // Scroll to bottom when user submits (loading starts), so thinking indicator is visible
+  useEffect(() => {
+    if (!loading) return;
+    requestAnimationFrame(() => {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    });
+  }, [loading]);
+
+  // Auto-scroll to show the assistant response when it arrives
   useEffect(() => {
     if (messages.length === 0) return;
     const last = messages[messages.length - 1];

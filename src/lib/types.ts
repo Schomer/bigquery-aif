@@ -279,6 +279,8 @@ export interface QueryResult {
   requiresConfirmation: boolean;
   costConfirm?: CostEstimate | null;
   columns: string[];
+  /** Authoritative BigQuery field types parallel to columns array (e.g. 'STRING', 'INTEGER', 'DATE', 'TIMESTAMP'). */
+  columnTypes?: string[];
   rows: unknown[][];
   rowCount: number;
   jobId?: string;

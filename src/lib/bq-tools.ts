@@ -37,6 +37,21 @@ const runQueryTool: BqTool = {
           type: 'STRING',
           description: 'The GoogleSQL query to execute.',
         },
+        visualizationHint: {
+          type: 'STRING',
+          description:
+            'The chart type that best fits this query\'s result. ' +
+            'Provide this when the data shape strongly implies a specific visualization. ' +
+            'One of: LINE_CHART, BAR_CHART, COLUMN_CHART, AREA_CHART, SCATTER, PIE_CHART, DONUT_CHART, ' +
+            'HISTOGRAM, TREEMAP, FUNNEL, HEATMAP, COMPOSED_CHART, GAUGE, BOXPLOT, CANDLESTICK, ' +
+            'SANKEY, GEO_POINT_MAP, USA_MAP, WORLD_MAP, TABLE.',
+          enum: [
+            'LINE_CHART', 'BAR_CHART', 'COLUMN_CHART', 'AREA_CHART', 'SCATTER',
+            'PIE_CHART', 'DONUT_CHART', 'HISTOGRAM', 'TREEMAP', 'FUNNEL', 'HEATMAP',
+            'COMPOSED_CHART', 'GAUGE', 'BOXPLOT', 'CANDLESTICK', 'SANKEY',
+            'GEO_POINT_MAP', 'USA_MAP', 'WORLD_MAP', 'TABLE',
+          ],
+        },
       },
       required: ['sql'],
     },

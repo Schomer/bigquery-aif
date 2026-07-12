@@ -146,6 +146,7 @@ function coerceValue(raw: string | null, fieldType: string): unknown {
 
 function parseQueryResponse(data: any): {
   columns: string[];
+  columnTypes: string[];
   rows: unknown[][];
   rowCount: number;
   jobId: string;
@@ -161,6 +162,7 @@ function parseQueryResponse(data: any): {
   );
   return {
     columns,
+    columnTypes: fieldTypes,
     rows,
     rowCount: parseInt(data.totalRows ?? '0', 10),
     jobId: data.jobReference?.jobId ?? '',
@@ -206,6 +208,8 @@ export async function dryRun(sql: string, project?: string): Promise<DryRunResul
 
 export interface QueryExecuteResult {
   columns: string[];
+  /** Authoritative BigQuery field types parallel to columns (e.g. 'STRING', 'INTEGER', 'DATE', 'TIMESTAMP'). */
+  columnTypes: string[];
   rows: unknown[][];
   rowCount: number;
   jobId: string;

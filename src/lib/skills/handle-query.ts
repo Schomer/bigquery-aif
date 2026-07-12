@@ -131,9 +131,11 @@ After running the query, provide a brief one-line summary of what the results sh
   type CapturedExecution = {
     sql: string;
     columns: string[];
+    columnTypes: string[];
     rows: unknown[][];
     rowCount: number;
     jobId: string;
+    visualizationHint?: string;
   };
   const capture: { value: CapturedExecution | null } = { value: null };
 
@@ -143,6 +145,7 @@ After running the query, provide a brief one-line summary of what the results sh
 
     if (name === 'run_query') {
       const sql = args.sql as string;
+      const vizHint = args.visualizationHint as string | undefined;
       onStatus?.(stepWithLink(
         `Executing query on ${dataset || 'BigQuery'}...`,
         { project, dataset: dataset || undefined },
@@ -150,7 +153,7 @@ After running the query, provide a brief one-line summary of what the results sh
       ));
       const result = await executeQuery(sql, project);
       // Capture full result for the UI
-      capture.value = { sql, ...result };
+      capture.value = { sql, ...result, visualizationHint: vizHint };
       // Return concise preview for the LLM
       const previewRows = result.rows.slice(0, 20);
       return {
@@ -225,12 +228,14 @@ After running the query, provide a brief one-line summary of what the results sh
     requiresConfirmation: false,
     costConfirm: null,
     columns: captured.columns,
+    columnTypes: captured.columnTypes,
     rows: captured.rows,
     rowCount: captured.rowCount,
     jobId: captured.jobId || undefined,
     totalBytesProcessed: 0,
     costTier: 0,
-    suggestedVisualization: 'TABLE', // composer overrides based on data shape
+    // Use the LLM's hint if provided; composer will override via heuristics if stronger match exists
+    suggestedVisualization: (captured.visualizationHint as VisualizationType | undefined) ?? 'TABLE',
     notableFindings: null,
     resultSummary: agentResult.textResponse || null,
   };
