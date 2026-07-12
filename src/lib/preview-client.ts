@@ -55,9 +55,23 @@ function buildProfileSql(
 export async function fetchTablePreview(
   tableRef: string,
   columns: Array<{ name: string; type: string }>,
-  project?: string
+  project?: string,
+  sampleOnly = false,
 ): Promise<PreviewResponse> {
   const sampleSql = `SELECT * FROM \`${tableRef}\` LIMIT 20`;
+
+  // When sampleOnly is true, skip all profile queries (for fast eager load)
+  if (sampleOnly) {
+    const sampleResult = await executeQuery(sampleSql, project);
+    return {
+      sample: {
+        columns: sampleResult.columns,
+        rows: sampleResult.rows,
+        rowCount: sampleResult.rowCount,
+      },
+      profile: [],
+    };
+  }
 
   // Build top-values queries for string columns (up to 6 columns to keep cost low)
   const stringCols = columns

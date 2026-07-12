@@ -242,32 +242,58 @@ function inferGrainStatement(result: SchemaResult): string | null {
 
 function TableSchemaView({ result, onSendMessage }: { result: SchemaResult; onSendMessage: (msg: string) => void }) {
   const [activeTab, setActiveTab] = useState<Tab>('sample');
-  const [preview, setPreview] = useState<PreviewResponse | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
+  // Sample rows: fetched eagerly on mount (SELECT * LIMIT 20 — fast)
+  const [sampleData, setSampleData] = useState<{ columns: string[]; rows: unknown[][] } | null>(null);
+  const [sampleError, setSampleError] = useState<string | null>(null);
+  // Profile data: fetched only when the user explicitly requests it
+  const [profileData, setProfileData] = useState<PreviewColumn[] | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const { accessToken, activeProject } = useAuth();
 
   const tableRef = `${result.project}.${result.dataset}.${result.table}`;
+  const project = activeProject || result.project;
 
-  // Eagerly fetch sample + profile on mount
+  // Eagerly fetch sample rows only (cheap)
   useEffect(() => {
     let cancelled = false;
-
-    async function fetchPreview() {
+    async function load() {
       try {
         const data = await fetchTablePreview(
           tableRef,
           result.columns.map((c) => ({ name: c.name, type: c.type })),
-          activeProject || result.project
+          project,
+          true, // sampleOnly
         );
-        if (!cancelled) setPreview(data);
+        if (!cancelled) setSampleData(data.sample);
       } catch (e) {
-        if (!cancelled) setPreviewError(e instanceof Error ? e.message : 'Failed to load preview');
+        if (!cancelled) setSampleError(e instanceof Error ? e.message : 'Failed to load sample');
       }
     }
-
-    fetchPreview();
+    load();
     return () => { cancelled = true; };
-  }, [tableRef, accessToken, activeProject]);
+  }, [tableRef, accessToken, project]);
+
+  // On-demand profile generation
+  async function generateProfile() {
+    setProfileLoading(true);
+    setProfileError(null);
+    try {
+      const data = await fetchTablePreview(
+        tableRef,
+        result.columns.map((c) => ({ name: c.name, type: c.type })),
+        project,
+        false, // full profile
+      );
+      setProfileData(data.profile);
+      // Also update sample if we got richer data
+      if (!sampleData) setSampleData(data.sample);
+    } catch (e) {
+      setProfileError(e instanceof Error ? e.message : 'Failed to generate profile');
+    } finally {
+      setProfileLoading(false);
+    }
+  }
 
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: 'sample', label: 'Sample rows' },
@@ -277,10 +303,10 @@ function TableSchemaView({ result, onSendMessage }: { result: SchemaResult; onSe
 
   // Auto-switch to Schema tab when sample data has no rows (common for views)
   useEffect(() => {
-    if (preview && preview.sample.rows.length === 0 && activeTab === 'sample') {
+    if (sampleData && sampleData.rows.length === 0 && activeTab === 'sample') {
       setActiveTab('schema');
     }
-  }, [preview]);
+  }, [sampleData]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -381,7 +407,20 @@ function TableSchemaView({ result, onSendMessage }: { result: SchemaResult; onSe
             }}
           >
             {tab.label}
-            {(tab.id === 'sample' || tab.id === 'profile') && !preview && !previewError && (
+            {tab.id === 'sample' && !sampleData && !sampleError && (
+              <span style={{
+                display: 'inline-block',
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: 'var(--accent)',
+                opacity: 0.5,
+                marginLeft: 6,
+                verticalAlign: 'middle',
+                animation: 'pulse 1.2s ease-in-out infinite',
+              }} />
+            )}
+            {tab.id === 'profile' && profileLoading && (
               <span style={{
                 display: 'inline-block',
                 width: 6,
@@ -404,10 +443,16 @@ function TableSchemaView({ result, onSendMessage }: { result: SchemaResult; onSe
           <SchemaTab result={result} tableRef={tableRef} onSendMessage={onSendMessage} />
         )}
         {activeTab === 'sample' && (
-          <SampleTab preview={preview} error={previewError} />
+          <SampleTab sampleData={sampleData} error={sampleError} />
         )}
         {activeTab === 'profile' && (
-          <ProfileTab preview={preview} error={previewError} />
+          <ProfileTab
+            sampleData={sampleData}
+            profileData={profileData}
+            profileLoading={profileLoading}
+            profileError={profileError}
+            onGenerate={generateProfile}
+          />
         )}
       </div>
 
@@ -499,7 +544,7 @@ function SchemaTab({ result, tableRef, onSendMessage }: {
 
 // ─── Sample rows tab ──────────────────────────────────────────────────────────
 
-function SampleTab({ preview, error }: { preview: PreviewResponse | null; error: string | null }) {
+function SampleTab({ sampleData, error }: { sampleData: { columns: string[]; rows: unknown[][] } | null; error: string | null }) {
   if (error) {
     return (
       <div style={{
@@ -514,11 +559,11 @@ function SampleTab({ preview, error }: { preview: PreviewResponse | null; error:
     );
   }
 
-  if (!preview) {
+  if (!sampleData) {
     return <SkeletonRows />;
   }
 
-  const { columns, rows } = preview.sample;
+  const { columns, rows } = sampleData;
 
   if (rows.length === 0) {
     return (
@@ -583,42 +628,87 @@ function SampleTab({ preview, error }: { preview: PreviewResponse | null; error:
 
 // ─── Profile tab ──────────────────────────────────────────────────────────────
 
-function ProfileTab({ preview, error }: { preview: PreviewResponse | null; error: string | null }) {
+function ProfileTab({
+  sampleData,
+  profileData,
+  profileLoading,
+  profileError,
+  onGenerate,
+}: {
+  sampleData: { columns: string[]; rows: unknown[][] } | null;
+  profileData: PreviewColumn[] | null;
+  profileLoading: boolean;
+  profileError: string | null;
+  onGenerate: () => void;
+}) {
   const [selected, setSelected] = useState<PreviewColumn | null>(null);
 
-  if (error) {
+  if (profileError) {
     return (
-      <div style={{
-        padding: '24px 12px',
-        textAlign: 'center',
-        color: 'var(--text-dim)',
-        fontSize: 12,
-      }}>
+      <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--text-dim)', fontSize: 12 }}>
         <span style={{ color: 'var(--attention)', marginRight: 6 }}>[!]</span>
-        {error}
+        {profileError}
+        <br />
+        <button
+          onClick={onGenerate}
+          style={{ marginTop: 10, fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+        >
+          Try again
+        </button>
       </div>
     );
   }
 
-  if (!preview) {
+  if (profileLoading) {
     return <ProfileSkeletonCards />;
+  }
+
+  if (!profileData) {
+    return (
+      <div style={{ padding: '40px 12px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 36, color: 'var(--text-muted)' }}>analytics</span>
+        <div style={{ color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.5 }}>
+          Profile not generated
+          <br />
+          <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Null rates, distinct counts, and value distributions for all columns.</span>
+        </div>
+        <button
+          id="generate-profile-btn"
+          onClick={onGenerate}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: 'var(--accent)', color: '#fff',
+            border: 'none', borderRadius: 8,
+            padding: '9px 20px', fontSize: 13, fontWeight: 500,
+            cursor: 'pointer',
+            transition: 'opacity 0.15s',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>play_arrow</span>
+          Generate Profile
+        </button>
+        <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Runs a full table scan — may take time on large tables</span>
+      </div>
+    );
   }
 
   // Precompute numeric sample values per column for real histograms
   const sampleNumsByCol = React.useMemo<Record<string, number[]>>(() => {
-    if (!preview) return {};
+    if (!sampleData) return {};
     const out: Record<string, number[]> = {};
-    for (const col of preview.profile) {
-      const idx = preview.sample.columns.indexOf(col.name);
+    for (const col of profileData) {
+      const idx = sampleData.columns.indexOf(col.name);
       if (idx >= 0) {
-        const nums = preview.sample.rows
+        const nums = sampleData.rows
           .map(r => parseFloat(String(r[idx] ?? '')))
           .filter(n => !isNaN(n));
         if (nums.length > 0) out[col.name] = nums;
       }
     }
     return out;
-  }, [preview]);
+  }, [sampleData, profileData]);
 
   return (
     <>
@@ -629,7 +719,7 @@ function ProfileTab({ preview, error }: { preview: PreviewResponse | null; error
           gap: 14,
           padding: '4px 2px 8px',
         }}>
-          {preview.profile.map((col) => (
+          {profileData.map((col) => (
             <FieldProfileCard
               key={col.name}
               col={col}
@@ -658,7 +748,7 @@ function ProfileTab({ preview, error }: { preview: PreviewResponse | null; error
       {selected && (
         <FieldDetailDialog
           col={selected}
-          sample={preview.sample}
+          sample={{ columns: sampleData?.columns ?? [], rows: sampleData?.rows ?? [], rowCount: sampleData?.rows.length ?? 0 }}
           sampleNums={sampleNumsByCol[selected.name]}
           onClose={() => setSelected(null)}
         />
