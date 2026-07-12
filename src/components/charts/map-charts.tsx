@@ -42,7 +42,7 @@ function useGoogleMaps(): { loaded: boolean; error: string | null } {
       return () => clearInterval(poll);
     }
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker,maps`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
     script.async = true;
     script.defer = true;
     script.onload = () => setLoaded(true);
@@ -298,7 +298,6 @@ export function GeoPointMapRenderer({ result, onSendMessage }: ChartProps) {
     const map = new window.google.maps.Map(mapRef.current, {
       center,
       zoom: 3,
-      mapId: 'geo-point-map',
     });
     mapInstanceRef.current = map;
 
@@ -308,7 +307,7 @@ export function GeoPointMapRenderer({ result, onSendMessage }: ChartProps) {
       const lng = Number(row[lngCol]);
       if (isNaN(lat) || isNaN(lng)) continue;
 
-      const marker = new window.google.maps.marker.AdvancedMarkerElement({
+      const marker = new window.google.maps.Marker({
         map,
         position: { lat, lng },
         title: valueCol ? `${valueCol}: ${row[valueCol]}` : `${lat.toFixed(2)}, ${lng.toFixed(2)}`,
@@ -384,7 +383,6 @@ export function USAMapRenderer({ result, onSendMessage }: ChartProps) {
     const map = new window.google.maps.Map(mapRef.current, {
       center: { lat: 39.8283, lng: -98.5795 },
       zoom: 4,
-      mapId: 'usa-map',
     });
     mapInstanceRef.current = map;
 
@@ -398,29 +396,24 @@ export function USAMapRenderer({ result, onSendMessage }: ChartProps) {
       const ratio = isNaN(value) ? 0.3 : value / maxValue;
       const radius = Math.max(8, Math.min(30, 8 + ratio * 22));
 
-      // Create a circle element as marker content
-      const el = document.createElement('div');
-      el.style.cssText = `
-        width: ${radius * 2}px;
-        height: ${radius * 2}px;
-        border-radius: 50%;
-        background: ${COLORS[0]};
-        opacity: 0.7;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 10px;
-        font-weight: 600;
-        color: #fff;
-        border: 2px solid rgba(255,255,255,0.8);
-      `;
-      el.textContent = coords.abbr;
-
-      const marker = new window.google.maps.marker.AdvancedMarkerElement({
+      const marker = new window.google.maps.Marker({
         map,
         position: { lat: coords.lat, lng: coords.lng },
-        content: el,
         title: `${coords.abbr}: ${isNaN(value) ? 'N/A' : value}`,
+        label: {
+          text: coords.abbr,
+          color: '#fff',
+          fontSize: '10px',
+          fontWeight: '600',
+        },
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: radius,
+          fillColor: COLORS[0],
+          fillOpacity: 0.7,
+          strokeColor: 'rgba(255,255,255,0.8)',
+          strokeWeight: 2,
+        },
       });
       marker.addListener('click', () => {
         if (!onSendMessage) return;
@@ -490,7 +483,6 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
     const map = new window.google.maps.Map(mapRef.current, {
       center: { lat: 25, lng: 0 },
       zoom: 2,
-      mapId: 'world-map',
     });
     mapInstanceRef.current = map;
 
@@ -504,30 +496,27 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
       const ratio = isNaN(value) ? 0.3 : value / maxValue;
       const radius = Math.max(8, Math.min(30, 8 + ratio * 22));
 
-      const el = document.createElement('div');
-      el.style.cssText = `
-        width: ${radius * 2}px;
-        height: ${radius * 2}px;
-        border-radius: 50%;
-        background: ${COLORS[4]};
-        opacity: 0.7;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 9px;
-        font-weight: 600;
-        color: #fff;
-        border: 2px solid rgba(255,255,255,0.8);
-      `;
       // Show short country code if available, otherwise truncate name
       const label = countryKey.length <= 3 ? countryKey.toUpperCase() : countryKey.slice(0, 3);
-      el.textContent = label;
 
-      const marker = new window.google.maps.marker.AdvancedMarkerElement({
+      const marker = new window.google.maps.Marker({
         map,
         position: { lat: coords.lat, lng: coords.lng },
-        content: el,
         title: `${coords.name}: ${isNaN(value) ? 'N/A' : value}`,
+        label: {
+          text: label,
+          color: '#fff',
+          fontSize: '9px',
+          fontWeight: '600',
+        },
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: radius,
+          fillColor: COLORS[4],
+          fillOpacity: 0.7,
+          strokeColor: 'rgba(255,255,255,0.8)',
+          strokeWeight: 2,
+        },
       });
       marker.addListener('click', () => {
         if (!onSendMessage) return;
