@@ -2,6 +2,7 @@
 // Transforms a skill's normalized result into a CompositionEnvelope
 // Implements bigquery-response-composition.md
 import { formatBytes } from '@/lib/format';
+import { computeInsights } from '@/lib/result-insights';
 
 function randomUUID(): string {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
@@ -405,6 +406,41 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[], userInt
     return { narrative: headlineText };
   })();
 
+  // W3-01: Companion artifact for time-series anomalies
+  let companionArtifact: CompositionEnvelope['companionArtifact'] | undefined;
+  if ((artifactType === 'LINE_CHART' || artifactType === 'AREA_CHART') && result.rowCount >= 8 && result.columns.length >= 2) {
+
+    try {
+      const xKey = result.columns[0];
+      const yKey = result.columns[1];
+      const chartData = result.rows.map(r => {
+        const row = r as unknown[];
+        return { [xKey]: row[0], [yKey]: Number(row[1] ?? 0) } as Record<string, string | number>;
+      });
+      const insights = computeInsights('TIME_SERIES', chartData, xKey, yKey);
+      const anomaly = insights.find(i => i.type === 'ANOMALY');
+      if (anomaly && anomaly.periodLabel) {
+        // Find the row(s) matching the anomaly period label
+        const anomalyRows = result.rows.filter(r => {
+          const row = r as unknown[];
+          return String(row[0] ?? '').includes(anomaly.periodLabel!);
+        });
+        if (anomalyRows.length > 0) {
+          companionArtifact = {
+            type: 'TABLE',
+            label: anomaly.message,
+            data: {
+              ...result,
+              rows: anomalyRows,
+              rowCount: anomalyRows.length,
+              suggestedVisualization: 'TABLE',
+            },
+          };
+        }
+      }
+    } catch { /* non-fatal, companion is best-effort */ }
+  }
+
   return {
     id,
     skill: 'query',
@@ -432,6 +468,7 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[], userInt
     qualityFlags: qualityFlags && qualityFlags.length > 0 ? qualityFlags : undefined,
     extractedParameters: result.extractedParameters,
     briefing: queryBriefing,
+    companionArtifact,
   };
 }
 

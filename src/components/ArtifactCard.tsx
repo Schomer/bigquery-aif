@@ -475,6 +475,29 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
           );
         })()}
 
+        {/* W3-01: Companion artifact for anomalies */}
+        {envelope.companionArtifact && (
+          <div style={{
+            marginTop: 12,
+            padding: '10px 14px',
+            background: 'rgba(251,146,60,0.06)',
+            border: '1px solid rgba(251,146,60,0.25)',
+            borderLeft: '3px solid #fb923c',
+            borderRadius: 6,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#fb923c', marginBottom: 6 }}>
+              Anomaly detected
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text)', marginBottom: 8 }}>
+              {envelope.companionArtifact.label}
+            </div>
+            <DataTable result={envelope.companionArtifact.data as import('@/lib/types').QueryResult} onSendMessage={handleInlineClick} />
+
+
+
+          </div>
+        )}
+
         {/* Divider before suggestions */}
         {!envelope.requiresConfirmation && showSuggestions && (
           <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 12 }} />

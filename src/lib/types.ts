@@ -168,6 +168,12 @@ export interface CompositionEnvelope {
       detail?: string;
     }>;
   };
+  /** W3-01: Optional companion artifact auto-shown on ANOMALY insights. */
+  companionArtifact?: {
+    type: ArtifactType;
+    data: unknown;
+    label: string;
+  };
 }
 
 /** Props passed to view components that use presentation: 'custom'.
