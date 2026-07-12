@@ -1,7 +1,57 @@
 'use client';
 
 import type { DataQualityResult, DqFinding, DqSeverity } from '@/lib/types';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+
+// ─── C: Quality trend sparkline ───────────────────────────────────────────────
+// Loads monitoring history from Firestore and renders a 30-day issue count trend.
+
+interface HistoryPoint { timestamp: string; failCount?: number; issuesFound?: number; }
+
+function QualityTrendSparkline({ tableRef, checkType }: { tableRef: string; checkType: string }) {
+  const [points, setPoints] = useState<HistoryPoint[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    import('@/lib/monitoring-history').then(({ getMonitoringHistory }) =>
+      getMonitoringHistory(tableRef, 30)
+    ).then(data => {
+      if (!cancelled) {
+        // Filter to relevant check type client-side
+        const filtered = data.filter(p => checkType === 'FRESHNESS' ? p.checkType === 'FRESHNESS' : p.checkType === 'DQ');
+        setPoints(filtered);
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [tableRef, checkType]);
+
+  if (points.length < 2) return null;
+
+  const values = points.map(p => p.failCount ?? p.issuesFound ?? 0);
+  const maxVal = Math.max(...values, 1);
+  const W = 80, H = 24, pad = 2;
+  const toX = (i: number) => pad + (i / (values.length - 1)) * (W - pad * 2);
+  const toY = (v: number) => H - pad - (v / maxVal) * (H - pad * 2);
+  const path = values.map((v, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(' ');
+  const latest = values[values.length - 1];
+  const prev = values[values.length - 2];
+  const trend = latest > prev ? 'up' : latest < prev ? 'down' : 'flat';
+  const color = trend === 'up' ? '#ef4444' : trend === 'down' ? '#22c55e' : '#9aa0a6';
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }} title={`${points.length}-day trend`}>
+      <span style={{ fontSize: 10, color: '#9aa0a6' }}>{points.length}d trend</span>
+      <svg width={W} height={H} style={{ display: 'block' }}>
+        <path d={path} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx={toX(values.length - 1)} cy={toY(latest)} r="2.5" fill={color} />
+      </svg>
+      <span style={{ fontSize: 10, fontWeight: 600, color }}>
+        {trend === 'up' ? '+' : trend === 'down' ? '-' : ''}{Math.abs(latest - prev)}
+      </span>
+    </div>
+  );
+}
+
 
 interface Props {
   result: DataQualityResult;
@@ -33,6 +83,8 @@ export function DataQualityView({ result, onSendMessage }: Props) {
         <Stat label="Rows scanned" value={summary.rowsScanned.toLocaleString()} />
         <Stat label="Issues found" value={String(summary.issuesFound)} />
         <Stat label="Checked at" value={new Date(summary.checkedAt).toLocaleString()} />
+        {/* C: quality trend sparkline — only renders when history exists */}
+        <QualityTrendSparkline tableRef={table} checkType={checkType} />
       </div>
 
       {/* W1-07: pass/fail summary banner */}
