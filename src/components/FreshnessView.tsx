@@ -101,6 +101,7 @@ export function FreshnessView({ result, onSendMessage }: Props) {
           <EntryRow
             key={entry.tableRef}
             entry={entry}
+            thresholds={thresholds}
             isLast={i === sorted.length - 1}
             onSendMessage={send}
           />
@@ -129,16 +130,31 @@ function Badge({ label, count, color }: { label: string; count: number; color: s
 
 function EntryRow({
   entry,
+  thresholds,
   isLast,
   onSendMessage,
 }: {
   entry: FreshnessEntry;
+  thresholds: { freshHours: number; staleHours: number };
   isLast: boolean;
   onSendMessage: (msg: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const tableName = entry.tableRef.split('.').pop() ?? entry.tableRef;
   const dotColor = STATUS_COLORS[entry.status];
+
+  // W1-09: compute SLA breach text
+  const slaBreach = (() => {
+    if (entry.status === 'FRESH') return null;
+    const overdueHours = entry.status === 'VERY_STALE'
+      ? entry.ageHours - thresholds.staleHours
+      : entry.ageHours - thresholds.freshHours;
+    if (overdueHours <= 0) return null;
+    const slaLabel = entry.status === 'VERY_STALE'
+      ? `${thresholds.staleHours}h`
+      : `${thresholds.freshHours}h`;
+    return `${formatAge(overdueHours)} past SLA (${slaLabel})`;
+  })();
 
   return (
     <div
@@ -184,6 +200,11 @@ function EntryRow({
           <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
             {new Date(entry.lastModified).toLocaleString()}
           </span>
+          {slaBreach && (
+            <span style={{ fontSize: 11, fontWeight: 600, color: dotColor }}>
+              {slaBreach}
+            </span>
+          )}
         </div>
       </div>
 

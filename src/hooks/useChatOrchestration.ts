@@ -778,8 +778,15 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
   // ---- Saved work functions -----------------------------------------------
 
   const saveEnvelopeAsArtifact = useCallback((envelope: CompositionEnvelope) => {
-    // Auto-detect type
-    const type: SavedArtifactType = 'query';
+    // Detect type from skill and artifact type rather than hardcoding 'query'
+    const artifactType = envelope.primaryArtifact?.type;
+    const skill = envelope.skill;
+    let type: SavedArtifactType = 'query';
+    if (skill === 'pipeline' || artifactType === 'PIPELINE_VIEW' || artifactType === 'TASK_VIEW') {
+      type = 'pipeline';
+    } else if (artifactType === 'MULTISTEP_VIEW') {
+      type = 'workflow';
+    }
     const defaultName = envelope.headline?.text?.slice(0, 80) || 'Untitled';
     const defaultDescription = envelope.insight || '';
     setSaveModalState({

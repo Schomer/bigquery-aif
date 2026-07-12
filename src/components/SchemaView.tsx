@@ -138,7 +138,7 @@ function TableSchemaView({ result, onSendMessage }: { result: SchemaResult; onSe
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
       {/* Table stats */}
-      {(result.rowCount || result.sizeBytes || result.partitioning) && (
+      {(result.rowCount || result.sizeBytes || result.partitioning || result.lastModifiedTime) && (
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
           {result.rowCount && (
             <StatCard label="Rows" value={result.rowCount.toLocaleString()} mono />
@@ -162,6 +162,17 @@ function TableSchemaView({ result, onSendMessage }: { result: SchemaResult; onSe
               mono
             />
           )}
+          {result.lastModifiedTime && (() => {
+            const ageHours = (Date.now() - new Date(result.lastModifiedTime!).getTime()) / 3_600_000;
+            const freshnessColor = ageHours < 24 ? '#10b981' : ageHours < 72 ? '#f59e0b' : '#ef4444';
+            const relativeLabel = ageHours < 1 ? 'just now'
+              : ageHours < 24 ? `${Math.round(ageHours)}h ago`
+              : ageHours < 48 ? 'yesterday'
+              : `${Math.floor(ageHours / 24)}d ago`;
+            return (
+              <StatCard label="Last Updated" value={relativeLabel} color={freshnessColor} mono />
+            );
+          })()}
         </div>
       )}
 
@@ -238,41 +249,71 @@ function SchemaTab({ result, tableRef, onSendMessage }: {
   tableRef: string;
   onSendMessage: (msg: string) => void;
 }) {
+  const [colFilter, setColFilter] = useState('');
+  const showSearch = result.columns.length > 10;
+  const visibleCols = colFilter
+    ? result.columns.filter(c => c.name.toLowerCase().includes(colFilter.toLowerCase()))
+    : result.columns;
+
   return (
-    <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 480, borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-        <thead>
-          <tr style={{ borderBottom: '1px solid var(--border)' }}>
-            {['Column', 'Type', 'Mode', 'Description', ''].map((h) => (
-              <th key={h} style={{
-                padding: '6px 12px',
-                textAlign: 'left',
-                color: 'var(--text-muted)',
-                fontWeight: 500,
-                whiteSpace: 'nowrap',
-                position: 'sticky',
-                top: 0,
-                background: 'var(--surface)',
-                zIndex: 1,
-                boxShadow: '0 1px 0 var(--border)',
-              }}>{h}</th>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {showSearch && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            value={colFilter}
+            onChange={(e) => setColFilter(e.target.value)}
+            placeholder="Filter columns..."
+            style={{
+              flex: 1,
+              background: 'var(--surface-2)',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              padding: '5px 10px',
+              fontSize: 12,
+              color: 'var(--text)',
+              outline: 'none',
+            }}
+          />
+          <span style={{ fontSize: 11, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
+            {visibleCols.length} of {result.columns.length}
+          </span>
+        </div>
+      )}
+      <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 480, borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)' }}>
+              {['Column', 'Type', 'Mode', 'Description', ''].map((h) => (
+                <th key={h} style={{
+                  padding: '6px 12px',
+                  textAlign: 'left',
+                  color: 'var(--text-muted)',
+                  fontWeight: 500,
+                  whiteSpace: 'nowrap',
+                  position: 'sticky',
+                  top: 0,
+                  background: 'var(--surface)',
+                  zIndex: 1,
+                  boxShadow: '0 1px 0 var(--border)',
+                }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {visibleCols.map((col) => (
+              <ColumnRow
+                key={col.name}
+                col={col}
+                tableRef={tableRef}
+                isPk={result.tableConstraints.primaryKey.includes(col.name)}
+                isPartition={result.partitioning?.field === col.name}
+                isCluster={result.clustering?.includes(col.name) ?? false}
+                onSendMessage={onSendMessage}
+              />
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {result.columns.map((col) => (
-            <ColumnRow
-              key={col.name}
-              col={col}
-              tableRef={tableRef}
-              isPk={result.tableConstraints.primaryKey.includes(col.name)}
-              isPartition={result.partitioning?.field === col.name}
-              isCluster={result.clustering?.includes(col.name) ?? false}
-              onSendMessage={onSendMessage}
-            />
-          ))}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
