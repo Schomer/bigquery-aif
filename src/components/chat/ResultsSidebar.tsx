@@ -458,7 +458,7 @@ export function ResultsSidebar({
                   {(thinkingSteps[i]?.length || (msg.envelopes && msg.envelopes.some((e) => e.provenance.sql || e.skill))) && (
                     <details className="chat-sidebar-thinking">
                       <summary>
-                        <svg className="thinking-sparkle-icon" width="16" height="16" viewBox="0 0 28 28" fill="currentColor">
+                        <svg className="thinking-sparkle-icon" width="13" height="13" viewBox="0 0 28 28" fill="currentColor">
                           <path d="M14 0C14.9 6.2 21.8 13.1 28 14C21.8 14.9 14.9 21.8 14 28C13.1 21.8 6.2 14.9 0 14C6.2 13.1 13.1 6.2 14 0Z" />
                         </svg>
                         <span className="thinking-toggle-text" />
