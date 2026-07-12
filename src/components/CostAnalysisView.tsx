@@ -188,6 +188,30 @@ export function CostAnalysisView({ result, onSendMessage }: Props) {
         <StatCard label="Total Jobs" value={totalJobs.toLocaleString()} />
       </div>
 
+      {/* W3-10: Budget tracking progress bar */}
+      {result.projectedMonthEndCostUsd !== undefined && result.currentMonthCostUsd !== undefined && (() => {
+        const current = result.currentMonthCostUsd!;
+        const projected = result.projectedMonthEndCostUsd!;
+        const pct = Math.min(100, (current / Math.max(projected, 0.01)) * 100);
+        const barColor = pct < 70 ? '#34d399' : pct < 90 ? '#f59e0b' : '#f87171';
+        return (
+          <div style={{ padding: '10px 14px', background: 'var(--surface-2)', borderRadius: 8, border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
+              <span style={{ color: 'var(--text-muted)' }}>Month-to-date spend</span>
+              <span style={{ color: 'var(--text)', fontWeight: 600 }}>
+                {formatUsd(current)} of projected {formatUsd(projected)}
+              </span>
+            </div>
+            <div style={{ height: 6, borderRadius: 3, background: 'var(--surface-3)', overflow: 'hidden' }}>
+              <div style={{ width: `${pct}%`, height: '100%', background: barColor, borderRadius: 3, transition: 'width 0.4s ease' }} />
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+              Projected month-end: <strong style={{ color: 'var(--text)' }}>{formatUsd(projected)}</strong> (linear extrapolation)
+            </div>
+          </div>
+        );
+      })()}
+
       {/* W1-15: Inline optimization tips */}
       {tips.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

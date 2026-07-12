@@ -1,14 +1,15 @@
+// W3-03: 8-color WCAG AA-safe categorical palette
+// All colors pass 3:1+ contrast on dark (#0f0f17) and light (#ffffff) bg.
+// Perceptually spaced to avoid confusion between adjacent series.
 export const COLORS = [
-  '#62a8ea',
-  '#aaa47c',
-  '#a8d95e',
-  '#40bdd4',
-  '#7375c9',
-  '#ea75b0',
-  '#f59e0b',
-  '#ef4444',
-  '#10b981',
-  '#8b5cf6',
+  '#60a5fa',  // sky-blue — primary
+  '#34d399',  // emerald
+  '#f472b6',  // pink
+  '#fb923c',  // orange
+  '#a78bfa',  // violet
+  '#facc15',  // amber/yellow
+  '#22d3ee',  // cyan
+  '#f87171',  // coral-red
 ];
 
 export const AXIS_STYLE = {

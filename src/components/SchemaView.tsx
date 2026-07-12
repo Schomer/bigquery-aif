@@ -54,8 +54,26 @@ export function SchemaView({ result, onSendMessage }: Props) {
       .filter(t => (t.queryFrequency ?? 0) > 0)
       .slice(0, 3);
 
+    // W3-06: Total size and estimated scan cost
+    const totalBytes = result.columns.reduce((sum, t) => sum + (t.sizeBytes ?? 0), 0);
+    const estimatedCostUsd = totalBytes > 0 ? (totalBytes / 1e12) * 5 : null; // $5/TB BigQuery pricing
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+
+        {/* W3-06: Dataset size and cost estimate */}
+        {totalBytes > 0 && (
+          <div style={{ display: 'flex', gap: 16, fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>
+            <span>
+              Total storage: <strong style={{ color: 'var(--text)' }}>{totalBytes < 1e9 ? `${(totalBytes / 1e6).toFixed(0)} MB` : `${(totalBytes / 1e9).toFixed(1)} GB`}</strong>
+            </span>
+            {estimatedCostUsd !== null && (
+              <span>
+                Est. full-scan cost: <strong style={{ color: 'var(--text)' }}>{estimatedCostUsd < 0.01 ? '<$0.01' : `$${estimatedCostUsd.toFixed(2)}`}</strong>
+              </span>
+            )}
+          </div>
+        )}
 
         {/* W2-13: Start here entry points */}
         {startHereTables.length >= 2 && (

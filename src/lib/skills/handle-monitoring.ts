@@ -160,7 +160,13 @@ export async function handleMonitoring(
     const isCost = costKeywords.some(k => lower.includes(k)) && !lower.includes('job') && !lower.includes('history');
     const isFresh = freshnessKeywords.some(k => new RegExp(k).test(lower)) && !lower.includes('job') && !lower.includes('history');
 
-    if (isCost) {
+    const dailyOpsKeywords = ['daily brief', 'morning brief', 'ops brief', 'status report', 'daily summary', 'what happened', 'overnight report'];
+    const isDailyOps = dailyOpsKeywords.some(k => lower.includes(k));
+
+    if (isDailyOps) {
+      monitoringType = 'DAILY_OPS';
+      onStatus?.(`Running daily ops briefing (keyword match)...`);
+    } else if (isCost) {
       monitoringType = 'COST_ANALYSIS';
       onStatus?.(`Running cost analysis (keyword match)...`);
     } else if (isFresh) {
@@ -732,14 +738,36 @@ export async function handleMonitoring(
       const totalCost = buckets.reduce((acc, b) => acc + b.estimatedCostUsd, 0);
       const now = new Date();
       const start = new Date(now.getTime() - timeRangeDays * 24 * 60 * 60 * 1000);
+
+      // W3-10: project current month spend to month end
+      let currentMonthCostUsd: number | undefined;
+      let projectedMonthEndCostUsd: number | undefined;
+      try {
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        const { rows: monthRows } = await executeQuery(
+          `SELECT SUM(total_bytes_processed) AS month_bytes FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT WHERE DATE(creation_time) >= '${monthStart}' AND total_bytes_processed > 0`,
+          project,
+        );
+        if (monthRows.length > 0) {
+          const monthBytes = Number((monthRows[0] as unknown[])[0] ?? 0);
+          currentMonthCostUsd = (monthBytes / 1e12) * costPerTb;
+          const dayOfMonth = now.getDate();
+          const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+          projectedMonthEndCostUsd = (currentMonthCostUsd / dayOfMonth) * daysInMonth;
+        }
+      } catch { /* non-fatal */ }
+
       const result: CostAnalysisResult = {
         skill: 'monitoring',
         monitoringType: 'COST_ANALYSIS',
         timeRange: { start: start.toISOString(), end: now.toISOString() },
         totalEstimatedCostUsd: totalCost,
         buckets,
+        currentMonthCostUsd,
+        projectedMonthEndCostUsd,
       };
       return [compose('monitoring', result as unknown as MonitoringResult)];
+
     } catch {
       const now = new Date();
       const start = new Date(now.getTime() - timeRangeDays * 24 * 60 * 60 * 1000);
@@ -848,6 +876,107 @@ export async function handleMonitoring(
       return [compose('monitoring', result as unknown as MonitoringResult)];
     }
   }
+
+  // W3-09: DAILY_OPS — combined JOBS+COST+FRESHNESS morning briefing
+  if (monitoringType === 'DAILY_OPS') {
+    onStatus?.(`Generating daily ops briefing for ${project}...`);
+    const [failedJobs, costJobs, staleResult] = await Promise.allSettled([
+      executeQuery(
+        `SELECT job_id, user_email, statement_type, creation_time, error_result.reason AS error_reason
+         FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT
+         WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY)
+           AND error_result IS NOT NULL
+         ORDER BY creation_time DESC LIMIT 10`,
+        project,
+      ),
+      executeQuery(
+        `SELECT job_id, user_email, total_bytes_processed, creation_time
+         FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT
+         WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY)
+           AND total_bytes_processed > 0
+         ORDER BY total_bytes_processed DESC LIMIT 5`,
+        project,
+      ),
+      executeQuery(
+        `SELECT table_schema, table_name, last_modified_time, TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), last_modified_time, HOUR) AS hours_since_update
+         FROM \`${project}\`.\`region-${region}\`.INFORMATION_SCHEMA.TABLE_STORAGE
+         WHERE TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), last_modified_time, HOUR) > 24
+         ORDER BY hours_since_update DESC LIMIT 10`,
+        project,
+      ),
+    ]);
+
+    const failedRows = failedJobs.status === 'fulfilled' ? failedJobs.value.rows : [];
+    const costRows = costJobs.status === 'fulfilled' ? costJobs.value.rows : [];
+    const staleRows = staleResult.status === 'fulfilled' ? staleResult.value.rows : [];
+
+    // Compose a combined TABLE result with sections
+    const combinedRows: unknown[][] = [
+      ['-- FAILED JOBS (last 24h) --', '', '', '', ''],
+      ...(failedRows.length === 0 ? [['No failures', '', '', '', '']] : failedRows.map(r => r as unknown[])),
+      ['-- TOP COST QUERIES (last 24h) --', '', '', '', ''],
+      ...(costRows.length === 0 ? [['No queries', '', '', '', '']] : costRows.map(r => r as unknown[])),
+      ['-- STALE TABLES (>24h) --', '', '', '', ''],
+      ...(staleRows.length === 0 ? [['All tables fresh', '', '', '', '']] : staleRows.map(r => r as unknown[])),
+    ];
+
+    // Map combined data to MonitoringJob[] for MonitoringView rendering
+    const now = new Date();
+    const start = new Date(now.getTime() - 86400000);
+
+    // Section header fake jobs + real job entries
+    const items: MonitoringJob[] = [
+      // Failed jobs section
+      ...failedRows.map(r => {
+        const rr = r as unknown[];
+        return {
+          jobId: String(rr[0] ?? ''),
+          userEmail: String(rr[1] ?? ''),
+          statementType: String(rr[2] ?? ''),
+          status: 'ERROR' as const,
+          createTime: String(rr[3] ?? ''),
+          totalBytesProcessed: 0,
+          errorMessage: String(rr[4] ?? ''),
+          referencedTables: [],
+        };
+      }),
+      // Cost jobs section (as DONE items with byte counts)
+      ...costRows.map(r => {
+        const rr = r as unknown[];
+        return {
+          jobId: String(rr[0] ?? ''),
+          userEmail: String(rr[1] ?? ''),
+          statementType: 'SELECT',
+          status: 'DONE' as const,
+          createTime: String(rr[3] ?? ''),
+          totalBytesProcessed: Number(rr[2] ?? 0),
+          errorMessage: null,
+          referencedTables: [],
+        };
+      }),
+    ];
+
+    const result: MonitoringResult = {
+      skill: 'monitoring', monitoringType: 'JOB_LIST',
+      timeRange: { start: start.toISOString(), end: now.toISOString() },
+      items,
+      summary: {
+        totalJobs: items.length,
+        totalBytesProcessed: items.reduce((acc, j) => acc + j.totalBytesProcessed, 0),
+        errorCount: failedRows.length,
+      },
+    };
+
+    const envelope = compose('monitoring', result);
+    envelope.headline = {
+      text: `Daily ops: ${failedRows.length} failure${failedRows.length !== 1 ? 's' : ''}, ${staleRows.length} stale table${staleRows.length !== 1 ? 's' : ''}`,
+      tone: failedRows.length > 0 ? 'ATTENTION' : staleRows.length > 0 ? 'ATTENTION' : 'POSITIVE',
+
+      basis: 'DIRECT_ANSWER',
+    };
+    return [envelope];
+  }
+
 
   // JOBS (default) -- existing INFORMATION_SCHEMA.JOBS query
   const timeRangeLabel = timeRangeDays === 1 ? '24h' : `${timeRangeDays}d`;

@@ -226,8 +226,9 @@ export function BarChartRenderer({ result, onSendMessage }: ChartProps) {
       <YAxis type="category" dataKey={xKey} {...AXIS_STYLE} width={160} />
       <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
       {yKeys.map((k, i) => (
-        <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} />
+        <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} animationDuration={500} animationEasing="ease-out" />
       ))}
+
       {yKeys.length > 1 && <Legend iconSize={8} />}
     </BarChart>
   );
@@ -262,7 +263,7 @@ export function ColumnChartRenderer({ result, onSendMessage }: ChartProps) {
           <YAxis {...AXIS_STYLE} tickFormatter={tickFmt} />
           <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
           {yKeys.map((k, i) => (
-            <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} radius={[3, 3, 0, 0]} />
+            <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} radius={[3, 3, 0, 0]} animationDuration={500} animationEasing="ease-out" />
           ))}
           {yKeys.length > 1 && <Legend iconSize={8} />}
         </BarChart>

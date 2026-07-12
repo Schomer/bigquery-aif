@@ -659,6 +659,8 @@ export interface CostAnalysisResult {
   timeRange: { start: string; end: string };
   totalEstimatedCostUsd: number;
   buckets: CostBucket[];
+  currentMonthCostUsd?: number;        // W3-10: current month spend so far
+  projectedMonthEndCostUsd?: number;   // W3-10: linear projection to month end
 }
 
 // ─── Data Freshness types ─────────────────────────────────────────────────────

@@ -488,15 +488,34 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
             gap: 8,
             flexWrap: 'wrap',
           }}>
-            {envelope.nextActions.slice(0, 5).map((action, i) => (
-              <button
-                key={i}
-                className="chip"
-                onClick={() => onChipClick?.(action)}
-              >
-                {action.label}
-              </button>
-            ))}
+            {envelope.nextActions.slice(0, 5).map((action, i) => {
+              // W3-02: Map skill to icon
+              const chipIcons: Record<string, string> = {
+                'schema': 'table_chart',
+                'query': 'search',
+                'data-quality': 'verified',
+                'monitoring': 'speed',
+                'discovery': 'travel_explore',
+                'pipeline': 'schedule',
+                'governance': 'lock',
+                'data-management': 'edit',
+                'data-loading': 'upload',
+                'alert': 'notifications',
+              };
+              const icon = chipIcons[action.targetSkill] ?? 'arrow_forward';
+              return (
+                <button
+                  key={i}
+                  className="chip"
+                  onClick={() => onChipClick?.(action)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 13, lineHeight: 1 }}>{icon}</span>
+                  {action.label}
+                </button>
+              );
+            })}
+
             {(envelope.skill === 'query' || envelope.skill === 'schema' || envelope.skill === 'data-quality' || envelope.skill === 'monitoring') && (
               <button
                 className="chip"
