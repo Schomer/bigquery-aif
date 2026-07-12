@@ -71,6 +71,15 @@ export async function handleDataQuality(
       }],
       summary: { rowsScanned: 0, issuesFound: severity !== 'INFO' ? 1 : 0, checkedAt },
     };
+    // W3-19: persist freshness snapshot (fire-and-forget)
+    import('@/lib/monitoring-history').then(({ saveMonitoringSnapshot }) => {
+      saveMonitoringSnapshot({
+        tableRef: result.table,
+        checkType: 'FRESHNESS',
+        timestamp: checkedAt,
+        staleDays: ageHours !== null ? ageHours / 24 : undefined,
+      });
+    }).catch(() => {/* non-critical */});
     return [compose('data-quality', result)];
   }
 
@@ -244,6 +253,22 @@ export async function handleDataQuality(
       findings,
       summary: { rowsScanned: totalRows, issuesFound: issueCount, checkedAt },
     };
+    // W3-19: persist DQ snapshot (fire-and-forget)
+    import('@/lib/monitoring-history').then(({ saveMonitoringSnapshot }) => {
+      const nullFindings = findings.filter(f => f.metric === 'null_rate');
+      const avgNullRate = nullFindings.length > 0
+        ? nullFindings.reduce((a, f) => a + Number(f.value), 0) / nullFindings.length
+        : undefined;
+      saveMonitoringSnapshot({
+        tableRef: fqTable,
+        checkType: 'DQ',
+        timestamp: checkedAt,
+        nullRate: avgNullRate,
+        passCount: findings.filter(f => f.severity === 'INFO').length,
+        failCount: issueCount,
+        summary: { rowsScanned: totalRows, issuesFound: issueCount },
+      });
+    }).catch(() => {/* non-critical */});
     return [compose('data-quality', result)];
   }
 
