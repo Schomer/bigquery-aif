@@ -429,7 +429,7 @@ export function ResultsSidebar({
                     }
                     return nonConfirm.length > 0 ? (
                       <>
-                        <div className="chat-sidebar-assistant-text" style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                        <div className="chat-sidebar-assistant-text">
                           {nonConfirm.map((env) => env.briefing?.narrative || env.headline.text).join(' ')}
                         </div>
                         <div className="chat-sidebar-artifact-links">
