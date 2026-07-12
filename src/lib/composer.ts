@@ -1170,8 +1170,8 @@ function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType |
   const lowerCols = columns.map(c => c.toLowerCase());
 
   // Step 1b — Geo-point detection (lat/lng columns → point map)
-  const hasLat = lowerCols.some(c => c === 'lat' || c === 'latitude');
-  const hasLng = lowerCols.some(c => c === 'lng' || c === 'longitude' || c === 'lon' || c === 'long');
+  const hasLat = lowerCols.some(c => c === 'lat' || c === 'latitude' || c.endsWith('_lat') || c.endsWith('_latitude'));
+  const hasLng = lowerCols.some(c => c === 'lng' || c === 'longitude' || c === 'lon' || c === 'long' || c.endsWith('_lng') || c.endsWith('_longitude') || c.endsWith('_lon') || c.endsWith('_long'));
   if (hasLat && hasLng) return 'GEO_POINT_MAP';
 
   // Step 2 — Single-value results (KPI card)

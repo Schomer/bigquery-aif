@@ -256,8 +256,14 @@ const LAT_NAMES = ['latitude', 'lat'];
 const LNG_NAMES = ['longitude', 'lng', 'long', 'lon'];
 
 function findColumnByNames(columns: string[], candidates: string[]): string | null {
+  // Exact match first
   for (const col of columns) {
     if (candidates.includes(col.toLowerCase())) return col;
+  }
+  // Suffix match (e.g. circuit_latitude)
+  for (const col of columns) {
+    const lower = col.toLowerCase();
+    if (candidates.some(c => lower.endsWith('_' + c))) return col;
   }
   return null;
 }
