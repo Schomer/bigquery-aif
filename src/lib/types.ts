@@ -458,6 +458,13 @@ export interface DashboardTile {
   row: number;                     // 0-indexed row
   colSpan: number;                 // 1–12
   rowSpan: number;                 // 1–4
+  cachedSql?: string;              // SQL to re-run on dashboard load
+  lastSnapshot?: {                 // cached result from last successful run
+    columns: string[];
+    rows: (string | number | boolean | null)[][];
+    rowCount: number;
+    fetchedAt: string;             // ISO timestamp
+  };
 }
 
 export interface SavedDashboard {

@@ -16,6 +16,8 @@ import { ResultsSidebar } from '@/components/chat/ResultsSidebar';
 import { ChatSidebar } from '@/components/ChatSidebar';
 import { SpacesPage } from '@/components/SavedPage';
 import { FavoritesPage } from '@/components/FavoritesPage';
+import dynamic from 'next/dynamic';
+const DashboardPage = dynamic(() => import('@/app/dashboard/page'), { ssr: false });
 import { SaveModal } from '@/components/SaveModal';
 import type { SavedArtifact } from '@/lib/types';
 import {
@@ -193,6 +195,13 @@ export default function Home() {
         />
       )}
 
+      {/* -- Dashboard page -- */}
+      {activePage === 'dashboard' && user && (
+        <div style={{ height: '100%', overflow: 'hidden' }}>
+          <DashboardPage />
+        </div>
+      )}
+
       {/* -- Prompts page (full inline view) -- */}
       {activePage === 'prompts' && (
         <PromptsLibrary
@@ -207,7 +216,7 @@ export default function Home() {
          UNIFIED LAYOUT (original single-pane)
          ============================================================ */}
       {!isSplit && (
-        <div style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'spaces' || activePage === 'favorites') ? 'none' : 'flex', height: '100%', background: 'var(--chat-bg)' }}>
+        <div style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'spaces' || activePage === 'favorites' || activePage === 'dashboard') ? 'none' : 'flex', height: '100%', background: 'var(--chat-bg)' }}>
 
           {/* Chat sidebar panel */}
           <ChatSidebar
@@ -432,7 +441,7 @@ export default function Home() {
       {isSplit && (
         <div
           className={`layout-split ${layout === 'chat-right' ? 'layout-chat-right' : 'layout-chat-left'}`}
-          style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'spaces' || activePage === 'favorites') ? 'none' : 'flex', height: '100%' }}
+          style={{ display: (activePage === 'prompts' || activePage === 'settings' || activePage === 'how-it-works' || activePage === 'spaces' || activePage === 'favorites' || activePage === 'dashboard') ? 'none' : 'flex', height: '100%' }}
         >
           {/* Chat list view */}
           {splitView === 'list' && (

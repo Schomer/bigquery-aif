@@ -803,7 +803,7 @@ function ShareLinkButton({ envelope, onClose }: { envelope: CompositionEnvelope;
         createdAt: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
       });
-      const url = `${window.location.origin}/shared/${id}`;
+      const url = `${window.location.origin}/shared#${id}`;
       await navigator.clipboard.writeText(url);
       setState('copied');
       onClose();
