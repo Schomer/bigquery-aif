@@ -49,6 +49,26 @@ If both `TABLESAMPLE` and `APPROX_*` functions are in play, say so explicitly --
 - For joins: prefer explicit column lists, not `SELECT *`
 - If the user asks to create or make a new table with data/mock data, generate a `CREATE OR REPLACE TABLE ... AS SELECT ... UNION ALL SELECT ...` SQL query to populate the table with the requested data rows rather than leaving it empty.
 
+### CRITICAL: Aggregation patterns (read this before writing ANY query)
+
+**"By X" means GROUP BY X — NEVER return raw rows for grouped questions.**
+
+| User says | WRONG (raw rows) | CORRECT (aggregation) |
+|---|---|---|
+| "orders by status" | `SELECT id, status ... LIMIT 10` | `SELECT status, COUNT(*) AS order_count FROM ... GROUP BY status ORDER BY order_count DESC` |
+| "top 10 products by revenue" | `SELECT COUNT(*) FROM ...` | `SELECT product_name, SUM(sale_price) AS revenue FROM ... GROUP BY product_name ORDER BY revenue DESC LIMIT 10` |
+| "revenue by month" | `SELECT sale_price, created_at LIMIT 10` | `SELECT DATE_TRUNC(created_at, MONTH) AS month, SUM(sale_price) AS revenue FROM ... GROUP BY month ORDER BY month` |
+| "users by state" | `SELECT user_id, state LIMIT 10` | `SELECT state, COUNT(DISTINCT user_id) AS users FROM ... GROUP BY state ORDER BY users DESC` |
+| "how many X" | `SELECT * FROM ...` | `SELECT COUNT(*) AS count FROM ...` → `KPI_CARD` |
+
+**Rules:**
+- "Show me X by Y" → `SELECT Y, COUNT(*) or SUM(measure) FROM table GROUP BY Y ORDER BY ... DESC`
+- "Top N things by measure" → `GROUP BY thing ORDER BY measure DESC LIMIT N`
+- "How many" with a single answer → `SELECT COUNT(*) ...` returning one row → `KPI_CARD`
+- NEVER answer a "by status/by category/by region/top N" question with raw rows
+
+**For Top-N:** always use a meaningful name column (e.g., `product_name`, `category`, `name`), not the ID column. If there's no name column, use the ID but add a note.
+
 ### Window functions
 
 Use window functions for ranking, running totals, lead/lag, and percentile calculations:

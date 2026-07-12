@@ -138,6 +138,46 @@ export function CostAnalysisView({ result, onSendMessage }: Props) {
   const barGap = Math.max(2, Math.min(8, chartW / periods.length * 0.15));
   const barW = Math.max(4, (chartW - barGap * (periods.length + 1)) / periods.length);
 
+  // W1-15: compute inline optimization tips from bucket data
+  const tips: { icon: string; text: string; action?: string }[] = [];
+
+  // Tip 1: High average bytes per job (suggests missing partition filter)
+  const totalBytes = buckets.reduce((s, b) => s + b.bytesProcessed, 0);
+  const avgBytesPerJob = totalJobs > 0 ? totalBytes / totalJobs : 0;
+  if (avgBytesPerJob > 1_073_741_824) { // >1 GB avg
+    tips.push({
+      icon: 'bolt',
+      text: `Avg ${formatBytes(avgBytesPerJob)} per job — add partition filters to reduce scan costs.`,
+      action: 'How can I reduce BigQuery scan costs with partition filters?',
+    });
+  }
+
+  // Tip 2: Single user dominates (>80% of cost)
+  if (userStats.length > 1 && userStats[0].totalCost / totalEstimatedCostUsd > 0.8) {
+    tips.push({
+      icon: 'person',
+      text: `${truncateEmail(userStats[0].user)} accounts for over 80% of cost — review their recent jobs.`,
+      action: `Show me recent jobs by ${userStats[0].user}`,
+    });
+  }
+
+  // Tip 3: Single-day cost spike (any day > 3x daily average)
+  const avgDailyCostForTip = periods.length > 0 ? totalEstimatedCostUsd / periods.length : 0;
+  if (avgDailyCostForTip > 0) {
+    for (const period of periods) {
+      const dayTotal = Array.from(chartData.byPeriod.get(period)?.values() ?? [])
+        .reduce((s, b) => s + b.estimatedCostUsd, 0);
+      if (dayTotal > avgDailyCostForTip * 3) {
+        tips.push({
+          icon: 'trending_up',
+          text: `Cost spike on ${period}: ${formatUsd(dayTotal)} vs ${formatUsd(avgDailyCostForTip)} avg/day.`,
+          action: `Show me jobs from ${period}`,
+        });
+        break; // only report the first spike
+      }
+    }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* KPI row */}
@@ -147,6 +187,48 @@ export function CostAnalysisView({ result, onSendMessage }: Props) {
         <StatCard label="Top Spender" value={truncateEmail(topSpender)} />
         <StatCard label="Total Jobs" value={totalJobs.toLocaleString()} />
       </div>
+
+      {/* W1-15: Inline optimization tips */}
+      {tips.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {tips.map((tip, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 12px',
+                background: 'rgba(245,158,11,0.05)',
+                border: '1px solid rgba(245,158,11,0.25)',
+                borderLeft: '3px solid #f59e0b',
+                borderRadius: 6,
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#f59e0b', flexShrink: 0 }}>{tip.icon}</span>
+              <span style={{ fontSize: 12, color: 'var(--text)', flex: 1 }}>{tip.text}</span>
+              {tip.action && send && (
+                <button
+                  onClick={() => send(tip.action!)}
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--accent)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    whiteSpace: 'nowrap',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  Investigate
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Stacked bar chart */}
       <div style={{ position: 'relative' }}>
