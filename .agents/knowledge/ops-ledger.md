@@ -10,6 +10,16 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+### 2026-07-11: Query briefing showed generic "I ran your query and got N rows"
+
+**What broke**: When asking "which countries have had the most races?", the chat briefing text above the artifact card said "I ran your query against malloy and got 10 rows" instead of a meaningful summary like "Countries with the most races".
+
+**Root cause**: The heuristic briefing in `composeQuery()` (composer.ts lines 390-398) used a generic template that ignored the headline text and LLM summary. Self-review would normally replace this with an LLM-generated briefing, but self-review is skipped for high-confidence keyword matches with <100 rows -- the most common case.
+
+**Fix**: Changed the heuristic briefing to use `headlineText` as the narrative. The headline already contains a meaningful data description (either the LLM `resultSummary` or `buildQueryHeadline()`'s column-aware summary). Zero-row results keep the diagnostic message.
+
+**Rule**: When self-review is skipped (the common path for simple queries), the heuristic briefing IS the final user-facing text. It must be as good as possible on its own, not a placeholder waiting for self-review to fix it.
+
 ### 2026-07-11: "show me a map" rendered as schema table, not GEO_POINT_MAP
 
 **What broke**: Prompting "show me a map with pins on each racetrack location" returned a SCHEMA_VIEW table listing instead of an interactive Google Maps view with pins.

@@ -2,6 +2,13 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-11: Use headline text as query briefing narrative
+
+**Context**: The chat briefing text above query result cards showed a generic "I ran your query against X and got N rows" message. Since self-review is skipped for high-confidence small result sets, this generic text appeared on most queries.
+
+**Changes**:
+- `composer.ts`: Changed the heuristic briefing in `composeQuery()` to use the headline text instead of the generic template. The headline already contains a meaningful summary from either the LLM `resultSummary` or the `buildQueryHeadline()` data-shape analyzer.
+
 ## 2026-07-11: Restore project when loading a saved conversation
 
 **Context**: Switching back to a previous chat left the prompt field disabled because `activeProject` was not restored from the conversation's stored project.
