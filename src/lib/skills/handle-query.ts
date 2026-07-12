@@ -18,7 +18,7 @@ import type { ChatMessage, CompositionEnvelope, QueryResult, SkillManifest, Stat
 export async function handleQuery(
   message: string,
   history: ChatMessage[],
-  context?: { project?: string; dataset?: string; lastTable?: string; resolvedDataset?: string; availableDatasets?: string[] },
+  context?: { project?: string; dataset?: string; lastTable?: string; lastTableSchema?: { name: string; type: string; description?: string }[]; resolvedDataset?: string; availableDatasets?: string[] },
   onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
   const project = context?.project || '';
@@ -37,6 +37,8 @@ export async function handleQuery(
   // iterations calling list_tables. This is cached by fetchSchema.
   // When lastTable is set, also pre-fetch its full schema so the LLM can
   // skip get_table_schema and write SQL directly.
+  // If the schema was already fetched in a prior turn and passed through
+  // context.lastTableSchema, use it directly -- no network call needed.
   let tableList: string[] = [];
   let lastTableSchema: { name: string; type: string; description?: string }[] = [];
   if (dataset) {
@@ -45,7 +47,10 @@ export async function handleQuery(
         .then((s) => { tableList = s.columns.map((c) => c.name); })
         .catch(() => {}),
     ];
-    if (context?.lastTable) {
+    if (context?.lastTableSchema && context.lastTableSchema.length > 0) {
+      // Schema already available from a prior turn -- use it directly.
+      lastTableSchema = context.lastTableSchema;
+    } else if (context?.lastTable) {
       fetches.push(
         fetchSchema(dataset, context.lastTable, project)
           .then((s) => {
@@ -64,7 +69,7 @@ export async function handleQuery(
   // -- Plan cache: check for reusable query plan --
   const cachedPlan = findReusablePlan(message, dataset);
   if (cachedPlan) {
-    onStatus?.(`Reusing cached query plan for dataset ${dataset}...`);
+    onStatus?.(`Picking up where we left off (cached plan for ${dataset})...`);
     return executeCachedPlan(cachedPlan, project, dataset, onStatus);
   }
 
@@ -103,7 +108,7 @@ INFORMATION_SCHEMA exception: INFORMATION_SCHEMA views must be OUTSIDE the backt
 You have tools to interact with BigQuery. Follow these rules strictly:
 
 EFFICIENCY RULES (most important):
-1. The table list for the active dataset is provided above. Do NOT call list_tables or list_datasets unless querying a different dataset.${hasActiveTableSchema ? `\n2. The schema for the active table is provided above. If the user's question is about this table, write your SQL and call run_query IMMEDIATELY -- do not call get_table_schema first.` : '\n2. Pick the most relevant table from the list and call get_table_schema to get its columns before writing SQL.'}
+1. The table list for the active dataset is provided above. Do NOT call list_tables or list_datasets unless querying a different dataset.${hasActiveTableSchema ? `\n2. The schema for \`${context?.lastTable}\` is fully provided above -- it is complete and authoritative. Write your SQL and call run_query IMMEDIATELY. Do NOT call get_table_schema under any circumstances.` : '\n2. Pick the most relevant table from the list and call get_table_schema to get its columns before writing SQL.'}
 3. If the user names a DIFFERENT table, call get_table_schema on it first. The tool will auto-correct common name mismatches (e.g., "orders" -> "order_items"). If the tool returns an "actualTableName" field, use THAT name in your SQL.
 4. STOP after run_query succeeds. Do not call additional tools after you have query results. Just summarize the results and respond.
 5. If run_query fails with a "Not found" error, call get_table_schema to verify the table name before retrying.
@@ -112,7 +117,7 @@ EFFICIENCY RULES (most important):
 After running the query, provide a brief one-line summary of what the results show.`;
 
 
-  onStatus?.('Analyzing query...');
+  onStatus?.('Working out your query...');
 
   // -- Capture the full BQ execution result for the UI --
   // The tool executor sends a concise summary to the LLM but we capture the
@@ -150,9 +155,9 @@ After running the query, provide a brief one-line summary of what the results sh
     }
 
     if (name === 'get_table_schema') {
-      onStatus?.(`Fetching schema for ${args.table}...`);
+      onStatus?.(`Grabbing the schema for ${args.table}...`);
     } else if (name === 'list_tables') {
-      onStatus?.(`Listing tables in ${args.dataset}...`);
+      onStatus?.(`Looking up tables in ${args.dataset}...`);
     } else if (name === 'list_datasets') {
       onStatus?.('Listing datasets...');
     }

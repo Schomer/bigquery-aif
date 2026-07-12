@@ -40,6 +40,7 @@ export interface ProcessMessageArgs {
     lastSkill?: SkillName;
     lastResultRef?: string;
     lastTable?: string;
+    lastTableSchema?: { name: string; type: string; description?: string }[];
     dataset?: string;
     project?: string;
     uid?: string;
@@ -152,7 +153,7 @@ export class ChatOrchestrator {
         // Low/medium confidence or ambiguous: fall back to LLM intent classifier
         routerConfidence = keywordResult.confidence;
         if (keywordResult.ambiguousReadWrite) {
-          onStatus?.('Analyzing intent (ambiguous read/write signals detected)...');
+          onStatus?.('Sorting out what you mean — looks like a mix of reading and writing...');
         }
         try {
           const available = availableDatasets ?? await getAvailableDatasets(project);
@@ -164,7 +165,7 @@ export class ChatOrchestrator {
             content: m.content,
           }));
 
-          onStatus?.(`Classifying intent for: "${resolvedMessage.slice(0, 80)}${resolvedMessage.length > 80 ? '...' : ''}"`);
+          onStatus?.('Figuring out what you need...');
 
           const routingRef = await loadSkillDoc('intent-routing');
 
@@ -313,7 +314,7 @@ The user's new message is a continuation of this conversation. Treat it as a fol
         !env.requiresConfirmation && !env.skipSelfReview
       );
       if (needsReview) {
-        onStatus?.('Reviewing output quality...');
+        onStatus?.('Checking the results look right...');
         const reviewed = await Promise.all(
           envelopes.map((env) =>
             (env.requiresConfirmation || env.skipSelfReview)

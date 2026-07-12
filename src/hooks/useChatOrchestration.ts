@@ -32,6 +32,7 @@ export interface ChatContext {
   lastSkill?: SkillName;
   lastResultRef?: string;
   lastTable?: string;
+  lastTableSchema?: { name: string; type: string; description?: string }[];
   dataset?: string;
   project?: string;
 }
@@ -194,6 +195,17 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
         if (parts.length >= 2) result.dataset = parts[parts.length - 2];
         result.lastTable = parts[parts.length - 1];
       }
+    }
+
+    // Extract schema columns from SCHEMA_VIEW (table scope) so the next
+    // query turn can skip get_table_schema entirely.
+    if (env.primaryArtifact.type === 'SCHEMA_VIEW' && Array.isArray(data.columns) && data.table) {
+      const cols = data.columns as Array<{ name: string; type: string; description?: string | null }>;
+      result.lastTableSchema = cols.map((c) => ({
+        name: c.name,
+        type: c.type,
+        ...(c.description ? { description: c.description } : {}),
+      }));
     }
 
     return result;

@@ -282,10 +282,21 @@ export async function callGeminiWithTools({
     contents.push({ role: 'model', parts });
 
     // Execute each requested function call and collect responses
+    const TOOL_LABELS: Record<string, string> = {
+      run_query: 'Running your query...',
+      get_table_schema: 'Looking up the table schema...',
+      list_tables: 'Looking up available tables...',
+      list_datasets: 'Looking up available datasets...',
+      get_job_status: 'Checking job status...',
+      create_table: 'Creating the table...',
+      insert_rows: 'Inserting rows...',
+      delete_rows: 'Deleting rows...',
+      update_rows: 'Updating rows...',
+    };
     const responseParts: Array<Record<string, unknown>> = [];
     for (const fc of functionCalls) {
       const { name, args } = fc.functionCall;
-      onStatus?.(`Running tool: ${name}...`);
+      onStatus?.(TOOL_LABELS[name] ?? `Running ${name}...`);
       try {
         const result = await toolExecutor(name, args ?? {});
         allToolCalls.push({ name, args: args ?? {}, result });
