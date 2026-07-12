@@ -22,7 +22,7 @@ export async function handleDataLoading(
   }
 
   // If handoff context carries a pre-classified operation type, skip LLM
-  let intent: { operationType: string; tableName?: string; sql?: string; displayName?: string; schedule?: string };
+  let intent: { operationType: string; tableName?: string; dataset?: string; sql?: string; displayName?: string; schedule?: string };
   if (hc?.operationType && typeof hc.operationType === 'string') {
     intent = {
       operationType: hc.operationType as string,
@@ -35,12 +35,15 @@ export async function handleDataLoading(
   } else {
     onStatus?.(`Analyzing export request (project: ${project}, dataset: ${dataset || 'none'})...`);
     intent = await callGemini({
-      systemInstruction: `Classify a BigQuery data loading request. EXPORT_CSV = download as CSV. EXPORT_SHEETS = send to Google Sheets. SCHEDULE = schedule a recurring query. SAVED_QUERY = save a query for later reuse. SHARE = share or copy query results. Extract the table name or SQL to use. For SCHEDULE, also extract a schedule frequency into 'schedule' (e.g. 'every 24 hours', 'every monday 09:00') and a display name into 'displayName'. Project: ${project}, dataset: ${dataset}`,
+      systemInstruction: `Classify a BigQuery data loading request. EXPORT_CSV = download as CSV. EXPORT_SHEETS = send to Google Sheets. SCHEDULE = schedule a recurring query. SAVED_QUERY = save a query for later reuse. SHARE = share or copy query results. Extract the table name, dataset name, or full SQL. For SCHEDULE, extract a schedule frequency into 'schedule' and display name into 'displayName'. Project: ${project}, dataset: ${dataset}`,
       prompt: message,
       schema: DataLoadingIntentSchema,
       project,
     });
   }
+
+  // Use extracted dataset as fallback when context dataset is empty
+  if (!dataset && intent.dataset) dataset = intent.dataset;
 
   // SCHEDULE — create via Data Transfer API, fall back to guidance
   if (intent.operationType === 'SCHEDULE') {
@@ -195,8 +198,11 @@ export async function handleDataLoading(
   }
 
   // EXPORT_CSV — run the query and convert to CSV
+  const resolvedDataset = dataset || '';
   const sql = intent.sql ?? (intent.tableName
-    ? `SELECT * FROM \`${project}.${dataset}.${intent.tableName}\` LIMIT 1000`
+    ? resolvedDataset
+      ? `SELECT * FROM \`${project}.${resolvedDataset}.${intent.tableName}\` LIMIT 1000`
+      : `SELECT * FROM \`${project}.${intent.tableName}\` LIMIT 1000`
     : null);
 
   if (!sql) {

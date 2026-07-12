@@ -4,7 +4,7 @@
 
 import { callGemini, MonitoringIntentSchema } from '../gemini-client';
 import { extractDatasetFromMessage } from '../orchestrator-utils';
-import { executeQuery, detectBqRegion, createScheduledQuery, listDatasets } from '../bigquery-client';
+import { executeQuery, detectBqRegion, createScheduledQuery, listDatasets, getJobDetails } from '../bigquery-client';
 import { compose } from '../composer';
 import { saveCheck } from '../firestore-service';
 import type {
@@ -226,23 +226,151 @@ export async function handleMonitoring(
     return [compose('monitoring', result)];
   }
 
-  // QUERY_PLAN -- placeholder guidance
+  // QUERY_PLAN -- fetch real job details via jobs.get API
   if (monitoringType === 'QUERY_PLAN') {
+    // Extract jobId from message (e.g. "analyze job bquxjob_abc123") or handoff context
+    const jobIdMatch = message.match(/\b(bquxjob_[a-zA-Z0-9_-]+|job[_\s][a-zA-Z0-9_-]+)\b/i)
+      ?? message.match(/\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\b/i);
+    const jobId = (hc?.jobId as string | undefined)
+      ?? (jobIdMatch ? jobIdMatch[1].replace(/^job\s/i, '').replace(/^job_/i, '') : null);
+
+    if (!jobId) {
+      // No job ID -- list recent jobs so user can pick one
+      onStatus?.('Fetching recent jobs for query plan analysis...');
+      const recentSql = `SELECT job_id, creation_time, total_bytes_processed, statement_type, query
+        FROM \`region-us\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT
+        WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
+          AND statement_type = 'SELECT'
+          AND state = 'DONE'
+          AND error_result IS NULL
+        ORDER BY creation_time DESC
+        LIMIT 10`;
+      try {
+        const recent = await executeQuery(recentSql, project);
+        const items: MonitoringJob[] = recent.rows.map(row => ({
+          jobId: String(row[0] ?? ''),
+          createTime: String(row[1] ?? ''),
+          totalBytesProcessed: Number(row[2] ?? 0),
+          statementType: String(row[3] ?? 'SELECT'),
+          status: 'DONE',
+          userEmail: '',
+          referencedTables: [],
+          query: String(row[4] ?? ''),
+        }));
+        const result: MonitoringResult = {
+          skill: 'monitoring',
+          monitoringType: 'JOB_LIST',
+          timeRange: { start: new Date(Date.now() - 86400000).toISOString(), end: new Date().toISOString() },
+          items,
+          summary: { totalJobs: items.length, totalBytesProcessed: 0, errorCount: 0 },
+        };
+        return [compose('monitoring', result)];
+      } catch {
+        // Fall through to guidance
+      }
+      const result: MonitoringResult = {
+        skill: 'monitoring',
+        monitoringType: 'JOB_LIST',
+        timeRange: { start: new Date().toISOString(), end: new Date().toISOString() },
+        items: [{
+          jobId: 'query_plan_info',
+          userEmail: '',
+          statementType: 'INFO',
+          status: 'DONE',
+          createTime: new Date().toISOString(),
+          totalBytesProcessed: 0,
+          errorMessage: 'To analyze a specific job plan, say: "analyze job [job-id]" or "explain query [job-id]". Recent SELECT jobs are listed above.',
+          referencedTables: [],
+        }],
+        summary: { totalJobs: 0, totalBytesProcessed: 0, errorCount: 0 },
+      };
+      return [compose('monitoring', result)];
+    }
+
+    // Fetch real job details
+    onStatus?.(`Fetching execution plan for job ${jobId}...`);
+    const details = await getJobDetails(project, jobId);
+
+    if (!details || details.queryPlan.length === 0) {
+      // Job exists but no query plan (e.g. DDL, cached result, or plan not available)
+      const result: MonitoringResult = {
+        skill: 'monitoring',
+        monitoringType: 'JOB_LIST',
+        timeRange: { start: new Date().toISOString(), end: new Date().toISOString() },
+        items: [{
+          jobId: jobId,
+          userEmail: '',
+          statementType: details?.statementType ?? 'UNKNOWN',
+          status: (details?.status === 'RUNNING' ? 'RUNNING' : details?.status === 'ERROR' ? 'ERROR' : 'DONE') as 'DONE' | 'RUNNING' | 'ERROR',
+          createTime: details?.createTime ?? new Date().toISOString(),
+          totalBytesProcessed: details?.totalBytesProcessed ?? 0,
+          errorMessage: details
+            ? `Job found (${details.statementType}, ${details.status}) but no query plan stages are available. This is common for cached results, DDL statements, or very fast queries.`
+            : `Job ${jobId} not found or not accessible in project ${project}.`,
+          referencedTables: details?.referencedTables ?? [],
+        }],
+        summary: { totalJobs: 1, totalBytesProcessed: details?.totalBytesProcessed ?? 0, errorCount: 0 },
+      };
+      return [compose('monitoring', result)];
+    }
+
+    // Build stage breakdown items with proportional duration bars
+    const totalMs = details.queryPlan.reduce((s, st) => s + st.durationMs, 0);
+    const items: MonitoringJob[] = details.queryPlan.map((stage, i) => {
+      const pct = totalMs > 0 ? Math.round((stage.durationMs / totalMs) * 100) : 0;
+      const barLen = Math.max(1, Math.round(pct / 4)); // max 25 chars
+      const bar = '[' + '#'.repeat(barLen) + '.'.repeat(25 - barLen) + ']';
+      const durationLabel = stage.durationMs >= 60000
+        ? `${Math.floor(stage.durationMs / 60000)}m ${Math.round((stage.durationMs % 60000) / 1000)}s`
+        : `${(stage.durationMs / 1000).toFixed(1)}s`;
+      const shuffleMB = stage.shuffleOutputBytes > 0
+        ? ` | ${(stage.shuffleOutputBytes / 1e6).toFixed(0)}MB shuffle`
+        : '';
+      return {
+        jobId: `stage_${i + 1}`,
+        userEmail: '',
+        statementType: stage.name,
+        status: (stage.status === 'RUNNING' ? 'RUNNING' : stage.status === 'ERROR' ? 'ERROR' : 'DONE') as 'DONE' | 'RUNNING' | 'ERROR',
+        createTime: details.createTime,
+        totalBytesProcessed: stage.shuffleOutputBytes,
+        referencedTables: [],
+        query: `${bar} ${durationLabel} (${pct}%)${shuffleMB}  |  ${stage.outputRows.toLocaleString()} rows out`,
+      };
+    });
+
+    // Add a summary item with optimization tips
+    const slowestStage = details.queryPlan.reduce((a, b) => b.durationMs > a.durationMs ? b : a);
+    const tips: string[] = [];
+    if (slowestStage.name.toLowerCase().includes('join')) {
+      tips.push(`Slowest stage is a JOIN (${(slowestStage.durationMs / 1000).toFixed(0)}s). Consider adding a partition filter before the join to reduce shuffled bytes.`);
+    }
+    if (slowestStage.shuffleOutputBytes > 1e9) {
+      tips.push(`Large shuffle (${(slowestStage.shuffleOutputBytes / 1e9).toFixed(1)}GB). Clustering the table on the join/group-by key can eliminate this.`);
+    }
+    if (details.queryPlan.length > 5) {
+      tips.push(`${details.queryPlan.length} stages detected. Complex plans with many stages often benefit from materializing intermediate results into a temp table.`);
+    }
+    if (tips.length === 0) {
+      tips.push(`Total: ${(details.totalBytesProcessed / 1e9).toFixed(2)}GB processed, ${(details.totalSlotMs / 1000).toFixed(0)}s slot-seconds. No obvious bottleneck found.`);
+    }
+
+    items.push({
+      jobId: 'optimization_tip',
+      userEmail: '',
+      statementType: 'TIP',
+      status: 'DONE',
+      createTime: details.createTime,
+      totalBytesProcessed: details.totalBytesProcessed,
+      referencedTables: details.referencedTables,
+      query: tips.join(' '),
+    });
+
     const result: MonitoringResult = {
       skill: 'monitoring',
       monitoringType: 'JOB_LIST',
-      timeRange: { start: new Date().toISOString(), end: new Date().toISOString() },
-      items: [{
-        jobId: 'query_plan_info',
-        userEmail: '',
-        statementType: 'INFO',
-        status: 'DONE',
-        createTime: new Date().toISOString(),
-        totalBytesProcessed: 0,
-        errorMessage: 'To analyze a query plan: use the dry-run feature by prefixing your query request with "dry run" or "explain". The system will show estimated bytes processed and cost tier without executing the query. For detailed execution plans, use the BigQuery Console Query Plan tab after running a query.',
-        referencedTables: [],
-      }],
-      summary: { totalJobs: 0, totalBytesProcessed: 0, errorCount: 0 },
+      timeRange: { start: details.startTime, end: details.endTime },
+      items,
+      summary: { totalJobs: details.queryPlan.length, totalBytesProcessed: details.totalBytesProcessed, errorCount: 0 },
     };
     return [compose('monitoring', result)];
   }

@@ -287,6 +287,49 @@ export async function getRecentDatasets(uid: string, limit = 8): Promise<RecentI
     .slice(0, limit);
 }
 
+// ── Schema Baselines (for schema drift detection) ──────────────────────────
+
+export interface SchemaBaselineColumn {
+  name: string;
+  type: string;
+  mode: string;
+}
+
+export interface SchemaBaseline {
+  tableRef: string;          // e.g. "project.dataset.table"
+  columns: SchemaBaselineColumn[];
+  capturedAt: string;        // ISO timestamp
+}
+
+/**
+ * Save a schema baseline for a table. Called on first DQ run.
+ * Stored in users/{uid}/schemaBaselines as a map keyed by tableRef.
+ */
+export async function saveSchemaBaseline(uid: string, baseline: SchemaBaseline): Promise<void> {
+  try {
+    const key = baseline.tableRef.replace(/[.`]/g, '_');
+    await setDoc(userDoc(uid), {
+      schemaBaselines: { [key]: baseline },
+    }, { merge: true });
+  } catch (err) {
+    console.warn('[saveSchemaBaseline]', err);
+  }
+}
+
+/**
+ * Retrieve a stored schema baseline for a table.
+ * Returns null if no baseline exists yet.
+ */
+export async function getSchemaBaseline(uid: string, tableRef: string): Promise<SchemaBaseline | null> {
+  try {
+    const data = await getUserData(uid);
+    const key = tableRef.replace(/[.`]/g, '_');
+    return (data?.schemaBaselines?.[key] as SchemaBaseline) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Utilities ────────────────────────────────────────────────────────────────
 
 export function generateId(): string {
@@ -302,3 +345,4 @@ export function autoTitle(firstMessage: string): string {
     ? firstMessage.slice(0, 50).trim() + '...'
     : firstMessage.trim();
 }
+

@@ -233,6 +233,17 @@ export interface SchemaColumn {
   tableCount?: number | null;
 }
 
+export interface SchemaUsageSignals {
+  queryCount30d: number;           // # of SELECT queries referencing this table in last 30 days
+  lastQueriedAt?: string | null;   // ISO timestamp of most recent query
+  topUsers?: string[];             // up to 3 user emails
+  popularJoins?: Array<{           // W2-11: frequent JOIN patterns
+    joinedTable: string;
+    onClause: string;
+    count: number;
+  }>;
+}
+
 export interface SchemaResult {
   skill: 'schema';
   scope: 'PROJECT' | 'DATASET' | 'TABLE';
@@ -247,6 +258,7 @@ export interface SchemaResult {
   rowCount?: number | null;
   sizeBytes?: number | null;
   lastModifiedTime?: string | null;
+  usageSignals?: SchemaUsageSignals | null;   // W2-10
   tableConstraints: {
     primaryKey: string[];
     foreignKeys: Array<{
@@ -257,6 +269,7 @@ export interface SchemaResult {
   };
   fetchedAt: string;
 }
+
 
 // ─── Query normalized result (bigquery-skill-template.md) ────────────────────
 
@@ -452,6 +465,7 @@ export interface MonitoringJob {
   totalBytesProcessed: number
   errorMessage?: string | null
   referencedTables: string[]
+  query?: string | null       // SQL text or stage bar representation
 }
 
 export interface MonitoringResult {

@@ -197,8 +197,29 @@ function TableSchemaView({ result, onSendMessage }: { result: SchemaResult; onSe
               <StatCard label="Last Updated" value={relativeLabel} color={freshnessColor} mono />
             );
           })()}
+          {result.usageSignals && (
+            <StatCard
+              label="Queried (30d)"
+              value={result.usageSignals.queryCount30d === 0
+                ? 'rarely'
+                : `${result.usageSignals.queryCount30d.toLocaleString()}x`}
+              color={result.usageSignals.queryCount30d > 100 ? '#2563eb' : result.usageSignals.queryCount30d > 10 ? '#059669' : undefined}
+              mono
+            />
+          )}
+          {result.usageSignals?.lastQueriedAt && (
+            <StatCard
+              label="Last Queried"
+              value={(() => {
+                const h = (Date.now() - new Date(result.usageSignals!.lastQueriedAt!).getTime()) / 3_600_000;
+                return h < 1 ? 'just now' : h < 24 ? `${Math.round(h)}h ago` : `${Math.floor(h / 24)}d ago`;
+              })()}
+              mono
+            />
+          )}
         </div>
       )}
+
 
       {/* Tab bar */}
       <div style={{

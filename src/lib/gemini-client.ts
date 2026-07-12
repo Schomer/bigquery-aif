@@ -457,6 +457,7 @@ export const DataLoadingIntentSchema = {
   properties: {
     operationType: { type: 'STRING', enum: ['EXPORT_CSV', 'EXPORT_SHEETS', 'SCHEDULE', 'SAVED_QUERY', 'SHARE'] },
     tableName: { type: 'STRING' },
+    dataset: { type: 'STRING' },
     sql: { type: 'STRING' },
     displayName: { type: 'STRING' },
     schedule: { type: 'STRING' },

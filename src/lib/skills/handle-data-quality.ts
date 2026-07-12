@@ -7,12 +7,13 @@ import { getAvailableDatasets, resolveDefaultDatasetFromList, extractDatasetFrom
 import { fetchSchema } from './schema';
 import { dryRun, executeQuery } from '../bigquery-client';
 import { compose } from '../composer';
+import { saveSchemaBaseline, getSchemaBaseline } from '../firestore-service';
 import type { ChatMessage, CompositionEnvelope, DataQualityResult, DqFinding, QueryResult, SkillManifest, StatusCallback } from '../types';
 
 export async function handleDataQuality(
   message: string,
   _history: ChatMessage[],
-  context?: { project?: string; dataset?: string; lastTable?: string; resolvedDataset?: string; availableDatasets?: string[]; handoffContext?: Record<string, unknown> },
+  context?: { project?: string; dataset?: string; lastTable?: string; resolvedDataset?: string; availableDatasets?: string[]; uid?: string; handoffContext?: Record<string, unknown> },
   onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
   const project = context?.project || '';
@@ -71,6 +72,84 @@ export async function handleDataQuality(
       summary: { rowsScanned: 0, issuesFound: severity !== 'INFO' ? 1 : 0, checkedAt },
     };
     return [compose('data-quality', result)];
+  }
+
+  // SCHEMA_DRIFT -- compare current schema against stored Firestore baseline
+  if (intent.checkType === 'SCHEMA_DRIFT') {
+    if (!tableName) {
+      return [compose('data-quality', {
+        skill: 'data-quality', checkType: 'SCHEMA_DRIFT',
+        table: `${project}.${ds}.<table>`, sql: '',
+        findings: [{ column: '_', metric: 'error', value: 'No table name specified', severity: 'INFO' }],
+        summary: { rowsScanned: 0, issuesFound: 0, checkedAt },
+      } as DataQualityResult)];
+    }
+    const driftSchema = await fetchSchema(ds, tableName, project);
+    const currentCols = driftSchema.columns.map(c => ({ name: c.name, type: c.type, mode: c.mode || 'NULLABLE' }));
+    const tableRef = `${project}.${ds}.${tableName}`;
+    const uid = context?.uid;
+    const baseline = uid ? await getSchemaBaseline(uid, tableRef) : null;
+
+    const driftFindings: DqFinding[] = [];
+
+    if (!baseline) {
+      // First run -- save baseline, report no drift
+      if (uid) {
+        await saveSchemaBaseline(uid, { tableRef, columns: currentCols, capturedAt: checkedAt });
+      }
+      driftFindings.push({
+        column: '_table',
+        metric: 'schema_baseline',
+        value: `Baseline captured: ${currentCols.length} columns. Future drift checks will compare against this snapshot.`,
+        severity: 'INFO',
+      });
+    } else {
+      // Diff against baseline
+      const baseMap = new Map(baseline.columns.map(c => [c.name, c]));
+      const currMap = new Map(currentCols.map(c => [c.name, c]));
+
+      // Added columns (in current but not in baseline)
+      for (const [name, col] of currMap) {
+        if (!baseMap.has(name)) {
+          driftFindings.push({ column: name, metric: 'column_added', value: `+ ${col.type} (${col.mode})`, severity: 'WARNING' });
+        }
+      }
+      // Removed columns (in baseline but not in current)
+      for (const [name, col] of baseMap) {
+        if (!currMap.has(name)) {
+          driftFindings.push({ column: name, metric: 'column_removed', value: `- was ${col.type} (${col.mode})`, severity: 'ISSUE' });
+        }
+      }
+      // Changed columns (type or mode changed)
+      for (const [name, curr] of currMap) {
+        const base = baseMap.get(name);
+        if (base && (base.type !== curr.type || base.mode !== curr.mode)) {
+          driftFindings.push({ column: name, metric: 'column_changed', value: `~ ${base.type}(${base.mode}) -> ${curr.type}(${curr.mode})`, severity: 'WARNING' });
+        }
+      }
+
+      if (driftFindings.length === 0) {
+        driftFindings.push({
+          column: '_table',
+          metric: 'schema_drift',
+          value: `No drift detected. Schema matches baseline from ${new Date(baseline.capturedAt).toLocaleDateString()}.`,
+          severity: 'INFO',
+        });
+      } else {
+        // Update baseline with current schema
+        if (uid) {
+          await saveSchemaBaseline(uid, { tableRef, columns: currentCols, capturedAt: checkedAt });
+        }
+      }
+    }
+
+    const driftResult: DataQualityResult = {
+      skill: 'data-quality', checkType: 'SCHEMA_DRIFT',
+      table: `${project}.${ds}.${tableName}`, sql: '',
+      findings: driftFindings,
+      summary: { rowsScanned: 0, issuesFound: driftFindings.filter(f => f.severity !== 'INFO').length, checkedAt },
+    };
+    return [compose('data-quality', driftResult)];
   }
 
   if (!tableName) {

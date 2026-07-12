@@ -289,6 +289,84 @@ export function checkResponse(res: Response, data: any) {
   checkAuthError(res.status, data);
 }
 
+// ─── Job details (W2-08: real QUERY_PLAN) ─────────────────────────────────────
+
+export interface QueryPlanStage {
+  name: string;
+  status: string;
+  startMs: number;
+  endMs: number;
+  durationMs: number;
+  inputSteps: number;
+  outputRows: number;
+  shuffleOutputBytes: number;
+}
+
+export interface JobDetails {
+  jobId: string;
+  status: string;
+  createTime: string;
+  startTime: string;
+  endTime: string;
+  totalBytesProcessed: number;
+  totalSlotMs: number;
+  statementType: string;
+  queryPlan: QueryPlanStage[];
+  referencedTables: string[];
+  query?: string;
+}
+
+export async function getJobDetails(project: string, jobId: string): Promise<JobDetails | null> {
+  try {
+    // Job IDs from INFORMATION_SCHEMA are in format "project:location.jobId"
+    // Extract just the bare jobId part for the REST API
+    const bareJobId = jobId.includes('.') ? jobId.split('.').pop()! : jobId;
+    const data = await bqFetch(
+      `${BQ_BASE}/${encodeURIComponent(project)}/jobs/${encodeURIComponent(bareJobId)}?projection=full`
+    );
+
+    const stats = data.statistics ?? {};
+    const qStats = stats.query ?? {};
+
+    const stages: QueryPlanStage[] = (qStats.queryPlan ?? []).map((s: any) => {
+      const startMs = Number(s.startMs ?? 0);
+      const endMs = Number(s.endMs ?? 0);
+      return {
+        name: s.name ?? `Stage ${s.id}`,
+        status: s.status ?? 'COMPLETE',
+        startMs,
+        endMs,
+        durationMs: endMs - startMs,
+        inputSteps: Number(s.inputSteps ?? 0),
+        outputRows: Number(s.recordsWritten ?? 0),
+        shuffleOutputBytes: Number(s.shuffleOutputBytes ?? 0),
+      };
+    });
+
+    const refTables: string[] = (qStats.referencedTables ?? []).map(
+      (t: any) => `${t.projectId}.${t.datasetId}.${t.tableId}`
+    );
+
+    return {
+      jobId: data.jobReference?.jobId ?? jobId,
+      status: data.status?.state ?? 'UNKNOWN',
+      createTime: stats.creationTime ? new Date(Number(stats.creationTime)).toISOString() : '',
+      startTime: stats.startTime ? new Date(Number(stats.startTime)).toISOString() : '',
+      endTime: stats.endTime ? new Date(Number(stats.endTime)).toISOString() : '',
+      totalBytesProcessed: Number(stats.query?.totalBytesProcessed ?? stats.totalBytesProcessed ?? 0),
+      totalSlotMs: Number(stats.totalSlotMs ?? 0),
+      statementType: qStats.statementType ?? 'SELECT',
+      queryPlan: stages,
+      referencedTables: refTables,
+      query: data.configuration?.query?.query,
+    };
+  } catch (err) {
+    console.warn('[getJobDetails]', err);
+    return null;
+  }
+}
+
+
 // ─── Google Sheets export ─────────────────────────────────────────────────────
 
 export async function exportToSheets(

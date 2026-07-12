@@ -405,8 +405,63 @@ Rules:
   // search other datasets in parallel.
   if (table) {
     try {
-      const result = await fetchSchema(resolvedDataset, table, project);
+      // W2-10: Run usage signals query in parallel with fetchSchema (fire-and-forget, non-blocking)
+      const usageSignalsPromise = (async () => {
+        try {
+          const fqTable = `${project}.${resolvedDataset ?? ''}.${table}`;
+          const usageSql = `
+            SELECT
+              COUNT(*) AS query_count,
+              MAX(creation_time) AS last_queried,
+              ARRAY_AGG(DISTINCT user_email IGNORE NULLS LIMIT 3) AS top_users,
+              ARRAY_AGG(query IGNORE NULLS LIMIT 20) AS queries
+            FROM \`region-us\`.INFORMATION_SCHEMA.JOBS_BY_PROJECT
+            WHERE creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+              AND statement_type = 'SELECT'
+              AND REGEXP_CONTAINS(query, r'(?i)\\b${table}\\b')
+              AND error_result IS NULL
+            LIMIT 1`;
+          const usageResult = await executeQuery(usageSql, project);
+          if (usageResult.rows.length > 0) {
+            const row = usageResult.rows[0];
+            const queryCount = Number(row[0] ?? 0);
+            const lastQueried = row[1] ? String(row[1]) : null;
+            const topUsers = Array.isArray(row[2]) ? (row[2] as string[]).slice(0, 3) : [];
+            // W2-11: extract JOIN patterns from query texts
+            const queries: string[] = Array.isArray(row[3]) ? (row[3] as string[]) : [];
+            const joinMap = new Map<string, number>();
+            const joinRe = /\bJOIN\s+`?(\S+?)`?\s+(?:\w+\s+)?ON\s+(.+?)(?:\s+(?:WHERE|GROUP|ORDER|LIMIT|JOIN|LEFT|RIGHT|INNER|OUTER|CROSS|$))/gi;
+            for (const q of queries) {
+              let m: RegExpExecArray | null;
+              while ((m = joinRe.exec(q)) !== null) {
+                const joinedTable = m[1].split('.').pop() ?? m[1];
+                const onClause = m[2].trim().slice(0, 60);
+                const key = `${joinedTable}|${onClause}`;
+                joinMap.set(key, (joinMap.get(key) ?? 0) + 1);
+              }
+            }
+            const popularJoins = Array.from(joinMap.entries())
+              .sort(([, a], [, b]) => b - a)
+              .slice(0, 3)
+              .map(([key, count]) => {
+                const [joinedTable, onClause] = key.split('|');
+                return { joinedTable, onClause, count };
+              });
+            return { queryCount30d: queryCount, lastQueriedAt: lastQueried, topUsers, popularJoins };
+          }
+          return null;
+        } catch {
+          return null; // Usage signals are non-critical -- permission may be denied
+        }
+      })();
+
+      const [result, usageSignals] = await Promise.all([
+        fetchSchema(resolvedDataset, table, project),
+        usageSignalsPromise,
+      ]);
+      if (usageSignals) result.usageSignals = usageSignals;
       return [compose('schema', result)];
+
     } catch (err: any) {
       if (err.message?.includes('Not found')) {
         // First: try fuzzy-matching in the same dataset.
