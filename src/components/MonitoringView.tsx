@@ -38,7 +38,7 @@ export function MonitoringView({ result, onSendMessage }: Props) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                {['Status', 'User', 'Type', 'Bytes', 'Created', ''].map((h) => (
+                {['Status', 'User', 'Type', 'Bytes', 'Created', 'Tables'].map((h) => (
                   <th key={h} style={{
                     padding: '6px 12px',
                     textAlign: 'left',
@@ -64,6 +64,7 @@ export function MonitoringView({ result, onSendMessage }: Props) {
 function JobRow({ job, onSendMessage }: { job: MonitoringJob; onSendMessage: (msg: string) => void }) {
   const [hovered, setHovered] = useState(false);
   const isError = job.status === 'ERROR';
+  const tables = job.referencedTables ?? [];
 
   function handleClick() {
     if (isError) {
@@ -80,7 +81,7 @@ function JobRow({ job, onSendMessage }: { job: MonitoringJob; onSendMessage: (ms
       onMouseLeave={() => setHovered(false)}
       title={isError ? 'Click to diagnose this failure' : 'Click to view job details'}
       style={{
-        borderBottom: '1px solid var(--border-subtle)',
+        borderBottom: tables.length > 0 ? 'none' : '1px solid var(--border-subtle)',
         background: hovered
           ? 'var(--accent-dim)'
           : isError ? 'rgba(220,53,69,0.06)' : undefined,
@@ -103,11 +104,47 @@ function JobRow({ job, onSendMessage }: { job: MonitoringJob; onSendMessage: (ms
       <td style={{ padding: '7px 12px', color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
         {relativeTime(job.createTime)}
       </td>
-      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
-        {hovered && (
-          <span style={{ fontSize: 11, color: isError ? '#dc3545' : 'var(--accent)' }}>
-            {isError ? 'Diagnose →' : 'Details →'}
-          </span>
+      <td style={{ padding: '4px 8px' }}>
+        {/* W1-18: referenced table pills */}
+        {tables.length > 0 ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }} onClick={(e) => e.stopPropagation()}>
+            {tables.slice(0, 3).map((ref) => {
+              const tableName = ref.split('.').pop() ?? ref;
+              return (
+                <button
+                  key={ref}
+                  onClick={() => onSendMessage(`Show me the schema for ${ref}`)}
+                  title={ref}
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 500,
+                    color: 'var(--accent)',
+                    background: 'var(--accent-dim)',
+                    border: '1px solid var(--accent-muted, rgba(66,133,244,0.25))',
+                    borderRadius: 4,
+                    padding: '2px 6px',
+                    cursor: 'pointer',
+                    maxWidth: 90,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                >
+                  {tableName}
+                </button>
+              );
+            })}
+            {tables.length > 3 && (
+              <span style={{ fontSize: 10, color: 'var(--text-dim)', alignSelf: 'center' }}>+{tables.length - 3}</span>
+            )}
+          </div>
+        ) : (
+          hovered && (
+            <span style={{ fontSize: 11, color: isError ? '#dc3545' : 'var(--accent)' }}>
+              {isError ? 'Diagnose →' : 'Details →'}
+            </span>
+          )
         )}
       </td>
     </tr>
