@@ -2043,8 +2043,8 @@ details>summary::marker {
 .chat-sidebar .chat-sidebar-assistant-text {
   font-size: 13px;
   color: var(--text);
-  line-height: 1.5;
-  padding: 4px 0;
+  line-height: 1.4;
+  padding: 2px 0;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -2052,7 +2052,7 @@ details>summary::marker {
    ═══════════════════════════════════════════════════════ */
 
 .chat-sidebar-thinking {
-  margin-top: 6px;
+  margin-top: 3px;
 }
 
 .chat-sidebar-thinking summary {
@@ -2251,7 +2251,7 @@ details>summary::marker {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .chat-sidebar-artifact-link {

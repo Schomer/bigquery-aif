@@ -390,7 +390,7 @@ export function ResultsSidebar({
                   )}
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {/* Render confirmation envelopes inline in chat sidebar */}
                   {msg.envelopes && msg.envelopes.filter(e => CONFIRM_TYPES.has(e.primaryArtifact.type)).map((env) => {
                     const aType = env.primaryArtifact.type;
