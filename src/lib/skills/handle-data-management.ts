@@ -52,7 +52,7 @@ export async function handleDataManagement(
     dataset = extractDatasetFromMessage(enrichedMessage, available) ?? '';
   }
 
-  const messages = history.slice(-6).map((m) => ({
+  const messages = history.slice(-20).map((m) => ({
     role: m.role as 'user' | 'assistant',
     content: m.content,
   }));

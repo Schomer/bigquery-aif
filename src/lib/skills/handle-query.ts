@@ -18,7 +18,7 @@ import type { ChatMessage, CompositionEnvelope, QueryResult, SkillManifest, Stat
 export async function handleQuery(
   message: string,
   history: ChatMessage[],
-  context?: { project?: string; dataset?: string; lastTable?: string; lastTableSchema?: { name: string; type: string; description?: string }[]; resolvedDataset?: string; availableDatasets?: string[] },
+  context?: { project?: string; dataset?: string; lastTable?: string; lastTableSchema?: { name: string; type: string; description?: string }[]; lastDatasetTables?: string[]; resolvedDataset?: string; availableDatasets?: string[] },
   onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
   const project = context?.project || '';
@@ -42,11 +42,17 @@ export async function handleQuery(
   let tableList: string[] = [];
   let lastTableSchema: { name: string; type: string; description?: string }[] = [];
   if (dataset) {
-    const fetches: Promise<void>[] = [
-      fetchSchema(dataset, undefined, project)
-        .then((s) => { tableList = s.columns.map((c) => c.name); })
-        .catch(() => {}),
-    ];
+    const fetches: Promise<void>[] = [];
+    if (context?.lastDatasetTables && context.lastDatasetTables.length > 0) {
+      // Table list already known from a prior turn -- use it directly.
+      tableList = context.lastDatasetTables;
+    } else {
+      fetches.push(
+        fetchSchema(dataset, undefined, project)
+          .then((s) => { tableList = s.columns.map((c) => c.name); })
+          .catch(() => {}),
+      );
+    }
     if (context?.lastTableSchema && context.lastTableSchema.length > 0) {
       // Schema already available from a prior turn -- use it directly.
       lastTableSchema = context.lastTableSchema;
@@ -63,7 +69,7 @@ export async function handleQuery(
           .catch(() => {}),
       );
     }
-    await Promise.all(fetches);
+    if (fetches.length > 0) await Promise.all(fetches);
   }
 
   // -- Plan cache: check for reusable query plan --
@@ -74,7 +80,7 @@ export async function handleQuery(
   }
 
   // -- Build conversation messages --
-  const messages = history.slice(-6).map((m) => ({
+  const messages = history.slice(-20).map((m) => ({
     role: m.role as 'user' | 'assistant',
     content: m.content,
   }));

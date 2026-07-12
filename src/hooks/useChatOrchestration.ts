@@ -33,6 +33,8 @@ export interface ChatContext {
   lastResultRef?: string;
   lastTable?: string;
   lastTableSchema?: { name: string; type: string; description?: string }[];
+  lastDatasetTables?: string[];
+  availableDatasets?: string[];
   dataset?: string;
   project?: string;
 }
@@ -302,6 +304,9 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       lastTable: tblItem?.table ?? context.lastTable,
       lastSkill: resItem?.skill ?? context.lastSkill,
       lastResultRef: resItem?.resultRef ?? context.lastResultRef,
+      // Carry cached lists forward so orchestrator skips re-fetching them
+      availableDatasets: context.availableDatasets,
+      lastDatasetTables: context.lastDatasetTables,
     };
   }
 
@@ -432,6 +437,14 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       setThinkingSteps((prev) => ({ ...prev, [assistantIdx]: [...pendingStepsRef.current] }));
 
       updateContextFromEnvelopes(envelopes);
+      // Persist resolved lists so the next turn skips re-fetching them
+      if (data.resolvedContext) {
+        setContext((prev) => ({
+          ...prev,
+          ...(data.resolvedContext!.availableDatasets ? { availableDatasets: data.resolvedContext!.availableDatasets } : {}),
+          ...(data.resolvedContext!.resolvedDataset ? { dataset: data.resolvedContext!.resolvedDataset } : {}),
+        }));
+      }
       logOperationsFromEnvelopes(envelopes, assistantIdx);
 
       setLastError(null);

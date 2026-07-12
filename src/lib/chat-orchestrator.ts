@@ -41,6 +41,7 @@ export interface ProcessMessageArgs {
     lastResultRef?: string;
     lastTable?: string;
     lastTableSchema?: { name: string; type: string; description?: string }[];
+    lastDatasetTables?: string[];
     dataset?: string;
     project?: string;
     uid?: string;
@@ -57,6 +58,10 @@ export interface ProcessMessageArgs {
 export interface OrchestrationResult {
   envelopes: CompositionEnvelope[];
   skill?: SkillName;
+  resolvedContext?: {
+    availableDatasets?: string[];
+    resolvedDataset?: string;
+  };
 }
 
 export class ChatOrchestrator {
@@ -160,7 +165,7 @@ export class ChatOrchestrator {
           const dataset = resolvedDataset ?? resolveDefaultDatasetFromList(available, context?.dataset, project);
           availableDatasets = available;
           resolvedDataset = dataset;
-          const messages = history.slice(-6).map((m) => ({
+          const messages = history.slice(-20).map((m) => ({
             role: m.role as 'user' | 'assistant',
             content: m.content,
           }));
@@ -326,6 +331,6 @@ The user's new message is a continuation of this conversation. Treat it as a fol
       }
     }
 
-    return { envelopes, skill };
+    return { envelopes, skill, resolvedContext: { availableDatasets, resolvedDataset } };
   }
 }
