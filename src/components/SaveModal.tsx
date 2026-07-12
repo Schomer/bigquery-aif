@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import type { SavedArtifactType } from '@/lib/types';
+import type { SavedArtifactType, ParameterDef } from '@/lib/types';
 
 const TYPE_LABELS: Record<SavedArtifactType, string> = {
   query: 'Query',
@@ -13,10 +13,11 @@ const TYPE_LABELS: Record<SavedArtifactType, string> = {
 interface SaveModalProps {
   open: boolean;
   onClose: () => void;
-  onSave: (name: string, description: string, tags: string[]) => void;
+  onSave: (name: string, description: string, tags: string[], parameters?: ParameterDef[]) => void;
   defaultName?: string;
   defaultDescription?: string;
   artifactType: SavedArtifactType;
+  sql?: string;  // W3-14: SQL to scan for @param patterns
 }
 
 export function SaveModal({
@@ -26,10 +27,20 @@ export function SaveModal({
   defaultName = '',
   defaultDescription = '',
   artifactType,
+  sql = '',
 }: SaveModalProps) {
   const [name, setName] = useState(defaultName);
   const [description, setDescription] = useState(defaultDescription);
   const [tagsInput, setTagsInput] = useState('');
+  const [showParams, setShowParams] = useState(false);
+  // W3-14: auto-detect @param patterns in SQL
+  const [parameters, setParameters] = useState<ParameterDef[]>(() => {
+    const found = new Set<string>();
+    const re = /@([a-zA-Z_][a-zA-Z0-9_]*)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(sql)) !== null) found.add(m[1]);
+    return Array.from(found).map(n => ({ name: n, type: 'string' as const, description: '', required: false }));
+  });
   const dialogRef = useRef<HTMLDialogElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -37,7 +48,13 @@ export function SaveModal({
     setName(defaultName);
     setDescription(defaultDescription);
     setTagsInput('');
-  }, [defaultName, defaultDescription, open]);
+    // Re-detect params when SQL changes
+    const found = new Set<string>();
+    const re = /@([a-zA-Z_][a-zA-Z0-9_]*)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(sql)) !== null) found.add(m[1]);
+    setParameters(Array.from(found).map(n => ({ name: n, type: 'string' as const, description: '', required: false })));
+  }, [defaultName, defaultDescription, open, sql]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -57,7 +74,7 @@ export function SaveModal({
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean);
-    onSave(trimmed, description.trim(), tags);
+    onSave(trimmed, description.trim(), tags, parameters.length > 0 ? parameters : undefined);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -149,6 +166,54 @@ export function SaveModal({
             }}
           />
         </label>
+
+        {/* W3-14: Parameters section — only shows when @params detected in SQL */}
+        {parameters.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <button
+              type="button"
+              onClick={() => setShowParams(v => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                fontSize: 13, fontWeight: 500, color: '#1967d2', fontFamily: "'Google Sans', sans-serif",
+                marginBottom: showParams ? 10 : 0,
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                {showParams ? 'expand_less' : 'expand_more'}
+              </span>
+              {parameters.length} parameter{parameters.length > 1 ? 's' : ''} detected
+            </button>
+            {showParams && parameters.map((p, i) => (
+              <div key={p.name} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 1fr', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                <span style={{ fontSize: 12, fontFamily: 'monospace', color: '#1967d2', background: '#e8f0fe', padding: '2px 8px', borderRadius: 4 }}>@{p.name}</span>
+                <select
+                  value={p.type}
+                  onChange={e => {
+                    const updated = [...parameters];
+                    updated[i] = { ...updated[i], type: e.target.value as ParameterDef['type'] };
+                    setParameters(updated);
+                  }}
+                  style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border, #dadce0)', borderRadius: 6, fontFamily: "'Google Sans', sans-serif" }}
+                >
+                  {['string', 'number', 'date', 'table', 'dataset', 'column'].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <input
+                  type="text"
+                  placeholder="Default value"
+                  value={p.default ?? ''}
+                  onChange={e => {
+                    const updated = [...parameters];
+                    updated[i] = { ...updated[i], default: e.target.value };
+                    setParameters(updated);
+                  }}
+                  style={{ fontSize: 12, padding: '4px 8px', border: '1px solid var(--border, #dadce0)', borderRadius: 6, fontFamily: "'Google Sans', sans-serif" }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
           <span style={{ fontSize: 12, color: 'var(--text-secondary, #5f6368)' }}>Type:</span>

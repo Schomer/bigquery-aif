@@ -251,6 +251,64 @@ function ScheduleDetails({ result, onSendMessage }: Props) {
         )}
       </div>
 
+      {/* W3-17: Pipeline DAG visualization */}
+      {(schedule.sql || schedule.destinationTable) && (() => {
+        // Extract source tables from SQL: match backtick-quoted or project.dataset.table patterns
+        const sourceRefs = new Set<string>();
+        const sqlText = schedule.sql ?? '';
+        const tablePattern = /(?:FROM|JOIN)\s+`?([a-zA-Z0-9_.-]+(?:\.[a-zA-Z0-9_-]+){0,2})`?/gi;
+        let m: RegExpExecArray | null;
+        while ((m = tablePattern.exec(sqlText)) !== null) {
+          const ref = m[1];
+          const parts = ref.split('.');
+          sourceRefs.add(parts[parts.length - 1]); // short name
+        }
+        const sources = Array.from(sourceRefs).slice(0, 4);
+        const dest = schedule.destinationTable?.split('.').pop() ?? schedule.destinationTable ?? '';
+        if (sources.length === 0 && !dest) return null;
+        return (
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Pipeline flow</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {/* Source nodes */}
+              {sources.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {sources.map(s => (
+                    <div key={s} style={{
+                      fontSize: 11, fontFamily: 'var(--font-mono)', padding: '4px 10px',
+                      background: 'var(--surface-2, #f5f5f5)', border: '1px solid var(--border)',
+                      borderRadius: 6, color: 'var(--text)',
+                    }}>{s}</div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', padding: '4px 10px', border: '1px dashed var(--border)', borderRadius: 6 }}>SQL</div>
+              )}
+              {/* Arrow */}
+              <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--text-dim)' }}>arrow_forward</span>
+              {/* Schedule job node */}
+              <div style={{
+                fontSize: 11, padding: '5px 12px',
+                background: 'var(--accent, #1967d2)', color: 'white',
+                borderRadius: 20, fontWeight: 500, whiteSpace: 'nowrap',
+              }}>
+                {schedule.schedule}
+              </div>
+              {/* Arrow */}
+              {dest && <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--text-dim)' }}>arrow_forward</span>}
+              {/* Destination node */}
+              {dest && (
+                <div style={{
+                  fontSize: 11, fontFamily: 'var(--font-mono)', padding: '4px 10px',
+                  background: 'rgba(25,103,210,0.08)', border: '1px solid rgba(25,103,210,0.25)',
+                  borderRadius: 6, color: '#1967d2',
+                }}>{dest}</div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* SQL preview */}
       {schedule.sql && (
         <div>
