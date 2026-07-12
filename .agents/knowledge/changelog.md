@@ -2,6 +2,14 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-11: Pre-fetch table list to reduce tool-call iterations
+
+**Context**: Simple queries like "which drivers had the most points" were burning all 10 tool-call iterations because the LLM had to call list_tables and list_datasets before it could write SQL. Sometimes it never reached the actual query.
+
+**Changes**:
+- `handle-query.ts`: Pre-fetch table list via `fetchSchema(dataset)` and include it in the system prompt. Updated efficiency rules to tell the LLM not to call list_tables/list_datasets when the table list is provided, and not to run exploratory queries.
+- `composer.ts`: Filter out "Reached maximum tool-call iterations" and "No results to display" from the clean-summary check so these system strings never become user-facing headlines.
+
 ## 2026-07-11: Use headline text as query briefing narrative
 
 **Context**: The chat briefing text above query result cards showed a generic "I ran your query against X and got N rows" message. Since self-review is skipped for high-confidence small result sets, this generic text appeared on most queries.

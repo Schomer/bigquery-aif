@@ -10,6 +10,16 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+### 2026-07-11: Query handler wasted iterations on list_tables/list_datasets
+
+**What broke**: Simple questions like "which drivers had the most points" burned through all 10 tool-call iterations without answering the question. The LLM spent iterations on list_datasets, list_tables, and exploratory queries before reaching the real query.
+
+**Root cause**: The system prompt included the dataset name and available datasets, but NOT the table list for the active dataset. The LLM had to call list_tables to discover what tables existed, then get_table_schema, then run_query -- burning 3-4 iterations before any SQL ran. With schema exploration and retries, it hit the 10-iteration cap.
+
+**Fix**: Pre-fetch the table list via `fetchSchema(dataset)` (already cached) and include it in the system prompt. Updated efficiency rules to say "Do NOT call list_tables or list_datasets" and "Do NOT run exploratory or summary queries." Also filtered system plumbing strings ("Reached maximum tool-call iterations", "No results to display") from the clean-summary check so they never appear as headlines.
+
+**Rule**: When an LLM agent has tools that the system could pre-populate context for, prefer pre-populating. Every eliminated tool call saves an iteration and reduces the chance of the LLM going off-track.
+
 ### 2026-07-11: Query briefing showed generic "I ran your query and got N rows"
 
 **What broke**: When asking "which countries have had the most races?", the chat briefing text above the artifact card said "I ran your query against malloy and got 10 rows" instead of a meaningful summary like "Countries with the most races".
