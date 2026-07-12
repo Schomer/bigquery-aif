@@ -148,7 +148,7 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
           <p style={{
             margin: 0,
-            fontSize: 14,
+            fontSize: 15,
             fontWeight: 500,
             color: 'var(--text)',
             lineHeight: 1.5,
