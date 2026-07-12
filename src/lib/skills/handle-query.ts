@@ -33,6 +33,18 @@ export async function handleQuery(
     dataset = extractDatasetFromMessage(message, available) ?? '';
   }
 
+  // Pre-fetch table list for the active dataset so the LLM doesn't burn
+  // iterations calling list_tables. This is cached by fetchSchema.
+  let tableList: string[] = [];
+  if (dataset) {
+    try {
+      const schema = await fetchSchema(dataset, undefined, project);
+      tableList = schema.columns.map((c) => c.name);
+    } catch {
+      // Non-fatal: LLM can still call list_tables if needed
+    }
+  }
+
   // -- Plan cache: check for reusable query plan --
   const cachedPlan = findReusablePlan(message, dataset);
   if (cachedPlan) {
@@ -46,19 +58,22 @@ export async function handleQuery(
     content: m.content,
   }));
 
-  // -- System prompt: lightweight, no pre-fetched schema --
+  // -- System prompt: includes table list to eliminate list_tables calls --
   const datasetLine = dataset
     ? `The active dataset is: ${dataset}`
     : 'No dataset is pre-selected. Infer the correct dataset from the user\'s prompt and the available datasets listed below.';
   const lastTableLine = context?.lastTable
     ? `\nThe user was most recently looking at table \`${project}.${dataset}.${context.lastTable}\`.`
     : '';
+  const tableListLine = tableList.length > 0
+    ? `\nTables in ${dataset}: ${tableList.join(', ')}`
+    : '';
 
   const systemPrompt = `${skillDoc}
 
 The BigQuery project is: ${project}
 ${datasetLine}
-Available datasets in project ${project}: ${available.join(', ')}${lastTableLine}
+Available datasets in project ${project}: ${available.join(', ')}${lastTableLine}${tableListLine}
 Today's date: ${new Date().toISOString().split('T')[0]}
 
 CRITICAL: Always wrap fully qualified table references in literal backticks: \`${project}.DATASET.tablename\` (e.g. \`${project}.ecomm.order_items\`). This is CRITICAL to prevent syntax errors when project names contain dashes/hyphens.
@@ -67,12 +82,12 @@ INFORMATION_SCHEMA exception: INFORMATION_SCHEMA views must be OUTSIDE the backt
 You have tools to interact with BigQuery. Follow these rules strictly:
 
 EFFICIENCY RULES (most important):
-1. If the user names a specific table, call get_table_schema FIRST to verify the table exists and get column names. The tool will auto-correct common name mismatches (e.g., "orders" -> "order_items"). If the tool returns an "actualTableName" field, use THAT name in your SQL instead of the user's name.
-2. For simple queries (SELECT *, LIMIT, COUNT, basic WHERE) where you have already verified the table name, call run_query directly.
-3. Only call list_tables when the user does NOT name a specific table and you need to find one.
-4. Only call list_datasets when the user does NOT name a specific dataset.
-5. STOP after run_query succeeds. Do not call additional tools after you have query results. Just summarize the results and respond.
-6. If run_query fails with a "Not found" error, call get_table_schema to verify the table name before retrying.
+1. The table list for the active dataset is provided above. Do NOT call list_tables or list_datasets unless querying a different dataset. Pick the most relevant table from the list and call get_table_schema on it.
+2. If the user names a specific table, call get_table_schema FIRST to verify the table exists and get column names. The tool will auto-correct common name mismatches (e.g., "orders" -> "order_items"). If the tool returns an "actualTableName" field, use THAT name in your SQL instead of the user's name.
+3. For simple queries (SELECT *, LIMIT, COUNT, basic WHERE) where you have already verified the table name, call run_query directly.
+4. STOP after run_query succeeds. Do not call additional tools after you have query results. Just summarize the results and respond.
+5. If run_query fails with a "Not found" error, call get_table_schema to verify the table name before retrying.
+6. Do NOT run exploratory or summary queries. Answer the user's question directly.
 
 After running the query, provide a brief one-line summary of what the results show.`;
 
