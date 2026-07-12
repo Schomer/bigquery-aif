@@ -99,3 +99,17 @@ node scripts/snapshot-test.mjs
 This tests the canonical scenarios from `.agents/knowledge/test-cases.md` against the router's `classifyIntent()` function to catch routing regressions before deploying.
 <!-- END:test-gate -->
 
+<!-- BEGIN:browser-testing -->
+# REQUIRED: Browser testing works on macOS -- use browser_subagent
+
+The `browser_subagent` tool works on macOS. It launches a browser, navigates to URLs, takes screenshots, clicks elements, types text, and reports back. **Do NOT claim browser testing is unavailable, unsupported, or requires Linux. That is false.**
+
+When you need to visually verify the deployed app (after deploying UI changes, checking layout, verifying elements):
+1. Use the `browser_subagent` tool to navigate to `https://bigqueryaif.web.app`
+2. Take screenshots, inspect elements, verify layout
+
+For the full automated 20-test suite, use the Puppeteer script: `node scripts/visual-test.mjs`
+
+Read `.agents/skills/browser-testing/SKILL.md` for detailed usage examples.
+<!-- END:browser-testing -->
+
