@@ -58,6 +58,16 @@ export function SchemaView({ result, onSendMessage }: Props) {
               createdStr = `Created ${new Date(t.creationTime).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}`;
             } catch { /* skip bad date */ }
           }
+          // W1-11: heuristic semantic badge
+          const semanticBadge = (() => {
+            const n = t.name.toLowerCase();
+            if (/^(stg_|raw_|int_|tmp_|staging_)/.test(n)) return { label: 'STAGING', color: '#64748b' };
+            if (/^(daily_|weekly_|monthly_|summary_|agg_|fact_agg)/.test(n)) return { label: 'AGG', color: '#7c3aed' };
+            if (t.type === 'VIEW' || t.type === 'MATERIALIZED_VIEW') return null; // TypePill already communicates this
+            if (/^(fact_|fct_)/.test(n) || ((t.rowCount ?? 0) > 500_000 && /_(events|transactions|orders|sales|logs|records)$/.test(n))) return { label: 'FACT', color: '#2563eb' };
+            if (/^(dim_|d_)/.test(n) || ((t.rowCount ?? 0) < 50_000 && /_(customers|users|products|skus|stores|accounts)$/.test(n))) return { label: 'DIM', color: '#059669' };
+            return null;
+          })();
           return (
             <ClickableRow
               key={t.name}
@@ -75,6 +85,20 @@ export function SchemaView({ result, onSendMessage }: Props) {
               )}
               {createdStr && (
                 <span style={{ ...metaStyle, minWidth: 130 }}>{createdStr}</span>
+              )}
+              {semanticBadge && (
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: semanticBadge.color,
+                  border: `1px solid ${semanticBadge.color}`,
+                  borderRadius: 3,
+                  padding: '1px 5px',
+                  flexShrink: 0,
+                  opacity: 0.85,
+                }}>
+                  {semanticBadge.label}
+                </span>
               )}
               <TypePill label={badge.label} color={badge.color} />
             </ClickableRow>

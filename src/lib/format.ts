@@ -44,7 +44,18 @@ export function relativeTime(dateStr: string | number | Date): string {
     const ts = new Date(dateStr).getTime();
     if (isNaN(ts)) return String(dateStr) || '---';
     const diffMs = Date.now() - ts;
-    if (diffMs < 0) return 'just now';
+    if (diffMs < 0) {
+      // Future timestamp: show "in X"
+      const futureMs = -diffMs;
+      const secs = Math.floor(futureMs / 1000);
+      if (secs < 60) return 'in <1m';
+      const mins = Math.floor(secs / 60);
+      if (mins < 60) return `in ${mins}m`;
+      const hrs = Math.floor(mins / 60);
+      const remMins = mins % 60;
+      if (hrs < 24) return remMins > 0 ? `in ${hrs}h ${remMins}m` : `in ${hrs}h`;
+      return `in ${Math.floor(hrs / 24)}d`;
+    }
     const secs = Math.floor(diffMs / 1000);
     if (secs < 60) return `${secs}s ago`;
     const mins = Math.floor(secs / 60);

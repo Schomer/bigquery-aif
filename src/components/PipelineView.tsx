@@ -148,8 +148,65 @@ function ScheduleDetails({ result, onSendMessage }: Props) {
     );
   }
 
+  // W1-20: compute failure tiers
+  const last5 = runs.slice(0, 5);
+  const last5Failures = last5.filter(r => r.state === 'FAILED').length;
+  const consecutiveFailures = (() => {
+    let count = 0;
+    for (const r of runs) {
+      if (r.state === 'FAILED') count++;
+      else break;
+    }
+    return count;
+  })();
+  const tier3 = consecutiveFailures >= 3;
+  const tier2 = !tier3 && last5Failures >= 2;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* W1-20: Tier 3 banner -- 3+ consecutive failures */}
+      {tier3 && (
+        <div style={{
+          padding: '10px 14px',
+          borderRadius: 8,
+          background: 'rgba(239,68,68,0.08)',
+          border: '1px solid rgba(239,68,68,0.35)',
+          borderLeft: '4px solid #ef4444',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 10,
+        }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#ef4444', flexShrink: 0, marginTop: 1 }}>error</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#dc2626' }}>
+              {consecutiveFailures} consecutive failures
+            </div>
+            {runs[0]?.errorStatus && (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                Last error: {runs[0].errorStatus}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {/* W1-20: Tier 2 banner -- 2+ failures in last 5 runs */}
+      {tier2 && (
+        <div style={{
+          padding: '10px 14px',
+          borderRadius: 8,
+          background: 'rgba(245,158,11,0.06)',
+          border: '1px solid rgba(245,158,11,0.35)',
+          borderLeft: '4px solid #f59e0b',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+        }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#f59e0b', flexShrink: 0 }}>warning</span>
+          <span style={{ fontSize: 13, fontWeight: 500, color: '#b45309' }}>
+            {last5Failures} of last 5 runs failed
+          </span>
+        </div>
+      )}
       {/* Summary cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
         <StatCard label="Schedule" value={schedule.schedule} />
@@ -196,9 +253,7 @@ function ScheduleDetails({ result, onSendMessage }: Props) {
 
       {/* Actions */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button className="chip" onClick={() => onSendMessage(`show run history for "${schedule.displayName}"`)}>
-          Full run history
-        </button>
+        <button className="chip" onClick={() => onSendMessage(`show run history for "${schedule.displayName}"`)}>Full run history</button>
         <button className="chip" onClick={() => onSendMessage(`delete the schedule "${schedule.displayName}"`)}>
           Delete schedule
         </button>
@@ -305,6 +360,8 @@ function RunHistory({ result, onSendMessage }: Props) {
 
   const successCount = runs.filter(r => r.state === 'SUCCEEDED').length;
   const failedCount = runs.filter(r => r.state === 'FAILED').length;
+  // W1-17: failure rate
+  const failureRate = runs.length > 0 ? ((failedCount / runs.length) * 100).toFixed(1) : null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -313,6 +370,13 @@ function RunHistory({ result, onSendMessage }: Props) {
         <StatCard label="Total Runs" value={String(runs.length)} />
         <StatCard label="Succeeded" value={String(successCount)} color={successCount > 0 ? '#16a34a' : undefined} />
         <StatCard label="Failed" value={String(failedCount)} color={failedCount > 0 ? '#dc2626' : undefined} />
+        {failureRate !== null && failedCount > 0 && (
+          <StatCard
+            label="Failure Rate"
+            value={`${failureRate}%`}
+            color={parseFloat(failureRate) > 20 ? '#dc2626' : parseFloat(failureRate) > 5 ? '#f59e0b' : undefined}
+          />
+        )}
       </div>
 
       {/* Schedule name */}
