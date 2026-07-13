@@ -100,28 +100,15 @@ This tests the canonical scenarios from `.agents/knowledge/test-cases.md` agains
 <!-- END:test-gate -->
 
 <!-- BEGIN:browser-testing -->
-# REQUIRED: Use Puppeteer for test passes and screenshots
+# REQUIRED: Browser testing works on macOS -- use browser_subagent
 
-There are two browser testing methods. **Puppeteer is the primary path** -- it requires no permission prompt and works reliably for automated test passes.
+The `browser_subagent` tool works on macOS. It launches a browser, navigates to URLs, takes screenshots, clicks elements, types text, and reports back. **Do NOT claim browser testing is unavailable, unsupported, or requires Linux. That is false.**
 
-## Puppeteer (primary -- no permission prompt)
+When you need to visually verify the deployed app (after deploying UI changes, checking layout, verifying elements):
+1. Use the `browser_subagent` tool to navigate to `https://bigqueryaif.web.app`
+2. Take screenshots, inspect elements, verify layout
 
-**Ad-hoc screenshot** (single URL, quick visual check):
-```bash
-source "$HOME/.nvm/nvm.sh" && node scripts/screenshot.mjs https://bigqueryaif.web.app
-```
-Then read the output path with `view_file`.
-
-**Full 20-test suite**:
-```bash
-source "$HOME/.nvm/nvm.sh" && cd "/Users/schomer/Desktop/DATA APPS/bigquery-aif" && node scripts/visual-test.mjs
-```
-
-Both use system Chrome with a persistent auth profile at `/tmp/bqaif-puppeteer-profile`.
-
-## browser_subagent (secondary -- requires user to click Allow)
-
-Use `browser_subagent` only for interactive/exploratory sessions where the user is present. It will prompt for permission on every call -- the user must click Allow.
+For the full automated 20-test suite, use the Puppeteer script: `node scripts/visual-test.mjs`
 
 Read `.agents/skills/browser-testing/SKILL.md` for detailed usage examples.
 <!-- END:browser-testing -->
