@@ -2,6 +2,19 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-13: AI-First Routing Architecture
+
+**Context**: Keyword-based routing to the data-management handler was fundamentally broken. Prompts like "lets make a new dataset" matched MUTATING_VERBS at high confidence, bypassed the LLM classifier, and went directly to a handler that blindly generated SQL -- causing hangs and hallucinated parameters. Patching keywords was a losing game.
+
+**Changes**:
+- `src/lib/skills/handle-conversation.ts`: Complete rewrite as a tool-calling agent using `callGeminiWithTools`. Has 6 tools: `run_query`, `get_table_schema`, `list_tables`, `list_datasets`, `create_dataset`, `execute_dml`. Can both converse and execute operations. Expert system prompt with "sure, I can do that" attitude.
+- `src/lib/chat-orchestrator.ts`: Only schema, query, and data-quality keep the keyword fast-path. Everything else (data-management, monitoring, discovery, etc.) routes to conversation handler. LLM classifier results for non-fast-path skills also go to conversation. Final fallback is conversation, not keyword result.
+- `.agents/knowledge/invariants.md`: Updated orchestrator invariants to reflect new routing rules.
+
+**Architecture shift**: Instead of keywords deciding the handler, the AI decides what to do. The conversation handler IS the router for most operations.
+
+**Verification**: Build passes, deployed to Firebase.
+
 ## 2026-07-13: Add create_dataset and execute_dml Tools
 
 **Context**: The chat agent lacked tools for creating datasets and executing DML/DDL statements directly through the tool-calling loop.

@@ -173,7 +173,7 @@ export async function handleConversation(
         sql,
         columns: result.columns,
         columnTypes: result.columnTypes,
-        rows: result.rows,
+        rows: result.rows as unknown[][],
         rowCount: result.rowCount,
         visualizationHint: args.visualizationHint as string | undefined,
       });

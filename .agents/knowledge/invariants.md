@@ -41,9 +41,10 @@ These principles govern all design decisions. They are not suggestions -- they a
 
 ---
 
-## Orchestrator (`src/lib/chat-orchestrator.ts`)
-
-- **High-confidence keyword match skips LLM classifier**: When `classifyIntent()` returns `confidence: 'high'`, the orchestrator dispatches directly to that skill without calling Gemini for intent classification. This saves latency and cost.
+- **AI-first routing -- conversation handler is the default**: Only schema, query, and data-quality have a keyword fast-path (high-confidence keyword bypass). All other skills (data-management, monitoring, discovery, etc.) are routed through the conversation handler, which is a tool-calling agent that decides what to do. This replaces the old pattern where every high-confidence keyword match went directly to a specialized handler.
+- **Conversation handler is a tool-calling agent**: `handleConversation()` uses `callGeminiWithTools()` with 6 tools: `run_query`, `get_table_schema`, `list_tables`, `list_datasets`, `create_dataset`, `execute_dml`. It can both converse AND execute operations.
+- **LLM classifier results also prefer conversation**: When the LLM classifier returns a skill that is NOT in the fast-path set (schema, query, data-quality), the orchestrator routes to conversation instead.
+- **Final fallback is conversation, not keyword result**: When both keyword router and LLM classifier fail, the orchestrator defaults to conversation, not the keyword result.
 - **Dispatch uses manifest-driven lookup, not switch-case**: `SKILL_MAP.get(skill)` retrieves the handler function. Unknown skills fall back to `handleQuery()`. Do not re-introduce a switch-case.
 - **All handler signatures are (message, history, context, onStatus)**: The 4-arg pattern enables uniform dispatch through the manifest. Do not add or remove parameters.
 - **Data-management safety net (high confidence only)**: `handleDataManagement()` re-checks the message against the keyword router before proceeding. If the router disagrees **at high confidence**, it redirects to `handleQuery()`. Medium/low confidence disagreements do not redirect -- the LLM classifier already decided this is data-management intent.
