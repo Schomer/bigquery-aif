@@ -2,6 +2,15 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-13: Fix "+ New" button double-click bug
+
+**Context**: Clicking the "+ New" button in the side nav required two clicks to actually see the new chat thread.
+
+**Changes**:
+- `src/components/shell/SideNav.tsx`: Updated the New button's `onClick` to also call `setActivePage('chat')` and `setChatListOpen(false)` (unified mode), so users land on a fresh empty chat in one click.
+
+---
+
 ## 2026-07-13: CSV Upload to BigQuery
 
 **Context**: Users asked to upload CSV files into BigQuery tables. The app had CSV *export* but no import/upload capability.

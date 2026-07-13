@@ -10,6 +10,14 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+## 2026-07-13: Fix "+ New" button requiring double-click
+
+**What changed**: SideNav's "+ New" button now also navigates to the chat page and closes the chat list overlay (in unified mode).
+
+**Root cause**: The onClick handler only called `newConversation()` which creates a new conversation ID in context, but did not call `setActivePage('chat')`. If the user was on any other page, or if the chat list overlay was covering the chat view, the new conversation was created invisibly. The user had to click a second time (or click "AI") to actually see it.
+
+**Derived rule**: Any UI action that creates or switches conversations must also ensure the chat view is visible -- call `setActivePage('chat')` and manage overlay state as needed.
+
 ## 2026-07-13: Conversational AI + Routing Fixes
 
 **What changed**: Added `conversation` skill for natural dialogue + fixed three routing bugs.
