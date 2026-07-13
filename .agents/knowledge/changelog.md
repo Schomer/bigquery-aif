@@ -2,6 +2,26 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-13: Conversational AI Skill + Routing Bug Fixes
+
+**Context**: Chat felt robotic -- it failed on common prompts (e.g., "make a new dataset"), couldn't hold a conversation, and had no natural language fallback. Root causes: keyword gaps in MUTATING_VERBS, overly strict safety net in data-management, and no handler for non-task messages.
+
+**Part A -- Bug Fixes**:
+- `src/lib/router.ts`: Added dataset/schema verb patterns to MUTATING_VERBS (make a dataset, create dataset, drop dataset, etc.). Changed no-signal default from `query` to `conversation`.
+- `src/lib/skills/handle-data-management.ts`: Safety net now only redirects when the keyword router disagrees at **high** confidence, not any disagreement. Fixes "make a new dataset" being redirected to query.
+- `src/lib/gemini-client.ts`: Added CREATE_SCHEMA, DROP_SCHEMA, DROP_TABLE, TRUNCATE, INSERT to DataManagementResponseSchema operation enum.
+
+**Part B -- Conversation Skill**:
+- `src/lib/types.ts`: Added `'conversation'` to SkillName, `'CONVERSATION'` to ArtifactType.
+- `src/lib/gemini-client.ts`: Added ConversationResponseSchema (response text + suggestedActions array).
+- `src/lib/skills/handle-conversation.ts` [NEW]: Handler with expert BigQuery/GCP system prompt, loads skill doc summaries for capability awareness, passes full conversation history + project context, returns CONVERSATION envelopes with action chips.
+- `src/lib/skills/index.ts`: Registered conversation manifest.
+- `src/lib/chat-orchestrator.ts`: Removed hardcoded helpPatterns/capability table. Added CONVERSATION ROUTING guidance to LLM classifier prompt.
+- `public/skills/intent-routing.md`: Added conversation skill row to routing table, added rule 5 "when in doubt, conversation."
+- `src/components/chat/ChatThread.tsx`: Added CONVERSATION artifact rendering -- styled prose text with pill-shaped suggested action chips.
+
+**Verification**: Build passes. 19/19 snapshot routing tests pass.
+
 ## 2026-07-12: Stop Button, Prompt Queue, Cross-Chat Running Status
 
 **Context**: Three UX features to make long-running queries less blocking.

@@ -10,6 +10,20 @@ A reverse-chronological log of changes, fixes, and lessons learned. Read this be
 ## How to write an entry
 Every entry should answer: What changed? What worked? What broke? Why? What's the generalizable lesson?
 
+## 2026-07-13: Conversational AI + Routing Fixes
+
+**What changed**: Added `conversation` skill for natural dialogue + fixed three routing bugs.
+
+**What worked**: 
+- Safety net fix (high-confidence-only redirect) immediately unblocks "make a new dataset" and similar prompts that were being silently redirected to query.
+- Conversation skill picks up greetings, questions, and help requests that previously either failed or produced wrong data results.
+- Empty `signals: []` on the conversation manifest means it never steals routing from task skills in the keyword scorer.
+- 19/19 snapshot routing tests pass without modification -- existing routing is not disturbed.
+
+**Root cause (dataset verbs)**: "make a new dataset" had no matching pattern in MUTATING_VERBS, so the keyword router returned no-signal default (query at medium confidence). Even when the LLM classifier correctly identified data-management, the safety net in `handleDataManagement()` re-ran the keyword router which returned query, causing a redirect. Two bugs compounded: missing verbs + too-strict safety net.
+
+**Derived rule**: The safety net should only override the LLM when the keyword router has **high confidence** that the skill is wrong. Medium/low confidence means the keyword router is unsure, so the LLM's judgment should stand.
+
 ## 2026-07-12: User Q&A Session -- A/B/C/D + Bug Fixes
 
 **What changed**: Addressed four open design questions and fixed four confirmed bugs.

@@ -34,7 +34,7 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **Ambiguous words need counterbalancing signals**: When adding a word to `MUTATING_VERBS` that could also be a noun/adjective (e.g., "duplicate"), add the full phrase (e.g., "find duplicates", "check for duplicates") to the data-quality handler's manifest signals with weight >= 3.
 - **Routing signals live in handler manifests, not in router.ts**: Each handler's `manifest.signals` array is the single source of truth for keyword routing. The router iterates `SKILL_MANIFESTS` to score signals. Do not add signal arrays back to router.ts.
 - **Context boosts cap at +3**: Follow-up action patterns (e.g., "clean it" after data-quality) add a max bonus of 3 to the relevant skill score. Do not increase this.
-- **No-signal default is query with medium confidence**: When no keyword signals match at all, the router returns `skill: 'query', confidence: 'medium'` so the LLM classifier decides.
+- **No-signal default is conversation with medium confidence**: When no keyword signals match at all, the router returns `skill: 'conversation', confidence: 'medium'` so the LLM classifier decides. Conversation handles greetings, questions, advice, and anything that is not a direct data operation request.
 - **Filter/equality patterns bypass scoring**: Messages containing `column = 'value'` or explicit `WHERE` clauses go directly to query with high confidence, skipping the scored classification.
 - **Common analytical phrases route to query with high confidence**: Phrases like "how many", "total", "sum of", "average", "count of", "top", "trend", "over time", "per month/week/year/day", "by month/week/year", "breakdown", "group by" are in `QUERY_SIGNALS` with weight >= 2. This prevents basic aggregation queries from falling through to the LLM classifier.
 - **Any N-step workflow where all leading steps are schema and the final step is query must be collapsed**: The guard in the orchestrator is not limited to exactly 2 steps. Any decomposition where steps 1..N-1 are all `schema` and step N is `query` is structurally redundant and gets collapsed to a single query step.
@@ -46,7 +46,7 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **High-confidence keyword match skips LLM classifier**: When `classifyIntent()` returns `confidence: 'high'`, the orchestrator dispatches directly to that skill without calling Gemini for intent classification. This saves latency and cost.
 - **Dispatch uses manifest-driven lookup, not switch-case**: `SKILL_MAP.get(skill)` retrieves the handler function. Unknown skills fall back to `handleQuery()`. Do not re-introduce a switch-case.
 - **All handler signatures are (message, history, context, onStatus)**: The 4-arg pattern enables uniform dispatch through the manifest. Do not add or remove parameters.
-- **Data-management safety net**: `handleDataManagement()` re-checks the message against the keyword router before proceeding. If the router doesn't independently confirm data-management intent, it redirects to `handleQuery()`. This prevents analytical queries from being treated as mutations.
+- **Data-management safety net (high confidence only)**: `handleDataManagement()` re-checks the message against the keyword router before proceeding. If the router disagrees **at high confidence**, it redirects to `handleQuery()`. Medium/low confidence disagreements do not redirect -- the LLM classifier already decided this is data-management intent.
 - **Query handler uses tool-calling agent loop**: `handleQuery()` uses `callGeminiWithTools()` with 4 tools (`run_query`, `get_table_schema`, `list_tables`, `list_datasets`). The LLM decides what context to fetch. Do NOT re-introduce the old pipeline of `buildSchemaContext()` + `callGemini()` + `dryRun()` + `executeQuery()`.
 - **Query handler pre-fetches the table list**: When a dataset is resolved, `handleQuery()` calls `fetchSchema(dataset)` and includes the table names in the system prompt. This eliminates `list_tables`/`list_datasets` tool calls in the common case. The prompt tells the LLM not to call these tools unless querying a different dataset.
 - **Query auto-retry is implicit**: Errors from `run_query` tool calls feed back to the LLM as function responses. The LLM can fix its SQL and call `run_query` again within the iteration cap. Do not add explicit retry logic.
@@ -61,6 +61,16 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **No dry run for queries**: The dry run step was removed. Queries execute directly. Do not re-introduce `dryRun()` in the query handler.
 - **Schema columns from prior turns are threaded through `lastTableSchema` in context**: `ChatContext.lastTableSchema` stores the columns from the most recent table-scope SCHEMA_VIEW result. `handleQuery()` checks this first before calling `fetchSchema`. When present, it is used directly (no fetch at all) and the LLM prompt states the schema is "complete and authoritative -- do NOT call get_table_schema under any circumstances." Do not weaken this instruction to a suggestion.
 
+
+---
+
+## Conversation Skill (`src/lib/skills/handle-conversation.ts`)
+
+- **No keyword signals, LLM-routed only**: The conversation manifest has an empty `signals` array. It is never reached by keyword scoring -- only by the LLM classifier or as the no-signal default.
+- **Loads skill doc summaries for capability awareness**: `getSkillKnowledge()` loads the first 20 lines of each skill doc to give the LLM awareness of what the app can do. Cached per session.
+- **Skips self-review**: Conversation envelopes set `skipSelfReview: true` because they contain no data artifacts that need quality review.
+- **Chip-based action handoffs**: The `suggestedActions` array in the response becomes `nextActions` on the envelope, rendered as pill-shaped buttons. Users click chips to invoke task skills.
+- **CONVERSATION artifact type renders as prose**: ChatThread renders CONVERSATION as plain styled text with optional action chips. It does NOT go through ArtifactCard.
 
 ---
 
