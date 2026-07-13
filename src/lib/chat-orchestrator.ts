@@ -132,60 +132,9 @@ export class ChatOrchestrator {
     let skill = context?.forcedSkill;
     let routerConfidence: 'high' | 'medium' | 'low' = 'medium';
 
-    // -- Help intent: capability overview --
-    const helpPatterns = [
-      /\bwhat can you\b/i,
-      /\bwhat do you do\b/i,
-      /\bhow do(?:es)? (?:this|it) work\b/i,
-      /\bwhat (?:are|is) your capabilities\b/i,
-      /\bhelp me (?:get started|understand)\b/i,
-      /\bshow me what you can do\b/i,
-    ];
-    if (!skill && helpPatterns.some(p => p.test(resolvedMessage))) {
-      const helpEnvelope: CompositionEnvelope = {
-        id: 'help_' + Date.now(),
-        skill: 'schema',
-        headline: {
-          text: 'Here is what I can help you with',
-          tone: 'NEUTRAL' as const,
-          basis: 'STATUS' as const,
-        },
-        primaryArtifact: {
-          type: 'TABLE',
-          data: {
-            skill: 'query',
-            sql: '',
-            requiresConfirmation: false,
-            costConfirm: null,
-            columns: ['Capability', 'Example prompt'],
-            rows: [
-              ['Query your data', 'What are the top 10 products by revenue in ecomm?'],
-              ['Explore schemas', 'What tables are in the ecomm dataset?'],
-              ['Profile data quality', 'Profile the order_items table in ecomm'],
-              ['Check for issues', 'Are there duplicates in the users table?'],
-              ['Visualize trends', 'Show me monthly revenue from order_items in ecomm'],
-              ['Monitor usage', 'Show me recent jobs in this project'],
-              ['Analyze storage', 'How much storage is each dataset using?'],
-              ['Compare structures', 'Compare orders and order_items in ecomm'],
-              ['Find columns', 'Find tables with a user_id column'],
-              ['Manage data', 'Deduplicate the order_items table in ecomm'],
-            ],
-            rowCount: 10,
-            totalBytesProcessed: 0,
-            costTier: 0,
-            suggestedVisualization: 'TABLE',
-          },
-        },
-        provenance: { visibility: 'COLLAPSED' },
-        nextActions: [
-          { targetSkill: 'schema', label: 'List my datasets', context: {}, sourceSkill: 'schema', sourceResultRef: '' },
-          { targetSkill: 'query', label: 'Top products by revenue', context: {}, sourceSkill: 'schema', sourceResultRef: '' },
-          { targetSkill: 'data-quality', label: 'Profile a table', context: {}, sourceSkill: 'schema', sourceResultRef: '' },
-          { targetSkill: 'monitoring', label: 'Check recent jobs', context: {}, sourceSkill: 'schema', sourceResultRef: '' },
-        ],
-      };
-      return { envelopes: [helpEnvelope] };
-    }
+    // Help and general conversation are handled by the 'conversation' skill.
+    // No special-case patterns needed here -- the LLM classifier routes to it.
+
 
     if (!skill) {
       const keywordResult = classifyIntent(resolvedMessage, context);
@@ -226,6 +175,13 @@ You have two jobs:
 Use the following routing reference to determine the correct skill:
 
 ${routingRef}
+
+CONVERSATION ROUTING:
+- Route to 'conversation' when the user is chatting, asking questions, seeking advice,
+  greeting, thanking, thinking out loud, or discussing options -- anything that is NOT
+  a direct request to perform a specific data operation.
+- When in doubt between conversation and a task skill, prefer conversation.
+  The conversation skill can suggest the right task as a follow-up chip.
 
 MULTISTEP RULES:
 - A request with ONE VERB acting on ONE OBJECT is NEVER multistep.

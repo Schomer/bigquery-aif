@@ -16,6 +16,7 @@ Task-to-skill mapping for the BigQuery AI assistant. Use this to determine which
 | pipeline | Managing scheduled queries, data pipelines, ETL workflows, transfer configs. Listing, creating, editing, deleting, and viewing run history for scheduled queries. | "show my scheduled queries", "list schedules", "create a pipeline", "run history", "delete the schedule", "what's scheduled" |
 | task | Interactive data tasks that require calling Google Cloud APIs beyond BigQuery SQL. Includes: SQL dialect translation/migration, setting up data transfers, configuring external connections, batch file operations, ETL pipeline setup. The user wants guided help completing a multi-step cloud operation. | "translate my SQL files to GoogleSQL", "help me migrate from Snowflake", "set up a data transfer from S3", "batch translate these queries", "guide me through setting up a connection", "convert my Teradata SQL" |
 | governance | Viewing access controls, security policies, data sensitivity, and documentation coverage. Read-only -- never modifies permissions. Includes: access audit (who has access), table security posture (row-level security, column masking, policy tags), sensitive data scanning (PII detection), data classification (documentation coverage, labels). | "who has access to this dataset", "show permissions", "check security policies", "scan for PII", "is there sensitive data", "data classification", "audit access", "compliance check", "which tables have no description" |
+| conversation | General discussion, questions about data/BigQuery/GCP concepts, advice seeking, greetings, acknowledgments, thinking out loud, planning discussions, capability questions. Any message that is NOT a direct request to perform a specific data operation. | "thanks", "what's the best way to organize my data?", "can you explain partitioning?", "I'm new to BigQuery", "what should I do next?", "I have sales data in CSVs", "hello", "actually hold on", "what are my options?", "what can you do?" |
 
 ## Critical Routing Rules
 
@@ -27,9 +28,11 @@ Task-to-skill mapping for the BigQuery AI assistant. Use this to determine which
 
 4. **Pivot, filter, string ops, and regex are query, not data-management.** These reshape or extract data without modifying the source table.
 
-5. **ML/analytics tasks route to query.** Forecasting, anomaly detection, sentiment analysis, and classification use `AI.*`/`ML.*` SQL functions within a SELECT query.
+5. **When in doubt, conversation.** If the message does not clearly request a specific data operation (query, create, delete, profile, etc.), route to conversation. It is always better to talk to the user than to silently produce a wrong result. The conversation skill can suggest concrete actions as follow-up chips.
 
-6. **"Translate SQL" means dialect translation (task), not column translation (query).** If the user says "translate my SQL files" or "convert from Teradata to BigQuery," that is a task (SQL dialect migration via the BigQuery Migration API). If the user says "translate the description column" or "translate these product names to French," that is a query (using AI.GENERATE within a SELECT).
+6. **ML/analytics tasks route to query.** Forecasting, anomaly detection, sentiment analysis, and classification use `AI.*`/`ML.*` SQL functions within a SELECT query.
+
+7. **"Translate SQL" means dialect translation (task), not column translation (query).** If the user says "translate my SQL files" or "convert from Teradata to BigQuery," that is a task (SQL dialect migration via the BigQuery Migration API). If the user says "translate the description column" or "translate these product names to French," that is a query (using AI.GENERATE within a SELECT).
 
 ## Disambiguation Guide
 

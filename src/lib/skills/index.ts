@@ -8,6 +8,7 @@ import type { SkillManifest } from '../types';
 
 import { manifest as schemaManifest } from './handle-schema';
 import { manifest as queryManifest } from './handle-query';
+import { manifest as conversationManifest } from './handle-conversation';
 import { manifest as dataManagementManifest } from './handle-data-management';
 import { manifest as dataQualityManifest } from './handle-data-quality';
 import { manifest as monitoringManifest } from './handle-monitoring';
@@ -21,6 +22,7 @@ import { manifest as savedManifest } from './handle-saved';
 export const SKILL_MANIFESTS: SkillManifest[] = [
   schemaManifest,
   queryManifest,
+  conversationManifest,
   dataManagementManifest,
   dataQualityManifest,
   monitoringManifest,

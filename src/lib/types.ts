@@ -6,6 +6,7 @@
 export type SkillName =
   | 'schema'
   | 'query'
+  | 'conversation'
   | 'data-management'
   | 'data-quality'
   | 'discovery'
@@ -120,7 +121,8 @@ export type ArtifactType =
   | 'FRESHNESS_VIEW'
   | 'PIPELINE_VIEW'
   | 'TASK_VIEW'
-  | 'GOVERNANCE_VIEW';
+  | 'GOVERNANCE_VIEW'
+  | 'CONVERSATION';
 
 export interface CompositionEnvelope {
   id: string; // unique per response, used as sourceResultRef

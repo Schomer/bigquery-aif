@@ -31,6 +31,11 @@ const MUTATING_VERBS = [
   // W3-05: annotation write-back
   'annotate', 'annotate column', 'describe column', 'set description', 'add description to',
   'add a description', 'update description', 'label column',
+  // Dataset / schema creation verbs
+  'make a dataset', 'make dataset', 'create a dataset', 'create dataset',
+  'new dataset', 'create a new', 'create a schema', 'create schema',
+  'drop dataset', 'drop schema', 'delete dataset', 'remove dataset',
+  'make a new dataset',
 ];
 
 // Pre-compiled word-boundary patterns for mutating verbs.
@@ -206,9 +211,9 @@ export function classifyIntent(
     .sort(([, a], [, b]) => b - a);
 
   if (sorted.length === 0) {
-    // No signals matched — default to query with medium confidence (LLM decides)
+    // No signals matched -- default to conversation with medium confidence (LLM decides)
     return {
-      skill: 'query',
+      skill: 'conversation',
       confidence: 'medium',
       isHandoff: false,
       ambiguousReadWrite: false,

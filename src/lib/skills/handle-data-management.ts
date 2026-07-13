@@ -19,11 +19,11 @@ export async function handleDataManagement(
   const project = context?.project || '';
 
   // Safety net: re-check the message against the keyword router.
-  // If the router does not independently confirm data-management intent,
-  // this was likely misrouted (e.g., "analyze sales over time" is analytical,
-  // not a mutation). Redirect to the query handler instead.
+  // Only redirect if the router positively disagrees at high confidence.
+  // Medium/low confidence disagreement should not redirect -- the LLM
+  // classifier already decided this is data-management intent.
   const routerCheck = classifyIntent(message);
-  if (routerCheck.skill !== 'data-management') {
+  if (routerCheck.skill !== 'data-management' && routerCheck.confidence === 'high') {
     const { handleQuery } = await import('./handle-query');
     return handleQuery(message, history, context, onStatus);
   }

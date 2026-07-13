@@ -451,6 +451,48 @@ export function ChatThread({
                     />
                   );
                 }
+                if (aType === 'CONVERSATION') {
+                  const convData = env.primaryArtifact.data as { text: string };
+                  return (
+                    <div key={env.id} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div style={{
+                        fontSize: 15,
+                        lineHeight: 1.7,
+                        color: 'var(--text)',
+                        fontFamily: "'Google Sans', sans-serif",
+                        whiteSpace: 'pre-line',
+                        maxWidth: 640,
+                      }}>
+                        {convData.text}
+                      </div>
+                      {env.nextActions && env.nextActions.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                          {env.nextActions.map((chip, ci) => (
+                            <button
+                              key={ci}
+                              onClick={() => onChipClick(chip)}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: 18,
+                                border: '1px solid var(--border)',
+                                background: 'var(--surface-2)',
+                                color: 'var(--text)',
+                                fontSize: 13,
+                                fontFamily: "'Google Sans', sans-serif",
+                                cursor: 'pointer',
+                                transition: 'background 0.15s ease',
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-3, #e8eaed)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface-2)'; }}
+                            >
+                              {chip.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
                 return (
                   <div key={env.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {env.briefing && (

@@ -7,10 +7,12 @@ description: How to do browser-based visual testing of the BigQuery AIF app. Use
 
 ## Overview
 
-There are two approaches to browser testing, each suited to different situations:
+There are two approaches to browser testing:
 
-1. **`browser_subagent` tool** -- for ad-hoc visual checks, quick screenshots, and interactive testing of the deployed app. Works on macOS.
-2. **Puppeteer script** (`scripts/visual-test.mjs`) -- for running the full automated test suite of 20 canonical prompts with screenshot capture.
+1. **Puppeteer scripts** -- primary path for all test passes and screenshots. No permission prompt. Uses system Chrome with a persistent auth profile.
+   - `scripts/screenshot.mjs` -- ad-hoc single-URL screenshot
+   - `scripts/visual-test.mjs` -- full 20-test automated suite
+2. **`browser_subagent` tool** -- secondary, for interactive/exploratory sessions when the user is present to click Allow on the permission prompt.
 
 ---
 

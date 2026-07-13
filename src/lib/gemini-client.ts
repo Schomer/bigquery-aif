@@ -407,7 +407,7 @@ export const SelfReviewResponseSchema = {
 export const DataManagementResponseSchema = {
   type: 'OBJECT',
   properties: {
-    operation: { type: 'STRING', enum: ['DEDUPE', 'DELETE', 'UPDATE', 'FILL_NULLS', 'CREATE_TABLE', 'ALTER_TABLE', 'CREATE_VIEW', 'RENAME', 'COPY_TABLE', 'MERGE', 'PARTITION_TABLE'] },
+    operation: { type: 'STRING', enum: ['DEDUPE', 'DELETE', 'UPDATE', 'FILL_NULLS', 'CREATE_TABLE', 'CREATE_SCHEMA', 'DROP_SCHEMA', 'DROP_TABLE', 'ALTER_TABLE', 'CREATE_VIEW', 'TRUNCATE', 'INSERT', 'RENAME', 'COPY_TABLE', 'MERGE', 'PARTITION_TABLE'] },
     executionStrategy: { type: 'STRING', enum: ['DIRECT_EXECUTE', 'PREVIEW_AND_CONFIRM', 'PREVIEW_AND_CONFIRM_DEDUPE'] },
     dataset: { type: 'STRING' },
     table: { type: 'STRING' },
@@ -506,4 +506,27 @@ export const EnrichedSchemaQuerySchema = {
     resultSummary: { type: 'STRING' },
   },
   required: ['sql', 'resultSummary']
+};
+
+export const ConversationResponseSchema = {
+  type: 'OBJECT',
+  properties: {
+    response: {
+      type: 'STRING',
+      description: 'Your conversational response to the user.',
+    },
+    suggestedActions: {
+      type: 'ARRAY',
+      description: 'Optional next-step chips. Only include when the conversation naturally leads to a concrete action.',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          label: { type: 'STRING', description: 'Short chip label phrased as a user action (e.g., "Show me my datasets")' },
+          skill: { type: 'STRING', description: 'Target skill if known (schema, query, data-management, data-quality, monitoring, discovery, data-loading, pipeline, governance)' },
+        },
+        required: ['label'],
+      },
+    },
+  },
+  required: ['response'],
 };
