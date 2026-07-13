@@ -351,6 +351,7 @@ UI Components (src/components/)
 | StorageBreakdownView.tsx | 15KB | Storage treemaps |
 | SettingsPage.tsx | 15KB | App settings UI |
 | DataLoadingView.tsx | 9KB | Export/schedule confirmations |
+| CsvUploadView.tsx | 8KB | CSV upload: file drop zone, preview table, upload confirm |
 | PipelineView.tsx | 10KB | Scheduled query list, details, run history, pipeline creation |
 | DiscoveryView.tsx | 9KB | Search results |
 | DataQualityView.tsx | 8KB | Quality check results |

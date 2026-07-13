@@ -2,6 +2,31 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-13: CSV Upload to BigQuery
+
+**Context**: Users asked to upload CSV files into BigQuery tables. The app had CSV *export* but no import/upload capability.
+
+**Changes**:
+- `src/lib/types.ts`: Added `CsvUploadPreview` interface, `UPLOAD_PREVIEW` and `UPLOAD_CSV` to `DataLoadingResult.operationType`, `CSV_UPLOAD_VIEW` to `ArtifactType`, upload-specific fields (`uploadPreview`, `targetTable`, `targetDataset`, `needsFile`).
+- `src/lib/bigquery-client.ts`: Added `loadCsvToTable()` function -- uses BigQuery Jobs API multipart upload (`POST /upload/.../jobs`) to load CSV data directly from the browser. Polls for job completion.
+- `src/lib/gemini-client.ts`: Added `UPLOAD_CSV` to `DataLoadingIntentSchema` enum.
+- `src/lib/skills/handle-data-loading.ts`: Added 3-phase UPLOAD_CSV flow (Phase 1: no file, request file; Phase 2: parse CSV preview; Phase 3: execute upload). Added CSV parsing helpers (`parseCsvLine`, `parseCsvPreview`, `sanitizeTableName`). Added routing signals: `import`, `load into`, `upload csv`, `upload a csv`, `import csv`.
+- `src/lib/composer.ts`: Added `UPLOAD_PREVIEW` and `UPLOAD_CSV` composition cases. Preview renders `CSV_UPLOAD_VIEW`, completed upload renders `COMPLETION_CARD` with schema/query handoff chips.
+- `src/components/CsvUploadView.tsx` [NEW]: Two-state view: `FileDropZone` (drag-drop + click-to-browse) and `PreviewCard` (data table, dataset/table fields, append/replace mode, upload button). Uses `CustomEvent` dispatch for file selection and upload confirmation.
+- `src/components/ArtifactCard.tsx`: Added `CSV_UPLOAD_VIEW` dispatch + `CsvUploadView` import.
+- `src/components/chat/ChatInput.tsx`: Added file attachment button (paperclip icon), file chip display, drag-drop handling, `onSendWithFile` prop, `csv-file-selected` event listener.
+- `src/hooks/useChatOrchestration.ts`: Added `sendMessageWithFile()` (forces `data-loading` skill with CSV data in `handoffContext`), `csv-upload-confirm` event listener for upload execution.
+- `src/app/page.tsx`: Wired `onSendWithFile` through all 3 ChatInput instances and ResultsSidebar.
+- `src/components/chat/ResultsSidebar.tsx`: Added `onSendWithFile` prop passthrough.
+
+**Architecture notes**:
+- Upload is entirely client-side using the BigQuery REST API multipart upload endpoint.
+- The `CsvUploadView` communicates with the orchestration hook via `CustomEvent` dispatch (not props) because the view is rendered deep in the ArtifactCard tree.
+- Routing signals for upload overlap with existing `csv` and `upload` signals (weight 2) but added higher-weight compound phrases.
+- The `forcedSkill` mechanism bypasses the router entirely when a file is attached.
+
+---
+
 ## 2026-07-13: AI-First Routing Architecture
 
 **Context**: Keyword-based routing to the data-management handler was fundamentally broken. Prompts like "lets make a new dataset" matched MUTATING_VERBS at high confidence, bypassed the LLM classifier, and went directly to a handler that blindly generated SQL -- causing hangs and hallucinated parameters. Patching keywords was a losing game.
