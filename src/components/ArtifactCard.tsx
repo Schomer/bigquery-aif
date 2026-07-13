@@ -16,6 +16,7 @@ import { DataQualityView } from './DataQualityView';
 import { MonitoringView } from './MonitoringView';
 import AlertView from './AlertView';
 import { DataLoadingView } from './DataLoadingView';
+import { CsvUploadView } from './CsvUploadView';
 import { MultistepView } from './MultistepView';
 import { LineageDagView } from './LineageDagView';
 import { ErDiagramView } from './ErDiagramView';
@@ -662,6 +663,8 @@ function Artifact({
       return <MonitoringView result={data as import('@/lib/types').MonitoringResult} onSendMessage={onSendMessage} />;
     case 'DATA_LOADING_VIEW':
       return <DataLoadingView result={data as import('@/lib/types').DataLoadingResult} />;
+    case 'CSV_UPLOAD_VIEW':
+      return <CsvUploadView result={data as import('@/lib/types').DataLoadingResult} onSendMessage={onSendMessage} />;
     case 'MULTISTEP_VIEW':
       return <MultistepView envelope={envelope} onSendMessage={onSendMessage} />;
     case 'LINEAGE_DAG_VIEW':

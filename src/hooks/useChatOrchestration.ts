@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useConversation } from '@/lib/conversation-context';
 import { useChatRunState } from '@/lib/chat-run-state-context';
@@ -71,6 +71,7 @@ export interface ChatOrchestrationReturn {
 
   // Actions
   sendMessage: (text?: string) => Promise<void>;
+  sendMessageWithFile: (text: string, file: { name: string; content: string; size: number }) => void;
   stopMessage: () => void;
   handleConfirm: (envelope: CompositionEnvelope) => Promise<void>;
   handleCancel: (envelope: CompositionEnvelope) => void;
@@ -557,6 +558,165 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     // loading/status will be cleared by the finally block in sendMessage
   }
 
+  /** Send a message with an attached CSV file. Forces the data-loading skill. */
+  function sendMessageWithFile(text: string, file: { name: string; content: string; size: number }) {
+    // Inject the file content into context so the orchestrator routes to data-loading
+    // with the CSV data available in handoffContext.
+    setContext((prev) => ({
+      ...prev,
+      lastSkill: 'data-loading' as SkillName,
+    }));
+
+    // Build a synthetic handoff context with the file data and force the data-loading skill
+    const forcedContext = {
+      ...deriveContextFromItems(),
+      project: activeProject || '',
+      uid: user?.uid,
+      forcedSkill: 'data-loading' as SkillName,
+      handoffContext: {
+        operationType: 'UPLOAD_CSV',
+        csvContent: file.content,
+        csvFileName: file.name,
+        csvFileSize: file.size,
+      },
+    };
+
+    // Use the raw orchestrator call with forced skill
+    setInput('');
+    setLoading(true);
+    setRunning(conversationId);
+    pendingStepsRef.current = [];
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const userMsg: ChatMessage = {
+      role: 'user',
+      content: text,
+      timestamp: new Date().toISOString(),
+    };
+    const updatedMsgs = [...messages, userMsg];
+    setMessages(updatedMsgs);
+
+    (async () => {
+      try {
+        const data = await withAuthRetry(() => ChatOrchestrator.processMessage({
+          message: text,
+          history: messages,
+          context: forcedContext,
+          onStatus: (s: string | StepInfo) => {
+            if (controller.signal.aborted) return;
+            setStatusText(typeof s === 'string' ? s : s.text);
+            pendingStepsRef.current.push(s);
+          },
+          signal: controller.signal,
+        }));
+
+        const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
+        const assistantMsg: ChatMessage = {
+          role: 'assistant',
+          content: '',
+          envelopes,
+          timestamp: new Date().toISOString(),
+        };
+        const finalMsgs = [...updatedMsgs, assistantMsg];
+        setMessages(finalMsgs);
+        const assistantIdx = finalMsgs.length - 1;
+        setThinkingSteps((prev) => ({ ...prev, [assistantIdx]: [...pendingStepsRef.current] }));
+        updateContextFromEnvelopes(envelopes);
+        persistConversation(finalMsgs);
+        setLastError(null);
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        setLastError({ message: errMsg, type: 'file_upload' });
+      } finally {
+        setLoading(false);
+        setRunning(null);
+        setStatusText(null);
+        abortRef.current = null;
+      }
+    })();
+  }
+
+  // Listen for csv-upload-confirm events from CsvUploadView
+  useEffect(() => {
+    function handleUploadConfirm(e: Event) {
+      const detail = (e as CustomEvent).detail;
+      if (!detail?.csvContent || !detail?.tableName || !detail?.dataset) return;
+
+      const confirmContext = {
+        ...deriveContextFromItems(),
+        project: activeProject || '',
+        uid: user?.uid,
+        forcedSkill: 'data-loading' as SkillName,
+        handoffContext: {
+          operationType: 'UPLOAD_CSV_EXECUTE',
+          csvContent: detail.csvContent,
+          tableName: detail.tableName,
+          dataset: detail.dataset,
+          writeDisposition: detail.writeDisposition || 'WRITE_APPEND',
+        },
+      };
+
+      setLoading(true);
+      setRunning(conversationId);
+      pendingStepsRef.current = [];
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      const userMsg: ChatMessage = {
+        role: 'user',
+        content: `Upload CSV to \`${detail.dataset}.${detail.tableName}\``,
+        timestamp: new Date().toISOString(),
+      };
+      const updatedMsgs = [...messages, userMsg];
+      setMessages(updatedMsgs);
+
+      (async () => {
+        try {
+          const data = await withAuthRetry(() => ChatOrchestrator.processMessage({
+            message: `Upload CSV to ${detail.dataset}.${detail.tableName}`,
+            history: messages,
+            context: confirmContext,
+            onStatus: (s: string | StepInfo) => {
+              if (controller.signal.aborted) return;
+              setStatusText(typeof s === 'string' ? s : s.text);
+              pendingStepsRef.current.push(s);
+            },
+            signal: controller.signal,
+          }));
+
+          const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
+          const assistantMsg: ChatMessage = {
+            role: 'assistant',
+            content: '',
+            envelopes,
+            timestamp: new Date().toISOString(),
+          };
+          const finalMsgs = [...updatedMsgs, assistantMsg];
+          setMessages(finalMsgs);
+          const assistantIdx = finalMsgs.length - 1;
+          setThinkingSteps((prev) => ({ ...prev, [assistantIdx]: [...pendingStepsRef.current] }));
+          updateContextFromEnvelopes(envelopes);
+          persistConversation(finalMsgs);
+          setLastError(null);
+        } catch (err: unknown) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          setLastError({ message: errMsg, type: 'file_upload' });
+        } finally {
+          setLoading(false);
+          setRunning(null);
+          setStatusText(null);
+          abortRef.current = null;
+        }
+      })();
+    }
+
+    document.addEventListener('csv-upload-confirm', handleUploadConfirm);
+    return () => document.removeEventListener('csv-upload-confirm', handleUploadConfirm);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, activeProject, user, conversationId]);
+
   async function handleConfirm(envelope: CompositionEnvelope) {
     setLoading(true);
     try {
@@ -984,6 +1144,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     rerunningIdx,
 
     sendMessage,
+    sendMessageWithFile,
     stopMessage,
     handleConfirm,
     handleCancel,

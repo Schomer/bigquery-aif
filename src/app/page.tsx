@@ -380,6 +380,7 @@ export default function Home() {
                   activeProject={activeProject}
                   contextItems={chat.contextItems}
                   onSend={(text?: string) => { setChatListOpen(false); return chat.sendMessage(text); }}
+                  onSendWithFile={(text, file) => { setChatListOpen(false); chat.sendMessageWithFile(text, file); }}
                   onRemoveContext={chat.removeContextItem}
                   onKeyDown={chat.handleKeyDown}
                   onStop={chat.stopMessage}
@@ -447,6 +448,7 @@ export default function Home() {
               activeProject={activeProject}
               contextItems={chat.contextItems}
               onSend={chat.sendMessage}
+              onSendWithFile={chat.sendMessageWithFile}
               onRemoveContext={chat.removeContextItem}
               onKeyDown={chat.handleKeyDown}
               onStop={chat.stopMessage}
@@ -497,6 +499,7 @@ export default function Home() {
               setInput={chat.setInput}
               contextItems={chat.contextItems}
               onSend={(text?: string) => { setChatListOpen(false); return chat.sendMessage(text); }}
+              onSendWithFile={(text, file) => { setChatListOpen(false); chat.sendMessageWithFile(text, file); }}
               onRemoveContext={chat.removeContextItem}
               onKeyDown={chat.handleKeyDown}
               onStop={chat.stopMessage}

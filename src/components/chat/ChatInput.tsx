@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import type { ContextItem } from '@/lib/types';
 
 // ---- ChatInput Props --------------------------------------------------------
@@ -12,6 +12,7 @@ export interface ChatInputProps {
   activeProject: string;
   contextItems: ContextItem[];
   onSend: (text?: string) => Promise<void>;
+  onSendWithFile?: (text: string, file: { name: string; content: string; size: number }) => void;
   onRemoveContext: (id: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   /** Called when the user clicks the Stop button during a loading request. */
@@ -33,6 +34,7 @@ export function ChatInput({
   activeProject,
   contextItems,
   onSend,
+  onSendWithFile,
   onRemoveContext,
   onKeyDown,
   onStop,
@@ -41,6 +43,8 @@ export function ChatInput({
   variant = 'hero',
 }: ChatInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachedFile, setAttachedFile] = useState<{ name: string; content: string; size: number } | null>(null);
 
   const autoResize = (el: HTMLTextAreaElement) => {
     el.style.height = 'auto';
@@ -54,8 +58,41 @@ export function ChatInput({
     }
   }, [input]);
 
+  // Listen for csv-file-selected events from CsvUploadView's drop zone
+  useEffect(() => {
+    function handleCsvFile(e: Event) {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.name && detail?.content) {
+        setAttachedFile({ name: detail.name, content: detail.content, size: detail.size || detail.content.length });
+      }
+    }
+    document.addEventListener('csv-file-selected', handleCsvFile);
+    return () => document.removeEventListener('csv-file-selected', handleCsvFile);
+  }, []);
+
+  const handleFileSelect = useCallback((file: File) => {
+    if (!file.name.toLowerCase().endsWith('.csv')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAttachedFile({ name: file.name, content: reader.result as string, size: file.size });
+    };
+    reader.readAsText(file);
+  }, []);
+
+  const handleSendWithAttachment = useCallback(() => {
+    if (attachedFile && onSendWithFile) {
+      const text = input.trim() || `Upload ${attachedFile.name}`;
+      onSendWithFile(text, attachedFile);
+      setAttachedFile(null);
+      setInput('');
+    } else {
+      onSend();
+    }
+  }, [attachedFile, onSendWithFile, input, onSend, setInput]);
+
   const hasContext = contextItems.length > 0;
   const hasQueue = loading && !!queuedPrompt;
+  const hasFile = !!attachedFile;
 
   const placeholder = activeProject
     ? (loading
@@ -63,7 +100,7 @@ export function ChatInput({
         : (variant === 'floating' ? 'Ask a follow-up...' : 'Ask about your data...'))
     : 'Select a project first...';
 
-  const contextChipsRow = hasContext ? (
+  const contextChipsRow = (hasContext || hasFile) ? (
     <div className="context-chips-row">
       {contextItems.map((item) => (
         <span key={item.id} className="context-chip">
@@ -78,6 +115,22 @@ export function ChatInput({
           </button>
         </span>
       ))}
+      {attachedFile && (
+        <span className="context-chip" style={{ background: 'rgba(34, 197, 94, 0.08)', borderColor: 'rgba(34, 197, 94, 0.25)' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 13 }}>description</span>
+          {attachedFile.name}
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 2 }}>
+            ({attachedFile.size < 1024 * 1024 ? `${(attachedFile.size / 1024).toFixed(0)} KB` : `${(attachedFile.size / (1024 * 1024)).toFixed(1)} MB`})
+          </span>
+          <button
+            className="context-chip-dismiss"
+            onClick={() => setAttachedFile(null)}
+            aria-label={`Remove ${attachedFile.name}`}
+          >
+            x
+          </button>
+        </span>
+      )}
     </div>
   ) : null;
 
@@ -136,36 +189,87 @@ export function ChatInput({
   ) : (
     <button
       id="chat-send-button"
-      onClick={() => onSend()}
-      disabled={!input.trim() || !activeProject}
-      title={loading ? 'Queue prompt' : 'Send'}
+      onClick={handleSendWithAttachment}
+      disabled={!input.trim() && !attachedFile || !activeProject}
+      title={loading ? 'Queue prompt' : (attachedFile ? 'Upload file' : 'Send')}
       style={{
         width: 34,
         height: 34,
         flexShrink: 0,
         borderRadius: '50%',
-        background: input.trim() ? '#bfdbfe' : 'var(--surface)',
-        border: `1px solid ${input.trim() ? '#93c5fd' : 'var(--border)'}`,
+        background: (input.trim() || attachedFile) ? '#bfdbfe' : 'var(--surface)',
+        border: `1px solid ${(input.trim() || attachedFile) ? '#93c5fd' : 'var(--border)'}`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        cursor: input.trim() ? 'pointer' : 'default',
+        cursor: (input.trim() || attachedFile) ? 'pointer' : 'default',
         transition: 'all 0.15s',
         padding: 0,
       }}
     >
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M8 13V3M8 3L3.5 7.5M8 3L12.5 7.5" stroke={input.trim() ? '#1d4ed8' : 'var(--text-muted)'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M8 13V3M8 3L3.5 7.5M8 3L12.5 7.5" stroke={(input.trim() || attachedFile) ? '#1d4ed8' : 'var(--text-muted)'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     </button>
   );
+
+  // Attach file button
+  const attachButton = !loading ? (
+    <>
+      <button
+        onClick={() => fileInputRef.current?.click()}
+        title="Attach CSV file"
+        disabled={!activeProject}
+        style={{
+          width: 30,
+          height: 30,
+          flexShrink: 0,
+          borderRadius: '50%',
+          background: 'transparent',
+          border: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: activeProject ? 'pointer' : 'default',
+          padding: 0,
+          opacity: activeProject ? 0.6 : 0.3,
+          transition: 'opacity 0.15s',
+        }}
+        onMouseEnter={(e) => { if (activeProject) (e.currentTarget as HTMLElement).style.opacity = '1'; }}
+        onMouseLeave={(e) => { if (activeProject) (e.currentTarget as HTMLElement).style.opacity = '0.6'; }}
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--text-muted)' }}>attach_file</span>
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFileSelect(file);
+          e.target.value = '';
+        }}
+        style={{ display: 'none' }}
+      />
+    </>
+  ) : null;
+
+  const handleKeyDownWrapper = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // If file is attached and user hits Enter, trigger upload
+    if (e.key === 'Enter' && !e.shiftKey && attachedFile && onSendWithFile) {
+      e.preventDefault();
+      handleSendWithAttachment();
+      return;
+    }
+    onKeyDown(e);
+  };
 
   const textarea = (
     <textarea
       ref={inputRef}
       value={input}
       onChange={(e) => { setInput(e.target.value); autoResize(e.target); }}
-      onKeyDown={onKeyDown}
+      onKeyDown={handleKeyDownWrapper}
       placeholder={placeholder}
       disabled={!activeProject}
       rows={1}
@@ -191,16 +295,17 @@ export function ChatInput({
     return (
       <div className="mystic-prompt-container" style={{
         width: '100%',
-        borderRadius: hasContext || hasQueue ? 20 : 999,
-        padding: hasContext || hasQueue ? '8px 10px 10px 14px' : '10px 10px 10px 20px',
+        borderRadius: (hasContext || hasQueue || hasFile) ? 20 : 999,
+        padding: (hasContext || hasQueue || hasFile) ? '8px 10px 10px 14px' : '10px 10px 10px 20px',
         display: 'flex',
         flexDirection: 'column',
-        gap: hasContext || hasQueue ? 6 : 0,
+        gap: (hasContext || hasQueue || hasFile) ? 6 : 0,
         ...(activeProject ? { background: '#fff', backgroundImage: 'none' } : {}),
       }}>
         {queueBanner}
         {contextChipsRow}
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6 }}>
+          {attachButton}
           {textarea}
           {actionButton}
         </div>
@@ -218,18 +323,19 @@ export function ChatInput({
         transform: 'translateX(-50%)',
         marginLeft: 110,
         width: 'min(680px, calc(100vw - 268px))',
-        borderRadius: hasContext || hasQueue ? 20 : 999,
-        padding: hasContext || hasQueue ? '8px 10px 10px 14px' : '10px 10px 10px 20px',
+        borderRadius: (hasContext || hasQueue || hasFile) ? 20 : 999,
+        padding: (hasContext || hasQueue || hasFile) ? '8px 10px 10px 14px' : '10px 10px 10px 20px',
         display: 'flex',
         flexDirection: 'column',
-        gap: hasContext || hasQueue ? 6 : 0,
+        gap: (hasContext || hasQueue || hasFile) ? 6 : 0,
         backdropFilter: 'blur(12px)',
         zIndex: 50,
         ...(activeProject ? { background: '#fff', backgroundImage: 'none' } : {}),
       }}>
         {queueBanner}
         {contextChipsRow}
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6 }}>
+          {attachButton}
           {textarea}
           {actionButton}
         </div>
@@ -241,16 +347,17 @@ export function ChatInput({
   return (
     <div className="chat-sidebar-input">
       <div className="chat-sidebar-input-inner mystic-prompt-container" style={{
-        borderRadius: hasContext || hasQueue ? 16 : undefined,
-        padding: hasContext || hasQueue ? '8px 10px 10px 14px' : undefined,
-        display: hasContext || hasQueue ? 'flex' : undefined,
-        flexDirection: hasContext || hasQueue ? 'column' as const : undefined,
-        gap: hasContext || hasQueue ? 6 : undefined,
+        borderRadius: (hasContext || hasQueue || hasFile) ? 16 : undefined,
+        padding: (hasContext || hasQueue || hasFile) ? '8px 10px 10px 14px' : undefined,
+        display: (hasContext || hasQueue || hasFile) ? 'flex' : undefined,
+        flexDirection: (hasContext || hasQueue || hasFile) ? 'column' as const : undefined,
+        gap: (hasContext || hasQueue || hasFile) ? 6 : undefined,
         ...(activeProject ? { background: '#fff', backgroundImage: 'none' } : {}),
       }}>
         {queueBanner}
         {contextChipsRow}
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, width: '100%' }}>
+          {attachButton}
           {textarea}
           {actionButton}
         </div>

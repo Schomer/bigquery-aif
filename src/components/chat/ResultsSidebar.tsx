@@ -96,6 +96,7 @@ export interface ResultsSidebarProps {
   setInput: (value: string) => void;
   contextItems: ContextItem[];
   onSend: (text?: string) => Promise<void>;
+  onSendWithFile?: (text: string, file: { name: string; content: string; size: number }) => void;
   onRemoveContext: (id: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   onStop?: () => void;
@@ -139,6 +140,7 @@ export function ResultsSidebar({
   setInput,
   contextItems,
   onSend,
+  onSendWithFile,
   onRemoveContext,
   onKeyDown,
   onStop,
@@ -610,6 +612,7 @@ export function ResultsSidebar({
           activeProject={activeProject}
           contextItems={contextItems}
           onSend={onSend}
+          onSendWithFile={onSendWithFile}
           onRemoveContext={onRemoveContext}
           onKeyDown={onKeyDown}
           onStop={onStop}

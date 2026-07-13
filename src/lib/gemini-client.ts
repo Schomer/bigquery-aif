@@ -457,7 +457,7 @@ export const MonitoringIntentSchema = {
 export const DataLoadingIntentSchema = {
   type: 'OBJECT',
   properties: {
-    operationType: { type: 'STRING', enum: ['EXPORT_CSV', 'EXPORT_SHEETS', 'SCHEDULE', 'SAVED_QUERY', 'SHARE'] },
+    operationType: { type: 'STRING', enum: ['EXPORT_CSV', 'EXPORT_SHEETS', 'SCHEDULE', 'SAVED_QUERY', 'SHARE', 'UPLOAD_CSV'] },
     tableName: { type: 'STRING' },
     dataset: { type: 'STRING' },
     sql: { type: 'STRING' },

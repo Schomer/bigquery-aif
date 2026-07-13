@@ -3,10 +3,10 @@
 // Extracted from chat-orchestrator.ts.
 
 import { callGemini, DataLoadingIntentSchema } from '../gemini-client';
-import { executeQuery, exportToSheets, createScheduledQuery } from '../bigquery-client';
+import { executeQuery, exportToSheets, createScheduledQuery, loadCsvToTable } from '../bigquery-client';
 import { compose } from '../composer';
 import { saveQuery as firestoreSaveQuery } from '../firestore-service';
-import type { ChatMessage, CompositionEnvelope, DataLoadingResult, SkillManifest, StatusCallback } from '../types';
+import type { ChatMessage, CompositionEnvelope, DataLoadingResult, CsvUploadPreview, SkillManifest, StatusCallback } from '../types';
 
 export async function handleDataLoading(
   message: string,
@@ -33,9 +33,9 @@ export async function handleDataLoading(
     };
     onStatus?.(`Running ${intent.operationType} (from handoff)...`);
   } else {
-    onStatus?.(`Analyzing export request (project: ${project}, dataset: ${dataset || 'none'})...`);
+    onStatus?.(`Analyzing data loading request (project: ${project}, dataset: ${dataset || 'none'})...`);
     intent = await callGemini({
-      systemInstruction: `Classify a BigQuery data loading request. EXPORT_CSV = download as CSV. EXPORT_SHEETS = send to Google Sheets. SCHEDULE = schedule a recurring query. SAVED_QUERY = save a query for later reuse. SHARE = share or copy query results. Extract the table name, dataset name, or full SQL. For SCHEDULE, extract a schedule frequency into 'schedule' and display name into 'displayName'. Project: ${project}, dataset: ${dataset}`,
+      systemInstruction: `Classify a BigQuery data loading request. EXPORT_CSV = download as CSV. EXPORT_SHEETS = send to Google Sheets. SCHEDULE = schedule a recurring query. SAVED_QUERY = save a query for later reuse. SHARE = share or copy query results. UPLOAD_CSV = upload / import / load a CSV file into BigQuery. Extract the table name, dataset name, or full SQL. For SCHEDULE, extract a schedule frequency into 'schedule' and display name into 'displayName'. Project: ${project}, dataset: ${dataset}`,
       prompt: message,
       schema: DataLoadingIntentSchema,
       project,
@@ -198,6 +198,87 @@ export async function handleDataLoading(
     return [compose('data-loading', result)];
   }
 
+  // UPLOAD_CSV — import a CSV file into BigQuery
+  if (intent.operationType === 'UPLOAD_CSV' || hc?.operationType === 'UPLOAD_CSV_EXECUTE') {
+    const targetDataset = intent.dataset || dataset;
+    const targetTable = intent.tableName || (hc?.tableName as string) || '';
+
+    // Phase 3: Execute the upload (confirmation callback from UI)
+    if (hc?.operationType === 'UPLOAD_CSV_EXECUTE' && hc.csvContent) {
+      const csvData = hc.csvContent as string;
+      const tbl = (hc.tableName as string) || targetTable;
+      const ds = (hc.dataset as string) || targetDataset;
+      const disposition = (hc.writeDisposition as string) || 'WRITE_APPEND';
+
+      if (!ds || !tbl) {
+        const result: DataLoadingResult = {
+          skill: 'data-loading',
+          operationType: 'NOT_SUPPORTED',
+          message: 'Please specify a dataset and table name for the upload.',
+        };
+        return [compose('data-loading', result)];
+      }
+
+      try {
+        onStatus?.(`Uploading CSV to \`${project}.${ds}.${tbl}\`...`);
+        const loadResult = await loadCsvToTable(
+          project, ds, tbl, csvData,
+          disposition as 'WRITE_APPEND' | 'WRITE_TRUNCATE' | 'WRITE_EMPTY',
+        );
+        const result: DataLoadingResult = {
+          skill: 'data-loading',
+          operationType: 'UPLOAD_CSV',
+          message: `Uploaded ${loadResult.rowCount.toLocaleString()} rows to \`${loadResult.tableRef}\`.`,
+          rowCount: loadResult.rowCount,
+          targetTable: tbl,
+          targetDataset: ds,
+        };
+        return [compose('data-loading', result)];
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        const result: DataLoadingResult = {
+          skill: 'data-loading',
+          operationType: 'NOT_SUPPORTED',
+          message: `Upload failed: ${errMsg}`,
+        };
+        return [compose('data-loading', result)];
+      }
+    }
+
+    // Phase 2: CSV content provided via handoff — parse and show preview
+    if (hc?.csvContent) {
+      const csvData = hc.csvContent as string;
+      const fileName = (hc.csvFileName as string) || 'upload.csv';
+      const fileSize = (hc.csvFileSize as number) || csvData.length;
+      const preview = parseCsvPreview(csvData, fileName, fileSize);
+      const inferredTable = targetTable || sanitizeTableName(fileName);
+
+      const result: DataLoadingResult = {
+        skill: 'data-loading',
+        operationType: 'UPLOAD_PREVIEW',
+        message: `Preview of ${preview.fileName}: ${preview.totalRows.toLocaleString()} rows, ${preview.columns.length} columns. Ready to upload to \`${project}.${targetDataset || '(select dataset)'}.${inferredTable}\`.`,
+        uploadPreview: preview,
+        targetTable: inferredTable,
+        targetDataset: targetDataset || '',
+        csvContent: csvData,
+      };
+      return [compose('data-loading', result)];
+    }
+
+    // Phase 1: No file yet — ask the UI to prompt for one
+    const result: DataLoadingResult = {
+      skill: 'data-loading',
+      operationType: 'UPLOAD_PREVIEW',
+      message: targetDataset
+        ? `Ready to upload a CSV file into the \`${targetDataset}\` dataset. Attach a CSV file to continue.`
+        : 'Ready to upload a CSV file. Attach a CSV file to continue.',
+      needsFile: true,
+      targetTable: targetTable || '',
+      targetDataset: targetDataset || '',
+    };
+    return [compose('data-loading', result)];
+  }
+
   // EXPORT_CSV — run the query and convert to CSV
   const resolvedDataset = dataset || '';
   const sql = intent.sql ?? (intent.tableName
@@ -263,6 +344,73 @@ export const manifest: SkillManifest = {
     { phrase: 'upload', weight: 2 },
     { phrase: 'csv', weight: 2 },
     { phrase: 'json export', weight: 3 },
+    { phrase: 'import', weight: 2 },
+    { phrase: 'load into', weight: 3 },
+    { phrase: 'upload csv', weight: 3 },
+    { phrase: 'upload a csv', weight: 3 },
+    { phrase: 'import csv', weight: 3 },
   ],
   handle: handleDataLoading,
 };
+
+// ─── CSV parsing helpers ──────────────────────────────────────────────────────
+
+/** Parse a CSV line handling quoted fields. */
+function parseCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        current += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ',') {
+        fields.push(current);
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+  }
+  fields.push(current);
+  return fields;
+}
+
+/** Parse CSV content into a preview structure (columns + first N sample rows). */
+function parseCsvPreview(csvContent: string, fileName: string, fileSize: number): CsvUploadPreview {
+  const lines = csvContent.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 1) {
+    return { columns: [], sampleRows: [], totalRows: 0, fileName, fileSize };
+  }
+  const columns = parseCsvLine(lines[0]);
+  const dataLines = lines.slice(1);
+  const sampleRows = dataLines.slice(0, 10).map(parseCsvLine);
+  return {
+    columns,
+    sampleRows,
+    totalRows: dataLines.length,
+    fileName,
+    fileSize,
+  };
+}
+
+/** Convert a filename like 'my-data (2).csv' into a valid BQ table ID like 'my_data_2'. */
+function sanitizeTableName(fileName: string): string {
+  return fileName
+    .replace(/\.csv$/i, '')
+    .replace(/[^a-zA-Z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
+    .toLowerCase()
+    || 'uploaded_table';
+}

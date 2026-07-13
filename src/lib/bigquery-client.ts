@@ -540,3 +540,102 @@ export async function createExtractJob(
     destinationUri,
   };
 }
+
+// ─── CSV Upload (Load Job) ────────────────────────────────────────────────────
+
+export interface LoadCsvResult {
+  jobId: string;
+  rowCount: number;
+  tableRef: string;
+}
+
+/**
+ * Upload CSV content to a BigQuery table via the Jobs API multipart upload.
+ * Creates the table if it doesn't exist (autodetect schema).
+ * Runs entirely client-side using the user's OAuth token.
+ */
+export async function loadCsvToTable(
+  project: string,
+  datasetId: string,
+  tableId: string,
+  csvContent: string,
+  writeDisposition: 'WRITE_APPEND' | 'WRITE_TRUNCATE' | 'WRITE_EMPTY' = 'WRITE_APPEND',
+): Promise<LoadCsvResult> {
+  const token = getAccessToken();
+  if (!token) throw new Error('Not authenticated. Please sign in again.');
+
+  const boundary = '=====bigqueryaif_upload_boundary=====';
+
+  const jobConfig = {
+    configuration: {
+      load: {
+        destinationTable: {
+          projectId: project,
+          datasetId,
+          tableId,
+        },
+        sourceFormat: 'CSV',
+        autodetect: true,
+        skipLeadingRows: 1,
+        writeDisposition,
+        allowQuotedNewlines: true,
+        allowJaggedRows: true,
+      },
+    },
+  };
+
+  // Build multipart/related body per BigQuery upload API spec
+  const body = [
+    `--${boundary}`,
+    'Content-Type: application/json; charset=UTF-8',
+    '',
+    JSON.stringify(jobConfig),
+    `--${boundary}`,
+    'Content-Type: application/octet-stream',
+    '',
+    csvContent,
+    `--${boundary}--`,
+  ].join('\r\n');
+
+  const uploadUrl = `https://bigquery.googleapis.com/upload/bigquery/v2/projects/${encodeURIComponent(project)}/jobs?uploadType=multipart`;
+
+  const res = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': `multipart/related; boundary=${boundary}`,
+    },
+    body,
+  });
+
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    const msg = data?.error?.message || data?.error || `HTTP ${res.status}`;
+    checkAuthError(res.status, data);
+    throw new Error(String(msg));
+  }
+
+  // Poll for completion (same pattern as executeDml)
+  let job = data;
+  const jobId = job.jobReference?.jobId ?? '';
+  while (job.status?.state !== 'DONE') {
+    await new Promise((r) => setTimeout(r, 1500));
+    job = await bqFetch(
+      `${BQ_BASE}/${encodeURIComponent(project)}/jobs/${encodeURIComponent(jobId)}`
+    );
+  }
+  if (job.status?.errors?.length) {
+    throw new Error(job.status.errors[0].message);
+  }
+
+  const outputRows = parseInt(
+    job.statistics?.load?.outputRows ?? job.statistics?.query?.numDmlAffectedRows ?? '0',
+    10,
+  );
+
+  return {
+    jobId,
+    rowCount: outputRows,
+    tableRef: `${project}.${datasetId}.${tableId}`,
+  };
+}

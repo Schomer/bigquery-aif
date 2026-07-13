@@ -1526,7 +1526,7 @@ function composeDataLoading(result: DataLoadingResult): CompositionEnvelope {
   const id = randomUUID();
   let headlineText = result.message;
   // Successful operations get POSITIVE, informational responses get NEUTRAL
-  const isSuccess = ['EXPORT_CSV', 'EXPORT_SHEETS', 'SCHEDULE_CREATED', 'QUERY_SAVED', 'SHARE_CLIPBOARD'].includes(result.operationType);
+  const isSuccess = ['EXPORT_CSV', 'EXPORT_SHEETS', 'SCHEDULE_CREATED', 'QUERY_SAVED', 'SHARE_CLIPBOARD', 'UPLOAD_CSV'].includes(result.operationType);
   const tone: Tone = isSuccess ? 'POSITIVE' : 'NEUTRAL';
 
   if (result.operationType === 'EXPORT_CSV' && result.rowCount !== undefined) {
@@ -1541,6 +1541,54 @@ function composeDataLoading(result: DataLoadingResult): CompositionEnvelope {
     headlineText = `Results ready to share (${result.rowCount?.toLocaleString() ?? ''} rows)`;
   } else if (result.operationType === 'SCHEDULE_INFO') {
     headlineText = 'Scheduling information';
+  } else if (result.operationType === 'UPLOAD_PREVIEW') {
+    if (result.needsFile) {
+      headlineText = 'Attach a CSV file to upload';
+    } else if (result.uploadPreview) {
+      headlineText = `${result.uploadPreview.totalRows.toLocaleString()} rows ready to upload`;
+    }
+  } else if (result.operationType === 'UPLOAD_CSV') {
+    headlineText = `Uploaded ${result.rowCount?.toLocaleString() ?? ''} rows to \`${result.targetDataset}.${result.targetTable}\``;
+  }
+
+  // Upload preview uses the CSV_UPLOAD_VIEW artifact type
+  if (result.operationType === 'UPLOAD_PREVIEW') {
+    return {
+      id,
+      skill: 'data-loading',
+      headline: { text: headlineText, tone: result.needsFile ? 'NEUTRAL' : 'NEUTRAL', basis: 'STATUS' },
+      primaryArtifact: { type: 'CSV_UPLOAD_VIEW', data: result },
+      provenance: { visibility: 'COLLAPSED' },
+      nextActions: [],
+      skipSelfReview: true,
+    };
+  }
+
+  // Successful upload completion
+  if (result.operationType === 'UPLOAD_CSV') {
+    return {
+      id,
+      skill: 'data-loading',
+      headline: { text: headlineText, tone: 'POSITIVE', basis: 'STATUS' },
+      primaryArtifact: { type: 'COMPLETION_CARD', data: { message: result.message } },
+      provenance: { visibility: 'COLLAPSED' },
+      nextActions: [
+        {
+          targetSkill: 'schema',
+          label: `Describe ${result.targetTable}`,
+          context: { table: result.targetTable, dataset: result.targetDataset },
+          sourceSkill: 'data-loading',
+          sourceResultRef: id,
+        },
+        {
+          targetSkill: 'query',
+          label: `Query ${result.targetTable}`,
+          context: {},
+          sourceSkill: 'data-loading',
+          sourceResultRef: id,
+        },
+      ],
+    };
   }
 
   return {

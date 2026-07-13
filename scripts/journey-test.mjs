@@ -38,61 +38,147 @@ mkdirSync(SCREENSHOT_DIR, { recursive: true });
 // ---- Test Catalog (38 tests across 9 batches) --------------------------------
 
 const TESTS = [
-  // Batch 1: Foundation / Schema
-  { id: 'F1', batch: 1, tier: 'Foundation', prompt: 'What datasets do I have?', expect: 'Dataset list with metadata in schema view' },
-  { id: 'F2', batch: 1, tier: 'Foundation', prompt: 'What tables are in the ecomm dataset?', expect: 'Table list for ecomm dataset' },
-  { id: 'F3', batch: 1, tier: 'Foundation', prompt: 'Tell me about the orders table in ecomm', expect: 'Schema view with columns, types, descriptions' },
-  { id: 'F4', batch: 1, tier: 'Foundation', prompt: 'Show me sample data from the users table in ecomm', expect: 'Data table with sample rows' },
-  { id: 'F5', batch: 1, tier: 'Foundation', prompt: 'How many orders are there in ecomm?', expect: 'KPI card with row count' },
+  // ---- Batch 1: Schema Exploration (Catalog 2.1A) ----
+  { id: 'J2.1A-1', batch: 1, tier: 'Schema Exploration',
+    prompt: "What's in the ecomm dataset? Show me what tables there are.",
+    expect: 'Schema view: table list with row counts, sizes, last modified dates. handle-schema DATASET scope.',
+    catalog: '2.1A: First Exploration of a New Dataset' },
+  { id: 'J2.1A-2', batch: 1, tier: 'Schema Exploration',
+    prompt: 'Describe the order_items table in ecomm and show me a sample',
+    expect: 'Schema card with columns/types + sample data table (LIMIT 10). handle-schema TABLE scope.',
+    catalog: '2.1A follow-up' },
 
-  // Batch 2: Analytical Queries
-  { id: 'Q1', batch: 2, tier: 'Query', prompt: 'What are the top 10 products by revenue in ecomm?', expect: 'Bar chart or table with top products by revenue' },
-  { id: 'Q2', batch: 2, tier: 'Query', prompt: 'Show me monthly revenue from order_items in ecomm', expect: 'Line chart with monthly revenue' },
-  { id: 'Q3', batch: 2, tier: 'Query', prompt: 'How many orders by status in ecomm?', expect: 'Bar or pie chart showing order distribution by status' },
-  { id: 'Q4', batch: 2, tier: 'Query', prompt: "What's the average order value in ecomm?", expect: 'KPI card with formatted currency value' },
-  { id: 'Q5', batch: 2, tier: 'Query', prompt: 'Show me the busiest days for orders in ecomm', expect: 'Chart showing order volume by day' },
-  { id: 'Q6', batch: 2, tier: 'Query', prompt: 'Which states have the most users in ecomm?', expect: 'Bar chart or map of user distribution by state' },
+  // ---- Batch 2: Ad-Hoc Queries (Catalog 2.1B, 2.1C, 4.1B, 4.1C) ----
+  { id: 'J2.1B', batch: 2, tier: 'Time Series Query',
+    prompt: 'Show me monthly revenue for the last 12 months from the order_items table in ecomm',
+    expect: 'Line chart with monthly revenue trend. handle-query with DATE_TRUNC aggregation.',
+    catalog: '2.1B: Time Series Trend Analysis' },
+  { id: 'J4.1B', batch: 2, tier: 'Top-N Query',
+    prompt: 'What are the top 10 product categories by revenue this quarter in ecomm?',
+    expect: 'Bar chart: top 10 categories with revenue. handle-query GROUP BY ORDER BY LIMIT.',
+    catalog: '4.1B: Top-N and Distribution Analysis' },
+  { id: 'J4.1C', batch: 2, tier: 'Geo Query',
+    prompt: 'Show me total sales by US state for the last 3 months in ecomm',
+    expect: 'Data table: State | Total Sales | Order Count. handle-query GROUP BY state.',
+    catalog: '4.1C: Geospatial Analysis' },
+  { id: 'J2.1D', batch: 2, tier: 'Query Optimization',
+    prompt: "My orders query is scanning too much data. Can you help me optimize it?",
+    expect: 'Analysis card with optimization suggestions. handle-monitoring or handle-query.',
+    catalog: '2.1D: Debugging a Slow or Expensive Query' },
 
-  // Batch 3: Data Quality
-  { id: 'DQ1', batch: 3, tier: 'Data Quality', prompt: 'Profile the order_items table in ecomm', expect: 'Data quality profile view with per-column stats' },
-  { id: 'DQ2', batch: 3, tier: 'Data Quality', prompt: 'Check for null values in the users table in ecomm', expect: 'Null check report with percentages' },
-  { id: 'DQ3', batch: 3, tier: 'Data Quality', prompt: 'Are there duplicates in the order_items table in ecomm?', expect: 'Duplicate check report' },
-  { id: 'DQ4', batch: 3, tier: 'Data Quality', prompt: 'Check the freshness of the orders table in ecomm', expect: 'Freshness report with last-modified time' },
-  { id: 'DQ5', batch: 3, tier: 'Data Quality', prompt: 'Detect schema drift in the ecomm orders table', expect: 'Schema drift analysis' },
+  // ---- Batch 3: Data Quality (Catalog 3.1A, 3.1B, 3.2A, 3.3A, 3.4A) ----
+  { id: 'J3.1A', batch: 3, tier: 'Data Profiling',
+    prompt: 'Profile the order_items table in ecomm -- I want to see null rates, distinct counts, and value ranges',
+    expect: 'DataQualityView: per-column profiling table with Null%, Distinct Count, Min, Max. handle-data-quality PROFILE.',
+    catalog: '3.1A: First-Look Profile of New Dataset' },
+  { id: 'J3.2A', batch: 3, tier: 'Duplicate Detection',
+    prompt: 'Are there duplicate order_item_ids in the order_items table in ecomm?',
+    expect: 'Duplicate check report with group counts. handle-data-quality DUPLICATES.',
+    catalog: '3.2A: Find Duplicates Before Reporting' },
+  { id: 'J3.3A', batch: 3, tier: 'Freshness Check',
+    prompt: 'When was the order_items table last updated? Is today\'s data there?',
+    expect: 'FreshnessView: last_modified_time + latest date in table. handle-monitoring FRESHNESS.',
+    catalog: '3.3A: Check If a Table Is Up To Date' },
+  { id: 'J3.4A', batch: 3, tier: 'Schema Drift',
+    prompt: 'Did the schema of the order_items table in ecomm change recently?',
+    expect: 'Schema drift report: changes vs baseline. handle-data-quality SCHEMA_DRIFT.',
+    catalog: '3.4A: Detect Schema Changes' },
 
-  // Batch 4: Monitoring
-  { id: 'M1', batch: 4, tier: 'Monitoring', prompt: 'Show me recent jobs in this project', expect: 'Jobs list with status and metadata' },
-  { id: 'M2', batch: 4, tier: 'Monitoring', prompt: 'How much storage is each dataset using?', expect: 'Storage breakdown view' },
-  { id: 'M3', batch: 4, tier: 'Monitoring', prompt: 'How much have my queries cost this month?', expect: 'Cost analysis view' },
-  { id: 'M4', batch: 4, tier: 'Monitoring', prompt: 'Show me slot utilization', expect: 'Slot utilization chart' },
-  { id: 'M5', batch: 4, tier: 'Monitoring', prompt: 'What are the most expensive queries today?', expect: 'Top queries by cost' },
+  // ---- Batch 4: Monitoring & Cost (Catalog 5.1A, 5.1C, 5.2A, 5.3A) ----
+  { id: 'J5.1A', batch: 4, tier: 'Cost Monitoring',
+    prompt: 'What were the most expensive queries this month? Show me who ran them.',
+    expect: 'CostAnalysisView: top queries by bytes_billed with user attribution. handle-monitoring COST_ANALYSIS.',
+    catalog: '5.1A: Find the Most Expensive Queries' },
+  { id: 'J5.1C', batch: 4, tier: 'Job History',
+    prompt: 'Show me the queries I ran today and how much data each scanned',
+    expect: 'Table: Time | Query preview | Bytes scanned | Duration. handle-monitoring JOBS.',
+    catalog: '5.1C: Monitor My Own Query History' },
+  { id: 'J5.2A', batch: 4, tier: 'Storage',
+    prompt: 'Which tables are using the most storage? Show me the breakdown.',
+    expect: 'StorageBreakdownView: tables sorted by size. handle-monitoring STORAGE_BREAKDOWN.',
+    catalog: '5.2A: Find Storage Bloat' },
+  { id: 'J5.3A', batch: 4, tier: 'Cost Attribution',
+    prompt: 'Show me BigQuery costs by user for the last 30 days',
+    expect: 'CostAnalysisView: users sorted by cost with TiB scanned. handle-monitoring COST_ANALYSIS.',
+    catalog: '5.3A: Monthly Cost Attribution by Team' },
 
-  // Batch 5: Discovery
-  { id: 'D1', batch: 5, tier: 'Discovery', prompt: 'Find tables with a user_id column', expect: 'Discovery search results listing matching tables' },
-  { id: 'D2', batch: 5, tier: 'Discovery', prompt: 'Compare orders and order_items in ecomm', expect: 'Table comparison view' },
-  { id: 'D3', batch: 5, tier: 'Discovery', prompt: 'Show me the lineage of the order_items table', expect: 'Lineage view or DAG' },
-  { id: 'D4', batch: 5, tier: 'Discovery', prompt: 'Draw an ER diagram for the ecomm dataset', expect: 'ER diagram visualization' },
+  // ---- Batch 5: Discovery & Lineage (Catalog 3.6A, 3.6B) ----
+  { id: 'J3.6A', batch: 5, tier: 'Lineage',
+    prompt: 'Show me the lineage of the order_items table in ecomm',
+    expect: 'LineageDagView or lineage report showing upstream/downstream tables. handle-discovery LINEAGE.',
+    catalog: '3.6A: Trace Where a Table Data Comes From' },
+  { id: 'J3.6B', batch: 5, tier: 'Impact Analysis',
+    prompt: 'What other tables or queries depend on the users table in ecomm?',
+    expect: 'Downstream impact report with query/table references. handle-discovery LINEAGE downstream.',
+    catalog: '3.6B: Impact Analysis Before Dropping a Table' },
+  { id: 'JDISC1', batch: 5, tier: 'Discovery',
+    prompt: 'Find tables in ecomm that have a user_id column',
+    expect: 'Search results listing matching tables. handle-discovery SEARCH.',
+    catalog: 'Discovery: column search' },
+  { id: 'JDISC2', batch: 5, tier: 'ER Diagram',
+    prompt: 'Draw an ER diagram for the ecomm dataset',
+    expect: 'ER diagram visualization showing table relationships. handle-discovery ER_DIAGRAM.',
+    catalog: 'Discovery: ER diagram' },
 
-  // Batch 6: Data Management / DML
-  { id: 'DM1', batch: 6, tier: 'Data Management', prompt: 'Create a new dataset called test_results in malloy-data', expect: 'Dataset creation confirmation or plan' },
-  { id: 'DM2', batch: 6, tier: 'Data Management', prompt: 'Show me how to create a table for storing events', expect: 'CREATE TABLE DDL or guided workflow' },
-  { id: 'DM3', batch: 6, tier: 'Data Management', prompt: 'Clone the orders table for testing', expect: 'Clone operation confirmation' },
+  // ---- Batch 6: Data Management DDL (Catalog 2.3A, 2.3B, 2.3C, 2.4A) ----
+  { id: 'J2.3A', batch: 6, tier: 'DDL',
+    prompt: "Create a new table called product_events in the ecomm dataset, partitioned by day on event_timestamp, with fields: event_id (STRING), user_id (INT64), event_type (STRING), event_timestamp (TIMESTAMP), properties (JSON)",
+    expect: 'CREATE TABLE DDL confirmation card with partitioning and clustering suggestions. handle-data-management.',
+    catalog: '2.3A: Create a New Partitioned Table' },
+  { id: 'J2.4A', batch: 6, tier: 'View Creation',
+    prompt: 'Create a view called orders_enriched in ecomm that joins order_items with users, showing order_id, user_id, first_name, last_name, and sale_price',
+    expect: 'CREATE OR REPLACE VIEW DDL confirmation card. handle-data-management.',
+    catalog: '2.4A: Create a Reusable Business Logic View' },
 
-  // Batch 7: Pipeline / Loading
-  { id: 'P1', batch: 7, tier: 'Pipeline', prompt: 'Show me scheduled queries in this project', expect: 'Pipeline list view' },
-  { id: 'P2', batch: 7, tier: 'Pipeline', prompt: 'Create a daily scheduled query that counts orders', expect: 'Schedule creation workflow' },
-  { id: 'DL1', batch: 7, tier: 'Data Loading', prompt: 'Export the orders table from ecomm to CSV', expect: 'Export/data loading view' },
+  // ---- Batch 7: Pipeline & Export (Catalog 2.5A, 2.5B, export) ----
+  { id: 'J2.5B', batch: 7, tier: 'Pipeline',
+    prompt: 'Show me all scheduled queries in this project',
+    expect: 'Pipeline list view: Name | Schedule | Last Run | Status. handle-pipeline LIST_SCHEDULES.',
+    catalog: '2.5B: View and Manage Existing Pipelines' },
+  { id: 'JEXP1', batch: 7, tier: 'Export',
+    prompt: 'Export the order_items table from ecomm to CSV',
+    expect: 'Export/download flow or EXPORT DATA statement. handle-data-loading.',
+    catalog: 'Export to CSV' },
 
-  // Batch 8: Governance
-  { id: 'G1', batch: 8, tier: 'Governance', prompt: 'Who has access to the ecomm dataset?', expect: 'Governance/access view' },
-  { id: 'G2', batch: 8, tier: 'Governance', prompt: 'Scan the users table for PII', expect: 'PII scan or sensitive data report' },
+  // ---- Batch 8: Governance & Access (Catalog 3.5A, 3.5B, 3.1C) ----
+  { id: 'J3.5B', batch: 8, tier: 'Access Audit',
+    prompt: 'Who has access to the ecomm dataset?',
+    expect: 'Access audit view: IAM roles + recent query users. handle-monitoring ACCESS_PATTERNS.',
+    catalog: '3.5B: Audit Who Has Access' },
+  { id: 'J3.1C', batch: 8, tier: 'PII Scan',
+    prompt: 'Scan the users table in ecomm for PII -- show me which columns might contain names, emails, or phone numbers',
+    expect: 'PII risk assessment table. handle-data-quality PROFILE or handle-task.',
+    catalog: '3.1C: Compliance Profile for PII Audit' },
 
-  // Batch 9: Conversational / Follow-ups
-  { id: 'C1', batch: 9, tier: 'Conversation', prompt: 'What can you help me with?', expect: 'Capability overview with categories' },
-  // C2 and C3 are follow-ups that require staying in the same conversation
-  { id: 'C2', batch: 9, tier: 'Conversation', prompt: 'Break that down by product category', expect: 'Follow-up breakdown (runs after Q1)', followsUp: 'Q1', setupPrompt: 'What are the top 10 products by revenue in ecomm?' },
-  { id: 'C3', batch: 9, tier: 'Conversation', prompt: 'Which column has the most nulls?', expect: 'Follow-up answer (runs after DQ2)', followsUp: 'DQ2', setupPrompt: 'Check for null values in the users table in ecomm' },
+  // ---- Batch 9: Multi-Turn Conversations ----
+  { id: 'JCONV1', batch: 9, tier: 'Conversation',
+    prompt: 'What can you help me with?',
+    expect: 'Capability overview with categories of what the app can do.',
+    catalog: 'Onboarding: capabilities' },
+  { id: 'JCONV2', batch: 9, tier: 'Follow-Up',
+    prompt: 'Break that down by product category',
+    expect: 'Follow-up breakdown of prior query results by category.',
+    followsUp: 'J2.1B',
+    setupPrompt: 'Show me monthly revenue for the last 12 months from the order_items table in ecomm',
+    catalog: 'Conversational follow-up on time series query' },
+  { id: 'JCONV3', batch: 9, tier: 'Follow-Up',
+    prompt: 'Which column has the most nulls?',
+    expect: 'Follow-up answering which column had highest null rate from the profile.',
+    followsUp: 'J3.1A',
+    setupPrompt: 'Profile the order_items table in ecomm -- I want to see null rates, distinct counts, and value ranges',
+    catalog: 'Conversational follow-up on data profile' },
+
+  // ---- Batch 10: Advanced / Optimization (Catalog 5.6A, 5.7A) ----
+  { id: 'J5.6A', batch: 10, tier: 'Access Patterns',
+    prompt: "Which tables in ecomm haven't been queried in the last 90 days?",
+    expect: 'AccessPatternView: tables with last_queried_date. handle-monitoring ACCESS_PATTERNS.',
+    catalog: '5.6A: Find Unused Tables for Cleanup' },
+  { id: 'J5.7A', batch: 10, tier: 'Cost Optimization',
+    prompt: 'Give me a cost optimization analysis for our BigQuery project',
+    expect: 'CostAnalysisView with multiple sections: expensive queries, storage opportunities, partition violations.',
+    catalog: '5.7A: Cost Optimization Recommendations' },
 ];
+
 
 // ---- Helpers -----------------------------------------------------------------
 

@@ -108,6 +108,7 @@ export type ArtifactType =
   | 'COST_CONFIRM_CARD'
   | 'DATA_QUALITY_VIEW'
   | 'DATA_LOADING_VIEW'
+  | 'CSV_UPLOAD_VIEW'
   | 'MONITORING_VIEW'
   | 'DISCOVERY_VIEW'
   | 'ALERT_VIEW'
@@ -403,9 +404,17 @@ export interface DataQualityResult {
 
 // ─── Data Loading normalized result ──────────────────────────────────────────
 
+export interface CsvUploadPreview {
+  columns: string[]
+  sampleRows: unknown[][]
+  totalRows: number
+  fileName: string
+  fileSize: number
+}
+
 export interface DataLoadingResult {
   skill: 'data-loading'
-  operationType: 'EXPORT_CSV' | 'EXPORT_SHEETS' | 'SCHEDULE_INFO' | 'SCHEDULE_CREATED' | 'QUERY_SAVED' | 'SHARE_CLIPBOARD' | 'NOT_SUPPORTED'
+  operationType: 'EXPORT_CSV' | 'EXPORT_SHEETS' | 'SCHEDULE_INFO' | 'SCHEDULE_CREATED' | 'QUERY_SAVED' | 'SHARE_CLIPBOARD' | 'UPLOAD_PREVIEW' | 'UPLOAD_CSV' | 'NOT_SUPPORTED'
   message: string
   csvContent?: string | null
   sheetsUrl?: string | null
@@ -416,6 +425,11 @@ export interface DataLoadingResult {
   scheduleFrequency?: string | null
   shareText?: string | null
   savedQueryLabel?: string | null
+  // CSV upload fields
+  uploadPreview?: CsvUploadPreview | null
+  targetTable?: string | null
+  targetDataset?: string | null
+  needsFile?: boolean  // true when handler wants UI to prompt for file
 }
 
 // ─── Saved Artifact compound types ───────────────────────────────────────────
