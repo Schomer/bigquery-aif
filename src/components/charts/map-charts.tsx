@@ -349,7 +349,7 @@ export function GeoPointMapRenderer({ result, onSendMessage }: ChartProps) {
     };
   }, [loaded, data, latCol, lngCol, valueCol, center]);
 
-  if (error) return <BarChartRenderer result={result} onSendMessage={onSendMessage} />;
+  if (error) return <MapFallback message={error} />;
   if (!latCol || !lngCol) {
     return <MapFallback message="Could not detect latitude/longitude columns. Expected column names like lat, latitude, lng, longitude." />;
   }
@@ -448,7 +448,7 @@ export function USAMapRenderer({ result, onSendMessage }: ChartProps) {
     };
   }, [loaded, data, xKey, valueKey, maxValue]);
 
-  if (error) return <BarChartRenderer result={result} onSendMessage={onSendMessage} />;
+  if (error) return <MapFallback message={error} />;
   if (!loaded) return <MapFallback message="Loading Google Maps..." />;
 
   return (
@@ -546,7 +546,7 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
     };
   }, [loaded, data, xKey, valueKey, maxValue]);
 
-  if (error) return <BarChartRenderer result={result} onSendMessage={onSendMessage} />;
+  if (error) return <MapFallback message={error} />;
   if (!loaded) return <MapFallback message="Loading Google Maps..." />;
 
   return (

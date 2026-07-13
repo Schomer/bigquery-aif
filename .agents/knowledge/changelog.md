@@ -2,7 +2,29 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
-## 2026-07-12: Wave 3 Complete — All 20 Items Shipped
+## 2026-07-12: Stop Button, Prompt Queue, Cross-Chat Running Status
+
+**Context**: Three UX features to make long-running queries less blocking.
+
+**Changes**:
+- `src/lib/chat-run-state-context.tsx` [NEW]: Tiny React context that tracks `runningId: string | null`. Written to by the hook, read by ChatSidebar.
+- `src/app/layout.tsx`: Wrapped ShellLayout with `ChatRunStateProvider`.
+- `src/hooks/useChatOrchestration.ts`:
+  - Added `abortRef` (AbortController) and `queuedPrompt` state.
+  - `sendMessage()`: if already loading, queues the text instead of dropping it. After successful completion, if a queued prompt exists, fires it automatically via `setTimeout`. On abort, discards the queue and appends "Stopped." message.
+  - Added `stopMessage()`: calls `abortRef.current?.abort()`. The finally block handles cleanup.
+  - Calls `setRunning(conversationId)` on load start and `setRunning(null)` on load end.
+  - Exposes `stopMessage`, `queuedPrompt`, `clearQueuedPrompt` in the return value and interface.
+  - Passes `signal` to `ChatOrchestrator.processMessage()`.
+- `src/lib/chat-orchestrator.ts`: Added `signal?: AbortSignal` to `ProcessMessageArgs`.
+- `src/components/chat/ChatInput.tsx`: Rewrote to add Stop button (replaces Send while loading), queue banner (shown when `loading && queuedPrompt`), and keeps textarea enabled while loading.
+- `src/components/chat/ResultsSidebar.tsx`: Added `onStop`, `queuedPrompt`, `onClearQueue` props, threaded to its docked ChatInput.
+- `src/app/page.tsx`: Passes new props to hero/floating ChatInput and ResultsSidebar.
+- `src/components/ChatSidebar.tsx`: Reads `runningId` from context, shows pulsing blue dot next to any conversation that is running.
+- `src/app/globals.css`: Added `@keyframes bqaif-pulse` for the dot animation.
+
+**Commit**: fe3a67f
+
 
 **Context**: Continuation of the multi-wave implementation plan. Wave 3 covers new features: visualization improvements, Firestore types, new skill capabilities, and new pages.
 
