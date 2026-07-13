@@ -100,15 +100,24 @@ This tests the canonical scenarios from `.agents/knowledge/test-cases.md` agains
 <!-- END:test-gate -->
 
 <!-- BEGIN:browser-testing -->
-# REQUIRED: Browser testing works on macOS -- use browser_subagent
+# REQUIRED: Browser testing works on macOS -- use Puppeteer, not browser_subagent
 
-The `browser_subagent` tool works on macOS. It launches a browser, navigates to URLs, takes screenshots, clicks elements, types text, and reports back. **Do NOT claim browser testing is unavailable, unsupported, or requires Linux. That is false.**
+The `browser_subagent` and `open_browser_url` tools do NOT work on macOS (they fail with "local chrome mode is only supported on Linux"). **Do NOT attempt to use them. Do NOT claim browser testing is impossible -- it works via Puppeteer.**
 
-When you need to visually verify the deployed app (after deploying UI changes, checking layout, verifying elements):
-1. Use the `browser_subagent` tool to navigate to `https://bigqueryaif.web.app`
-2. Take screenshots, inspect elements, verify layout
+When you need to visually verify the deployed app (after deploying UI changes, checking layout, verifying elements), use Puppeteer:
 
-For the full automated 20-test suite, use the Puppeteer script: `node scripts/visual-test.mjs`
+**Ad-hoc screenshot** (single URL, quick visual check):
+```bash
+source "$HOME/.nvm/nvm.sh" && node "/Users/schomer/Desktop/DATA APPS/bigquery-aif/scripts/screenshot.mjs" https://bigqueryaif.web.app
+```
+Then read the output path with `view_file` (it renders images inline).
+
+**Full 20-test suite**:
+```bash
+source "$HOME/.nvm/nvm.sh" && cd "/Users/schomer/Desktop/DATA APPS/bigquery-aif" && node scripts/visual-test.mjs
+```
+
+Both use system Chrome with a persistent auth profile at `/tmp/bqaif-puppeteer-profile`.
 
 Read `.agents/skills/browser-testing/SKILL.md` for detailed usage examples.
 <!-- END:browser-testing -->
