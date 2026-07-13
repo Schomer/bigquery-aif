@@ -2,6 +2,17 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-13: Add create_dataset and execute_dml Tools
+
+**Context**: The chat agent lacked tools for creating datasets and executing DML/DDL statements directly through the tool-calling loop.
+
+**Changes**:
+- `src/lib/bigquery-client.ts`: Added `createDataset()` function -- creates a new BigQuery dataset via REST API, auto-detects region if not provided.
+- `src/lib/bq-tools.ts`: Added `createDatasetTool` and `executeDmlTool` tool definitions. Updated import to include `createDataset` and `executeDml`. Registered both in BQ_TOOLS array.
+- `src/lib/gemini-client.ts`: Added `create_dataset` and `execute_dml` entries to TOOL_LABELS for user-facing status messages.
+
+**Verification**: Build passes.
+
 ## 2026-07-13: Conversational AI Skill + Routing Bug Fixes
 
 **Context**: Chat felt robotic -- it failed on common prompts (e.g., "make a new dataset"), couldn't hold a conversation, and had no natural language fallback. Root causes: keyword gaps in MUTATING_VERBS, overly strict safety net in data-management, and no handler for non-task messages.

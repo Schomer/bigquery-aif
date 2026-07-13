@@ -127,21 +127,35 @@ export class ChatOrchestrator {
     let availableDatasets = context?.availableDatasets;
 
     // -- Classify intent --
-    // Try keyword-based classification first to avoid an unnecessary Gemini
-    // round-trip for obvious requests (e.g., "list my datasets").
+    // The conversation handler is the AI-first entry point. It has tools to
+    // execute operations and can hold a dialogue. Only a few well-tested
+    // handlers get the keyword fast-path; everything else goes to conversation.
     let skill = context?.forcedSkill;
     let routerConfidence: 'high' | 'medium' | 'low' = 'medium';
 
-    // Help and general conversation are handled by the 'conversation' skill.
-    // No special-case patterns needed here -- the LLM classifier routes to it.
-
+    // Skills that are reliable enough for high-confidence keyword bypass.
+    // All others (data-management, monitoring, discovery, etc.) are routed
+    // through conversation so the AI can ask questions and use tools.
+    const KEYWORD_FAST_PATH_SKILLS = new Set<string>([
+      'schema', 'query', 'data-quality',
+    ]);
 
     if (!skill) {
       const keywordResult = classifyIntent(resolvedMessage, context);
-      if (keywordResult.confidence === 'high') {
+      if (keywordResult.confidence === 'high' && KEYWORD_FAST_PATH_SKILLS.has(keywordResult.skill)) {
         skill = keywordResult.skill;
         routerConfidence = 'high';
         // Still need available datasets for downstream handlers
+        if (!availableDatasets) {
+          const available = await getAvailableDatasets(project);
+          availableDatasets = available;
+          resolvedDataset = resolvedDataset ?? resolveDefaultDatasetFromList(available, context?.dataset, project);
+        }
+      } else if (keywordResult.confidence === 'high') {
+        // High-confidence match for a skill NOT in the fast-path list.
+        // Route to conversation -- the AI agent has tools to handle it.
+        skill = 'conversation' as SkillName;
+        routerConfidence = 'high';
         if (!availableDatasets) {
           const available = await getAvailableDatasets(project);
           availableDatasets = available;
@@ -242,18 +256,24 @@ The user's new message is a continuation of this conversation. Treat it as a fol
             }
           }
 
-          // Single-step: use the LLM-classified skill
-          if (result && result.skill) {
-            skill = result.skill as SkillName;
-          }
-        } catch (e) {
-          console.warn('[Intent classifier failed, falling back to keyword router]', e);
-        }
+           // Single-step: use the LLM-classified skill, but only fast-path
+           // skills go direct. Everything else goes through conversation agent.
+           if (result && result.skill) {
+             const classifiedSkill = result.skill as SkillName;
+             if (KEYWORD_FAST_PATH_SKILLS.has(classifiedSkill)) {
+               skill = classifiedSkill;
+             } else {
+               skill = 'conversation' as SkillName;
+             }
+           }
+         } catch (e) {
+           console.warn('[Intent classifier failed, falling back to conversation]', e);
+         }
 
-        // Final fallback: use the keyword result even if low confidence
-        if (!skill) {
-          skill = keywordResult.skill;
-        }
+         // Final fallback: conversation agent handles unknown intents
+         if (!skill) {
+           skill = 'conversation' as SkillName;
+         }
       }
     }
 

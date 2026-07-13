@@ -8,7 +8,7 @@ import { callGeminiWithTools, loadSkillDoc } from '../gemini-client';
 import { BQ_TOOLS, BQ_TOOL_MAP } from '../bq-tools';
 import type {
   ChatMessage, CompositionEnvelope, SkillManifest,
-  SkillName, StatusCallback, QueryResult,
+  SkillName, StatusCallback, QueryResult, VisualizationType, CostTier,
 } from '../types';
 import { compose } from '../composer';
 
@@ -117,7 +117,8 @@ ${datasetTablesLine}`;
 interface CapturedQuery {
   sql: string;
   columns: string[];
-  rows: Record<string, unknown>[];
+  columnTypes: string[];
+  rows: unknown[][];
   rowCount: number;
   visualizationHint?: string;
 }
@@ -171,6 +172,7 @@ export async function handleConversation(
       capturedQueries.push({
         sql,
         columns: result.columns,
+        columnTypes: result.columnTypes,
         rows: result.rows,
         rowCount: result.rowCount,
         visualizationHint: args.visualizationHint as string | undefined,
@@ -216,14 +218,20 @@ export async function handleConversation(
   if (capturedQueries.length > 0) {
     const lastQuery = capturedQueries[capturedQueries.length - 1];
     const queryResult: QueryResult = {
+      skill: 'query',
+      sql: lastQuery.sql,
+      requiresConfirmation: false,
+      costConfirm: null,
       columns: lastQuery.columns,
+      columnTypes: lastQuery.columnTypes,
       rows: lastQuery.rows,
       rowCount: lastQuery.rowCount,
-      sql: lastQuery.sql,
+      totalBytesProcessed: 0,
+      costTier: 0,
+      suggestedVisualization: (lastQuery.visualizationHint as VisualizationType | undefined) ?? 'TABLE',
       resultSummary: responseText,
-      visualizationHint: lastQuery.visualizationHint,
     };
-    const composed = compose(queryResult, message, 'conversation');
+    const composed = compose('query', queryResult);
     // Override the headline with the agent's natural response
     composed.headline.text = responseText.split('\n')[0].slice(0, 200);
     composed.skipSelfReview = true;
@@ -249,10 +257,11 @@ export async function handleConversation(
 
     // If a dataset was created, add useful next-action chips
     if (datasetCreated) {
+      const ds = datasetCreated as { datasetId: string; location: string };
       envelope.nextActions = [
         {
           targetSkill: 'schema' as SkillName,
-          label: `View ${datasetCreated.datasetId}`,
+          label: `View ${ds.datasetId}`,
           context: {},
           sourceSkill: 'conversation' as SkillName,
           sourceResultRef: '',

@@ -227,6 +227,7 @@ UI Components (src/components/)
 - `executeQuery()` -- runs read-only queries
 - `dryRun()` -- cost estimation
 - `executeDml()` -- runs DML statements
+- `createDataset()` -- creates a new dataset via REST API
 - `exportToSheets()` -- Google Sheets export
 - `createScheduledQuery()` -- Data Transfer API
 - `detectBqRegion()` -- region detection for INFORMATION_SCHEMA
