@@ -77,7 +77,12 @@ export function SideNav({ collapsed }: SideNavProps) {
             className="gc-nav-cta"
             id="new-btn"
             aria-label="New conversation"
-            onClick={() => newConversation()}
+            onClick={() => {
+              newConversation();
+              setActivePage('chat');
+              // In unified mode, close the chat list so the user sees the fresh empty chat
+              if (layout === 'unified') setChatListOpen(false);
+            }}
           >
             <span className="material-symbols-outlined">add</span>
             <span className="gc-nav-cta-label">New</span>
