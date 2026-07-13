@@ -123,6 +123,30 @@ export async function listTables(project: string, datasetId: string): Promise<Ar
   }));
 }
 
+export async function createDataset(
+  project: string,
+  datasetId: string,
+  description?: string,
+  location?: string,
+): Promise<{ datasetId: string; location: string }> {
+  const loc = location || await detectBqRegion(project);
+  const data = await bqFetch(
+    `${BQ_BASE}/${encodeURIComponent(project)}/datasets`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        datasetReference: { projectId: project, datasetId },
+        location: loc,
+        ...(description ? { description } : {}),
+      }),
+    },
+  );
+  return {
+    datasetId: data.datasetReference?.datasetId || datasetId,
+    location: data.location || loc,
+  };
+}
+
 // ─── Parse BigQuery query response into flat rows ─────────────────────────────
 
 // BigQuery field types that should be coerced to JS numbers.

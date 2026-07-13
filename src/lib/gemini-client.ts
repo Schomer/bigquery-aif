@@ -292,6 +292,8 @@ export async function callGeminiWithTools({
       insert_rows: 'Inserting rows...',
       delete_rows: 'Deleting rows...',
       update_rows: 'Updating rows...',
+      create_dataset: 'Creating the dataset...',
+      execute_dml: 'Running the operation...',
     };
     const responseParts: Array<Record<string, unknown>> = [];
     for (const fc of functionCalls) {

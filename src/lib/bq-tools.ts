@@ -3,7 +3,7 @@
 // Each tool has a Gemini function declaration and an executor.
 
 import { fetchSchema } from './skills/schema';
-import { executeQuery } from './bigquery-client';
+import { executeQuery, createDataset, executeDml } from './bigquery-client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -180,6 +180,70 @@ const listDatasetsTool: BqTool = {
   },
 };
 
+// --- Tool: create_dataset ---
+
+const createDatasetTool: BqTool = {
+  declaration: {
+    name: 'create_dataset',
+    description:
+      'Create a new BigQuery dataset in the current project. ' +
+      'Use this when the user wants to make, create, or set up a new dataset.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        datasetId: {
+          type: 'STRING',
+          description:
+            'The ID for the new dataset. Must be unique within the project. ' +
+            'Use letters, numbers, and underscores only.',
+        },
+        description: {
+          type: 'STRING',
+          description: 'Optional description for the dataset.',
+        },
+      },
+      required: ['datasetId'],
+    },
+  },
+  execute: async (args, project) => {
+    const result = await createDataset(
+      project,
+      args.datasetId as string,
+      args.description as string | undefined,
+    );
+    return { created: true, datasetId: result.datasetId, location: result.location };
+  },
+};
+
+// --- Tool: execute_dml ---
+
+const executeDmlTool: BqTool = {
+  declaration: {
+    name: 'execute_dml',
+    description:
+      'Execute a DML or DDL statement (INSERT, UPDATE, DELETE, CREATE TABLE, ALTER TABLE, DROP TABLE, etc.). ' +
+      'Use this for statements that modify data or schema. ' +
+      'Always wrap fully-qualified table references in backticks: `project.dataset.table`.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        sql: {
+          type: 'STRING',
+          description: 'The DML or DDL statement to execute.',
+        },
+      },
+      required: ['sql'],
+    },
+  },
+  execute: async (args, project) => {
+    const result = await executeDml(args.sql as string, project);
+    return {
+      completed: true,
+      numDmlAffectedRows: result.rowsAffected ?? 0,
+    };
+  },
+};
+
 // ─── Registry ────────────────────────────────────────────────────────────────
 
 export const BQ_TOOLS: BqTool[] = [
@@ -187,6 +251,8 @@ export const BQ_TOOLS: BqTool[] = [
   getTableSchemaTool,
   listTablesTool,
   listDatasetsTool,
+  createDatasetTool,
+  executeDmlTool,
 ];
 
 export const BQ_TOOL_MAP = new Map<string, BqTool>(
