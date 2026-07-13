@@ -1569,9 +1569,10 @@ function composeDataLoading(result: DataLoadingResult): CompositionEnvelope {
     return {
       id,
       skill: 'data-loading',
-      headline: { text: headlineText, tone: 'POSITIVE', basis: 'STATUS' },
-      primaryArtifact: { type: 'COMPLETION_CARD', data: { message: result.message } },
+      headline: { text: headlineText, tone: 'POSITIVE' as Tone, basis: 'STATUS' },
+      primaryArtifact: { type: 'DATA_LOADING_VIEW', data: result },
       provenance: { visibility: 'COLLAPSED' },
+      skipSelfReview: true,
       nextActions: [
         {
           targetSkill: 'schema',
