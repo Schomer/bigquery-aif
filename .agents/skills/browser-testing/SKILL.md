@@ -7,42 +7,53 @@ description: How to do browser-based visual testing of the BigQuery AIF app. Use
 
 ## Overview
 
-Browser testing on macOS uses **Puppeteer scripts** that control system Chrome. Two scripts are available:
+There are two approaches to browser testing, each suited to different situations:
 
-1. `scripts/screenshot.mjs` -- ad-hoc single-URL screenshot (quick visual check after deploy)
-2. `scripts/visual-test.mjs` -- full 20-test automated suite with screenshot capture
-
-The `browser_subagent` and `open_browser_url` tools do NOT work on macOS (they fail with "local chrome mode is only supported on Linux"). Do not attempt to use them.
+1. **`browser_subagent` tool** -- for ad-hoc visual checks, quick screenshots, and interactive testing of the deployed app. Works on macOS.
+2. **Puppeteer script** (`scripts/visual-test.mjs`) -- for running the full automated test suite of 20 canonical prompts with screenshot capture.
 
 ---
 
-## Method 1: Ad-Hoc Screenshot (scripts/screenshot.mjs)
+## Method 1: browser_subagent (Ad-Hoc Testing)
 
-Takes a single screenshot of any URL. Use this for quick visual verification after deploying UI changes.
+The `browser_subagent` tool launches a browser, navigates to URLs, takes screenshots, clicks elements, types text, and reports back. Use this for quick visual verification of UI changes after deployment.
 
-### Usage
+### How to Use
 
-```bash
-source "$HOME/.nvm/nvm.sh" && node "/Users/schomer/Desktop/DATA APPS/bigquery-aif/scripts/screenshot.mjs" https://bigqueryaif.web.app
+Call `browser_subagent` with a task description. The subagent controls the browser and returns a report when done.
+
+Example -- take a screenshot of the deployed app:
+```
+browser_subagent(
+  TaskName: "Screenshot deployed app",
+  Task: "Navigate to https://bigqueryaif.web.app. Wait for the page to fully load. Take a screenshot and describe what you see. Return when the screenshot is captured.",
+  TaskSummary: "Take a screenshot of the deployed app to verify UI changes.",
+  RecordingName: "deployed_app_check"
+)
 ```
 
-The script outputs the path to the saved screenshot. Read it with `view_file` (supports binary images, renders inline).
-
-### Options
-
-```bash
-# Screenshot a specific path
-node scripts/screenshot.mjs https://bigqueryaif.web.app/some-page
-
-# Custom output filename
-node scripts/screenshot.mjs https://bigqueryaif.web.app --output my-screenshot.png
+Example -- verify a specific UI element:
 ```
+browser_subagent(
+  TaskName: "Verify sidebar layout",
+  Task: "Navigate to https://bigqueryaif.web.app. Wait for the page to fully load. Look at the left sidebar navigation. Take a screenshot. Describe the sidebar items, their icons, and their order. Return your findings.",
+  TaskSummary: "Check the sidebar layout on the deployed app.",
+  RecordingName: "sidebar_check"
+)
+```
+
+### When to Use browser_subagent
+
+- Quick screenshot after deploying a UI change
+- Verifying layout, colors, typography, or element visibility
+- Checking that a page loads without errors
+- Interactive exploration (clicking buttons, filling forms, navigating)
 
 ---
 
-## Method 2: Full Test Suite (scripts/visual-test.mjs)
+## Method 2: Puppeteer Script (Full Test Suite)
 
-Runs 20 canonical test prompts against the deployed app, capturing full-page screenshots for each response.
+The Puppeteer script runs 20 canonical test prompts against the deployed app, capturing full-page screenshots for each response.
 
 ### Running Tests
 
@@ -59,6 +70,11 @@ node scripts/visual-test.mjs --only 4
 #### Start from a specific test
 ```bash
 node scripts/visual-test.mjs --start 7
+```
+
+#### Ad-hoc screenshot (single URL)
+```bash
+source "$HOME/.nvm/nvm.sh" && node "/Users/schomer/Desktop/DATA APPS/bigquery-aif/scripts/screenshot.mjs" https://bigqueryaif.web.app
 ```
 
 #### Launch as background task
@@ -102,8 +118,3 @@ source "$HOME/.nvm/nvm.sh" && mkdir -p /tmp/puppeteer-runner && cd /tmp/puppetee
 - **Textarea clearing**: Uses React's native HTMLTextAreaElement.prototype setter to avoid stale state
 - **New conversation**: Navigates to `APP_URL?t=${Date.now()}` between tests to force React remount
 - **Timeout**: 120s per test
-
-## Do NOT Use
-
-- `browser_subagent` tool -- fails with "local chrome mode is only supported on Linux"
-- `open_browser_url` tool -- same error
