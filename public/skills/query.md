@@ -48,6 +48,7 @@ If both `TABLESAMPLE` and `APPROX_*` functions are in play, say so explicitly --
 - Never use `SELECT *` in production queries -- enumerate columns
 - For joins: prefer explicit column lists, not `SELECT *`
 - If the user asks to create or make a new table with data/mock data, generate a `CREATE OR REPLACE TABLE ... AS SELECT ... UNION ALL SELECT ...` SQL query to populate the table with the requested data rows rather than leaving it empty.
+- **Do NOT SELECT columns that are used only as WHERE filters.** If the user asks "top 10 countries by population in year 900", the filter (`year = 900`) belongs only in the WHERE clause. Including it in SELECT/GROUP BY produces a redundant constant column that adds no information and confuses the visualization layer. Correct: `SELECT country, SUM(population) ... WHERE year = 900 GROUP BY country`. Wrong: `SELECT country, year, SUM(population) ... WHERE year = 900 GROUP BY country, year`.
 
 ### CRITICAL: Aggregation patterns (read this before writing ANY query)
 

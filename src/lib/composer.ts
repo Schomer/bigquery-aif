@@ -1211,7 +1211,15 @@ function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType |
   if (hasSankeySource && hasSankeyTarget && numericCols.length >= 1) return 'SANKEY';
 
   // Heatmap via 2 categoricals + 1 numeric + sufficient rows
-  if (catCols.length === 2 && numericCols.length === 1 && rowCount >= 9 && rowCount <= 400) return 'HEATMAP';
+  // Guard: both categorical dimensions must have >1 unique value; if one is a constant
+  // (e.g. year=900 in every row), the result is a simple ranked list, not a 2D matrix.
+  if (catCols.length === 2 && numericCols.length === 1 && rowCount >= 9 && rowCount <= 400) {
+    const catIdx0 = columns.indexOf(catCols[0]);
+    const catIdx1 = columns.indexOf(catCols[1]);
+    const unique0 = new Set(rows.map(r => (r as unknown[])[catIdx0])).size;
+    const unique1 = new Set(rows.map(r => (r as unknown[])[catIdx1])).size;
+    if (unique0 > 1 && unique1 > 1) return 'HEATMAP';
+  }
 
   // Step 5 — Time-series detection (1 date column + 1+ numeric)
   if (dateCols.length === 1 && numericCols.length >= 1 && rowCount >= 2) {
@@ -1264,7 +1272,13 @@ function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType |
   }
 
   // Step 8 — Multi-category (2 categoricals + 1 numeric)
-  if (catCols.length === 2 && numericCols.length === 1 && rowCount <= 400) return 'HEATMAP';
+  if (catCols.length === 2 && numericCols.length === 1 && rowCount <= 400) {
+    const catIdx0 = columns.indexOf(catCols[0]);
+    const catIdx1 = columns.indexOf(catCols[1]);
+    const unique0 = new Set(rows.map(r => (r as unknown[])[catIdx0])).size;
+    const unique1 = new Set(rows.map(r => (r as unknown[])[catIdx1])).size;
+    if (unique0 > 1 && unique1 > 1) return 'HEATMAP';
+  }
   if (catCols.length >= 2 && numericCols.length >= 1) return 'BAR_CHART';
 
   // Step 9 — Scatter (relationship detection)
