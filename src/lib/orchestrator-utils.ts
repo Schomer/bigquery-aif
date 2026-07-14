@@ -69,9 +69,21 @@ export function extractDatasetFromMessage(message: string, available: string[]):
 // the LLM classifier can treat follow-up prompts as continuations, not fresh
 // requests. This is skill-agnostic -- it works for any prior output type.
 
-export function buildConversationStateSummary(context?: { lastSkill?: SkillName; lastTable?: string; dataset?: string; resolvedDataset?: string }): string {
+export function buildConversationStateSummary(context?: { lastSkill?: SkillName; lastTable?: string; dataset?: string; resolvedDataset?: string; lastSavedArtifactSql?: string; lastSavedArtifactName?: string; lastTableSchema?: { name: string; type: string }[] }): string {
   if (!context?.lastSkill) {
     return 'This is the start of a new conversation. No prior output is on screen.';
+  }
+
+  // Saved artifact virtual-table context takes priority over generic query state
+  if (context.lastSavedArtifactSql && context.lastSavedArtifactName) {
+    const cols = context.lastTableSchema?.map((c) => c.name).join(', ') ?? 'unknown';
+    const cteAlias = context.lastSavedArtifactName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    return (
+      `The user ran saved query "${context.lastSavedArtifactName}". Its result is on screen. ` +
+      `Columns: ${cols}. ` +
+      `Any follow-up SQL MUST wrap it as a CTE: WITH ${cteAlias} AS (<saved_sql>) SELECT ... FROM ${cteAlias}. ` +
+      `Route follow-up analytical prompts to the "query" skill.`
+    );
   }
 
   const table = context.lastTable ? `table "${context.lastTable}"` : 'the current dataset';

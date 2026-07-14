@@ -133,7 +133,12 @@ export async function handleSaved(
           suggestedVisualization: (step.visualizationType as VisualizationType) || 'TABLE',
           notableFindings: null,
           resultSummary: match.name,
-        };
+          // Virtual-table context: stored in envelope data so extractContextFromEnvelope
+          // can set lastSavedArtifactSql/Name/VizType on ChatContext.
+          savedArtifactSql: step.cachedSql,
+          savedArtifactName: match.name,
+          savedArtifactVizType: step.visualizationType || 'TABLE',
+        } as QueryResult & { savedArtifactSql: string; savedArtifactName: string; savedArtifactVizType: string };
         envelopes.push(compose('query', result, qualityFlags));
       } catch (err: unknown) {
         // SQL execution failed -- fall back to re-running via the orchestrator

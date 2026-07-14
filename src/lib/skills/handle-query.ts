@@ -18,7 +18,7 @@ import type { ChatMessage, CompositionEnvelope, QueryResult, SkillManifest, Stat
 export async function handleQuery(
   message: string,
   history: ChatMessage[],
-  context?: { project?: string; dataset?: string; lastTable?: string; lastTableSchema?: { name: string; type: string; description?: string }[]; lastDatasetTables?: string[]; resolvedDataset?: string; availableDatasets?: string[]; userIntent?: ArtifactType | null },
+  context?: { project?: string; dataset?: string; lastTable?: string; lastTableSchema?: { name: string; type: string; description?: string }[]; lastDatasetTables?: string[]; resolvedDataset?: string; availableDatasets?: string[]; userIntent?: ArtifactType | null; lastSavedArtifactSql?: string; lastSavedArtifactName?: string; lastSavedArtifactVizType?: string },
   onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
   const project = context?.project || '';
@@ -101,11 +101,32 @@ export async function handleQuery(
 
   const hasActiveTableSchema = lastTableSchema.length > 0;
 
+  // -- Virtual table context: saved artifact as CTE --
+  // When the user ran a saved query and is now asking a follow-up, we wrap
+  // the saved SQL as a CTE so the LLM writes SQL against the derived result
+  // rather than querying a real BigQuery table.
+  const savedSql = context?.lastSavedArtifactSql;
+  const savedName = context?.lastSavedArtifactName ?? 'saved_query';
+  const cteAlias = savedName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'saved_query';
+  const savedArtifactBlock = savedSql
+    ? `\n\nVIRTUAL TABLE CONTEXT
+---------------------
+The user's current dataset is the result of saved query "${savedName}".
+Do NOT query any BigQuery tables directly for this request.
+The following SQL defines the virtual table; wrap it as a CTE named \`${cteAlias}\`:
+
+WITH ${cteAlias} AS (
+${savedSql}
+)
+
+Write your SQL using \`${cteAlias}\` as the source. Available columns: ${lastTableSchema.length > 0 ? lastTableSchema.map((c) => c.name).join(', ') : 'run the CTE to discover columns'}.`
+    : '';
+
   const systemPrompt = `${skillDoc}
 
 The BigQuery project is: ${project}
 ${datasetLine}
-Available datasets in project ${project}: ${available.join(', ')}${lastTableLine}${tableListLine}${lastTableSchemaLine}
+Available datasets in project ${project}: ${available.join(', ')}${lastTableLine}${tableListLine}${lastTableSchemaLine}${savedArtifactBlock}
 Today's date: ${new Date().toISOString().split('T')[0]}
 
 CRITICAL: Always wrap fully qualified table references in literal backticks: \`${project}.DATASET.tablename\` (e.g. \`${project}.ecomm.order_items\`). This is CRITICAL to prevent syntax errors when project names contain dashes/hyphens.
@@ -121,6 +142,7 @@ EFFICIENCY RULES (most important):
 6. Do NOT run exploratory or summary queries. Answer the user's question directly.
 
 After running the query, provide a brief one-line summary of what the results show.`;
+
 
 
   onStatus?.('Working out your query...');
