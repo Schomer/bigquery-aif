@@ -197,6 +197,7 @@ GROUP BY month ORDER BY month
 WIDGET_SPEC_START
 {
   "controlType": "DATE_RANGE",
+  "visualization": "LINE_CHART",
   "parameterizedSql": "... WHERE order_date BETWEEN '{{start_date}}' AND '{{end_date}}' ...",
   "baseSql": "... (no date filter) ...",
   "dateColumn": "order_date",
@@ -237,6 +238,7 @@ SELECT DISTINCT entity FROM `project.dataset.population` ORDER BY entity LIMIT 3
 WIDGET_SPEC_START
 {
   "controlType": "DROPDOWN",
+  "visualization": "LINE_CHART",
   "parameterizedSql": "... WHERE entity = '{{entity}}' ...",
   "baseSql": "... (no entity filter) ...",
   "filterColumn": "entity",
@@ -246,6 +248,8 @@ WIDGET_SPEC_START
 }
 WIDGET_SPEC_END
 ```
+
+- `visualization`: the chart type that makes sense for the **filtered** result (e.g., `LINE_CHART` for year+population after filtering by entity). Choose based on what the data looks like with one value selected, NOT the all-data base shape which may have mixed dimensions.
 
 - `filterColumn`: the exact column name used in the WHERE clause.
 - `filterParam`: the placeholder string (e.g., `{{entity}}`). Must exactly match the placeholder in `parameterizedSql`.

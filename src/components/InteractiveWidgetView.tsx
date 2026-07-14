@@ -266,8 +266,11 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
       {isChartable && viewMode === 'chart' ? (
         <ChartView result={queryResult} chartType={chartType} onSendMessage={onSendMessage ?? (() => {})} />
       ) : (
-        <DataTable result={queryResult} onSendMessage={onSendMessage ?? (() => {})} />
+        <div style={{ maxHeight: 420, overflowY: 'auto', borderRadius: 8, border: '1px solid var(--border, #e8edf5)' }}>
+          <DataTable result={queryResult} onSendMessage={onSendMessage ?? (() => {})} />
+        </div>
       )}
+
 
       {/* Spinner keyframes */}
       <style>{`

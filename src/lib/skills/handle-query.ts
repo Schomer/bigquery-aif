@@ -270,6 +270,7 @@ After running the query, provide a brief one-line summary of what the results sh
       controlType?: string;
       parameterizedSql?: string;
       baseSql?: string;
+      visualization?: string;
       // DATE_RANGE fields
       dateColumn?: string;
       defaultStart?: string | null;
@@ -291,27 +292,57 @@ After running the query, provide a brief one-line summary of what the results sh
       const controlType = widgetSpec.controlType ?? 'DATE_RANGE';
 
       let controls: InteractiveWidgetData['controls'] = [];
+      // initialResult starts as the baseSql capture; overridden below for DROPDOWN
+      let initialColumns = captured.columns;
+      let initialColumnTypes = captured.columnTypes;
+      let initialRows = captured.rows;
+      let initialRowCount = captured.rowCount;
+      let initialJobId = captured.jobId || undefined;
 
       if (controlType === 'DROPDOWN' && widgetSpec.filterColumn && widgetSpec.filterParam && widgetSpec.optionsSql) {
-        // Fetch dropdown options by executing the optionsSql
+        // Fetch dropdown options
         let options: string[] = [];
         try {
           onStatus?.(`Loading ${widgetSpec.filterColumn} options...`);
           const optResult = await executeQuery(widgetSpec.optionsSql, project);
           options = optResult.rows.map((r) => String((r as unknown[])[0] ?? '')).filter(Boolean);
         } catch {
-          // Non-fatal -- show empty dropdown, user can still see all-data chart
+          // Non-fatal
         }
+
+        // Pick the effective default: explicit default from LLM, or first option
+        const effectiveDefault = widgetSpec.defaultValue ?? options[0] ?? null;
+
+        if (effectiveDefault) {
+          // Run the filtered SQL as the initial result so the chart shows
+          // one entity on load, not hundreds of mixed rows
+          try {
+            onStatus?.(`Loading ${effectiveDefault}...`);
+            const safe = effectiveDefault.replace(/'/g, "\\'");
+            const filteredSql = widgetSpec.parameterizedSql.replace(
+              new RegExp(widgetSpec.filterParam.replace(/[{}]/g, '\\$&'), 'g'),
+              safe,
+            );
+            const filteredResult = await executeQuery(filteredSql, project);
+            initialColumns = filteredResult.columns;
+            initialColumnTypes = filteredResult.columnTypes;
+            initialRows = filteredResult.rows;
+            initialRowCount = filteredResult.rowCount;
+            initialJobId = filteredResult.jobId || undefined;
+          } catch {
+            // Non-fatal -- fall back to baseSql capture
+          }
+        }
+
         controls = [{
           type: 'DROPDOWN',
           label: widgetSpec.filterColumn.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
           param: widgetSpec.filterParam,
           column: widgetSpec.filterColumn,
           options,
-          defaultValue: widgetSpec.defaultValue ?? null,
+          defaultValue: effectiveDefault,
         }];
       } else if (widgetSpec.dateColumn) {
-        // DATE_RANGE control
         controls = [{
           type: 'DATE_RANGE',
           label: 'Date Range',
@@ -322,19 +353,23 @@ After running the query, provide a brief one-line summary of what the results sh
       }
 
       if (controls.length > 0) {
+        // Use the LLM-specified visualization if provided; it knows the filtered shape
+        const viz = (widgetSpec.visualization as VisualizationType | undefined)
+          ?? (result.suggestedVisualization !== 'INTERACTIVE_WIDGET' ? result.suggestedVisualization : 'LINE_CHART') as VisualizationType;
+
         const widgetData: InteractiveWidgetData = {
           baseSql: widgetSpec.baseSql,
           parameterizedSql: widgetSpec.parameterizedSql,
           controls,
-          visualization: (result.suggestedVisualization !== 'INTERACTIVE_WIDGET' ? result.suggestedVisualization : 'LINE_CHART') as VisualizationType,
-          xAxis: captured.columns[0] ?? null,
-          yAxis: captured.columns.slice(1),
+          visualization: viz,
+          xAxis: initialColumns[0] ?? null,
+          yAxis: initialColumns.slice(1),
           initialResult: {
-            columns: captured.columns,
-            columnTypes: captured.columnTypes,
-            rows: captured.rows,
-            rowCount: captured.rowCount,
-            jobId: captured.jobId || undefined,
+            columns: initialColumns,
+            columnTypes: initialColumnTypes,
+            rows: initialRows,
+            rowCount: initialRowCount,
+            jobId: initialJobId,
           },
           defaultStart: widgetSpec.defaultStart ?? null,
           defaultEnd: widgetSpec.defaultEnd ?? null,
@@ -346,11 +381,11 @@ After running the query, provide a brief one-line summary of what the results sh
           sql: widgetSpec.baseSql,
           requiresConfirmation: false,
           costConfirm: null,
-          columns: captured.columns,
-          columnTypes: captured.columnTypes,
-          rows: captured.rows,
-          rowCount: captured.rowCount,
-          jobId: captured.jobId || undefined,
+          columns: initialColumns,
+          columnTypes: initialColumnTypes,
+          rows: initialRows,
+          rowCount: initialRowCount,
+          jobId: initialJobId,
           totalBytesProcessed: 0,
           costTier: 0,
           suggestedVisualization: 'INTERACTIVE_WIDGET' as VisualizationType,

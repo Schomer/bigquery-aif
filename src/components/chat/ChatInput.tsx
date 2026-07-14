@@ -330,6 +330,8 @@ export function ChatInput({
         gap: (hasContext || hasQueue || hasFile) ? 6 : 0,
         backdropFilter: 'blur(12px)',
         zIndex: 50,
+        border: '1px solid rgba(0, 0, 0, 0.10)',
+        boxShadow: '0 2px 12px rgba(0, 0, 0, 0.10), 0 8px 32px rgba(0, 0, 0, 0.07)',
         ...(activeProject ? { background: '#fff', backgroundImage: 'none' } : {}),
       }}>
         {queueBanner}
