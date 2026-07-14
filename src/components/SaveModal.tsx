@@ -96,6 +96,11 @@ export function SaveModal({
         width: '90vw',
         boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
         fontFamily: "'Google Sans', sans-serif",
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        margin: 0,
       }}
     >
       <div style={{ padding: '24px 28px' }}>
