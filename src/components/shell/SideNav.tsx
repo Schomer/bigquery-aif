@@ -84,12 +84,12 @@ export function SideNav({ collapsed }: SideNavProps) {
           { label: 'AI', icon: 'auto_awesome', page: 'chat' },
             { label: 'Favorites', icon: 'star', page: 'favorites' },
             { label: 'Prompts', icon: 'bookmarks', page: 'prompts' },
-            { label: 'Spaces', icon: 'workspaces', page: 'spaces:all' },
-            { label: 'Dashboards', icon: 'dashboard', page: 'dashboard' },
-          ].map((item) => (
+            // { label: 'Spaces', icon: 'workspaces', page: 'spaces:all' },
+            { label: 'Templates', icon: 'dashboard', page: 'templates' },
+          ].filter(Boolean).map((item) => (
             <div className="gc-nav-item-row" key={item.page}>
               <a
-                className={`gc-nav-item${(activePage === item.page || (item.page === 'spaces:all' && activePage.startsWith('spaces'))) ? ' gc-nav-item--active' : ''}${item.page === 'chat' && layout === 'unified' && chatListOpen ? ' gc-nav-item--active' : ''}`}
+                className={`gc-nav-item${activePage === item.page ? ' gc-nav-item--active' : ''}${item.page === 'chat' && layout === 'unified' && chatListOpen ? ' gc-nav-item--active' : ''}`}
                 href="#"
                 data-page={item.page}
                 onClick={(e) => {

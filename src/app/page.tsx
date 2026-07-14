@@ -199,10 +199,19 @@ export default function Home() {
         </div>
       )}
 
-      {/* -- Dashboard page -- */}
+      {/* -- Dashboard page (legacy, kept for compatibility) -- */}
       {activePage === 'dashboard' && user && (
         <div style={{ height: '100%', overflow: 'hidden' }}>
           <DashboardPage />
+        </div>
+      )}
+
+      {/* -- Templates page (placeholder) -- */}
+      {activePage === 'templates' && (
+        <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 48, color: 'var(--text-dim, #80868b)' }}>dashboard</span>
+          <p style={{ margin: 0, fontSize: 16, fontWeight: 500, color: 'var(--text, #1a1a1a)', fontFamily: "'Google Sans', sans-serif" }}>Templates coming soon</p>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted, #5f6368)', fontFamily: "'Google Sans', sans-serif" }}>Pre-built workflows and queries will appear here.</p>
         </div>
       )}
 
@@ -220,7 +229,7 @@ export default function Home() {
          UNIFIED LAYOUT (original single-pane)
          ============================================================ */}
       {!isSplit && (
-        <div style={{ display: (activePage === 'prompts' || activePage === 'spaces' || activePage.startsWith('spaces:') || activePage === 'favorites' || activePage === 'dashboard') ? 'none' : 'flex', height: '100%', background: 'var(--chat-bg)' }}>
+        <div style={{ display: (activePage === 'prompts' || activePage === 'spaces' || activePage.startsWith('spaces:') || activePage === 'favorites' || activePage === 'dashboard' || activePage === 'templates') ? 'none' : 'flex', height: '100%', background: 'var(--chat-bg)' }}>
 
           {/* Chat sidebar panel */}
           <ChatSidebar
@@ -454,7 +463,7 @@ export default function Home() {
       {isSplit && (
         <div
           className={`layout-split ${layout === 'chat-right' ? 'layout-chat-right' : 'layout-chat-left'}`}
-          style={{ display: (activePage === 'prompts' || activePage === 'spaces' || activePage.startsWith('spaces:') || activePage === 'favorites' || activePage === 'dashboard') ? 'none' : 'flex', height: '100%' }}
+          style={{ display: (activePage === 'prompts' || activePage === 'spaces' || activePage.startsWith('spaces:') || activePage === 'favorites' || activePage === 'dashboard' || activePage === 'templates') ? 'none' : 'flex', height: '100%' }}
         >
           {/* Chat list view */}
           {splitView === 'list' && (

@@ -120,38 +120,21 @@ const S = {
 
   viewToggle: {
     display: 'flex',
-    border: '1px solid var(--border, #dadce0)',
-    borderRadius: 8,
-    overflow: 'hidden',
+    gap: 2,
   } as React.CSSProperties,
 
   viewBtn: (active: boolean) => ({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: 36,
-    height: 36,
-    border: 'none',
+    width: 32,
+    height: 32,
+    border: '1px solid var(--border, #dadce0)',
+    borderRadius: 6,
     background: active ? 'var(--accent, #1967d2)' : 'transparent',
     color: active ? '#fff' : 'var(--text-muted, #5f6368)',
     cursor: 'pointer',
-    fontSize: 18,
   } as React.CSSProperties),
-
-  newSpaceBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '8px 16px',
-    fontSize: 13,
-    fontWeight: 500,
-    border: '1px solid var(--border, #dadce0)',
-    borderRadius: 8,
-    background: 'transparent',
-    color: 'var(--text, #1a1a1a)',
-    cursor: 'pointer',
-    fontFamily: "'Google Sans', sans-serif",
-  } as React.CSSProperties,
 
   searchBox: {
     display: 'flex',
@@ -808,28 +791,11 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPage
 
   // ── Derived data ─────────────────────────────────────────────────────────
 
-  const activeSpace = activeSpaceId ? spaces.find((s) => s.id === activeSpaceId) : null;
+  const filteredItems = sortItems(items, sortBy);
 
-  const filteredItems = (() => {
-    let filtered = items;
-    // Filter by tab type
-    if (activeTab !== 'all' && searchQuery.trim()) {
-      filtered = filtered.filter((i) => i.type === activeTab);
-    }
-    // Filter by active space
-    if (activeSpaceId) {
-      filtered = filtered.filter((i) => i.spaceId === activeSpaceId);
-    } else if (!searchQuery.trim()) {
-      // Root view: show items without a space, or items whose space no longer exists
-      const spaceIds = new Set(spaces.map((s) => s.id));
-      filtered = filtered.filter((i) => !i.spaceId || !spaceIds.has(i.spaceId));
-    }
-    return sortItems(filtered, sortBy);
-  })();
-
-  // Count items in each space
-  function spaceItemCount(spaceId: string): number {
-    return items.filter((i) => i.spaceId === spaceId).length;
+  // Count items in each space (kept for context menu compatibility)
+  function spaceItemCount(_spaceId: string): number {
+    return items.filter((i) => i.spaceId === _spaceId).length;
   }
 
   // ── Render: inline name ──────────────────────────────────────────────────
@@ -1010,6 +976,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPage
     const firstSql = item.steps?.[0]?.cachedSql;
     const stepCount = item.steps?.length || 0;
     const paramCount = item.parameters?.length || 0;
+    const showTypeCorner = activeTab === 'all';
 
     return (
       <div
@@ -1018,6 +985,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPage
           ...S.card(false),
           ...(isHovered ? S.cardHover : {}),
           ...(isDragging ? S.dragging : {}),
+          position: 'relative',
         }}
         onMouseEnter={() => setHoveredCard(item.id)}
         onMouseLeave={() => setHoveredCard(null)}
@@ -1025,15 +993,41 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPage
         onDragStart={(e) => handleDragStart(e, item.id)}
         onDragEnd={handleDragEnd}
       >
-        <div style={S.cardHeader}>
-          <div style={S.cardTitleRow}>
-            <span className="material-symbols-outlined" style={S.typeIcon}>
+        {/* Type badge in top-right corner (All view only) */}
+        {showTypeCorner && (
+          <div style={{
+            position: 'absolute',
+            top: 14,
+            right: 14,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            background: 'var(--surface-2, #f1f3f4)',
+            borderRadius: 6,
+            padding: '3px 7px',
+            fontSize: 11,
+            fontWeight: 500,
+            color: 'var(--text-muted, #5f6368)',
+            fontFamily: "'Google Sans', sans-serif",
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 13 }}>
               {TYPE_ICONS[item.type] || 'description'}
             </span>
+            {TYPE_LABELS[item.type] || item.type}
+          </div>
+        )}
+
+        <div style={S.cardHeader}>
+          <div style={S.cardTitleRow}>
+            {!showTypeCorner && (
+              <span className="material-symbols-outlined" style={S.typeIcon}>
+                {TYPE_ICONS[item.type] || 'description'}
+              </span>
+            )}
             {renderName(item.id, item.name, 'item')}
           </div>
           <button
-            style={S.moreBtn}
+            style={{ ...S.moreBtn, ...(showTypeCorner ? { marginRight: 72 } : {}) }}
             onClick={(e) => {
               e.stopPropagation();
               setMenuOpenId(menuOpenId === item.id ? null : item.id);
@@ -1053,7 +1047,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPage
         )}
 
         <div style={S.metaRow}>
-          <span>{TYPE_LABELS[item.type] || item.type}</span>
           {stepCount > 1 && <span>{stepCount} steps</span>}
           {paramCount > 0 && <span>{paramCount} params</span>}
           {item.runCount > 0 && <span>Run {item.runCount}x</span>}
@@ -1266,8 +1259,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPage
   function renderContent() {
     if (loading) return renderSkeleton();
 
-    const showSpaces = !activeSpaceId && !searchQuery.trim();
-    const hasContent = filteredItems.length > 0 || (showSpaces && spaces.length > 0) || creatingSpace;
+    const hasContent = filteredItems.length > 0;
 
     if (!hasContent) return renderEmpty();
 
@@ -1275,8 +1267,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPage
       return (
         <table style={S.listTable}>
           <tbody>
-            {showSpaces && creatingSpace && renderNewSpaceInput()}
-            {showSpaces && spaces.map((sp) => renderSpaceRow(sp))}
             {filteredItems.map((item) => renderItemRow(item))}
           </tbody>
         </table>
@@ -1285,8 +1275,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPage
 
     return (
       <div style={S.grid}>
-        {showSpaces && creatingSpace && renderNewSpaceInput()}
-        {showSpaces && spaces.map((sp) => renderSpaceCard(sp))}
         {filteredItems.map((item) => renderItemCard(item))}
       </div>
     );
@@ -1294,12 +1282,20 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPage
 
   // ── Main render ──────────────────────────────────────────────────────────
 
+  const TAB_TITLES: Record<string, string> = {
+    all: 'All Content',
+    query: 'Queries',
+    workflow: 'Workflows',
+    pipeline: 'Pipelines',
+    app: 'Apps',
+  };
+
   return (
     <div style={S.container}>
       {/* Header */}
       <div style={S.header}>
         <div style={S.titleRow}>
-          <h1 style={S.title}>Spaces</h1>
+          <h1 style={S.title}>{TAB_TITLES[activeTab] ?? 'Content'}</h1>
           <div style={S.viewToggle}>
             <button
               style={S.viewBtn(viewMode === 'card')}
@@ -1316,18 +1312,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPage
               <span className="material-symbols-outlined" style={{ fontSize: 18 }}>view_list</span>
             </button>
           </div>
-          {!activeSpaceId && (
-            <button
-              style={S.newSpaceBtn}
-              onClick={() => {
-                setCreatingSpace(true);
-                setNewSpaceName('');
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
-              New Space
-            </button>
-          )}
         </div>
         <div style={S.headerRight}>
           <div style={S.searchBox}>
@@ -1354,39 +1338,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPage
           </select>
         </div>
       </div>
-
-      {/* Filter tabs */}
-      <div style={S.tabs}>
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            style={S.tab(activeTab === tab.key)}
-            onClick={() => handleTabChange(tab.key)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Breadcrumb */}
-      {activeSpaceId && activeSpace && (
-        <div style={S.breadcrumb}>
-          <button
-            style={{
-              ...S.breadcrumbLink,
-              ...(dragOverBreadcrumb ? { background: 'color-mix(in srgb, var(--accent, #1967d2) 10%, transparent)' } : {}),
-            }}
-            onClick={() => setActiveSpaceId(null)}
-            onDragOver={handleDragOverBreadcrumb}
-            onDragLeave={handleDragLeaveBreadcrumb}
-            onDrop={handleDropOnBreadcrumb}
-          >
-            Spaces
-          </button>
-          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chevron_right</span>
-          <span style={S.breadcrumbCurrent}>{activeSpace.name}</span>
-        </div>
-      )}
 
       {/* Content */}
       {renderContent()}
