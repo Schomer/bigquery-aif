@@ -140,7 +140,7 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
     <div
       className={`fade-up ${toneClass}`}
       style={{
-        background: '#F4F7FB',
+        background: '#ffffff',
         border: '1px solid #ECF1FA',
         borderRadius: 12,
         overflow: 'hidden',
