@@ -297,6 +297,16 @@ details>summary::marker {
   50% { opacity: 0.4; transform: scale(0.75); }
 }
 
+/* Chat sidebar item: hide kebab until hover */
+.chat-sidebar-item .chat-sidebar-actions {
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.chat-sidebar-item:hover .chat-sidebar-actions,
+.chat-sidebar-item .chat-sidebar-actions[data-menu-open="true"] {
+  opacity: 1;
+}
+
 /* Prompt editor dialog animations */
 @keyframes fadeIn {
   from {

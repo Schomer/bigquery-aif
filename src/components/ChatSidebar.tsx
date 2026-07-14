@@ -37,6 +37,8 @@ interface ChatSidebarProps {
   side?: 'left' | 'right';
   /** Whether the active chat is currently processing a request. */
   activeLoading?: boolean;
+  /** Called when user picks Save as Workflow for a chat. */
+  onSaveAsWorkflow?: (convId: string) => void;
 }
 
 // Key for localStorage seen-timestamps map
@@ -62,6 +64,7 @@ export function ChatSidebar({
   onSelectChat,
   side = 'right',
   activeLoading = false,
+  onSaveAsWorkflow,
 }: ChatSidebarProps) {
   const { user } = useAuth();
   const { conversationId, loadConversation, newConversation } = useConversation();
@@ -567,6 +570,7 @@ export function ChatSidebar({
                         {/* Three-dot menu */}
                         <button
                           className="chat-sidebar-actions"
+                          data-menu-open={menuId === conv.id ? 'true' : undefined}
                           style={{
                             width: 24,
                             height: 24,
@@ -580,7 +584,6 @@ export function ChatSidebar({
                             color: 'var(--text-dim)',
                             flexShrink: 0,
                             padding: 0,
-                            opacity: menuId === conv.id ? 1 : undefined,
                           }}
                           onClick={(e) => { e.stopPropagation(); setMenuId(menuId === conv.id ? null : conv.id); }}
                           onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)'; }}
@@ -659,6 +662,27 @@ export function ChatSidebar({
                     <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span>
                     Rename
                   </button>
+                  {onSaveAsWorkflow && (
+                    <button
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        width: '100%', padding: '8px 12px',
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        fontSize: 13, color: 'var(--text)', borderRadius: 8,
+                        fontFamily: "'Google Sans', sans-serif", transition: 'background 0.1s',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuId(null);
+                        onSaveAsWorkflow(conv.id);
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>conversion_path</span>
+                      Save as Workflow
+                    </button>
+                  )}
                   <button
                     style={{
                       display: 'flex', alignItems: 'center', gap: 8,

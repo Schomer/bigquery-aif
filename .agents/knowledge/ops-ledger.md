@@ -1,6 +1,18 @@
 # Operations Ledger
 
-## 2026-07-13: Duplicate titles in query result cards
+## 2026-07-14: Sidebar cleanup -- Queries/Admin groups removed
+
+**What happened**: The sidebar had "Queries" (Saved Queries, Query History) and "Admin" (Cost) groups that were dead links. Clicking them set `activePage` to `'saved-queries'`, `'query-history'`, or `'cost'` — none of which had handlers in `page.tsx`, so they rendered nothing.
+
+**Root cause**: Stale nav items from an earlier design. The intended flow is: save a query/chart result via the save button → artifact stored in `savedWork` (Firestore) → visible in Spaces page. Saved queries are `SavedArtifact` objects, not `SavedConversation` (chat thread) objects — they are stored at separate Firestore paths.
+
+**Fix**: Removed the `'Queries'` and `'Admin'` groups from `NAV_GROUPS` in `SideNav.tsx`. Only the `'Data'` group remains (Datasets, Tables, Schema Explorer).
+
+**Rule**: Saved items (queries, workflows, pipelines) live in `savedWork` and are shown by the Spaces page. They are NOT the same as chat threads (`conversations`). Do not add sidebar links to pages that don't have route handlers in `page.tsx`.
+
+---
+
+
 
 **What happened**: Query results showed the same title text three times: once as a BriefingBlock above the card (rendered by ChatThread), once as the card headline (ArtifactCard), and once as the briefing inside the card (ArtifactCard internal BriefingBlock).
 

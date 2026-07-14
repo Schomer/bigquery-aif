@@ -224,6 +224,7 @@ export default function Home() {
             visible={chatListOpen}
             onSelectChat={() => setChatListOpen(false)}
             activeLoading={chat.loading}
+            onSaveAsWorkflow={() => setWorkflowSaveOpen(true)}
           />
 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative' }}>
@@ -394,23 +395,6 @@ export default function Home() {
 
           {/* -- ACTIVE CHAT: scrollable message thread -- */}
           {hasChat && (
-            <>
-              {/* Save as Workflow button (top-right of thread area) */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '6px 16px 0', flexShrink: 0 }}>
-                <button
-                  onClick={() => setWorkflowSaveOpen(true)}
-                  title="Save this conversation as a reusable workflow"
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', background: 'none', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit' }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: 13 }}>save</span>
-                  Save as Workflow
-                </button>
-              </div>
-            </>
-          )}
-
-          {/* -- ACTIVE CHAT: scrollable message thread -- */}
-          {hasChat && (
             <ChatThread
               messages={chat.messages}
               thinkingSteps={chat.thinkingSteps}
@@ -476,6 +460,7 @@ export default function Home() {
               side={layout === 'chat-right' ? 'left' : 'right'}
               activeLoading={chat.loading}
               onSelectChat={() => setSplitView('thread')}
+              onSaveAsWorkflow={() => setWorkflowSaveOpen(true)}
             />
           )}
 
