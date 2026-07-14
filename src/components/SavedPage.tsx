@@ -1185,7 +1185,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPage
 
   function renderEmpty() {
     const EMPTY_ICONS: Record<string, string> = {
-      all: 'folder_open',
+      all: 'home_storage',
       query: 'query_stats',
       workflow: 'conversion_path',
       pipeline: 'schedule',

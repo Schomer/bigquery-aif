@@ -15,7 +15,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Content',
     items: [
-      { label: 'All', icon: 'folder_open', page: 'spaces:all' },
+      { label: 'All', icon: 'home_storage', page: 'spaces:all' },
       { label: 'Queries', icon: 'query_stats', page: 'spaces:query' },
       { label: 'Workflows', icon: 'conversion_path', page: 'spaces:workflow' },
       { label: 'Pipelines', icon: 'schedule', page: 'spaces:pipeline' },
