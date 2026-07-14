@@ -259,7 +259,7 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
               color: 'var(--text-muted, #64748b)',
               fontStyle: 'italic',
             }}>
-              {envelope.insight}
+              {typeof envelope.insight === 'string' ? envelope.insight : String(envelope.insight ?? '')}
             </p>
           )}
         </div>

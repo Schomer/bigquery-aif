@@ -464,7 +464,7 @@ export function ChatThread({
                         whiteSpace: 'pre-line',
                         maxWidth: 640,
                       }}>
-                        {convData.text}
+                        {typeof convData.text === 'string' ? convData.text : String(convData.text ?? '')}
                       </div>
                       {env.nextActions && env.nextActions.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>

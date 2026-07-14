@@ -2,7 +2,19 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
-## 2026-07-14: Fix duplicate titles in query/schema result cards
+## 2026-07-14: Resume from saved query as virtual CTE table
+
+**Context**: Users wanted to run a saved query then ask follow-up analytical questions against the result, treating the saved query like a named virtual table.
+
+**Changes**:
+- `src/hooks/useChatOrchestration.ts`: Added `lastSavedArtifactSql`, `lastSavedArtifactName`, `lastSavedArtifactVizType` to `ChatContext`. Extended `extractContextFromEnvelope` to extract and store these from envelope data. Clears them when a non-artifact query runs.
+- `src/lib/skills/handle-saved.ts`: Injects `savedArtifactSql`, `savedArtifactName`, `savedArtifactVizType` into the `QueryResult` so the envelope carries virtual-table metadata.
+- `src/lib/orchestrator-utils.ts`: `buildConversationStateSummary` now prioritizes saved artifact context and tells the LLM classifier to route follow-ups to the query skill with CTE wrapping.
+- `src/lib/skills/handle-query.ts`: When `lastSavedArtifactSql` is set, injects a `VIRTUAL TABLE CONTEXT` block into the system prompt; the LLM wraps the saved SQL as a CTE and writes all follow-up SQL against it.
+
+---
+
+
 
 **Context**: Query and schema results displayed the headline text multiple times -- once as the card header and again as a narrative-only briefing that paraphrased the headline.
 

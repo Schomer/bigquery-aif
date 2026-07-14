@@ -25,7 +25,7 @@ export function BriefingBlock({ briefing }: Props) {
         color: 'var(--text-primary, #1a1a1a)',
         fontFamily: "'Google Sans', sans-serif",
       }}>
-        {renderInlineCode(briefing.narrative)}
+        {renderInlineCode(typeof briefing.narrative === 'string' ? briefing.narrative : String(briefing.narrative ?? ''))}
       </p>
 
       {briefing.findings && briefing.findings.length > 0 && (
