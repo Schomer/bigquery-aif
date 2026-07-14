@@ -310,13 +310,10 @@ The user's new message is a continuation of this conversation. Treat it as a fol
         const artifactType = env.primaryArtifact.type;
         const data = env.primaryArtifact.data as Record<string, unknown> | null;
 
-        // Schema PROJECT/DATASET scope: straightforward metadata listings
-        if (artifactType === 'SCHEMA_VIEW' && data && 'scope' in data) {
-          const scope = (data as { scope: string }).scope;
-          if (scope === 'PROJECT' || scope === 'DATASET') {
-            env.skipSelfReview = true;
-            continue;
-          }
+        // Schema results: factual metadata -- self-review adds no value at any scope
+        if (artifactType === 'SCHEMA_VIEW') {
+          env.skipSelfReview = true;
+          continue;
         }
 
         // KPI_CARD: single value answers, headline is the answer
