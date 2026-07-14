@@ -20,19 +20,6 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'Schema Explorer', icon: 'account_tree', page: 'schema' },
     ],
   },
-  {
-    label: 'Queries',
-    items: [
-      { label: 'Saved Queries', icon: 'manage_search', page: 'saved-queries' },
-      { label: 'Query History', icon: 'history', page: 'query-history' },
-    ],
-  },
-  {
-    label: 'Admin',
-    items: [
-      { label: 'Cost', icon: 'payments', page: 'cost' },
-    ],
-  },
 ];
 
 interface SideNavProps {
