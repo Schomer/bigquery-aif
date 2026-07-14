@@ -1,5 +1,21 @@
 # Operations Ledger
 
+## 2026-07-14: React error #310 -- objects rendered as React children
+
+**What happened**: User got a runtime crash ("Minified React error #310") when creating a query. The error means "Objects are not valid as a React child."
+
+**Root cause**: Multiple rendering paths assumed string values but received objects at runtime. Three sources: (1) Gemini's structured output for self-review `briefingFindings` can return numbers or objects for fields typed as STRING; (2) BigQuery RECORD/STRUCT fields pass through `coerceValue` as raw `{f: [{v: ...}]}` objects because only NUMERIC and BOOLEAN types were coerced; (3) `envelope.insight` and `convData.text` rendered directly without type guards.
+
+**Fix** (4 files):
+- `BriefingBlock.tsx`: Wrapped `f.label`, `f.value`, `f.detail`, and `briefing.narrative` in `String()` coercion.
+- `bigquery-client.ts`: Added `typeof raw === 'object'` check in `coerceValue` to JSON.stringify RECORD/STRUCT field values.
+- `ArtifactCard.tsx`: Guarded `{envelope.insight}` with `typeof` check.
+- `ChatThread.tsx`: Guarded `{convData.text}` with `typeof` check.
+
+**Rule**: Never render LLM-sourced or BigQuery-sourced values directly in JSX without a `String()` or `typeof === 'string'` guard. Structured output schemas say STRING but can return other types at runtime.
+
+---
+
 ## 2026-07-14: Resume from saved query -- virtual CTE table context
 
 **What happened**: When a user ran a saved artifact and then asked a follow-up query (e.g., "group by month"), the orchestrator had no memory that the prior result came from a saved query. It tried to query a real BigQuery table and often produced irrelevant SQL.

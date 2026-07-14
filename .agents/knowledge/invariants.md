@@ -24,6 +24,7 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **INFORMATION_SCHEMA outside backticks**: INFORMATION_SCHEMA views must be OUTSIDE the backtick-quoted identifier. Correct: `` `project.dataset`.INFORMATION_SCHEMA.VIEW_NAME ``. Wrong: `` `project.dataset.INFORMATION_SCHEMA.VIEW_NAME` ``. The wrong form causes BigQuery to interpret `dataset.INFORMATION_SCHEMA` as a dataset name. Verify: `grep -rn 'INFORMATION_SCHEMA' src/lib/skills/` and check that no INFORMATION_SCHEMA reference is inside a backtick pair.
 - **Build before deploy**: Run `npm run build` after every source change. This project uses SSR, not static export.
 - **Deploy after build**: `git add -A && git commit && git push` then `node scripts/deploy.mjs`. User tests on deployed app, not localhost.
+- **String-coerce all dynamic values in JSX**: Never render LLM-sourced or BigQuery-sourced values directly in JSX. Always wrap with `String(val)` or guard with `typeof val === 'string' ? val : String(val ?? '')`. Gemini structured output can return objects/numbers for STRING-typed fields; BigQuery RECORD/STRUCT fields return nested objects. Rendering these as React children causes error #310.
 
 ---
 

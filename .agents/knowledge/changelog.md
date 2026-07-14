@@ -2,6 +2,18 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-14: Fix React error #310 -- objects as React children
+
+**Context**: User got a runtime crash when creating a query. React error #310 = "Objects are not valid as a React child."
+
+**Changes**:
+- `src/components/BriefingBlock.tsx`: Wrapped `f.label`, `f.value`, `f.detail`, `briefing.narrative` in `String()` coercion.
+- `src/lib/bigquery-client.ts`: Added `typeof raw === 'object'` guard in `coerceValue` to JSON.stringify RECORD/STRUCT fields.
+- `src/components/ArtifactCard.tsx`: Guarded `envelope.insight` with `typeof` check.
+- `src/components/chat/ChatThread.tsx`: Guarded `convData.text` with `typeof` check.
+
+---
+
 ## 2026-07-14: Resume from saved query as virtual CTE table
 
 **Context**: Users wanted to run a saved query then ask follow-up analytical questions against the result, treating the saved query like a named virtual table.
