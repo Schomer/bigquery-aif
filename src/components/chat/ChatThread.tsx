@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { SparkSpinner } from '@/components/SparkSpinner';
 import { ArtifactCard } from '@/components/ArtifactCard';
 import { InlineCostConfirm, InlineDmlConfirm } from './InlineConfirmation';
-import { BriefingBlock } from '@/components/BriefingBlock';
+
 import type {
   ChatMessage,
   CompositionEnvelope,
@@ -495,9 +495,6 @@ export function ChatThread({
                 }
                 return (
                   <div key={env.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {env.briefing && (
-                      <BriefingBlock briefing={env.briefing} />
-                    )}
                     <ArtifactCard
                       envelope={env}
                       onConfirm={() => onConfirm(env)}

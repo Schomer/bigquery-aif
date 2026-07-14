@@ -1,5 +1,17 @@
 # Operations Ledger
 
+## 2026-07-13: COMPLETION_CARD type mismatch crash
+
+**What happened**: CSV upload to a new table crashed with "Cannot read properties of undefined (reading 'toLocaleString')".
+
+**Root cause**: The composer used `COMPLETION_CARD` artifact type for upload completion, but `CompletionCard` component expects `DataManagementCompleteResult` (with `rowsAffected`, `operation`). Upload results are `DataLoadingResult` (with `message`, `rowCount`). The component accessed `result.rowsAffected` which was `undefined`.
+
+**Fix**: Changed upload completion to use `DATA_LOADING_VIEW` instead of `COMPLETION_CARD`.
+
+**Rule**: Never reuse `COMPLETION_CARD` for non-data-management results. Each artifact type is tightly coupled to a specific result interface. Use `DATA_LOADING_VIEW` for all `DataLoadingResult` types.
+
+---
+
 A reverse-chronological log of changes, fixes, and lessons learned. Read this before making code changes to avoid repeating past mistakes.
 
 ## How to use this file

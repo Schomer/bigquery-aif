@@ -248,7 +248,7 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
       {/* Briefing + insight -- inside card boundary, below headline */}
       {(envelope.briefing || envelope.insight) && (
         <div style={{ padding: '0 20px 12px', borderBottom: '1px solid #ECF1FA', marginBottom: 4 }}>
-          {envelope.briefing && (
+          {envelope.briefing && envelope.briefing.narrative !== (typeof envelope.headline.text === 'string' ? envelope.headline.text : String(envelope.headline.text ?? '')) && (
             <BriefingBlock briefing={envelope.briefing} />
           )}
           {envelope.insight && (
