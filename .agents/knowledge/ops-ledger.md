@@ -1,5 +1,19 @@
 # Operations Ledger
 
+## 2026-07-14: Heatmap shown for ranked country list -- filter column leaking into SELECT
+
+**What happened**: Query "top 10 countries by total population in year 900" rendered as a heatmap instead of a bar chart.
+
+**Root cause**: Two compounding issues. (1) The LLM generated SQL including `year` in SELECT/GROUP BY even though it was only a WHERE filter -- producing 3 columns (country, year, population) instead of 2. (2) The composer's heatmap rule fired on `catCols.length === 2 && numericCols.length === 1`, treating the constant `year=900` column as a second categorical dimension and routing to HEATMAP.
+
+**Fix** (2 files):
+- `public/skills/query.md`: Added SQL rule -- do NOT SELECT columns that are used only as WHERE filters. Includes a concrete example matching the exact failure pattern.
+- `src/lib/composer.ts`: Both heatmap rules (Step 4 and Step 8) now check that each categorical column has >1 unique value across the rows before committing to HEATMAP. A constant-valued column (all rows = 900) fails the check and falls through to bar/column chart.
+
+**Rule**: A categorical column where all rows share the same value is a filter artifact, not a matrix dimension. Never use it to justify HEATMAP.
+
+---
+
 ## 2026-07-14: React error #310 -- objects rendered as React children
 
 **What happened**: User got a runtime crash ("Minified React error #310") when creating a query. The error means "Objects are not valid as a React child."

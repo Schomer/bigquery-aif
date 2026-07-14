@@ -167,7 +167,63 @@ Period comparison queries count as a single cost-tiered operation -- the compari
 - 0 rows returned when results were expected
 If no notable finding exists, set `notableFindings: null` -- do NOT manufacture insight.
 
+## Interactive Widget Mode
+
+When the user asks for a **filter control**, **date range picker**, **date filter**, or phrases like "let me filter", "with a filter", "filter by date", "add a date picker", or "I want to explore [X] with filters":
+
+You must generate an **interactive widget** instead of a plain query result. Follow these steps exactly:
+
+### Step 1 — Generate two SQL statements
+
+**baseSql**: The full query with no date WHERE clause. This runs on initial load to show all data.
+```sql
+SELECT DATE_TRUNC(order_date, MONTH) AS month, SUM(sale_price) AS revenue
+FROM `project.dataset.orders`
+GROUP BY month ORDER BY month
+```
+
+**parameterizedSql**: The same query with a date filter using `{{start_date}}` and `{{end_date}}` literal placeholders:
+```sql
+SELECT DATE_TRUNC(order_date, MONTH) AS month, SUM(sale_price) AS revenue
+FROM `project.dataset.orders`
+WHERE order_date BETWEEN '{{start_date}}' AND '{{end_date}}'
+GROUP BY month ORDER BY month
+```
+
+### Step 2 — Call run_query with baseSql
+
+Execute the baseSql (all data, no date filter). Set `visualizationHint` to `"INTERACTIVE_WIDGET"`.
+
+### Step 3 — Include a widgetSpec JSON block in your text response
+
+After the query result, include this block **exactly** (parseable JSON between the markers):
+
+```
+WIDGET_SPEC_START
+{
+  "parameterizedSql": "SELECT ... WHERE order_date BETWEEN '{{start_date}}' AND '{{end_date}}' ...",
+  "baseSql": "SELECT ... (no date filter) ...",
+  "dateColumn": "order_date",
+  "defaultStart": null,
+  "defaultEnd": null
+}
+WIDGET_SPEC_END
+```
+
+- `defaultStart` / `defaultEnd`: set to ISO date strings (e.g. `"2024-01-01"`) **only** if the user explicitly requested a default date range (e.g. "default to last 30 days"). Otherwise set both to `null`.
+- `dateColumn`: the exact column name used in the WHERE clause.
+- Both SQL strings must be valid BigQuery SQL with fully-qualified table references in backticks.
+
+### Important rules for Interactive Widget Mode
+
+- The baseSql and parameterizedSql must differ **only** in the presence of the date WHERE clause. All other logic (GROUP BY, ORDER BY, JOINs, LIMIT) must be identical.
+- Use `BETWEEN '{{start_date}}' AND '{{end_date}}'` for DATE columns. For TIMESTAMP columns, cast: `WHERE CAST(ts_col AS DATE) BETWEEN '{{start_date}}' AND '{{end_date}}'`.
+- If the table has multiple date columns, pick the one most relevant to the user's question (e.g., `order_date` for "orders over time", `created_at` for "users over time").
+- Do NOT include the WIDGET_SPEC_START/END block for regular (non-widget) queries.
+
 ## Visualization selection
+
+
 
 Pick `suggestedVisualization` based on result shape:
 

@@ -11,7 +11,7 @@ import { compose } from '../composer';
 import { findReusablePlan, cachePlan } from '../plan-cache';
 import { analyzeResultQuality } from '../result-quality';
 import { BQ_TOOLS, BQ_TOOL_MAP } from '../bq-tools';
-import type { ChatMessage, CompositionEnvelope, QueryResult, SkillManifest, StatusCallback, VisualizationType, ArtifactType } from '../types';
+import type { ChatMessage, CompositionEnvelope, QueryResult, SkillManifest, StatusCallback, VisualizationType, ArtifactType, InteractiveWidgetData } from '../types';
 
 // ─── Tool-calling query handler ──────────────────────────────────────────────
 
@@ -262,6 +262,65 @@ After running the query, provide a brief one-line summary of what the results sh
     resultSummary: agentResult.textResponse || null,
   };
 
+  // -- Interactive widget mode: parse widgetSpec from LLM text response --
+  const textResponse = agentResult.textResponse || '';
+  const widgetSpecMatch = textResponse.match(/WIDGET_SPEC_START\s*([\s\S]*?)\s*WIDGET_SPEC_END/);
+  if (widgetSpecMatch && captured.visualizationHint === 'INTERACTIVE_WIDGET') {
+    let widgetSpec: { parameterizedSql?: string; baseSql?: string; dateColumn?: string; defaultStart?: string | null; defaultEnd?: string | null } | null = null;
+    try {
+      widgetSpec = JSON.parse(widgetSpecMatch[1].trim());
+    } catch {
+      // Parsing failed -- fall through to normal query result
+    }
+
+    if (widgetSpec && widgetSpec.parameterizedSql && widgetSpec.baseSql && widgetSpec.dateColumn) {
+      const widgetData: InteractiveWidgetData = {
+        baseSql: widgetSpec.baseSql,
+        parameterizedSql: widgetSpec.parameterizedSql,
+        controls: [{
+          type: 'DATE_RANGE',
+          label: 'Date Range',
+          startParam: '{{start_date}}',
+          endParam: '{{end_date}}',
+          dateColumn: widgetSpec.dateColumn,
+        }],
+        visualization: (captured.visualizationHint as VisualizationType | undefined) ?? 'LINE_CHART',
+        xAxis: captured.columns[0] ?? null,
+        yAxis: captured.columns.slice(1),
+        initialResult: {
+          columns: captured.columns,
+          columnTypes: captured.columnTypes,
+          rows: captured.rows,
+          rowCount: captured.rowCount,
+          jobId: captured.jobId || undefined,
+        },
+        defaultStart: widgetSpec.defaultStart ?? null,
+        defaultEnd: widgetSpec.defaultEnd ?? null,
+        project,
+      };
+
+      const widgetResult: QueryResult = {
+        skill: 'query',
+        sql: widgetSpec.baseSql,
+        requiresConfirmation: false,
+        costConfirm: null,
+        columns: captured.columns,
+        columnTypes: captured.columnTypes,
+        rows: captured.rows,
+        rowCount: captured.rowCount,
+        jobId: captured.jobId || undefined,
+        totalBytesProcessed: 0,
+        costTier: 0,
+        suggestedVisualization: 'INTERACTIVE_WIDGET' as VisualizationType,
+        notableFindings: null,
+        resultSummary: null,
+        widgetData,
+      } as QueryResult & { widgetData: InteractiveWidgetData };
+
+      return [compose('query', widgetResult, qualityFlags, 'INTERACTIVE_WIDGET')];
+    }
+  }
+
   return [compose('query', result, qualityFlags, context?.userIntent ?? null)];
 }
 
@@ -376,6 +435,18 @@ export const manifest: SkillManifest = {
     { phrase: 'revenue', weight: 2 },
     { phrase: 'by status', weight: 2 },
     { phrase: 'busiest', weight: 2 },
+    // Interactive widget signals
+    { phrase: 'date range', weight: 5 },
+    { phrase: 'date filter', weight: 5 },
+    { phrase: 'date picker', weight: 5 },
+    { phrase: 'filter by date', weight: 5 },
+    { phrase: 'with a filter', weight: 4 },
+    { phrase: 'let me filter', weight: 4 },
+    { phrase: 'add a filter', weight: 4 },
+    { phrase: 'filter control', weight: 5 },
+    { phrase: 'interactive', weight: 3 },
+    { phrase: 'explore with', weight: 3 },
+    { phrase: 'drill into', weight: 2 },
   ],
   handle: handleQuery,
 };

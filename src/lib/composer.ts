@@ -209,7 +209,32 @@ function composeSchema(result: SchemaResult): CompositionEnvelope {
 function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[], userIntent?: ArtifactType | null): CompositionEnvelope {
   const id = randomUUID();
 
+  // Interactive widget — data already built by handle-query; just wrap it
+  if (result.suggestedVisualization === 'INTERACTIVE_WIDGET' && (result as any).widgetData) {
+    return {
+      id,
+      skill: 'query',
+      headline: {
+        text: (result as any).resultSummary || 'Interactive chart \u2014 use the date range filter to explore',
+        tone: 'NEUTRAL',
+        basis: 'DIRECT_ANSWER',
+      },
+      primaryArtifact: {
+        type: 'INTERACTIVE_WIDGET',
+        data: (result as any).widgetData,
+      },
+      provenance: {
+        visibility: 'COLLAPSED',
+        sql: (result as any).widgetData?.baseSql ?? result.sql,
+      },
+      nextActions: [],
+      presentation: 'custom',
+      skipSelfReview: true,
+    };
+  }
+
   // Cost confirm card — don't show results
+
   if (result.requiresConfirmation && result.costConfirm) {
     return {
       id,

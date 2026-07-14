@@ -2,6 +2,16 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-14: Fix degenerate heatmap for ranked lists with a filter column
+
+**Context**: "Top 10 countries by population in year 900" was rendering as a heatmap because the LLM included `year` in SELECT/GROUP BY, producing 2 categorical columns that triggered the heatmap rule.
+
+**Changes**:
+- `public/skills/query.md`: Added SQL rule prohibiting SELECT of filter-only columns, with a concrete example.
+- `src/lib/composer.ts`: Both heatmap rules now require both categorical columns to have >1 unique value (uniqueness check) before returning HEATMAP. Constant-valued columns fall through to bar chart.
+
+---
+
 ## 2026-07-14: Fix React error #310 -- objects as React children
 
 **Context**: User got a runtime crash when creating a query. React error #310 = "Objects are not valid as a React child."

@@ -123,6 +123,7 @@ export type ArtifactType =
   | 'PIPELINE_VIEW'
   | 'TASK_VIEW'
   | 'GOVERNANCE_VIEW'
+  | 'INTERACTIVE_WIDGET'
   | 'CONVERSATION';
 
 export interface CompositionEnvelope {
@@ -297,7 +298,8 @@ export type VisualizationType =
   // Maps
   | 'GEO_POINT_MAP' | 'USA_MAP' | 'WORLD_MAP'
   | 'KPI_CARD'
-  | 'STAT_ROW';         // W2-02: 2–5 row categorical+numeric grid
+  | 'STAT_ROW'         // W2-02: 2–5 row categorical+numeric grid
+  | 'INTERACTIVE_WIDGET';
 
 
 export interface QueryResult {
@@ -319,6 +321,40 @@ export interface QueryResult {
   notableFindings?: string | null;
   resultSummary?: string | null;
   extractedParameters?: ParameterDef[];
+}
+
+// ─── Interactive Widget types (date range picker + chart/table) ──────────────────────────────
+
+export interface WidgetControl {
+  type: 'DATE_RANGE';
+  label: string;
+  startParam: string;   // '{{start_date}}'
+  endParam: string;     // '{{end_date}}'
+  dateColumn: string;   // the date/timestamp column being filtered
+}
+
+export interface InteractiveWidgetData {
+  /** SQL with no date filter — executed on initial load to show all data */
+  baseSql: string;
+  /** SQL with {{start_date}} and {{end_date}} placeholders — used when user applies a date range */
+  parameterizedSql: string;
+  controls: WidgetControl[];
+  visualization: VisualizationType;
+  xAxis?: string | null;
+  yAxis?: string[] | null;
+  /** Pre-executed result using baseSql (all data, no date filter) */
+  initialResult: {
+    columns: string[];
+    columnTypes?: string[];
+    rows: unknown[][];
+    rowCount: number;
+    jobId?: string;
+  };
+  /** Only set when the user explicitly specifies a default date range in their prompt */
+  defaultStart?: string | null;
+  defaultEnd?: string | null;
+  /** BigQuery project, needed for re-query calls */
+  project: string;
 }
 
 // ─── Data Management normalized result (bigquery-skill-data-management.md) ───

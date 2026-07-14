@@ -27,6 +27,7 @@ import { FreshnessView } from './FreshnessView';
 import { PipelineView } from './PipelineView';
 import TaskWorkflowView from './TaskWorkflowView';
 import { GovernanceView } from './GovernanceView';
+import { InteractiveWidgetView } from './InteractiveWidgetView';
 import { BriefingBlock } from './BriefingBlock';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { usePreferences } from '@/lib/preferences-context';
@@ -775,6 +776,8 @@ function CustomArtifact(props: import('@/lib/types').CustomViewProps) {
   switch (type) {
     case 'GOVERNANCE_VIEW':
       return <GovernanceView {...props} />;
+    case 'INTERACTIVE_WIDGET':
+      return <InteractiveWidgetView {...props} />;
     default:
       // Fallback: render as standard Artifact (shouldn't happen in practice)
       return (
