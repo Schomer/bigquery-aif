@@ -223,13 +223,13 @@ const S = {
     gap: 16,
   } as React.CSSProperties,
 
-  card: (isSpace: boolean) => ({
-    background: isSpace ? 'var(--surface-2, #f1f3f4)' : 'white',
+  card: (_isSpace: boolean) => ({
+    background: 'var(--surface, white)',
     border: '1px solid var(--border, #dadce0)',
     borderRadius: 12,
     padding: '20px',
     transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
-    cursor: isSpace ? 'pointer' : 'default',
+    cursor: 'default',
     position: 'relative' as const,
   } as React.CSSProperties),
 
@@ -1294,8 +1294,18 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPage
     <div style={S.container}>
       {/* Header */}
       <div style={S.header}>
-        <div style={S.titleRow}>
-          <h1 style={S.title}>{TAB_TITLES[activeTab] ?? 'Content'}</h1>
+        <h1 style={S.title}>{TAB_TITLES[activeTab] ?? 'Content'}</h1>
+        <div style={S.headerRight}>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortMode)}
+            style={S.sortSelect}
+          >
+            <option value="recent">Recent</option>
+            <option value="name">Name</option>
+            <option value="most-used">Most Used</option>
+            <option value="type">Type</option>
+          </select>
           <div style={S.viewToggle}>
             <button
               style={S.viewBtn(viewMode === 'card')}
@@ -1312,30 +1322,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPage
               <span className="material-symbols-outlined" style={{ fontSize: 18 }}>view_list</span>
             </button>
           </div>
-        </div>
-        <div style={S.headerRight}>
-          <div style={S.searchBox}>
-            <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#80868b' }}>
-              search
-            </span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search saved items..."
-              style={S.searchInput}
-            />
-          </div>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as SortMode)}
-            style={S.sortSelect}
-          >
-            <option value="recent">Recent</option>
-            <option value="name">Name</option>
-            <option value="most-used">Most Used</option>
-            <option value="type">Type</option>
-          </select>
         </div>
       </div>
 
