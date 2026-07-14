@@ -325,24 +325,34 @@ export interface QueryResult {
 
 // ─── Interactive Widget types (date range picker + chart/table) ──────────────────────────────
 
-export interface WidgetControl {
-  type: 'DATE_RANGE';
-  label: string;
-  startParam: string;   // '{{start_date}}'
-  endParam: string;     // '{{end_date}}'
-  dateColumn: string;   // the date/timestamp column being filtered
-}
+export type WidgetControl =
+  | {
+      type: 'DATE_RANGE';
+      label: string;
+      startParam: string;   // '{{start_date}}'
+      endParam: string;     // '{{end_date}}'
+      dateColumn: string;   // the date/timestamp column being filtered
+    }
+  | {
+      type: 'DROPDOWN';
+      label: string;
+      param: string;        // e.g. '{{entity_filter}}'
+      column: string;       // column name used in WHERE clause
+      options: string[];    // pre-fetched distinct values (populated by handler)
+      /** null means "show all" (no WHERE clause added) */
+      defaultValue?: string | null;
+    };
 
 export interface InteractiveWidgetData {
-  /** SQL with no date filter — executed on initial load to show all data */
+  /** SQL with no filters -- executed on initial load to show all data */
   baseSql: string;
-  /** SQL with {{start_date}} and {{end_date}} placeholders — used when user applies a date range */
+  /** SQL with placeholders -- used when user applies filter values */
   parameterizedSql: string;
   controls: WidgetControl[];
   visualization: VisualizationType;
   xAxis?: string | null;
   yAxis?: string[] | null;
-  /** Pre-executed result using baseSql (all data, no date filter) */
+  /** Pre-executed result using baseSql (all data, no filters) */
   initialResult: {
     columns: string[];
     columnTypes?: string[];

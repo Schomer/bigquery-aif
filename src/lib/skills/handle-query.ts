@@ -266,63 +266,107 @@ After running the query, provide a brief one-line summary of what the results sh
   const textResponse = agentResult.textResponse || '';
   const widgetSpecMatch = textResponse.match(/WIDGET_SPEC_START\s*([\s\S]*?)\s*WIDGET_SPEC_END/);
   if (widgetSpecMatch && captured.visualizationHint === 'INTERACTIVE_WIDGET') {
-    let widgetSpec: { parameterizedSql?: string; baseSql?: string; dateColumn?: string; defaultStart?: string | null; defaultEnd?: string | null } | null = null;
+    let widgetSpec: {
+      controlType?: string;
+      parameterizedSql?: string;
+      baseSql?: string;
+      // DATE_RANGE fields
+      dateColumn?: string;
+      defaultStart?: string | null;
+      defaultEnd?: string | null;
+      // DROPDOWN fields
+      filterColumn?: string;
+      filterParam?: string;
+      optionsSql?: string;
+      defaultValue?: string | null;
+    } | null = null;
+
     try {
       widgetSpec = JSON.parse(widgetSpecMatch[1].trim());
     } catch {
       // Parsing failed -- fall through to normal query result
     }
 
-    if (widgetSpec && widgetSpec.parameterizedSql && widgetSpec.baseSql && widgetSpec.dateColumn) {
-      const widgetData: InteractiveWidgetData = {
-        baseSql: widgetSpec.baseSql,
-        parameterizedSql: widgetSpec.parameterizedSql,
-        controls: [{
+    if (widgetSpec && widgetSpec.parameterizedSql && widgetSpec.baseSql) {
+      const controlType = widgetSpec.controlType ?? 'DATE_RANGE';
+
+      let controls: InteractiveWidgetData['controls'] = [];
+
+      if (controlType === 'DROPDOWN' && widgetSpec.filterColumn && widgetSpec.filterParam && widgetSpec.optionsSql) {
+        // Fetch dropdown options by executing the optionsSql
+        let options: string[] = [];
+        try {
+          onStatus?.(`Loading ${widgetSpec.filterColumn} options...`);
+          const optResult = await executeQuery(widgetSpec.optionsSql, project);
+          options = optResult.rows.map((r) => String((r as unknown[])[0] ?? '')).filter(Boolean);
+        } catch {
+          // Non-fatal -- show empty dropdown, user can still see all-data chart
+        }
+        controls = [{
+          type: 'DROPDOWN',
+          label: widgetSpec.filterColumn.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+          param: widgetSpec.filterParam,
+          column: widgetSpec.filterColumn,
+          options,
+          defaultValue: widgetSpec.defaultValue ?? null,
+        }];
+      } else if (widgetSpec.dateColumn) {
+        // DATE_RANGE control
+        controls = [{
           type: 'DATE_RANGE',
           label: 'Date Range',
           startParam: '{{start_date}}',
           endParam: '{{end_date}}',
           dateColumn: widgetSpec.dateColumn,
-        }],
-        visualization: (captured.visualizationHint as VisualizationType | undefined) ?? 'LINE_CHART',
-        xAxis: captured.columns[0] ?? null,
-        yAxis: captured.columns.slice(1),
-        initialResult: {
+        }];
+      }
+
+      if (controls.length > 0) {
+        const widgetData: InteractiveWidgetData = {
+          baseSql: widgetSpec.baseSql,
+          parameterizedSql: widgetSpec.parameterizedSql,
+          controls,
+          visualization: (result.suggestedVisualization !== 'INTERACTIVE_WIDGET' ? result.suggestedVisualization : 'LINE_CHART') as VisualizationType,
+          xAxis: captured.columns[0] ?? null,
+          yAxis: captured.columns.slice(1),
+          initialResult: {
+            columns: captured.columns,
+            columnTypes: captured.columnTypes,
+            rows: captured.rows,
+            rowCount: captured.rowCount,
+            jobId: captured.jobId || undefined,
+          },
+          defaultStart: widgetSpec.defaultStart ?? null,
+          defaultEnd: widgetSpec.defaultEnd ?? null,
+          project,
+        };
+
+        const widgetResult: QueryResult = {
+          skill: 'query',
+          sql: widgetSpec.baseSql,
+          requiresConfirmation: false,
+          costConfirm: null,
           columns: captured.columns,
           columnTypes: captured.columnTypes,
           rows: captured.rows,
           rowCount: captured.rowCount,
           jobId: captured.jobId || undefined,
-        },
-        defaultStart: widgetSpec.defaultStart ?? null,
-        defaultEnd: widgetSpec.defaultEnd ?? null,
-        project,
-      };
+          totalBytesProcessed: 0,
+          costTier: 0,
+          suggestedVisualization: 'INTERACTIVE_WIDGET' as VisualizationType,
+          notableFindings: null,
+          resultSummary: null,
+          widgetData,
+        } as QueryResult & { widgetData: InteractiveWidgetData };
 
-      const widgetResult: QueryResult = {
-        skill: 'query',
-        sql: widgetSpec.baseSql,
-        requiresConfirmation: false,
-        costConfirm: null,
-        columns: captured.columns,
-        columnTypes: captured.columnTypes,
-        rows: captured.rows,
-        rowCount: captured.rowCount,
-        jobId: captured.jobId || undefined,
-        totalBytesProcessed: 0,
-        costTier: 0,
-        suggestedVisualization: 'INTERACTIVE_WIDGET' as VisualizationType,
-        notableFindings: null,
-        resultSummary: null,
-        widgetData,
-      } as QueryResult & { widgetData: InteractiveWidgetData };
-
-      return [compose('query', widgetResult, qualityFlags, 'INTERACTIVE_WIDGET')];
+        return [compose('query', widgetResult, qualityFlags, 'INTERACTIVE_WIDGET')];
+      }
     }
   }
 
   return [compose('query', result, qualityFlags, context?.userIntent ?? null)];
 }
+
 
 // ─── Execute a cached plan (unchanged from previous implementation) ───────────
 

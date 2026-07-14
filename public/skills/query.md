@@ -169,20 +169,22 @@ If no notable finding exists, set `notableFindings: null` -- do NOT manufacture 
 
 ## Interactive Widget Mode
 
-When the user asks for a **filter control**, **date range picker**, **date filter**, or phrases like "let me filter", "with a filter", "filter by date", "add a date picker", or "I want to explore [X] with filters":
+When the user asks for a **filter control**, **date range picker**, **date filter**, **dropdown filter**, **filter for [column]**, or phrases like "let me filter", "with a filter", "filter by", "add a filter", "add a picker", or "I want to explore [X] with filters":
 
-You must generate an **interactive widget** instead of a plain query result. Follow these steps exactly:
+You must generate an **interactive widget** instead of a plain query result. Widgets support two control types:
 
-### Step 1 — Generate two SQL statements
+### Control type A — Date Range Picker
 
-**baseSql**: The full query with no date WHERE clause. This runs on initial load to show all data.
+Use when the user asks to filter by date, time, or a date range.
+
+**baseSql** — full query with no date filter (runs on initial load, all data):
 ```sql
 SELECT DATE_TRUNC(order_date, MONTH) AS month, SUM(sale_price) AS revenue
 FROM `project.dataset.orders`
 GROUP BY month ORDER BY month
 ```
 
-**parameterizedSql**: The same query with a date filter using `{{start_date}}` and `{{end_date}}` literal placeholders:
+**parameterizedSql** — same query with `{{start_date}}` and `{{end_date}}` placeholders:
 ```sql
 SELECT DATE_TRUNC(order_date, MONTH) AS month, SUM(sale_price) AS revenue
 FROM `project.dataset.orders`
@@ -190,19 +192,13 @@ WHERE order_date BETWEEN '{{start_date}}' AND '{{end_date}}'
 GROUP BY month ORDER BY month
 ```
 
-### Step 2 — Call run_query with baseSql
-
-Execute the baseSql (all data, no date filter). Set `visualizationHint` to `"INTERACTIVE_WIDGET"`.
-
-### Step 3 — Include a widgetSpec JSON block in your text response
-
-After the query result, include this block **exactly** (parseable JSON between the markers):
-
+**widgetSpec** for date range:
 ```
 WIDGET_SPEC_START
 {
-  "parameterizedSql": "SELECT ... WHERE order_date BETWEEN '{{start_date}}' AND '{{end_date}}' ...",
-  "baseSql": "SELECT ... (no date filter) ...",
+  "controlType": "DATE_RANGE",
+  "parameterizedSql": "... WHERE order_date BETWEEN '{{start_date}}' AND '{{end_date}}' ...",
+  "baseSql": "... (no date filter) ...",
   "dateColumn": "order_date",
   "defaultStart": null,
   "defaultEnd": null
@@ -210,16 +206,64 @@ WIDGET_SPEC_START
 WIDGET_SPEC_END
 ```
 
-- `defaultStart` / `defaultEnd`: set to ISO date strings (e.g. `"2024-01-01"`) **only** if the user explicitly requested a default date range (e.g. "default to last 30 days"). Otherwise set both to `null`.
-- `dateColumn`: the exact column name used in the WHERE clause.
-- Both SQL strings must be valid BigQuery SQL with fully-qualified table references in backticks.
+- Use `BETWEEN '{{start_date}}' AND '{{end_date}}'` for DATE columns. For TIMESTAMP, cast: `WHERE CAST(ts_col AS DATE) BETWEEN '{{start_date}}' AND '{{end_date}}'`.
+- `defaultStart`/`defaultEnd`: set only if the user explicitly requested a default range ("default to last 30 days"). Otherwise null.
 
-### Important rules for Interactive Widget Mode
+---
 
-- The baseSql and parameterizedSql must differ **only** in the presence of the date WHERE clause. All other logic (GROUP BY, ORDER BY, JOINs, LIMIT) must be identical.
-- Use `BETWEEN '{{start_date}}' AND '{{end_date}}'` for DATE columns. For TIMESTAMP columns, cast: `WHERE CAST(ts_col AS DATE) BETWEEN '{{start_date}}' AND '{{end_date}}'`.
-- If the table has multiple date columns, pick the one most relevant to the user's question (e.g., `order_date` for "orders over time", `created_at` for "users over time").
-- Do NOT include the WIDGET_SPEC_START/END block for regular (non-widget) queries.
+### Control type B — Dropdown (categorical filter)
+
+Use when the user asks to filter by a **named category, entity, region, country, status, type**, or any other categorical column.
+
+**baseSql** — full query with no category filter (all data):
+```sql
+SELECT year, population FROM `project.dataset.population` ORDER BY year
+```
+
+**parameterizedSql** — same query with a `{{column_filter}}` placeholder. Use the column name as the placeholder name (e.g., `{{entity}}` for a column called `entity`):
+```sql
+SELECT year, population FROM `project.dataset.population`
+WHERE entity = '{{entity}}'
+ORDER BY year
+```
+
+**optionsSql** — a query to fetch the distinct options for the dropdown:
+```sql
+SELECT DISTINCT entity FROM `project.dataset.population` ORDER BY entity LIMIT 300
+```
+
+**widgetSpec** for dropdown:
+```
+WIDGET_SPEC_START
+{
+  "controlType": "DROPDOWN",
+  "parameterizedSql": "... WHERE entity = '{{entity}}' ...",
+  "baseSql": "... (no entity filter) ...",
+  "filterColumn": "entity",
+  "filterParam": "{{entity}}",
+  "optionsSql": "SELECT DISTINCT entity FROM `project.dataset.population` ORDER BY entity LIMIT 300",
+  "defaultValue": null
+}
+WIDGET_SPEC_END
+```
+
+- `filterColumn`: the exact column name used in the WHERE clause.
+- `filterParam`: the placeholder string (e.g., `{{entity}}`). Must exactly match the placeholder in `parameterizedSql`.
+- `optionsSql`: must return a single column of distinct string values. These are pre-fetched by the system and displayed as dropdown options.
+- `defaultValue`: the pre-selected option, or null (meaning "show all data" on load).
+- The baseSql always shows all data — it is what runs when no option is selected.
+
+---
+
+### General rules for Interactive Widget Mode
+
+1. Always call `run_query` with **baseSql** (no filters). Set `visualizationHint` to `"INTERACTIVE_WIDGET"`.
+2. Include **exactly one** `WIDGET_SPEC_START...WIDGET_SPEC_END` block in your text response.
+3. The baseSql and parameterizedSql must differ **only** in the filter WHERE clause. All other logic (GROUP BY, ORDER BY, JOINs, aggregations) must be identical.
+4. Do NOT include the WIDGET_SPEC_START/END block for regular (non-widget) queries.
+5. If the user asks for both a date filter and a category filter, pick the most prominent one for v1 (prefer category if they named a specific column, otherwise prefer date).
+
+
 
 ## Visualization selection
 

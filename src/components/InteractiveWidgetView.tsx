@@ -1,8 +1,8 @@
 'use client';
 
 // InteractiveWidgetView.tsx
-// Renders an INTERACTIVE_WIDGET envelope: date range pickers + chart/table switcher.
-// The re-query on Apply is a direct BigQuery REST call, no chat API round-trip.
+// Renders an INTERACTIVE_WIDGET envelope: filter controls + chart/table switcher.
+// Supports DATE_RANGE and DROPDOWN controls. Re-queries BigQuery directly on Apply.
 
 import { useState, useCallback } from 'react';
 import type { CustomViewProps, InteractiveWidgetData, VisualizationType } from '@/lib/types';
@@ -15,8 +15,21 @@ type ViewMode = 'chart' | 'table';
 export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewProps) {
   const widgetData = envelope.primaryArtifact.data as InteractiveWidgetData;
 
+  // Date range state (for DATE_RANGE controls)
   const [startDate, setStartDate] = useState<string>(widgetData.defaultStart ?? '');
   const [endDate, setEndDate] = useState<string>(widgetData.defaultEnd ?? '');
+
+  // Dropdown state (for DROPDOWN controls) — keyed by control param
+  const [dropdownValues, setDropdownValues] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    for (const ctrl of widgetData.controls) {
+      if (ctrl.type === 'DROPDOWN') {
+        initial[ctrl.param] = ctrl.defaultValue ?? '';
+      }
+    }
+    return initial;
+  });
+
   const [viewMode, setViewMode] = useState<ViewMode>('chart');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,13 +44,28 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
   const handleApply = useCallback(async () => {
     setError(null);
 
-    // If no dates selected, revert to base SQL (all data)
+    // Check whether any filter is actually set
     const hasDateRange = startDate.length > 0 || endDate.length > 0;
-    const sqlToRun = hasDateRange
-      ? widgetData.parameterizedSql
-          .replace(/\{\{start_date\}\}/g, startDate || '1900-01-01')
-          .replace(/\{\{end_date\}\}/g, endDate || '2100-12-31')
-      : widgetData.baseSql;
+    const hasDropdown = Object.values(dropdownValues).some((v) => v.length > 0);
+    const hasAnyFilter = hasDateRange || hasDropdown;
+
+    let sqlToRun = hasAnyFilter ? widgetData.parameterizedSql : widgetData.baseSql;
+
+    // Substitute DATE_RANGE placeholders
+    if (hasDateRange) {
+      sqlToRun = sqlToRun
+        .replace(/\{\{start_date\}\}/g, startDate || '1900-01-01')
+        .replace(/\{\{end_date\}\}/g, endDate || '2100-12-31');
+    }
+
+    // Substitute DROPDOWN placeholders
+    for (const [param, value] of Object.entries(dropdownValues)) {
+      if (value) {
+        // Escape single quotes in the value to avoid SQL injection via the placeholder
+        const safe = value.replace(/'/g, "\\'");
+        sqlToRun = sqlToRun.replace(new RegExp(param.replace(/[{}]/g, '\\$&'), 'g'), safe);
+      }
+    }
 
     setIsLoading(true);
     try {
@@ -53,7 +81,22 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
     } finally {
       setIsLoading(false);
     }
-  }, [startDate, endDate, widgetData]);
+  }, [startDate, endDate, dropdownValues, widgetData]);
+
+  const handleClear = useCallback(() => {
+    setStartDate('');
+    setEndDate('');
+    setDropdownValues((prev) => {
+      const cleared: Record<string, string> = {};
+      for (const k of Object.keys(prev)) cleared[k] = '';
+      return cleared;
+    });
+  }, []);
+
+  const hasAnyFilter =
+    startDate.length > 0 ||
+    endDate.length > 0 ||
+    Object.values(dropdownValues).some((v) => v.length > 0);
 
   // Build a QueryResult-shaped object for ChartView / DataTable
   const queryResult = {
@@ -91,60 +134,81 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
         border: '1px solid var(--border, #e8edf5)',
         borderRadius: 10,
       }}>
-        <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-          Date range
-        </span>
+        {widgetData.controls.map((ctrl, i) => {
+          if (ctrl.type === 'DATE_RANGE') {
+            return (
+              <div key={i} style={{ display: 'contents' }}>
+                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                  {ctrl.label}
+                </span>
+                <input
+                  id="widget-start-date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  style={dateInputStyle}
+                  aria-label="Start date"
+                  max={endDate || undefined}
+                />
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>to</span>
+                <input
+                  id="widget-end-date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  style={dateInputStyle}
+                  aria-label="End date"
+                  min={startDate || undefined}
+                />
+              </div>
+            );
+          }
 
-        <input
-          id="widget-start-date"
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          style={dateInputStyle}
-          aria-label="Start date"
-          max={endDate || undefined}
-        />
+          if (ctrl.type === 'DROPDOWN') {
+            return (
+              <div key={i} style={{ display: 'contents' }}>
+                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                  {ctrl.label}
+                </span>
+                <select
+                  id={`widget-dropdown-${i}`}
+                  value={dropdownValues[ctrl.param] ?? ''}
+                  onChange={(e) => setDropdownValues((prev) => ({ ...prev, [ctrl.param]: e.target.value }))}
+                  style={selectStyle}
+                  aria-label={ctrl.label}
+                >
+                  <option value="">All</option>
+                  {ctrl.options.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              </div>
+            );
+          }
 
-        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>to</span>
+          return null;
+        })}
 
-        <input
-          id="widget-end-date"
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          style={dateInputStyle}
-          aria-label="End date"
-          min={startDate || undefined}
-        />
-
-        {(startDate || endDate) && (
-          <button
-            onClick={() => { setStartDate(''); setEndDate(''); }}
-            style={clearBtnStyle}
-            aria-label="Clear date range"
-          >
+        {/* Clear */}
+        {hasAnyFilter && (
+          <button onClick={handleClear} style={clearBtnStyle} aria-label="Clear filters">
             Clear
           </button>
         )}
 
+        {/* Apply */}
         <button
           id="widget-apply-btn"
           onClick={handleApply}
           disabled={isLoading}
-          style={{
-            ...applyBtnStyle,
-            opacity: isLoading ? 0.6 : 1,
-            cursor: isLoading ? 'wait' : 'pointer',
-          }}
+          style={{ ...applyBtnStyle, opacity: isLoading ? 0.6 : 1, cursor: isLoading ? 'wait' : 'pointer' }}
         >
           {isLoading ? (
-            <>
-              <span className="widget-spinner" />
-              Running...
-            </>
+            <><span className="widget-spinner" />Running...</>
           ) : 'Apply'}
         </button>
 
+        {/* Row count */}
         <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>
           {currentResult.rowCount.toLocaleString()} row{currentResult.rowCount !== 1 ? 's' : ''}
         </span>
@@ -237,6 +301,20 @@ const dateInputStyle: React.CSSProperties = {
   color: 'var(--text)',
   outline: 'none',
   cursor: 'pointer',
+};
+
+const selectStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontFamily: 'inherit',
+  padding: '5px 24px 5px 8px',
+  border: '1px solid var(--border, #e8edf5)',
+  borderRadius: 7,
+  background: '#fff',
+  color: 'var(--text)',
+  outline: 'none',
+  cursor: 'pointer',
+  appearance: 'auto',
+  maxWidth: 220,
 };
 
 const applyBtnStyle: React.CSSProperties = {

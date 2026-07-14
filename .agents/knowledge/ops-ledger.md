@@ -1,6 +1,32 @@
 # Operations Ledger
 
+## 2026-07-14: Interactive widget with date range picker added
+
+**What was built**: When a user asks for "a date range picker", "filter by date", "date filter", "let me filter", etc., the query skill now returns an `INTERACTIVE_WIDGET` artifact instead of a plain query result. The widget has:
+- Date range pickers (start/end, empty by default, all data shown on load)
+- Chart/table switcher (same toggle pill as existing query results)
+- Apply button that re-runs parameterized SQL directly against BigQuery (no chat API round-trip)
+- Clear button to revert to all-data view
+
+**How it works**:
+- Router: added 11 new signals to query manifest (`date range` weight 5, `date filter`, `date picker`, `filter control`, etc.)
+- Skill doc: new "Interactive Widget Mode" section instructs LLM to generate `baseSql` + `parameterizedSql` with `{{start_date}}`/`{{end_date}}` placeholders, set `visualizationHint: "INTERACTIVE_WIDGET"`, and emit a `WIDGET_SPEC_START...WIDGET_SPEC_END` JSON block
+- handle-query.ts: after capture, checks for `visualizationHint === 'INTERACTIVE_WIDGET'` + parsed widgetSpec, builds `InteractiveWidgetData`, short-circuits with `compose('query', widgetResult, ..., 'INTERACTIVE_WIDGET')`
+- composer.ts: `composeQuery` detects `suggestedVisualization === 'INTERACTIVE_WIDGET'` early-returns with `presentation: 'custom'`, `skipSelfReview: true`
+- New component: `InteractiveWidgetView.tsx` — `CustomViewProps` component, calls `executeQuery` directly on Apply
+- ArtifactCard: `INTERACTIVE_WIDGET` added to `CustomArtifact` dispatcher
+
+**Key design decisions**:
+- `defaultStart`/`defaultEnd` are null unless the user explicitly requested a default. Pickers start empty, all data shown on initial load.
+- Graceful degradation: if widgetSpec JSON parsing fails, falls through to a normal `QueryResult` with the baseSql result.
+- The re-query calls `executeQuery` client-side (already available on the client via the GIS token) — no new API route needed.
+
+**Rule**: `{{start_date}}`/`{{end_date}}` are the canonical placeholder strings. Use `BETWEEN '{{start_date}}' AND '{{end_date}}'` for DATE; cast for TIMESTAMP.
+
+---
+
 ## 2026-07-14: Heatmap shown for ranked country list -- filter column leaking into SELECT
+
 
 **What happened**: Query "top 10 countries by total population in year 900" rendered as a heatmap instead of a bar chart.
 

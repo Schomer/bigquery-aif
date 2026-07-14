@@ -171,8 +171,8 @@ export function ChatInput({
         height: 34,
         flexShrink: 0,
         borderRadius: '50%',
-        background: '#fee2e2',
-        border: '1px solid #fca5a5',
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -183,7 +183,7 @@ export function ChatInput({
     >
       {/* Square stop icon */}
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="1.5" y="1.5" width="9" height="9" rx="1.5" fill="#ef4444"/>
+        <rect x="1.5" y="1.5" width="9" height="9" rx="1.5" fill="var(--text-muted)"/>
       </svg>
     </button>
   ) : (
