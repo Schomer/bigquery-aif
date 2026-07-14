@@ -24,15 +24,15 @@
 
 ---
 
+## 2026-07-14: Duplicate titles in query/schema result cards
 
+**What happened**: Result cards showed the same text two or three times. Schema results: headline "Found 13 datasets" + briefing "Here are the datasets available in `malloy-data`. Found 13 datasets." Query results: briefing narrative was literally set to `headlineText`. Additionally, ChatThread rendered BriefingBlock outside the card while ArtifactCard rendered it again internally.
 
-**What happened**: Query results showed the same title text three times: once as a BriefingBlock above the card (rendered by ChatThread), once as the card headline (ArtifactCard), and once as the briefing inside the card (ArtifactCard internal BriefingBlock).
+**Root cause**: (1) ChatThread rendered `BriefingBlock` externally AND ArtifactCard rendered it internally. (2) In composer.ts, narrative-only briefings were always paraphrases of the headline.
 
-**Root cause**: Two independent issues combined. (1) ChatThread rendered `BriefingBlock` outside the ArtifactCard at line 498, but ArtifactCard also renders `BriefingBlock` internally at line 252 -- double render of the briefing. (2) In `composer.ts` line 406, query results set `briefing.narrative = headlineText`, making the briefing narrative identical to `headline.text`. So the card showed the same string as both its headline and its briefing.
+**Fix**: Removed external BriefingBlock from ChatThread. In ArtifactCard, briefing only renders when it has structured `findings` (bullet points). Narrative-only briefings are suppressed.
 
-**Fix**: Removed the external BriefingBlock from ChatThread (the card handles it). Added a guard in ArtifactCard to skip the briefing when `briefing.narrative === headline.text`.
-
-**Rule**: Briefing rendering belongs inside the ArtifactCard, not in the parent thread. When adding a new compose function, if briefing.narrative duplicates headline.text, the card will automatically suppress the duplicate.
+**Rule**: Briefing blocks render only when they have structured findings. A narrative-only briefing is always redundant with the headline. If a new compose function needs distinct narrative text, add it as findings or use the insight field.
 
 ---
 

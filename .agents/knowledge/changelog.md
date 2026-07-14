@@ -2,13 +2,13 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
-## 2026-07-13: Fix duplicate titles in query result cards
+## 2026-07-14: Fix duplicate titles in query/schema result cards
 
-**Context**: Query results displayed the headline text three times -- above the card, as the card header, and as the card briefing.
+**Context**: Query and schema results displayed the headline text multiple times -- once as the card header and again as a narrative-only briefing that paraphrased the headline.
 
 **Changes**:
-- `src/components/chat/ChatThread.tsx`: Removed the external `BriefingBlock` render (lines 498-500) and its unused import. The ArtifactCard already renders the briefing internally.
-- `src/components/ArtifactCard.tsx`: Added a guard at line 251 to skip the internal `BriefingBlock` when `briefing.narrative` equals `headline.text`, preventing the card from showing the same string twice.
+- `src/components/chat/ChatThread.tsx`: Removed the external `BriefingBlock` render and its unused import. The ArtifactCard handles briefing internally.
+- `src/components/ArtifactCard.tsx`: Briefing block now only renders when `briefing.findings` has entries (structured bullet points). Narrative-only briefings are suppressed. Also tightened the outer wrapper condition to avoid rendering an empty bordered div.
 
 ---
 
