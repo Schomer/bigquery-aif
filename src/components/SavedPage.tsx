@@ -611,6 +611,17 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPage
     loadData();
   }, [loadData]);
 
+  // Sync tab when parent navigation changes (e.g. clicking Content > Queries in sidebar)
+  useEffect(() => {
+    if (initialTab && initialTab !== activeTab) {
+      setActiveTab(initialTab);
+      setSearchQuery('');
+      setActiveSpaceId(null);
+    }
+  // intentionally exclude activeTab to avoid loop
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTab]);
+
   // Close context menu on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {

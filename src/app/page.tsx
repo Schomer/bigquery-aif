@@ -180,21 +180,23 @@ export default function Home() {
         </div>
       )}
 
-      {/* -- Spaces page -- */}
-      {(activePage === 'spaces' || activePage.startsWith('spaces:')) && user && (
-        <SpacesPage
-          userId={user.uid}
-          initialTab={activePage.startsWith('spaces:') ? (activePage.slice('spaces:'.length) as import('@/lib/types').SavedArtifactType | 'all') : 'all'}
-          onRun={(artifact: SavedArtifact) => {
-            chat.setInput(`run my ${artifact.name}`);
-            setActivePage('chat');
-            setTimeout(() => {
-              inputRef.current?.focus();
-              chat.sendMessage(`run my ${artifact.name}`);
-            }, 50);
-          }}
-          onNavigate={(page) => setActivePage(page)}
-        />
+      {/* -- Spaces page -- always mounted so sidebar nav clicks don't cause full reloads -- */}
+      {user && (
+        <div style={{ display: (activePage === 'spaces' || activePage.startsWith('spaces:')) ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
+          <SpacesPage
+            userId={user.uid}
+            initialTab={activePage.startsWith('spaces:') ? (activePage.slice('spaces:'.length) as import('@/lib/types').SavedArtifactType | 'all') : 'all'}
+            onRun={(artifact: SavedArtifact) => {
+              chat.setInput(`run my ${artifact.name}`);
+              setActivePage('chat');
+              setTimeout(() => {
+                inputRef.current?.focus();
+                chat.sendMessage(`run my ${artifact.name}`);
+              }, 50);
+            }}
+            onNavigate={(page) => setActivePage(page)}
+          />
+        </div>
       )}
 
       {/* -- Dashboard page -- */}
