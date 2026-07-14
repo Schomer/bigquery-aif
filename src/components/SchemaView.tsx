@@ -643,6 +643,22 @@ function ProfileTab({
 }) {
   const [selected, setSelected] = useState<PreviewColumn | null>(null);
 
+  // Must be before any early returns to comply with Rules of Hooks
+  const sampleNumsByCol = React.useMemo<Record<string, number[]>>(() => {
+    if (!sampleData || !profileData) return {};
+    const out: Record<string, number[]> = {};
+    for (const col of profileData) {
+      const idx = sampleData.columns.indexOf(col.name);
+      if (idx >= 0) {
+        const nums = sampleData.rows
+          .map(r => parseFloat(String(r[idx] ?? '')))
+          .filter(n => !isNaN(n));
+        if (nums.length > 0) out[col.name] = nums;
+      }
+    }
+    return out;
+  }, [sampleData, profileData]);
+
   if (profileError) {
     return (
       <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--text-dim)', fontSize: 12 }}>
@@ -693,22 +709,6 @@ function ProfileTab({
       </div>
     );
   }
-
-  // Precompute numeric sample values per column for real histograms
-  const sampleNumsByCol = React.useMemo<Record<string, number[]>>(() => {
-    if (!sampleData) return {};
-    const out: Record<string, number[]> = {};
-    for (const col of profileData) {
-      const idx = sampleData.columns.indexOf(col.name);
-      if (idx >= 0) {
-        const nums = sampleData.rows
-          .map(r => parseFloat(String(r[idx] ?? '')))
-          .filter(n => !isNaN(n));
-        if (nums.length > 0) out[col.name] = nums;
-      }
-    }
-    return out;
-  }, [sampleData, profileData]);
 
   return (
     <>
