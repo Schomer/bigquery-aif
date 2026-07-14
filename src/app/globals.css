@@ -2275,7 +2275,7 @@ details>summary::marker {
   align-items: center;
   gap: 4px;
   padding: 3px 9px 3px 6px;
-  border: 1px solid #d1d5db;
+  border: none;
   border-radius: 6px;
   background: #ffffff;
   color: #4b5563;
@@ -2287,7 +2287,7 @@ details>summary::marker {
 }
 
 .chat-sidebar-artifact-link:hover {
-  border-color: #9ca3af;
+
   background: #f9fafb;
   color: #374151;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
@@ -3000,8 +3000,8 @@ details>summary::marker {
   transform: none;
 }
 
-.dark-theme .chat-sidebar-artifact-link { background: #23232a; border-color: #3a3a44; color: #b0b0bc; }
-.dark-theme .chat-sidebar-artifact-link:hover { background: #2a2a33; border-color: #4a4a55; color: #d0d0da; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); }
+.dark-theme .chat-sidebar-artifact-link { background: #23232a; border: none; color: #b0b0bc; }
+.dark-theme .chat-sidebar-artifact-link:hover { background: #2a2a33; border: none; color: #d0d0da; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); }
 .dark-theme .chat-sidebar-artifact-link .material-symbols-outlined { color: #9090a0; }
 
 .dark-theme .context-chip { background: #1e2d4d; border-color: #3a5080; }
