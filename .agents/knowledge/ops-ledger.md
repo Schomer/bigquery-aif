@@ -1,5 +1,17 @@
 # Operations Ledger
 
+## 2026-07-14: Schema TABLE scope hung on "Checking the results look right..."
+
+**What happened**: Asking "Show me population.population_data" (or any `dataset.table` lookup) caused the app to hang indefinitely on the "Checking the results look right..." status message.
+
+**Root cause**: The self-review skip gate in `chat-orchestrator.ts` only exempted SCHEMA_VIEW at PROJECT and DATASET scope. TABLE scope fell through to `selfReviewEnvelope` → `callGemini`. While `gemini-3.5-flash` does respond correctly, it was taking 25-30+ seconds for even short prompts. The browser's `fetch()` has no timeout, so the spinner hung forever. Self-review on a schema TABLE view adds zero value — it's factual metadata.
+
+**Fix**: Extended the skip condition from `scope === 'PROJECT' || scope === 'DATASET'` to cover all `SCHEMA_VIEW` artifacts unconditionally. One line change in `chat-orchestrator.ts`.
+
+**Rule**: SCHEMA_VIEW is factual metadata at all scopes (PROJECT, DATASET, TABLE). Self-review never improves it. Always skip self-review for all SCHEMA_VIEW results, not just PROJECT/DATASET.
+
+---
+
 ## 2026-07-14: Sidebar cleanup -- Queries/Admin groups removed
 
 **What happened**: The sidebar had "Queries" (Saved Queries, Query History) and "Admin" (Cost) groups that were dead links. Clicking them set `activePage` to `'saved-queries'`, `'query-history'`, or `'cost'` — none of which had handlers in `page.tsx`, so they rendered nothing.

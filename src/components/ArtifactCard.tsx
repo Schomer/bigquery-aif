@@ -246,14 +246,14 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
       </div>
 
       {/* Briefing + insight -- inside card boundary, below headline */}
-      {(envelope.briefing || envelope.insight) && (
+      {((envelope.briefing?.findings && envelope.briefing.findings.length > 0) || envelope.insight) && (
         <div style={{ padding: '0 20px 12px', borderBottom: '1px solid #ECF1FA', marginBottom: 4 }}>
-          {envelope.briefing && envelope.briefing.narrative !== (typeof envelope.headline.text === 'string' ? envelope.headline.text : String(envelope.headline.text ?? '')) && (
+          {envelope.briefing?.findings && envelope.briefing.findings.length > 0 && (
             <BriefingBlock briefing={envelope.briefing} />
           )}
           {envelope.insight && (
             <p style={{
-              margin: envelope.briefing ? '6px 0 0' : 0,
+              margin: (envelope.briefing?.findings && envelope.briefing.findings.length > 0) ? '6px 0 0' : 0,
               fontSize: 13,
               lineHeight: 1.5,
               color: 'var(--text-muted, #64748b)',
