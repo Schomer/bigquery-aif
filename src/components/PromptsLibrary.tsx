@@ -276,15 +276,18 @@ function PromptEditorDialog({ initial, onSave, onClose }: EditorDialogProps) {
 export function PromptsLibrary({ open, onClose, onUsePrompt, inline = false }: Props) {
   const { user } = useAuth();
   const [prompts, setPrompts] = useState<SavedPrompt[]>([]);
+  const [loading, setLoading] = useState(false);
   const [editorTarget, setEditorTarget] = useState<SavedPrompt | null | 'new'>(null);
   const [varPrompt, setVarPrompt] = useState<SavedPrompt | null>(null);
   const [varValues, setVarValues] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<string>('All');
+  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
 
   useEffect(() => {
     if (!open || !user) return;
-    getPrompts(user.uid).then(setPrompts).catch(() => {});
+    setLoading(true);
+    getPrompts(user.uid).then(setPrompts).catch(() => {}).finally(() => setLoading(false));
   }, [open, user]);
 
   async function handleSeedPrompts() {
@@ -363,95 +366,128 @@ export function PromptsLibrary({ open, onClose, onUsePrompt, inline = false }: P
     return (
       <>
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--surface)' }}>
-          {/* Header */}
-          <div style={{ padding: '24px 32px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 22, color: 'var(--accent)' }}>bookmark</span>
-                Prompts
-              </h1>
-              <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>Saved prompt templates — click Use to send to chat</p>
-            </div>
-            <button onClick={() => setEditorTarget('new')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> New Prompt
-            </button>
-          </div>
-
-          {/* Category pills */}
-          <div style={{ padding: '14px 32px', display: 'flex', gap: 8, flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
-            {['All', ...CATEGORIES].map((cat) => (
+          {/* Header — matches FavoritesPage */}
+          <div style={{ padding: '32px 24px 0', maxWidth: 1200, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--accent)' }}>bookmarks</span>
+                <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, color: 'var(--text)', fontFamily: "'Google Sans', sans-serif" }}>
+                  Prompts
+                </h1>
+                {!loading && (
+                  <span style={{ fontSize: 13, color: 'var(--text-dim)', background: 'var(--surface-2)', borderRadius: 12, padding: '2px 10px', fontWeight: 500 }}>
+                    {filtered.length}
+                  </span>
+                )}
+              </div>
               <button
-                key={cat}
-                onClick={() => setFilter(cat)}
-                style={{
-                  padding: '5px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
-                  fontWeight: 500,
-                  background: filter === cat ? 'var(--accent)' : 'var(--surface-2)',
-                  color: filter === cat ? 'white' : 'var(--text-muted)',
-                  border: '1px solid ' + (filter === cat ? 'var(--accent)' : 'var(--border)'),
-                }}
-              >{cat}</button>
-            ))}
+                onClick={() => setEditorTarget('new')}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: "'Google Sans', sans-serif" }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
+                New Prompt
+              </button>
+            </div>
+
+            {/* Tabs — underline style matching FavoritesPage */}
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', gap: 0 }}>
+              {['All', ...CATEGORIES].map((cat) => {
+                const active = filter === cat;
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => setFilter(cat)}
+                    style={{
+                      padding: '10px 20px',
+                      fontSize: 14,
+                      fontWeight: active ? 600 : 400,
+                      color: active ? 'var(--accent)' : 'var(--text-muted)',
+                      background: 'none',
+                      border: 'none',
+                      borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
+                      cursor: 'pointer',
+                      fontFamily: "'Google Sans', sans-serif",
+                      marginBottom: -1,
+                      transition: 'color 0.15s, border-color 0.15s',
+                    }}
+                  >{cat}</button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Grid of prompt cards */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '24px 32px' }}>
-            {filtered.length === 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 16, color: 'var(--text-dim)', textAlign: 'center' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 48, opacity: 0.3 }}>bookmark</span>
-                <div>
-                  <p style={{ margin: '0 0 12px', fontSize: 14 }}>No prompts yet — click <strong>New Prompt</strong> to create one.</p>
-                  <button
-                    onClick={handleSeedPrompts}
-                    disabled={seeding}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                      padding: '8px 18px', border: '1px solid var(--border)',
-                      borderRadius: 8, background: 'var(--surface-2)',
-                      color: 'var(--text)', fontSize: 13, fontWeight: 500,
-                      cursor: seeding ? 'default' : 'pointer', opacity: seeding ? 0.6 : 1,
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>auto_awesome</span>
-                    {seeding ? 'Loading…' : 'Load Sample Prompts'}
-                  </button>
-                </div>
+          {/* Card grid */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '24px', maxWidth: 1200, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+            {loading && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ width: '60%', height: 16, borderRadius: 4, background: 'var(--surface-2)', animation: 'pulse 1.4s ease-in-out infinite' }} />
+                    <div style={{ width: '90%', height: 12, borderRadius: 4, background: 'var(--surface-2)', animation: 'pulse 1.4s ease-in-out infinite' }} />
+                    <div style={{ width: '40%', height: 12, borderRadius: 4, background: 'var(--surface-2)', animation: 'pulse 1.4s ease-in-out infinite' }} />
+                  </div>
+                ))}
               </div>
             )}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-              {filtered.map((p) => (
-                <div
-                  key={p.id}
-                  style={{
-                    background: 'var(--surface-2)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 12,
-                    padding: '16px 20px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                    transition: 'border-color 0.15s, box-shadow 0.15s',
-                  }}
+            {!loading && filtered.length === 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 24px', gap: 16 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 48, color: 'var(--text-dim)' }}>bookmarks</span>
+                <p style={{ margin: 0, fontSize: 16, color: 'var(--text-muted)', fontFamily: "'Google Sans', sans-serif" }}>
+                  {filter === 'All' ? 'No prompts yet' : `No ${filter} prompts`}
+                </p>
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-dim)', fontFamily: "'Google Sans', sans-serif", textAlign: 'center', maxWidth: 360 }}>
+                  Click New Prompt to create one, or load the built-in sample library.
+                </p>
+                <button
+                  onClick={handleSeedPrompts}
+                  disabled={seeding}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 18px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)', color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: seeding ? 'default' : 'pointer', opacity: seeding ? 0.6 : 1 }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                    <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{p.label}</p>
-                    <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
-                      <button onClick={() => setEditorTarget(p)} title="Edit" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', padding: 3, borderRadius: 4, display: 'flex', alignItems: 'center' }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: 15 }}>edit</span>
-                      </button>
-                      <button onClick={() => handleDelete(p.id)} title="Delete" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', padding: 3, borderRadius: 4, display: 'flex', alignItems: 'center' }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: 15 }}>delete</span>
-                      </button>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>auto_awesome</span>
+                  {seeding ? 'Loading...' : 'Load Sample Prompts'}
+                </button>
+              </div>
+            )}
+            {!loading && filtered.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+                {filtered.map((p) => (
+                  <div
+                    key={p.id}
+                    onMouseEnter={() => setHoveredCard(p.id)}
+                    onMouseLeave={() => setHoveredCard(null)}
+                    style={{
+                      background: 'var(--surface)',
+                      border: `1px solid ${hoveredCard === p.id ? 'var(--accent)' : 'var(--border)'}`,
+                      borderRadius: 12,
+                      padding: 20,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                      transition: 'border-color 0.2s, box-shadow 0.2s',
+                      boxShadow: hoveredCard === p.id ? '0 4px 16px rgba(0,0,0,0.08)' : 'none',
+                      cursor: 'default',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                      <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{p.label}</p>
+                      <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                        <button onClick={() => setEditorTarget(p)} title="Edit" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', padding: 3, borderRadius: 4, display: 'flex', alignItems: 'center' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: 15 }}>edit</span>
+                        </button>
+                        <button onClick={() => handleDelete(p.id)} title="Delete" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', padding: 3, borderRadius: 4, display: 'flex', alignItems: 'center' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: 15 }}>delete</span>
+                        </button>
+                      </div>
+                    </div>
+                    <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, flexGrow: 1, whiteSpace: 'pre-wrap' }}>{p.prompt}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                      <span style={{ fontSize: 10, color: 'var(--text-dim)', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 10, padding: '2px 8px' }}>{p.category}</span>
+                      <button onClick={() => handleUse(p)} style={{ background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 6, padding: '5px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>Use</button>
                     </div>
                   </div>
-                  <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, flexGrow: 1, whiteSpace: 'pre-wrap' }}>{p.prompt}</p>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-                    <span style={{ fontSize: 10, color: 'var(--text-dim)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '2px 8px' }}>{p.category}</span>
-                    <button onClick={() => handleUse(p)} style={{ background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 6, padding: '5px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>Use →</button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -461,7 +497,7 @@ export function PromptsLibrary({ open, onClose, onUsePrompt, inline = false }: P
         {varPrompt && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }}>
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, width: 360, boxShadow: '0 16px 48px rgba(0,0,0,0.2)' }}>
-              <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 500 }}>Fill in variables</h3>
+              <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600 }}>Fill in variables</h3>
               <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--text-muted)' }}>{varPrompt.label}</p>
               {Object.keys(varValues).map((k) => (
                 <div key={k} style={{ marginBottom: 12 }}>

@@ -106,10 +106,11 @@ const S = {
   } as React.CSSProperties,
 
   title: {
-    fontSize: 24,
-    fontWeight: 600,
-    color: 'var(--text, #1a1a1a)',
+    fontSize: 18,
+    fontWeight: 500,
+    color: '#1B2E5D',
     margin: 0,
+    fontFamily: "'Google Sans', sans-serif",
   } as React.CSSProperties,
 
   headerRight: {
@@ -127,13 +128,14 @@ const S = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: 32,
-    height: 32,
-    border: '1px solid var(--border, #dadce0)',
-    borderRadius: 6,
-    background: active ? 'var(--accent, #1967d2)' : 'transparent',
-    color: active ? '#fff' : 'var(--text-muted, #5f6368)',
+    width: 40,
+    height: 40,
+    border: 'none',
+    borderRadius: '50%',
+    background: active ? '#d3e3fd' : 'none',
+    color: active ? '#1a4077' : 'var(--gc-icon, #444746)',
     cursor: 'pointer',
+    transition: 'background 0.15s',
   } as React.CSSProperties),
 
   searchBox: {
@@ -1182,21 +1184,27 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPage
   }
 
   function renderEmpty() {
-    const tabLabel = activeTab === 'all' ? 'saved items' : TABS.find((t) => t.key === activeTab)?.label.toLowerCase() || 'items';
+    const EMPTY_ICONS: Record<string, string> = {
+      all: 'folder_open',
+      query: 'query_stats',
+      workflow: 'conversion_path',
+      pipeline: 'schedule',
+      app: 'apps',
+    };
+    const icon = EMPTY_ICONS[activeTab] ?? 'folder_open';
+    const tabLabel = activeTab === 'all' ? 'saved items' : activeTab === 'query' ? 'queries' : activeTab === 'workflow' ? 'workflows' : activeTab === 'pipeline' ? 'pipelines' : 'apps';
     return (
       <div style={S.emptyState}>
         <span className="material-symbols-outlined" style={S.emptyIcon}>
-          folder_open
+          {icon}
         </span>
         <div style={S.emptyTitle}>
-          {searchQuery.trim() ? 'No results found' : activeSpaceId ? 'This space is empty' : `No ${tabLabel} yet`}
+          {activeSpaceId ? 'This space is empty' : `No ${tabLabel} yet`}
         </div>
         <div style={S.emptyDesc}>
-          {searchQuery.trim()
-            ? `No items match "${searchQuery}". Try a different search term.`
-            : activeSpaceId
-              ? 'Drag items here or use the context menu to move items into this space.'
-              : 'Items you save will appear here. Use the save button on any result to add it.'}
+          {activeSpaceId
+            ? 'Drag items here or use the context menu to move items into this space.'
+            : 'Items you save will appear here. Use the save button on any result to add it.'}
         </div>
       </div>
     );
@@ -1308,18 +1316,20 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPage
           </select>
           <div style={S.viewToggle}>
             <button
+              className="gc-icon-btn"
               style={S.viewBtn(viewMode === 'card')}
               onClick={() => setViewMode('card')}
               title="Card view"
             >
-              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>grid_view</span>
+              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>grid_view</span>
             </button>
             <button
+              className="gc-icon-btn"
               style={S.viewBtn(viewMode === 'list')}
               onClick={() => setViewMode('list')}
               title="List view"
             >
-              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>view_list</span>
+              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>view_list</span>
             </button>
           </div>
         </div>
