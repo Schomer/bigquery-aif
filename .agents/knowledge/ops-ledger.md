@@ -1,5 +1,17 @@
 # Operations Ledger
 
+## 2026-07-13: Duplicate titles in query result cards
+
+**What happened**: Query results showed the same title text three times: once as a BriefingBlock above the card (rendered by ChatThread), once as the card headline (ArtifactCard), and once as the briefing inside the card (ArtifactCard internal BriefingBlock).
+
+**Root cause**: Two independent issues combined. (1) ChatThread rendered `BriefingBlock` outside the ArtifactCard at line 498, but ArtifactCard also renders `BriefingBlock` internally at line 252 -- double render of the briefing. (2) In `composer.ts` line 406, query results set `briefing.narrative = headlineText`, making the briefing narrative identical to `headline.text`. So the card showed the same string as both its headline and its briefing.
+
+**Fix**: Removed the external BriefingBlock from ChatThread (the card handles it). Added a guard in ArtifactCard to skip the briefing when `briefing.narrative === headline.text`.
+
+**Rule**: Briefing rendering belongs inside the ArtifactCard, not in the parent thread. When adding a new compose function, if briefing.narrative duplicates headline.text, the card will automatically suppress the duplicate.
+
+---
+
 ## 2026-07-13: COMPLETION_CARD type mismatch crash
 
 **What happened**: CSV upload to a new table crashed with "Cannot read properties of undefined (reading 'toLocaleString')".
