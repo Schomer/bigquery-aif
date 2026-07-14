@@ -589,8 +589,9 @@ export function ResultsSidebar({
               alignItems: 'center',
               gap: 8,
               padding: '4px 0',
+              marginLeft: 2,
             }}>
-              <SparkSpinner size={20} />
+              <SparkSpinner size={16} color="var(--text-muted)" />
               <span style={{
                 fontSize: 12,
                 fontStyle: 'italic',
@@ -601,6 +602,7 @@ export function ResultsSidebar({
               </span>
             </div>
           )}
+
           <div ref={bottomRef} />
         </div>
 

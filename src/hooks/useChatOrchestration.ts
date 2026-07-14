@@ -38,6 +38,10 @@ export interface ChatContext {
   availableDatasets?: string[];
   dataset?: string;
   project?: string;
+  // Saved artifact virtual-table context
+  lastSavedArtifactSql?: string;
+  lastSavedArtifactName?: string;
+  lastSavedArtifactVizType?: string;
 }
 
 export interface ChatError {
@@ -220,6 +224,24 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
         type: c.type,
         ...(c.description ? { description: c.description } : {}),
       }));
+    }
+
+    // Saved artifact virtual-table context: propagate sql/name/vizType so
+    // follow-up query turns can wrap the saved SQL as a CTE.
+    if (data.savedArtifactSql && typeof data.savedArtifactSql === 'string') {
+      result.lastSavedArtifactSql = data.savedArtifactSql as string;
+      result.lastSavedArtifactName = (data.savedArtifactName as string | undefined) ?? 'saved_query';
+      result.lastSavedArtifactVizType = (data.savedArtifactVizType as string | undefined);
+      // Also populate lastTableSchema from the result columns when available
+      if (Array.isArray(data.columns) && (data.columns as unknown[]).length > 0) {
+        const cols = data.columns as Array<{ name: string; type: string }>;
+        result.lastTableSchema = cols.map((c) => ({ name: c.name, type: c.type }));
+      }
+    } else if (data.table && !data.savedArtifactSql) {
+      // A real table query ran -- clear any prior saved-artifact context
+      result.lastSavedArtifactSql = undefined;
+      result.lastSavedArtifactName = undefined;
+      result.lastSavedArtifactVizType = undefined;
     }
 
     return result;

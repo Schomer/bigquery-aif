@@ -50,10 +50,11 @@ function CrystalBallThinking() {
     <div style={{
       display: 'flex',
       alignItems: 'center',
-      gap: 10,
+      gap: 8,
       padding: '6px 0 8px',
+      marginLeft: 2,
     }}>
-      <SparkSpinner size={24} />
+      <SparkSpinner size={18} color="var(--text-muted)" />
       <span style={{
         fontSize: 13,
         fontStyle: 'italic',
@@ -526,10 +527,11 @@ export function ChatThread({
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 10,
+          gap: 8,
           padding: '6px 0 8px',
+          marginLeft: 2,
         }}>
-          <SparkSpinner size={24} />
+          <SparkSpinner size={18} color="var(--text-muted)" />
           <span style={{
             fontSize: 13,
             fontStyle: 'italic',
