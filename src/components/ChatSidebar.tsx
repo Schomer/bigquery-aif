@@ -33,6 +33,8 @@ function relativeTime(iso: string | undefined): string {
 interface ChatSidebarProps {
   visible: boolean;
   onSelectChat?: () => void;
+  /** Called when the user clicks New -- if omitted falls back to onSelectChat. */
+  onNewChat?: () => void;
   /** Which side the border goes on. Default 'right'. */
   side?: 'left' | 'right';
   /** Whether the active chat is currently processing a request. */
@@ -62,6 +64,7 @@ function markSeen(id: string) {
 export function ChatSidebar({
   visible,
   onSelectChat,
+  onNewChat,
   side = 'right',
   activeLoading = false,
   onSaveAsWorkflow,
@@ -182,7 +185,7 @@ export function ChatSidebar({
 
   function handleNewConversation() {
     newConversation();
-    onSelectChat?.();
+    (onNewChat ?? onSelectChat)?.();
   }
 
   // Resize handle

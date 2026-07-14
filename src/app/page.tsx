@@ -463,6 +463,7 @@ export default function Home() {
               side={layout === 'chat-right' ? 'left' : 'right'}
               activeLoading={chat.loading}
               onSelectChat={() => setSplitView('thread')}
+              onNewChat={() => { /* stay on list after new -- thread navigates on first send */ }}
               onSaveAsWorkflow={() => setWorkflowSaveOpen(true)}
             />
           )}
