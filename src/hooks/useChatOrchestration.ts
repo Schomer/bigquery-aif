@@ -154,6 +154,31 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
   // Queued prompt: stores a follow-up the user typed while something was loading
   const [queuedPrompt, setQueuedPrompt] = useState<string | null>(null);
 
+  // ---- Reset state on conversation change --------------------------------
+  // When the active conversation ID changes (new chat or load existing),
+  // clear all local state so the UI reflects the new conversation.
+  useEffect(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setMessages([]);
+    setInput('');
+    setLoading(false);
+    setContext({});
+    setContextItems([]);
+    setPinnedEnvelopeId(null);
+    setStatusText(null);
+    setLastError(null);
+    setThinkingSteps({});
+    setQueuedPrompt(null);
+    setEditingIdx(null);
+    setEditText('');
+    setRerunningIdx(null);
+    setSaveModalState(null);
+    titleSetRef.current = false;
+    pendingStepsRef.current = [];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
+
   // ---- Auth-retry wrapper ------------------------------------------------
 
   function looksLikeAuthError(msg: string): boolean {

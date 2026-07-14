@@ -45,11 +45,11 @@ export function BriefingBlock({ briefing }: Props) {
               color: 'var(--text-primary, #1a1a1a)',
               fontFamily: "'Google Sans', sans-serif",
             }}>
-              <span style={{ fontWeight: 600 }}>{f.label}</span>
+              <span style={{ fontWeight: 600 }}>{String(f.label ?? '')}</span>
               {': '}
-              {f.value}
+              {String(f.value ?? '')}
               {f.detail && (
-                <span style={{ color: 'var(--text-muted, #64748b)' }}> -- {f.detail}</span>
+                <span style={{ color: 'var(--text-muted, #64748b)' }}> -- {String(f.detail)}</span>
               )}
             </li>
           ))}

@@ -157,6 +157,9 @@ const BOOLEAN_TYPES = new Set(['BOOLEAN', 'BOOL']);
 
 function coerceValue(raw: string | null, fieldType: string): unknown {
   if (raw === null || raw === undefined) return null;
+  // RECORD/STRUCT fields come back as nested objects, not strings.
+  // Stringify them so downstream renderers never try to render a plain object.
+  if (typeof raw === 'object') return JSON.stringify(raw);
   const upper = fieldType.toUpperCase();
   if (NUMERIC_TYPES.has(upper)) {
     const n = Number(raw);

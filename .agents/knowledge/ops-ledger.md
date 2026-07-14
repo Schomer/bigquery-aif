@@ -1,6 +1,22 @@
 # Operations Ledger
 
-## 2026-07-14: Schema TABLE scope hung on "Checking the results look right..."
+## 2026-07-14: Resume from saved query -- virtual CTE table context
+
+**What happened**: When a user ran a saved artifact and then asked a follow-up query (e.g., "group by month"), the orchestrator had no memory that the prior result came from a saved query. It tried to query a real BigQuery table and often produced irrelevant SQL.
+
+**Root cause**: `ChatContext` had no fields to carry the saved artifact's SQL or metadata. `extractContextFromEnvelope` discarded the artifact provenance. `handle-query.ts` had no CTE-wrapping logic.
+
+**Fix** (4 files):
+- `useChatOrchestration.ts`: Added `lastSavedArtifactSql`, `lastSavedArtifactName`, `lastSavedArtifactVizType` to `ChatContext`. Extended `extractContextFromEnvelope` to read `savedArtifactSql/Name/VizType` from envelope data and populate `lastTableSchema` from result columns. Clears fields when a normal query runs.
+- `handle-saved.ts`: Injects `savedArtifactSql`, `savedArtifactName`, `savedArtifactVizType` into the `QueryResult` data payload (as extra fields via type assertion) so the envelope carries them.
+- `orchestrator-utils.ts`: `buildConversationStateSummary` now has a priority branch for saved artifact context that tells the LLM classifier exactly how to route follow-up prompts (as CTE-wrapped SQL against a named virtual table).
+- `handle-query.ts`: Added `lastSavedArtifactSql/Name/VizType` to the context type. When `lastSavedArtifactSql` is set, injects a `VIRTUAL TABLE CONTEXT` block into the system prompt instructing the LLM to write all SQL as a CTE wrapping the saved SQL.
+
+**Rule**: When a user runs a saved artifact and follows up, the follow-up SQL must wrap the saved artifact's SQL as a CTE. Never query a real BigQuery table in that flow. The clearing logic (on real-table results) prevents stale artifact context.
+
+---
+
+
 
 **What happened**: Asking "Show me population.population_data" (or any `dataset.table` lookup) caused the app to hang indefinitely on the "Checking the results look right..." status message.
 
