@@ -548,12 +548,13 @@ interface SpacesPageProps {
   userId: string;
   onRun: (artifact: SavedArtifact) => void;
   onNavigate: (page: string) => void;
+  initialTab?: TabKey;
 }
 
-export function SpacesPage({ userId, onRun, onNavigate }: SpacesPageProps) {
+export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPageProps) {
   const [items, setItems] = useState<SavedArtifact[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
-  const [activeTab, setActiveTab] = useState<TabKey>('all');
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab ?? 'all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortMode>('recent');
   const [viewMode, setViewMode] = useState<ViewMode>('card');

@@ -13,11 +13,13 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Data',
+    label: 'Content',
     items: [
-      { label: 'Datasets', icon: 'dataset', page: 'datasets' },
-      { label: 'Tables', icon: 'table_chart', page: 'tables' },
-      { label: 'Schema Explorer', icon: 'account_tree', page: 'schema' },
+      { label: 'All', icon: 'folder_open', page: 'spaces:all' },
+      { label: 'Queries', icon: 'query_stats', page: 'spaces:query' },
+      { label: 'Workflows', icon: 'conversion_path', page: 'spaces:workflow' },
+      { label: 'Pipelines', icon: 'schedule', page: 'spaces:pipeline' },
+      { label: 'Apps', icon: 'apps', page: 'spaces:app' },
     ],
   },
 ];
@@ -123,7 +125,10 @@ export function SideNav({ collapsed }: SideNavProps) {
                       className={`gc-nav-item${activePage === item.page ? ' gc-nav-item--active' : ''}`}
                       href="#"
                       data-page={item.page}
-                      onClick={(e) => { e.preventDefault(); setActivePage(item.page); }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setActivePage(item.page);
+                      }}
                     >
                       <span className="material-symbols-outlined">{item.icon}</span>
                       <span className="gc-nav-label">{item.label}</span>

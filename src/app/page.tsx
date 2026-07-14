@@ -181,9 +181,10 @@ export default function Home() {
       )}
 
       {/* -- Spaces page -- */}
-      {activePage === 'spaces' && user && (
+      {(activePage === 'spaces' || activePage.startsWith('spaces:')) && user && (
         <SpacesPage
           userId={user.uid}
+          initialTab={activePage.startsWith('spaces:') ? (activePage.slice('spaces:'.length) as import('@/lib/types').SavedArtifactType | 'all') : 'all'}
           onRun={(artifact: SavedArtifact) => {
             chat.setInput(`run my ${artifact.name}`);
             setActivePage('chat');
@@ -217,7 +218,7 @@ export default function Home() {
          UNIFIED LAYOUT (original single-pane)
          ============================================================ */}
       {!isSplit && (
-        <div style={{ display: (activePage === 'prompts' || activePage === 'spaces' || activePage === 'favorites' || activePage === 'dashboard') ? 'none' : 'flex', height: '100%', background: 'var(--chat-bg)' }}>
+        <div style={{ display: (activePage === 'prompts' || activePage === 'spaces' || activePage.startsWith('spaces:') || activePage === 'favorites' || activePage === 'dashboard') ? 'none' : 'flex', height: '100%', background: 'var(--chat-bg)' }}>
 
           {/* Chat sidebar panel */}
           <ChatSidebar
@@ -451,7 +452,7 @@ export default function Home() {
       {isSplit && (
         <div
           className={`layout-split ${layout === 'chat-right' ? 'layout-chat-right' : 'layout-chat-left'}`}
-          style={{ display: (activePage === 'prompts' || activePage === 'spaces' || activePage === 'favorites' || activePage === 'dashboard') ? 'none' : 'flex', height: '100%' }}
+          style={{ display: (activePage === 'prompts' || activePage === 'spaces' || activePage.startsWith('spaces:') || activePage === 'favorites' || activePage === 'dashboard') ? 'none' : 'flex', height: '100%' }}
         >
           {/* Chat list view */}
           {splitView === 'list' && (
