@@ -183,6 +183,7 @@ export default function Home() {
           <SpacesPage
             userId={user.uid}
             initialTab={activePage.startsWith('spaces:') ? (activePage.slice('spaces:'.length) as import('@/lib/types').SavedArtifactType | 'all') : 'all'}
+            refreshKey={chat.saveCount}
             onRun={(artifact: SavedArtifact) => {
               chat.setInput(`run my ${artifact.name}`);
               setActivePage('chat');

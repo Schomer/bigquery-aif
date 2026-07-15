@@ -115,6 +115,7 @@ export interface ChatOrchestrationReturn {
   handleSaveModalClose: () => void;
   saveChatAsWorkflow: (name: string, description: string, tags: string[]) => Promise<void>;
   runSavedArtifact: (artifact: SavedArtifact) => Promise<void>;
+  saveCount: number;
 }
 
 // ---- Hook -----------------------------------------------------------------
@@ -144,6 +145,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     defaultName: string;
     defaultDescription: string;
   } | null>(null);
+  const [saveCount, setSaveCount] = useState(0);
 
   // Refs
   const titleSetRef = useRef(false);
@@ -1093,6 +1095,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
         tags,
         pinned: false,
       });
+      setSaveCount(n => n + 1);
       // Confirm in chat
       const now = new Date().toISOString();
       setMessages(prev => [
@@ -1220,6 +1223,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     handleSaveConfirm,
     handleSaveModalClose: () => setSaveModalState(null),
     saveChatAsWorkflow,
+    saveCount,
     runSavedArtifact,
 
     queuedPrompt,

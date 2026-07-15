@@ -534,9 +534,10 @@ interface SpacesPageProps {
   onRun: (artifact: SavedArtifact) => void;
   onNavigate: (page: string) => void;
   initialTab?: TabKey;
+  refreshKey?: number;
 }
 
-export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPageProps) {
+export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }: SpacesPageProps) {
   const [items, setItems] = useState<SavedArtifact[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab ?? 'all');
@@ -590,7 +591,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab }: SpacesPage
     } finally {
       setLoading(false);
     }
-  }, [userId, activeTab, searchQuery]);
+  }, [userId, activeTab, searchQuery, refreshKey]);
 
   useEffect(() => {
     loadData();
