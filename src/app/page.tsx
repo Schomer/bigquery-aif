@@ -132,10 +132,7 @@ export default function Home() {
   // In split layout, tracks whether the sidebar shows the chat list or the active thread
   const [splitView, setSplitView] = useState<'list' | 'thread'>('list');
 
-  // Reset to list view when conversation is cleared (new conversation)
-  useEffect(() => {
-    if (!hasChat) setSplitView('list');
-  }, [hasChat]);
+
 
   // When entering split layout with a chat already loaded, show the thread
   useEffect(() => {
@@ -472,7 +469,7 @@ export default function Home() {
               side={layout === 'chat-right' ? 'left' : 'right'}
               activeLoading={chat.loading}
               onSelectChat={() => setSplitView('thread')}
-              onNewChat={() => { /* stay on list after new -- thread navigates on first send */ }}
+              onNewChat={() => { setSplitView('thread'); }}
               onSaveAsWorkflow={() => setWorkflowSaveOpen(true)}
             />
           )}
