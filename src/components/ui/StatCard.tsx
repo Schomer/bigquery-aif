@@ -44,32 +44,32 @@ export function StatCard({
 
   return (
     <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 1,
+      display: 'inline-flex',
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: 5,
       padding: '0 14px',
+      whiteSpace: 'nowrap',
     }}>
       <span style={{
         fontSize: 10,
         color: highlight ? 'var(--accent)' : 'var(--text-muted)',
         fontWeight: 500,
-        letterSpacing: '0.02em',
+        letterSpacing: '0.04em',
         textTransform: 'uppercase',
-        whiteSpace: 'nowrap',
       }}>
         {label}
       </span>
       <span style={{
-        fontSize: 13,
-        fontWeight: 600,
+        fontSize: 12,
+        fontWeight: 400,
         color: valueColor,
         fontFamily: mono ? 'var(--font-mono)' : 'inherit',
-        whiteSpace: 'nowrap',
       }}>
         {value}
       </span>
       {(subtitle || trend) && (
-        <span style={{ fontSize: 10, color: 'var(--text-dim)', display: 'flex', gap: 4, alignItems: 'center' }}>
+        <span style={{ fontSize: 10, color: 'var(--text-dim)', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
           {trend && (
             <span style={{
               color: trend === 'up' ? 'var(--positive, #22c55e)' : trend === 'down' ? '#dc3545' : 'var(--text-dim)',

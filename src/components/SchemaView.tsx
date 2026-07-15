@@ -315,8 +315,8 @@ function TableSchemaView({ result, onSendMessage }: { result: SchemaResult; onSe
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          flexWrap: 'wrap',
-          padding: '7px 0',
+          flexWrap: 'nowrap',
+          padding: '4px 0',
           marginBottom: 14,
           gap: 0,
         }}>
