@@ -1,5 +1,20 @@
 # Operations Ledger
 
+## 2026-07-15: Saved chart not appearing in Queries page after save
+
+**Symptom**: User saves a chart via the save button, names it, and then navigates to the Queries page -- the new item does not appear.
+
+**Root cause**: `SpacesPage` is permanently mounted (just hidden/shown with `display:none/flex`) so sidebar navigation is instant. Because it is never unmounted, its `loadData` `useCallback` only fires on initial mount and when its deps (`userId`, `activeTab`, `searchQuery`) change. After a save from the chat page those deps are unchanged, so `loadData` never re-runs and the page shows stale data.
+
+**Fix**:
+- Added `saveCount: number` state to `useChatOrchestration`. It increments after each successful `saveArtifact` call.
+- Exposed `saveCount` from the hook and passed it as `refreshKey` to `SpacesPage`.
+- `SpacesPage` accepts `refreshKey?: number` and includes it in `loadData`'s dependency array, triggering a re-fetch on every successful save.
+
+**Rule**: Any always-mounted page that fetches on load must expose a `refreshKey` prop (or equivalent) so parent can signal that its data may be stale. Never rely solely on mount-time fetching for pages that are hidden/shown rather than unmounted/remounted.
+
+---
+
 ## 2026-07-15: Blank world map + filter pre-selecting a value
 
 **Issue 1 — Blank map (legend showed "Country" with 0→1 scale):**

@@ -594,6 +594,7 @@ function SampleTab({
   const [page, setPage] = useState(0); // 0-indexed
   const [filterInput, setFilterInput] = useState('');
   const [appliedFilter, setAppliedFilter] = useState('');
+  const filterDebounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // State for paginated data (null = use sampleData for page 0 w/ no filter)
   const [pageData, setPageData] = useState<{ columns: string[]; rows: unknown[][]; totalCount: number } | null>(null);
@@ -650,13 +651,20 @@ function SampleTab({
   // totalCount: from pageData if available; from sampleData we only know there are >=N rows
   const totalCount = pageData ? pageData.totalCount : null;
 
-  function applyFilter() {
-    setAppliedFilter(filterInput);
+  function applyFilter(value: string) {
+    setAppliedFilter(value);
     setPage(0);
     setPageData(null); // force re-fetch
   }
 
+  function handleFilterChange(value: string) {
+    setFilterInput(value);
+    if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
+    filterDebounceRef.current = setTimeout(() => applyFilter(value), 500);
+  }
+
   function clearFilter() {
+    if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
     setFilterInput('');
     setAppliedFilter('');
     setPage(0);
@@ -700,17 +708,23 @@ function SampleTab({
         flexWrap: 'wrap',
       }}>
         {/* Filter input */}
-        <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 0 }}>
+        <div style={{ position: 'relative', flexShrink: 0 }}>
           <input
             type="text"
             value={filterInput}
-            onChange={(e) => setFilterInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') applyFilter(); }}
-            placeholder="Filter rows..."
+            onChange={(e) => handleFilterChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
+                applyFilter(filterInput);
+              }
+            }}
+            placeholder="Filter"
             style={{
               ...controlStyle,
-              width: '100%',
+              width: 180,
               paddingLeft: 28,
+              paddingRight: filterInput ? 24 : 8,
               boxSizing: 'border-box',
             }}
           />
@@ -725,7 +739,7 @@ function SampleTab({
               color: 'var(--text-dim)',
               pointerEvents: 'none',
             }}
-          >search</span>
+          >filter_list</span>
           {filterInput && (
             <button
               onClick={clearFilter}
@@ -745,20 +759,6 @@ function SampleTab({
             >x</button>
           )}
         </div>
-        <button
-          onClick={applyFilter}
-          disabled={pageLoading}
-          style={{
-            ...controlStyle,
-            padding: '0 12px',
-            background: 'var(--accent)',
-            color: '#fff',
-            border: 'none',
-            fontWeight: 500,
-          }}
-        >
-          Filter
-        </button>
 
         {/* Spacer */}
         <div style={{ flex: '1 0 0' }} />
@@ -776,43 +776,6 @@ function SampleTab({
         >
           {PAGE_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-
-        {/* Pagination controls */}
-        <button
-          disabled={page === 0 || pageLoading}
-          onClick={() => setPage(0)}
-          style={btnStyle(page === 0 || pageLoading)}
-          title="First page"
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>first_page</span>
-        </button>
-        <button
-          disabled={page === 0 || pageLoading}
-          onClick={() => setPage((p) => p - 1)}
-          style={btnStyle(page === 0 || pageLoading)}
-          title="Previous page"
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chevron_left</span>
-        </button>
-        <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-          {displayRows.length === 0 ? 'No rows' : `${firstRow}–${lastRow}${totalCount !== null ? ` of ${totalCount.toLocaleString()}` : ''}`}
-        </span>
-        <button
-          disabled={pageLoading || (totalPages !== null && page >= totalPages - 1) || displayRows.length < pageSize}
-          onClick={() => setPage((p) => p + 1)}
-          style={btnStyle(pageLoading || (totalPages !== null && page >= totalPages - 1) || displayRows.length < pageSize)}
-          title="Next page"
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chevron_right</span>
-        </button>
-        <button
-          disabled={pageLoading || totalPages === null || page >= totalPages - 1}
-          onClick={() => totalPages !== null && setPage(totalPages - 1)}
-          style={btnStyle(pageLoading || totalPages === null || page >= totalPages - 1)}
-          title="Last page"
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>last_page</span>
-        </button>
       </div>
 
       {/* Table */}
@@ -890,9 +853,54 @@ function SampleTab({
         )}
       </div>
 
-      {/* Footer */}
-      <div style={{ padding: '8px 0 0', fontSize: 11, color: 'var(--text-dim)' }}>
-        {appliedFilter ? `Filtered by "${appliedFilter}"` : ''}
+      {/* Pagination controls - below table */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        gap: 4,
+        padding: '8px 0 0',
+      }}>
+        {appliedFilter && (
+          <span style={{ fontSize: 11, color: 'var(--text-dim)', marginRight: 'auto' }}>
+            Filtered by "{appliedFilter}"
+          </span>
+        )}
+        <button
+          disabled={page === 0 || pageLoading}
+          onClick={() => setPage(0)}
+          style={btnStyle(page === 0 || pageLoading)}
+          title="First page"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>first_page</span>
+        </button>
+        <button
+          disabled={page === 0 || pageLoading}
+          onClick={() => setPage((p) => p - 1)}
+          style={btnStyle(page === 0 || pageLoading)}
+          title="Previous page"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chevron_left</span>
+        </button>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap', padding: '0 4px' }}>
+          {displayRows.length === 0 ? 'No rows' : `${firstRow}–${lastRow}${totalCount !== null ? ` of ${totalCount.toLocaleString()}` : ''}`}
+        </span>
+        <button
+          disabled={pageLoading || (totalPages !== null && page >= totalPages - 1) || displayRows.length < pageSize}
+          onClick={() => setPage((p) => p + 1)}
+          style={btnStyle(pageLoading || (totalPages !== null && page >= totalPages - 1) || displayRows.length < pageSize)}
+          title="Next page"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chevron_right</span>
+        </button>
+        <button
+          disabled={pageLoading || totalPages === null || page >= totalPages - 1}
+          onClick={() => totalPages !== null && setPage(totalPages - 1)}
+          style={btnStyle(pageLoading || totalPages === null || page >= totalPages - 1)}
+          title="Last page"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>last_page</span>
+        </button>
       </div>
     </div>
   );
