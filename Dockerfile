@@ -4,7 +4,7 @@ FROM node:22-slim AS build
 WORKDIR /app
 
 # Copy package files and install all dependencies (including devDependencies for build)
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc* ./
 RUN npm ci
 
 # Copy source and build
@@ -30,7 +30,7 @@ RUN chown -R node:node /app
 USER node
 
 # Copy package files and install production dependencies only
-COPY --chown=node:node package.json package-lock.json ./
+COPY --chown=node:node package.json package-lock.json .npmrc* ./
 RUN npm ci --omit=dev
 
 # Copy the Next.js build output from build stage
