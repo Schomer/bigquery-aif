@@ -387,6 +387,8 @@ export interface InteractiveWidgetData {
 export type DmOperation =
   | 'DEDUPE'
   | 'DELETE'
+  | 'TRUNCATE'
+  | 'DROP_TABLE'
   | 'UPDATE'
   | 'FILL_NULLS'
   | 'CREATE_TABLE'
@@ -407,6 +409,7 @@ export interface DataManagementConfirmResult {
   skill: 'data-management';
   requiresConfirmation: true;
   operation: DmOperation;
+  table?: string;        // extracted from SQL for display
   previewSql: string;
   affectedRowCount: number;
   affectedGroupCount?: number; // for DEDUPE
@@ -423,6 +426,7 @@ export interface DataManagementCompleteResult {
   skill: 'data-management';
   requiresConfirmation: false;
   operation: DmOperation;
+  table?: string;        // which table was affected
   rowsAffected: number;
   rowsExpected: number;
   mismatch: boolean;

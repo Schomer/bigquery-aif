@@ -213,7 +213,17 @@ export function InlineDmlConfirm({ headline, result, compact, onConfirm, onCance
 
       {/* Action buttons */}
       <ConfirmButtons
-        confirmLabel={operation === 'DEDUPE' ? `Remove ${affectedRowCount} rows` : `Run ${operation}`}
+        confirmLabel={
+          operation === 'DEDUPE'
+            ? `Remove ${affectedRowCount?.toLocaleString() ?? '?'} duplicates`
+            : operation === 'DELETE'
+            ? `Delete ${affectedRowCount?.toLocaleString() ?? '?'} rows`
+            : operation === 'TRUNCATE'
+            ? 'Truncate table'
+            : operation === 'DROP_TABLE'
+            ? 'Drop table'
+            : `Run ${operation}`
+        }
         confirmColor="var(--issue)"
         onConfirm={onConfirm}
         onCancel={onCancel}

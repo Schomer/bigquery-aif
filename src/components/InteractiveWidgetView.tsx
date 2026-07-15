@@ -396,15 +396,68 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
   const chartType = widgetData.visualization as Exclude<VisualizationType, 'TABLE' | 'KPI_CARD' | 'STAT_ROW' | 'INTERACTIVE_WIDGET'>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-      {/* Control bar */}
+      {/* Row 1: title + action buttons */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px 0' }}>
+        {/* Title */}
+        {chartTitle && (
+          <p style={{ margin: 0, fontSize: 15, fontWeight: 500, color: '#334155', lineHeight: 1.5, flex: 1, minWidth: 0 }}>
+            {chartTitle}
+          </p>
+        )}
+
+        {/* Row count + save + context buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto', flexShrink: 0 }}>
+          {currentResult.rowCount > 0 && (
+            <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+              {currentResult.rowCount.toLocaleString()} row{currentResult.rowCount !== 1 ? 's' : ''}
+            </span>
+          )}
+          {onSave && (
+            <button
+              onClick={() => onSave(envelope)}
+              title="Save"
+              aria-label="Save"
+              style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 26, height: 26, padding: 0, border: 'none',
+                background: 'transparent', cursor: 'pointer', borderRadius: 6,
+                flexShrink: 0,
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-3, #eff0f3)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              <img src="/icons/save.svg" alt="Save" width={16} height={16} style={{ opacity: 0.65 }} />
+            </button>
+          )}
+          {onPin && (
+            <button
+              onClick={() => onPin(envelope)}
+              title={isPinned ? 'Using as context' : 'Use as context'}
+              aria-label={isPinned ? 'Using as context' : 'Use as context'}
+              style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 26, height: 26, padding: 0, border: 'none',
+                background: isPinned ? 'var(--accent-subtle, #eff6ff)' : 'transparent',
+                cursor: 'pointer', borderRadius: 6, flexShrink: 0,
+              }}
+              onMouseEnter={(e) => { if (!isPinned) e.currentTarget.style.background = 'var(--surface-3, #eff0f3)'; }}
+              onMouseLeave={(e) => { if (!isPinned) e.currentTarget.style.background = 'transparent'; }}
+            >
+              <img src="/icons/add_to_context.svg" alt="Add to context" width={16} height={16} style={{ opacity: isPinned ? 1 : 0.65 }} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Row 2: filter controls + chart/table toggle */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
         gap: 10,
         flexWrap: 'nowrap',
-        padding: '10px 14px',
+        padding: '0 14px',
         overflow: 'hidden',
       }}>
         {widgetData.controls.map((ctrl, i) => {
@@ -494,43 +547,31 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
           </span>
         )}
 
-        {/* Row count + action buttons */}
-        <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 'auto', whiteSpace: 'nowrap', flexShrink: 0 }}>
-          {currentResult.rowCount.toLocaleString()} row{currentResult.rowCount !== 1 ? 's' : ''}
-        </span>
-        {onSave && (
-          <button
-            onClick={() => onSave(envelope)}
-            title="Save"
-            aria-label="Save"
-            style={{
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              width: 26, height: 26, padding: 0, border: 'none',
-              background: 'transparent', cursor: 'pointer', borderRadius: 6,
-              flexShrink: 0,
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-3, #eff0f3)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-          >
-            <img src="/icons/save.svg" alt="Save" width={16} height={16} style={{ opacity: 0.65 }} />
-          </button>
-        )}
-        {onPin && (
-          <button
-            onClick={() => onPin(envelope)}
-            title={isPinned ? 'Using as context' : 'Use as context'}
-            aria-label={isPinned ? 'Using as context' : 'Use as context'}
-            style={{
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              width: 26, height: 26, padding: 0, border: 'none',
-              background: isPinned ? 'var(--accent-subtle, #eff6ff)' : 'transparent',
-              cursor: 'pointer', borderRadius: 6, flexShrink: 0,
-            }}
-            onMouseEnter={(e) => { if (!isPinned) e.currentTarget.style.background = 'var(--surface-3, #eff0f3)'; }}
-            onMouseLeave={(e) => { if (!isPinned) e.currentTarget.style.background = 'transparent'; }}
-          >
-            <img src="/icons/add_to_context.svg" alt="Add to context" width={16} height={16} style={{ opacity: isPinned ? 1 : 0.65 }} />
-          </button>
+        {/* Chart / Table switcher — far right of filter row */}
+        {isChartable && (
+          <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
+            <div style={{ display: 'inline-flex', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 20, padding: 2, gap: 2 }}>
+              {(['chart', 'table'] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setViewMode(v)}
+                  style={{
+                    padding: '3px 12px',
+                    borderRadius: 16,
+                    fontSize: 11,
+                    fontWeight: 500,
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s, color 0.15s',
+                    background: viewMode === v ? 'var(--accent, #4f7fff)' : 'transparent',
+                    color: viewMode === v ? '#fff' : 'var(--text-muted)',
+                  }}
+                >
+                  {v === 'chart' ? '\u25B2 Chart' : '\u229E Table'}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 
@@ -538,40 +579,6 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
       {error && (
         <div style={{ padding: '8px 12px', background: '#fff5f5', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#b91c1c' }}>
           {error}
-        </div>
-      )}
-
-      {/* Dynamic chart title */}
-      {chartTitle && (
-        <p style={{ margin: 0, fontSize: 15, fontWeight: 500, color: '#334155', lineHeight: 1.5 }}>
-          {chartTitle}
-        </p>
-      )}
-
-      {/* Chart / Table switcher */}
-      {isChartable && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <div style={{ display: 'inline-flex', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 20, padding: 2, gap: 2 }}>
-            {(['chart', 'table'] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setViewMode(v)}
-                style={{
-                  padding: '3px 12px',
-                  borderRadius: 16,
-                  fontSize: 11,
-                  fontWeight: 500,
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'background 0.15s, color 0.15s',
-                  background: viewMode === v ? 'var(--accent, #4f7fff)' : 'transparent',
-                  color: viewMode === v ? '#fff' : 'var(--text-muted)',
-                }}
-              >
-                {v === 'chart' ? '\u25B2 Chart' : '\u229E Table'}
-              </button>
-            ))}
-          </div>
         </div>
       )}
 

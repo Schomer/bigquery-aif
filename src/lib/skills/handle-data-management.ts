@@ -263,6 +263,7 @@ export async function executeConfirmedOperation(
     skill: 'data-management',
     requiresConfirmation: false,
     operation: confirmed.operation,
+    table: confirmed.table,
     rowsAffected: dmlResult.rowsAffected,
     rowsExpected: confirmed.affectedRowCount,
     mismatch,

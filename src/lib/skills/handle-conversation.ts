@@ -287,10 +287,15 @@ export async function handleConversation(
       // Non-fatal
     }
 
+    // Extract the table reference from the SQL for display purposes
+    const tableMatch = sql.match(/(?:FROM|TABLE(?:\s+IF\s+EXISTS)?)\s+(`[^`]+`|\S+)/i);
+    const table = tableMatch?.[1]?.replace(/`/g, '') ?? undefined;
+
     const confirmResult: DataManagementResult = {
       skill: 'data-management',
       requiresConfirmation: true,
-      operation: operation as DataManagementResult['operation'],
+      operation: operation as import('../types').DmOperation,
+      table,
       previewSql,
       affectedRowCount,
       costEstimate: costEstimate ?? undefined,
