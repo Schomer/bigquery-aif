@@ -313,6 +313,7 @@ WIDGET_SPEC_END
 3. The baseSql and parameterizedSql must differ **only** in the filter WHERE clause. All other logic (GROUP BY, ORDER BY, JOINs, aggregations) must be identical.
 4. Do NOT include the WIDGET_SPEC_START/END block for regular (non-widget) queries.
 5. If the user asks for both a date filter and a category filter, pick the most prominent one for v1 (prefer category if they named a specific column, otherwise prefer date).
+6. **CRITICAL — `visualizationHint` must always be `"INTERACTIVE_WIDGET"` when a filter control is requested.** Do NOT set `visualizationHint` to `"WORLD_MAP"`, `"LINE_CHART"`, or any other chart type. The chart type goes in `widgetSpec.visualization`, NOT in `visualizationHint`. Example: user asks for "a world map with a year filter" → `visualizationHint: "INTERACTIVE_WIDGET"` and `widgetSpec.visualization: "WORLD_MAP"`. If you set `visualizationHint` to the chart type instead of `"INTERACTIVE_WIDGET"`, the filter control will not appear.
 
 
 

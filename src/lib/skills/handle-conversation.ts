@@ -7,7 +7,7 @@
 import { callGeminiWithTools, loadSkillDoc } from '../gemini-client';
 import { BQ_TOOLS, BQ_TOOL_MAP } from '../bq-tools';
 import type {
-  ChatMessage, CompositionEnvelope, SkillManifest,
+  ChatMessage, CompositionEnvelope, DataManagementResult, SkillManifest,
   SkillName, StatusCallback, QueryResult, VisualizationType, CostTier,
 } from '../types';
 import { compose } from '../composer';
@@ -159,6 +159,20 @@ export async function handleConversation(
   let datasetCreated: { datasetId: string; location: string } | null = null;
   let dmlExecuted: { sql: string; affectedRows: number } | null = null;
 
+  // Destructive DML intercepted for preview+confirm flow (not direct execution)
+  let pendingDestructiveDml: { sql: string; operation: string } | null = null;
+
+  // Detect whether a SQL statement is destructive (requires user confirmation before running)
+  function isDestructiveDml(sql: string): string | null {
+    const s = sql.trimStart().toUpperCase();
+    if (s.startsWith('DELETE')) return 'DELETE';
+    if (s.startsWith('TRUNCATE')) return 'TRUNCATE';
+    if (s.startsWith('DROP TABLE') || s.startsWith('DROP VIEW') || s.startsWith('DROP SCHEMA')) {
+      return s.startsWith('DROP TABLE') ? 'DROP_TABLE' : s.startsWith('DROP VIEW') ? 'DROP_TABLE' : 'DROP_SCHEMA';
+    }
+    return null;
+  }
+
   // Tool executor: intercepts results for envelope composition
   const toolExecutor = async (name: string, args: Record<string, unknown>): Promise<unknown> => {
     const tool = BQ_TOOL_MAP.get(name);
@@ -192,8 +206,19 @@ export async function handleConversation(
     }
 
     if (name === 'execute_dml') {
+      const sql = args.sql as string;
+      const operation = isDestructiveDml(sql);
+      if (operation) {
+        // Intercept destructive DML -- do not execute yet.
+        // Return a signal to the LLM that tells it to stop and await confirmation.
+        pendingDestructiveDml = { sql, operation };
+        return {
+          pending_confirmation: true,
+          message: 'Showing the user a count of affected rows and a confirmation prompt before executing.',
+        };
+      }
       const result = await tool.execute(args, project) as { completed: boolean; numDmlAffectedRows: number };
-      dmlExecuted = { sql: args.sql as string, affectedRows: result.numDmlAffectedRows };
+      dmlExecuted = { sql, affectedRows: result.numDmlAffectedRows };
       return result;
     }
 
@@ -213,6 +238,76 @@ export async function handleConversation(
 
   const responseText = agentResult.textResponse || 'Done.';
   const envelopes: CompositionEnvelope[] = [];
+
+  // If destructive DML was intercepted, run a count preview and return a confirmation card.
+  // The LLM already wrote the SQL -- we just gate execution behind a user confirmation.
+  if (pendingDestructiveDml) {
+    const { sql, operation } = pendingDestructiveDml as { sql: string; operation: string };
+    onStatus?.(`Counting affected rows before ${operation}...`);
+
+    // Derive a preview COUNT query from the execution SQL.
+    // For DELETE: SELECT COUNT(*) FROM table WHERE ...
+    // For TRUNCATE/DROP: count all rows in the table.
+    let previewSql: string;
+    const sqlUpper = sql.trimStart().toUpperCase();
+    if (sqlUpper.startsWith('DELETE')) {
+      // Replace DELETE ... FROM with SELECT COUNT(*) FROM, keep WHERE clause
+      previewSql = sql.trimStart().replace(/^DELETE\s+/i, 'SELECT COUNT(*) AS affected_count -- preview of: DELETE ');
+      // More reliable: rewrite the DELETE as a SELECT COUNT(*)
+      const fromMatch = sql.match(/\bFROM\b([\s\S]+?)(?:\bWHERE\b([\s\S]*))?$/i);
+      if (fromMatch) {
+        const tableRef = fromMatch[1].trim();
+        const whereClause = fromMatch[2] ? `WHERE ${fromMatch[2].trim()}` : '';
+        previewSql = `SELECT COUNT(*) AS affected_count FROM ${tableRef} ${whereClause}`.trim();
+      }
+    } else {
+      // For TRUNCATE/DROP, extract the table reference and count all rows
+      const tableMatch = sql.match(/(?:TRUNCATE\s+TABLE|DROP\s+TABLE(?:\s+IF\s+EXISTS)?)\s+(`[^`]+`|\S+)/i);
+      const tableRef = tableMatch?.[1] ?? '';
+      previewSql = tableRef ? `SELECT COUNT(*) AS affected_count FROM ${tableRef}` : '';
+    }
+
+    let affectedRowCount = 0;
+    if (previewSql) {
+      try {
+        const { executeQuery } = await import('../bigquery-client');
+        const previewResult = await executeQuery(previewSql, project);
+        const raw = Number(previewResult.rows[0]?.[0]);
+        affectedRowCount = Number.isFinite(raw) ? Math.round(raw) : 0;
+      } catch {
+        // Non-fatal -- show confirmation without count
+      }
+    }
+
+    let costEstimate;
+    try {
+      const { dryRun } = await import('../bigquery-client');
+      costEstimate = await dryRun(sql, project);
+    } catch {
+      // Non-fatal
+    }
+
+    const confirmResult: DataManagementResult = {
+      skill: 'data-management',
+      requiresConfirmation: true,
+      operation: operation as DataManagementResult['operation'],
+      previewSql,
+      affectedRowCount,
+      costEstimate: costEstimate ?? undefined,
+      executionSql: sql,
+      snapshotRowIds: [],
+      snapshotOffer: (operation === 'DELETE' || operation === 'TRUNCATE') && affectedRowCount > 0,
+    };
+
+    // Use the LLM's natural language response as the headline if available
+    const confirmHeadline = responseText && responseText !== 'Done.'
+      ? responseText.split('\n')[0].slice(0, 200)
+      : `Found ${affectedRowCount.toLocaleString()} row${affectedRowCount !== 1 ? 's' : ''} to ${operation.toLowerCase()}. Review and confirm.`;
+
+    const confirmEnvelope = compose('data-management', confirmResult);
+    confirmEnvelope.headline.text = confirmHeadline;
+    return [confirmEnvelope];
+  }
 
   // If a query was executed, build a proper data envelope through the compose pipeline
   if (capturedQueries.length > 0) {

@@ -1,5 +1,17 @@
 # Operations Ledger
 
+## 2026-07-15: Restore data-management to keyword fast path
+
+**What happened**: User showed a screenshot of a structured DELETE preview+confirm UX (count the matching rows, show count as KPI, then confirm button). The current app was routing all data-management intents (delete, update, truncate, etc.) through the conversation handler instead of `handleDataManagement`. The conversation agent calls `execute_dml` directly with no structured confirmation flow.
+
+**Root cause**: An earlier refactor moved `data-management` out of `KEYWORD_FAST_PATH_SKILLS` as part of an "AI-first routing" initiative where the conversation agent handled everything except schema/query/data-quality. However, `handleDataManagement` is the only path that produces the structured `PREVIEW_AND_CONFIRM` flow: (1) run `SELECT COUNT(*)` preview, (2) show count as KPI in confirmation card, (3) present Confirm/Cancel buttons with SQL disclosure. The conversation agent doesn't produce this UI at all.
+
+**Fix**: Added `'data-management'` to `KEYWORD_FAST_PATH_SKILLS` in `chat-orchestrator.ts`. This affects both the keyword router path AND the LLM classifier path (both check the same set). Updated the invariant in `invariants.md` to document that data-management is intentionally in the fast path.
+
+**Rule**: `handleDataManagement` must remain in the fast path. It is the only handler that produces the structured preview+confirm UX for destructive DML. The conversation agent's `execute_dml` tool skips this safety flow entirely.
+
+---
+
 ## 2026-07-15: Map chart query failing -- INT64 = STRING type error
 
 **What happened**: User asked for a map chart and got: `No matching signature for operator = for argument types: INT64, STRING`.

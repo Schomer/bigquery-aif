@@ -691,7 +691,7 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
           if (value === null) {
             return {
               fillColor: '#e2e8f0',
-              fillOpacity: 0.6,
+              fillOpacity: 1.0,
               strokeColor: '#8a9bb0',
               strokeWeight: 0.5,
             };
@@ -700,7 +700,7 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
           const ratio = range > 0 ? (value - minValue) / range : 0.5;
           return {
             fillColor: choroplethColor(ratio),
-            fillOpacity: 0.85,
+            fillOpacity: 1.0,
             strokeColor: '#ffffff',
             strokeWeight: 0.8,
           };
