@@ -2,7 +2,7 @@
 
 // InteractiveWidgetView.tsx
 // Renders an INTERACTIVE_WIDGET envelope: filter controls + chart/table switcher.
-// Supports DATE_RANGE and DROPDOWN controls. Re-queries BigQuery directly on Apply.
+// Supports DATE_RANGE and DROPDOWN controls. Filters apply immediately on change.
 
 import { useState, useCallback } from 'react';
 import type { CustomViewProps, InteractiveWidgetData, VisualizationType } from '@/lib/types';
@@ -15,11 +15,9 @@ type ViewMode = 'chart' | 'table';
 export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewProps) {
   const widgetData = envelope.primaryArtifact.data as InteractiveWidgetData;
 
-  // Date range state (for DATE_RANGE controls)
   const [startDate, setStartDate] = useState<string>(widgetData.defaultStart ?? '');
   const [endDate, setEndDate] = useState<string>(widgetData.defaultEnd ?? '');
 
-  // Dropdown state (for DROPDOWN controls) — keyed by control param
   const [dropdownValues, setDropdownValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     for (const ctrl of widgetData.controls) {
@@ -31,7 +29,6 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
   });
 
   const [viewMode, setViewMode] = useState<ViewMode>('chart');
-
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,27 +41,29 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
 
   const isChartable = !['TABLE', 'KPI_CARD', 'STAT_ROW', 'INTERACTIVE_WIDGET'].includes(widgetData.visualization);
 
-  const handleApply = useCallback(async () => {
+  // Core query runner — takes explicit values so it works correctly in onChange
+  // handlers before React state has flushed.
+  const runQuery = useCallback(async (opts: {
+    startDate: string;
+    endDate: string;
+    dropdownValues: Record<string, string>;
+  }) => {
     setError(null);
 
-    // Check whether any filter is actually set
-    const hasDateRange = startDate.length > 0 || endDate.length > 0;
-    const hasDropdown = Object.values(dropdownValues).some((v) => v.length > 0);
+    const hasDateRange = opts.startDate.length > 0 || opts.endDate.length > 0;
+    const hasDropdown = Object.values(opts.dropdownValues).some((v) => v.length > 0);
     const hasAnyFilter = hasDateRange || hasDropdown;
 
     let sqlToRun = hasAnyFilter ? widgetData.parameterizedSql : widgetData.baseSql;
 
-    // Substitute DATE_RANGE placeholders
     if (hasDateRange) {
       sqlToRun = sqlToRun
-        .replace(/\{\{start_date\}\}/g, startDate || '1900-01-01')
-        .replace(/\{\{end_date\}\}/g, endDate || '2100-12-31');
+        .replace(/\{\{start_date\}\}/g, opts.startDate || '1900-01-01')
+        .replace(/\{\{end_date\}\}/g, opts.endDate || '2100-12-31');
     }
 
-    // Substitute DROPDOWN placeholders
-    for (const [param, value] of Object.entries(dropdownValues)) {
+    for (const [param, value] of Object.entries(opts.dropdownValues)) {
       if (value) {
-        // Escape single quotes in the value to avoid SQL injection via the placeholder
         const safe = value.replace(/'/g, "\\'");
         sqlToRun = sqlToRun.replace(new RegExp(param.replace(/[{}]/g, '\\$&'), 'g'), safe);
       }
@@ -84,25 +83,38 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
     } finally {
       setIsLoading(false);
     }
-  }, [startDate, endDate, dropdownValues, widgetData]);
+  }, [widgetData]);
 
+  const handleDropdownChange = useCallback((param: string, value: string) => {
+    const next = { ...dropdownValues, [param]: value };
+    setDropdownValues(next);
+    runQuery({ startDate, endDate, dropdownValues: next });
+  }, [dropdownValues, startDate, endDate, runQuery]);
+
+  const handleStartDateChange = useCallback((value: string) => {
+    setStartDate(value);
+    runQuery({ startDate: value, endDate, dropdownValues });
+  }, [endDate, dropdownValues, runQuery]);
+
+  const handleEndDateChange = useCallback((value: string) => {
+    setEndDate(value);
+    runQuery({ startDate, endDate: value, dropdownValues });
+  }, [startDate, dropdownValues, runQuery]);
 
   const handleClear = useCallback(() => {
+    const cleared: Record<string, string> = {};
+    for (const k of Object.keys(dropdownValues)) cleared[k] = '';
     setStartDate('');
     setEndDate('');
-    setDropdownValues((prev) => {
-      const cleared: Record<string, string> = {};
-      for (const k of Object.keys(prev)) cleared[k] = '';
-      return cleared;
-    });
-  }, []);
+    setDropdownValues(cleared);
+    runQuery({ startDate: '', endDate: '', dropdownValues: cleared });
+  }, [dropdownValues, runQuery]);
 
   const hasAnyFilter =
     startDate.length > 0 ||
     endDate.length > 0 ||
     Object.values(dropdownValues).some((v) => v.length > 0);
 
-  // Build a QueryResult-shaped object for ChartView / DataTable
   const queryResult = {
     skill: 'query' as const,
     sql: widgetData.baseSql,
@@ -148,7 +160,7 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
                   id="widget-start-date"
                   type="date"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => handleStartDateChange(e.target.value)}
                   style={dateInputStyle}
                   aria-label="Start date"
                   max={endDate || undefined}
@@ -158,7 +170,7 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
                   id="widget-end-date"
                   type="date"
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={(e) => handleEndDateChange(e.target.value)}
                   style={dateInputStyle}
                   aria-label="End date"
                   min={startDate || undefined}
@@ -176,7 +188,7 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
                 <select
                   id={`widget-dropdown-${i}`}
                   value={dropdownValues[ctrl.param] ?? ''}
-                  onChange={(e) => setDropdownValues((prev) => ({ ...prev, [ctrl.param]: e.target.value }))}
+                  onChange={(e) => handleDropdownChange(ctrl.param, e.target.value)}
                   style={selectStyle}
                   aria-label={ctrl.label}
                 >
@@ -192,24 +204,26 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
           return null;
         })}
 
-        {/* Clear */}
+        {/* Round X clear button */}
         {hasAnyFilter && (
-          <button onClick={handleClear} style={clearBtnStyle} aria-label="Clear filters">
-            Clear
+          <button
+            onClick={handleClear}
+            style={clearBtnStyle}
+            aria-label="Clear filters"
+            title="Clear filters"
+          >
+            {/* × character, visually centered */}
+            &#x2715;
           </button>
         )}
 
-        {/* Apply */}
-        <button
-          id="widget-apply-btn"
-          onClick={handleApply}
-          disabled={isLoading}
-          style={{ ...applyBtnStyle, opacity: isLoading ? 0.6 : 1, cursor: isLoading ? 'wait' : 'pointer' }}
-        >
-          {isLoading ? (
-            <><span className="widget-spinner" />Running...</>
-          ) : 'Apply'}
-        </button>
+        {/* Loading indicator */}
+        {isLoading && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)' }}>
+            <span className="widget-spinner" />
+            Running...
+          </span>
+        )}
 
         {/* Row count */}
         <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>
@@ -274,18 +288,15 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
         </div>
       )}
 
-
-      {/* Spinner keyframes */}
       <style>{`
         .widget-spinner {
           display: inline-block;
           width: 10px;
           height: 10px;
-          border: 1.5px solid rgba(255,255,255,0.4);
-          border-top-color: #fff;
+          border: 1.5px solid var(--border, #e8edf5);
+          border-top-color: var(--accent, #4f7fff);
           border-radius: 50%;
           animation: widget-spin 0.6s linear infinite;
-          margin-right: 6px;
           vertical-align: middle;
         }
         @keyframes widget-spin {
@@ -296,7 +307,6 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
   );
 }
 
-// Shared styles
 const dateInputStyle: React.CSSProperties = {
   fontSize: 12,
   fontFamily: 'inherit',
@@ -312,7 +322,7 @@ const dateInputStyle: React.CSSProperties = {
 const selectStyle: React.CSSProperties = {
   fontSize: 12,
   fontFamily: 'inherit',
-  padding: '5px 24px 5px 8px',
+  padding: '5px 32px 5px 8px',
   border: '1px solid var(--border, #e8edf5)',
   borderRadius: 7,
   background: '#fff',
@@ -323,29 +333,22 @@ const selectStyle: React.CSSProperties = {
   maxWidth: 220,
 };
 
-const applyBtnStyle: React.CSSProperties = {
+// Round X clear button
+const clearBtnStyle: React.CSSProperties = {
+  width: 20,
+  height: 20,
+  borderRadius: '50%',
+  background: 'var(--text-muted, #94a3b8)',
+  border: 'none',
+  cursor: 'pointer',
   display: 'inline-flex',
   alignItems: 'center',
-  gap: 4,
-  padding: '5px 14px',
-  fontSize: 12,
-  fontWeight: 600,
-  fontFamily: 'inherit',
-  background: 'var(--accent, #4f7fff)',
+  justifyContent: 'center',
   color: '#fff',
-  border: 'none',
-  borderRadius: 7,
-  transition: 'opacity 0.15s',
-};
-
-const clearBtnStyle: React.CSSProperties = {
   fontSize: 11,
-  fontWeight: 400,
-  fontFamily: 'inherit',
-  padding: '4px 10px',
-  border: '1px solid var(--border, #e8edf5)',
-  borderRadius: 7,
-  background: 'transparent',
-  color: 'var(--text-muted)',
-  cursor: 'pointer',
+  fontWeight: 700,
+  lineHeight: 1,
+  padding: 0,
+  flexShrink: 0,
+  transition: 'background 0.15s',
 };
