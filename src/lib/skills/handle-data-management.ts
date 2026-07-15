@@ -252,10 +252,15 @@ export async function executeConfirmedOperation(
 ): Promise<CompositionEnvelope[]> {
   if (!confirmed.requiresConfirmation) return [];
 
+  console.log('[executeConfirmedOperation] SQL:', confirmed.executionSql);
+  console.log('[executeConfirmedOperation] Expected rows:', confirmed.affectedRowCount);
+
   const dmlResult = await executeDml(
     confirmed.executionSql,
     project,
   );
+
+  console.log('[executeConfirmedOperation] Rows affected:', dmlResult.rowsAffected, 'Job:', dmlResult.jobId);
 
   const mismatch = dmlResult.rowsAffected !== confirmed.affectedRowCount;
 
