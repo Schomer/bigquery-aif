@@ -393,14 +393,15 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
         display: 'flex',
         alignItems: 'center',
         gap: 10,
-        flexWrap: 'wrap',
+        flexWrap: 'nowrap',
         padding: '10px 14px',
+        overflow: 'hidden',
       }}>
         {widgetData.controls.map((ctrl, i) => {
           if (ctrl.type === 'DATE_RANGE') {
             return (
               <div key={i} style={{ display: 'contents' }}>
-                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                   {ctrl.label}
                 </span>
                 <input
@@ -429,7 +430,7 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
           if (ctrl.type === 'DROPDOWN') {
             return (
               <div key={i} style={{ display: 'contents' }}>
-                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                   {ctrl.label}
                 </span>
                 <select
@@ -451,7 +452,7 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
           if (ctrl.type === 'MULTI_SELECT') {
             return (
               <div key={i} style={{ display: 'contents' }}>
-                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                   {ctrl.label}
                 </span>
                 <MultiSelectDropdown
@@ -484,7 +485,7 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
         )}
 
         {/* Row count + action buttons */}
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+        <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 'auto', whiteSpace: 'nowrap', flexShrink: 0 }}>
           {currentResult.rowCount.toLocaleString()} row{currentResult.rowCount !== 1 ? 's' : ''}
         </span>
         {onSave && (
@@ -594,14 +595,15 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
 const dateInputStyle: React.CSSProperties = {
   fontSize: 12, fontFamily: 'inherit', padding: '5px 8px',
   border: '1px solid var(--border, #e8edf5)', borderRadius: 7,
-  background: '#fff', color: 'var(--text)', outline: 'none', cursor: 'pointer',
+  background: '#fff', color: 'var(--text-muted)', outline: 'none', cursor: 'pointer',
+  fontWeight: 400,
 };
 
 const selectStyle: React.CSSProperties = {
   fontSize: 12, fontFamily: 'inherit', padding: '5px 32px 5px 8px',
   border: '1px solid var(--border, #e8edf5)', borderRadius: 7,
-  background: '#fff', color: 'var(--text)', outline: 'none',
-  cursor: 'pointer', appearance: 'auto', maxWidth: 220,
+  background: '#fff', color: 'var(--text-muted)', outline: 'none',
+  cursor: 'pointer', appearance: 'auto', maxWidth: 220, fontWeight: 400,
 };
 
 const clearBtnStyle: React.CSSProperties = {
