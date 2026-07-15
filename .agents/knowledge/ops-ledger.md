@@ -1,14 +1,16 @@
 # Operations Ledger
 
-## 2026-07-15: Restore data-management to keyword fast path
+## 2026-07-15: Data task routing -- keywords are the wrong tool
 
-**What happened**: User showed a screenshot of a structured DELETE preview+confirm UX (count the matching rows, show count as KPI, then confirm button). The current app was routing all data-management intents (delete, update, truncate, etc.) through the conversation handler instead of `handleDataManagement`. The conversation agent calls `execute_dml` directly with no structured confirmation flow.
+**What happened**: User asked to perform data tasks like "delete all rows that have a date less than 0". The app was routing through the conversation agent, which called `execute_dml` directly with no preview or confirmation step.
 
-**Root cause**: An earlier refactor moved `data-management` out of `KEYWORD_FAST_PATH_SKILLS` as part of an "AI-first routing" initiative where the conversation agent handled everything except schema/query/data-quality. However, `handleDataManagement` is the only path that produces the structured `PREVIEW_AND_CONFIRM` flow: (1) run `SELECT COUNT(*)` preview, (2) show count as KPI in confirmation card, (3) present Confirm/Cancel buttons with SQL disclosure. The conversation agent doesn't produce this UI at all.
+**First (wrong) attempt**: Added `'data-management'` to `KEYWORD_FAST_PATH_SKILLS` so delete/remove/truncate keywords would route to `handleDataManagement`. User immediately pointed out this would never work well enough -- keywords can't cover all phrasings ("get rid of", "clean out", "remove the bad rows", "take out nulls", etc.).
 
-**Fix**: Added `'data-management'` to `KEYWORD_FAST_PATH_SKILLS` in `chat-orchestrator.ts`. This affects both the keyword router path AND the LLM classifier path (both check the same set). Updated the invariant in `invariants.md` to document that data-management is intentionally in the fast path.
+**Correct fix**: The conversation agent already understands intent in any phrasing -- that's why it exists. The problem was not routing, it was the execution layer. Added a destructive DML intercept in the conversation handler's `execute_dml` tool call. When the LLM calls `execute_dml` with a DELETE/TRUNCATE/DROP statement, the handler intercepts it, runs a `SELECT COUNT(*)` preview, and returns a `CONFIRMATION_CARD` envelope instead of executing. The LLM writes the SQL; the execution layer adds the safety gate.
 
-**Rule**: `handleDataManagement` must remain in the fast path. It is the only handler that produces the structured preview+confirm UX for destructive DML. The conversation agent's `execute_dml` tool skips this safety flow entirely.
+**Lesson -- permanently recorded**: NEVER fix data task routing with keywords. The LLM understands intent in any phrasing. Keywords require maintaining an exhaustive synonym list and will always have gaps. Fix the system prompt or the execution-layer intercept instead.
+
+**Files changed**: `src/lib/skills/handle-conversation.ts` (destructive DML intercept + count preview + confirmation card), `src/lib/chat-orchestrator.ts` (reverted keyword fast-path change).
 
 ---
 
