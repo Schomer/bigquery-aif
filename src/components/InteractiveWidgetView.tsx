@@ -383,7 +383,7 @@ const clearBtnStyle: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  color: '#1d4ed8',
+  color: '#fff',
   fontSize: 11,
   fontWeight: 700,
   lineHeight: 1,
