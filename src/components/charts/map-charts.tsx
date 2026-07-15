@@ -552,7 +552,9 @@ function buildCountryValueMap(
   const map = new Map<string, number>();
   for (const row of data) {
     const key = String(row[xKey] ?? '').trim();
-    const val = Number(row[valueKey]);
+    const rawVal = row[valueKey];
+    if (rawVal == null) continue; // null/undefined → "no data", not zero
+    const val = Number(rawVal);
     if (!key || isNaN(val)) continue;
 
     const lower = key.toLowerCase();

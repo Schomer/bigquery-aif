@@ -507,14 +507,21 @@ function composeDataManagement(
   if (result.requiresConfirmation) {
     // Confirmation card
     let headlineText = '';
+    const tableSuffix = result.table ? ` in \`${result.table}\`` : '';
     if (result.operation === 'DEDUPE') {
       const dupeCount = Number.isFinite(result.affectedRowCount) ? Math.round(result.affectedRowCount).toLocaleString() : 'some';
       headlineText = `Found ${dupeCount} duplicate rows across ${result.affectedGroupCount ?? 0} groups -- I'll keep the most recently updated copy of each`;
+    } else if (result.operation === 'DELETE') {
+      const count = Number.isFinite(result.affectedRowCount) ? Math.round(result.affectedRowCount).toLocaleString() : 'an unknown number of';
+      headlineText = `Found ${count} rows${tableSuffix} matching this condition. Confirm to delete.`;
+    } else if (result.operation === 'TRUNCATE') {
+      const count = Number.isFinite(result.affectedRowCount) ? Math.round(result.affectedRowCount).toLocaleString() : 'all';
+      headlineText = `This will remove all ${count} rows${tableSuffix}. Confirm to truncate.`;
+    } else if (result.operation === 'DROP_TABLE') {
+      headlineText = `This will permanently drop the table${tableSuffix}. This cannot be undone.`;
     } else {
-      const count = Number.isFinite(result.affectedRowCount)
-        ? Math.round(result.affectedRowCount).toLocaleString()
-        : 'an unknown number of';
-      headlineText = `This will affect ${count} rows. Review the preview and confirm.`;
+      const count = Number.isFinite(result.affectedRowCount) ? Math.round(result.affectedRowCount).toLocaleString() : 'an unknown number of';
+      headlineText = `This will affect ${count} rows${tableSuffix}. Review and confirm.`;
     }
 
     return {
@@ -533,15 +540,24 @@ function composeDataManagement(
   } else {
     // Completion card
     const tone: Tone = result.mismatch ? 'ATTENTION' : 'NEUTRAL';
+    const tableSuffix = result.table ? ` from \`${result.table}\`` : '';
     let headlineText: string;
     if (result.mismatch) {
       headlineText = result.mismatchNote ?? `Completed with unexpected result`;
     } else if (result.completionMessage) {
       headlineText = result.completionMessage;
     } else if (result.operation === 'DEDUPE') {
-      headlineText = `Done — removed ${result.rowsAffected} duplicate rows`;
+      headlineText = `Removed ${result.rowsAffected.toLocaleString()} duplicate rows${tableSuffix}`;
+    } else if (result.operation === 'DELETE') {
+      headlineText = `Deleted ${result.rowsAffected.toLocaleString()} rows${tableSuffix}`;
+    } else if (result.operation === 'TRUNCATE') {
+      headlineText = `Truncated${tableSuffix} — ${result.rowsAffected.toLocaleString()} rows removed`;
+    } else if (result.operation === 'DROP_TABLE') {
+      headlineText = `Table dropped${tableSuffix}`;
+    } else if (result.operation === 'UPDATE') {
+      headlineText = `Updated ${result.rowsAffected.toLocaleString()} rows${tableSuffix}`;
     } else {
-      headlineText = `Done — ${result.rowsAffected} rows affected`;
+      headlineText = `Done — ${result.rowsAffected.toLocaleString()} rows affected${tableSuffix}`;
     }
 
     const nextActions: HandoffEnvelope[] = [

@@ -166,7 +166,7 @@ function coerceValue(raw: string | null, fieldType: string): unknown {
     return isNaN(n) ? raw : n;
   }
   if (BOOLEAN_TYPES.has(upper)) {
-    return raw === 'true' || raw === 'TRUE';
+    return raw === 'true' || raw === 'TRUE' || raw === 'True' || raw === '1';
   }
   return raw;
 }

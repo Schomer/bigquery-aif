@@ -49,7 +49,7 @@ If both `TABLESAMPLE` and `APPROX_*` functions are in play, say so explicitly --
 - For joins: prefer explicit column lists, not `SELECT *`
 - If the user asks to create or make a new table with data/mock data, generate a `CREATE OR REPLACE TABLE ... AS SELECT ... UNION ALL SELECT ...` SQL query to populate the table with the requested data rows rather than leaving it empty.
 - **Do NOT SELECT columns that are used only as WHERE filters.** If the user asks "top 10 countries by population in year 900", the filter (`year = 900`) belongs only in the WHERE clause. Including it in SELECT/GROUP BY produces a redundant constant column that adds no information and confuses the visualization layer. Correct: `SELECT country, SUM(population) ... WHERE year = 900 GROUP BY country`. Wrong: `SELECT country, year, SUM(population) ... WHERE year = 900 GROUP BY country, year`.
-- **Match literal types to column types in WHERE clauses.** If a column is INTEGER/INT64/FLOAT/NUMERIC, use an unquoted numeric literal: `WHERE Year = 2023`, NOT `WHERE Year = '2023'`. Quoting a number produces an INT64 = STRING type error in BigQuery. Only use quoted string literals for STRING/VARCHAR columns. Check the schema's column type before writing any filter.
+- **Match literal types to column types in WHERE clauses.** If a column is INTEGER/INT64/FLOAT/NUMERIC, use an unquoted numeric literal: `WHERE Year = 2023`, NOT `WHERE Year = '2023'`. Quoting a number produces an INT64 = STRING type error in BigQuery. Only use quoted string literals for STRING/VARCHAR columns. For BOOL/BOOLEAN columns, use unquoted `TRUE` or `FALSE` — never `'TRUE'` or `1`. Check the schema's column type before writing any filter.
 - **Do NOT apply implicit year or date filters based on today's date.** Today's date is provided for context only (e.g., to compute relative date ranges when the user says "last 30 days"). Do NOT add `WHERE year = <current_year>` or `WHERE date >= <today>` unless the user explicitly asked for recent or current data. Many datasets (e.g., population, historical records, scientific data) have a Year column with integer values that may not include the current calendar year at all. Applying an implicit recency filter on such tables returns 0 rows. When the user asks for population, rankings, or aggregates without specifying a year, either omit the year filter entirely or use `WHERE year = (SELECT MAX(year) FROM ...)` to find the latest available year.
 
 ### CRITICAL: Aggregation patterns (read this before writing ANY query)
@@ -300,10 +300,11 @@ WIDGET_SPEC_START
 WIDGET_SPEC_END
 ```
 
-- `filterParam`: the placeholder **without** quotes — the system adds `'value1', 'value2'` quoting automatically when substituting.
+- `filterParam`: the placeholder **without** quotes — the system detects value type at substitution time and adds quoting appropriately.
 - `defaultValues`: array of pre-selected values, or null (show all on load).
 - The baseSql runs when nothing is selected (all values).
 - Do NOT put quotes around `{{entity_list}}` in parameterizedSql — the parentheses `IN ({{entity_list}})` are correct as shown.
+- **MULTI_SELECT is for STRING/categorical columns only.** For numeric columns (INT64 Year, FLOAT scores, etc.), use DROPDOWN instead. MULTI_SELECT with all-numeric values will correctly omit quotes, but a DROPDOWN is a better UX for numeric dimensions.
 
 ---
 

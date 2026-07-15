@@ -264,21 +264,23 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
     }
 
     // DROPDOWN substitution — handles quoted/unquoted placeholder.
-    // If the value is a pure integer or decimal, substitute without string quotes
-    // to avoid INT64 = STRING type errors on numeric columns (e.g. Year).
+    // Numeric values (INT64/FLOAT) substitute bare to avoid INT64=STRING type errors.
+    // Boolean values (BOOL) substitute as unquoted TRUE/FALSE SQL keywords.
     for (const [param, value] of Object.entries(opts.dropdownValues)) {
       if (value) {
-        const isNumeric = /^-?\d+(\.\d+)?$/.test(value.trim());
+        const trimmed = value.trim();
+        const isNumeric = /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(trimmed);
+        const isBool = /^(true|false|TRUE|FALSE)$/.test(trimmed);
         const escapedParam = param.replace(/[{}]/g, '\\$&');
-        if (isNumeric) {
-          // Numeric value — substitute bare (no quotes) to match INT64/FLOAT columns
-          const quotedPlaceholder = new RegExp(`'${escapedParam}'`, 'g');
-          sqlToRun = sqlToRun.replace(quotedPlaceholder, value.trim());
-          sqlToRun = sqlToRun.replace(new RegExp(escapedParam, 'g'), value.trim());
+        const quotedPlaceholder = new RegExp(`'${escapedParam}'`, 'g');
+        if (isNumeric || isBool) {
+          // Bare substitution — no quotes — to match INT64/FLOAT/BOOL columns
+          const bareValue = isBool ? trimmed.toUpperCase() : trimmed;
+          sqlToRun = sqlToRun.replace(quotedPlaceholder, bareValue);
+          sqlToRun = sqlToRun.replace(new RegExp(escapedParam, 'g'), bareValue);
         } else {
           const safe = value.replace(/'/g, "''");
           const quotedLiteral = `'${safe}'`;
-          const quotedPlaceholder = new RegExp(`'${escapedParam}'`, 'g');
           if (quotedPlaceholder.test(sqlToRun)) {
             sqlToRun = sqlToRun.replace(quotedPlaceholder, quotedLiteral);
           } else {
@@ -288,10 +290,15 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
       }
     }
 
-    // MULTI_SELECT substitution — replaces {{param}} with 'val1', 'val2', 'val3'
+    // MULTI_SELECT substitution — replaces {{param}} with the IN-list.
+    // If ALL selected values are numeric (INT64/FLOAT), substitutes bare integers/decimals.
+    // Otherwise wraps each value in single quotes (STRING columns).
     for (const [param, values] of Object.entries(opts.multiSelectValues)) {
       if (values.length > 0) {
-        const inList = values.map((v) => `'${v.replace(/'/g, "''")}'`).join(', ');
+        const allNumeric = values.every((v) => /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(v.trim()));
+        const inList = allNumeric
+          ? values.map((v) => v.trim()).join(', ')
+          : values.map((v) => `'${v.replace(/'/g, "''")}'`).join(', ');
         const escapedParam = param.replace(/[{}]/g, '\\$&');
         sqlToRun = sqlToRun.replace(new RegExp(escapedParam, 'g'), inList);
       }

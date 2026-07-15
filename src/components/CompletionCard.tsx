@@ -115,3 +115,19 @@ export function CompletionCard({ result }: Props) {
     </div>
   );
 }
+
+function Metric({ label, value, color, mono, small }: {
+  label: string; value: string; color: string; mono?: boolean; small?: boolean;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</span>
+      <span style={{
+        fontSize: small ? 11 : 13,
+        color,
+        fontFamily: mono ? 'var(--font-mono)' : 'inherit',
+        letterSpacing: mono ? -0.3 : undefined,
+      }}>{value}</span>
+    </div>
+  );
+}
