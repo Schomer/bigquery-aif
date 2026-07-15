@@ -68,140 +68,139 @@ function MultiSelectDropdown({
     onChange(next);
   };
 
-  const triggerLabel =
-    selected.length === 0 ? 'All'
-    : selected.length === 1 ? selected[0]
-    : `${selected.length} selected`;
+  const removeChip = (val: string) => onChange(selected.filter((s) => s !== val));
 
   return (
-    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
-      {/* Trigger */}
-      <button
-        id={id}
-        onClick={() => setOpen((v) => !v)}
-        aria-label={`${label} filter`}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          fontSize: 12,
-          fontFamily: 'inherit',
-          padding: '5px 10px 5px 10px',
-          border: '1px solid var(--border, #e8edf5)',
-          borderRadius: 7,
-          background: selected.length > 0 ? 'var(--accent-subtle, #eff6ff)' : '#fff',
-          color: selected.length > 0 ? 'var(--accent, #4f7fff)' : 'var(--text)',
-          cursor: 'pointer',
-          minWidth: 100,
-          maxWidth: 220,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        }}
-      >
-        <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {triggerLabel}
-        </span>
-        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ flexShrink: 0, opacity: 0.5 }}>
-          <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </button>
+    <>
+      {/* Dropdown trigger — compact when items selected, labeled when empty */}
+      <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+        <button
+          id={id}
+          onClick={() => setOpen((v) => !v)}
+          aria-label={`${label} filter`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: selected.length > 0 ? 2 : 6,
+            fontSize: 12,
+            fontFamily: 'inherit',
+            padding: selected.length > 0 ? '5px 8px' : '5px 10px',
+            border: '1px solid var(--border, #e8edf5)',
+            borderRadius: 7,
+            background: '#fff',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+          }}
+        >
+          {selected.length === 0 && <span>All</span>}
+          <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ opacity: 0.45 }}>
+            <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
 
-      {/* Panel */}
-      {open && (
-        <div style={{
-          position: 'absolute',
-          top: 'calc(100% + 4px)',
-          left: 0,
-          zIndex: 100,
-          background: '#fff',
-          border: '1px solid var(--border, #e8edf5)',
-          borderRadius: 10,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-          minWidth: 220,
-          maxWidth: 320,
-        }}>
-          {/* Search — shown only when there are more than SEARCH_THRESHOLD options */}
-          {options.length > SEARCH_THRESHOLD && (
-            <div style={{ padding: '8px 10px 0' }}>
-              <input
-                autoFocus
-                type="text"
-                placeholder="Search..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                style={{
-                  width: '100%',
-                  fontSize: 12,
-                  fontFamily: 'inherit',
-                  padding: '5px 8px',
-                  border: '1px solid var(--border, #e8edf5)',
-                  borderRadius: 6,
-                  outline: 'none',
-                  background: 'var(--surface-2, #f8f9fc)',
-                  color: 'var(--text)',
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-          )}
-
-          {/* Quick actions */}
+        {/* Panel — search + checkboxes only */}
+        {open && (
           <div style={{
-            display: 'flex',
-            gap: 6,
-            padding: '7px 10px 5px',
-            borderBottom: '1px solid var(--border, #e8edf5)',
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            zIndex: 100,
+            background: '#fff',
+            border: '1px solid var(--border, #e8edf5)',
+            borderRadius: 10,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+            minWidth: 220,
+            maxWidth: 320,
           }}>
-            <button
-              onClick={() => onChange(options)}
-              style={quickActionStyle}
-            >Select all</button>
-            <button
-              onClick={() => onChange([])}
-              style={quickActionStyle}
-            >Clear</button>
-          </div>
-
-          {/* Option list */}
-          <div style={{ maxHeight: 240, overflowY: 'auto', padding: '4px 0' }}>
-            {visible.length === 0 ? (
-              <p style={{ margin: 0, padding: '8px 12px', fontSize: 12, color: 'var(--text-muted)' }}>
-                No matches
-              </p>
-            ) : visible.map((opt) => {
-              const checked = selected.includes(opt);
-              return (
-                <label
-                  key={opt}
+            {/* Search — shown when there are more than SEARCH_THRESHOLD options */}
+            {options.length > SEARCH_THRESHOLD && (
+              <div style={{ padding: '8px 10px 6px' }}>
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Search..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '5px 12px',
-                    fontSize: 12,
-                    color: 'var(--text)',
-                    cursor: 'pointer',
-                    background: checked ? 'var(--accent-subtle, #eff6ff)' : 'transparent',
-                    transition: 'background 0.1s',
+                    width: '100%', fontSize: 12, fontFamily: 'inherit',
+                    padding: '5px 8px', border: '1px solid var(--border, #e8edf5)',
+                    borderRadius: 6, outline: 'none',
+                    background: 'var(--surface-2, #f8f9fc)', color: 'var(--text)',
+                    boxSizing: 'border-box',
                   }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggle(opt)}
-                    style={{ width: 13, height: 13, cursor: 'pointer', accentColor: 'var(--accent, #4f7fff)' }}
-                  />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {opt}
-                  </span>
-                </label>
-              );
-            })}
+                />
+              </div>
+            )}
+
+            {/* Option list */}
+            <div style={{ maxHeight: 260, overflowY: 'auto', padding: '4px 0' }}>
+              {visible.length === 0 ? (
+                <p style={{ margin: 0, padding: '8px 12px', fontSize: 12, color: 'var(--text-muted)' }}>
+                  No matches
+                </p>
+              ) : visible.map((opt) => {
+                const checked = selected.includes(opt);
+                return (
+                  <label
+                    key={opt}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '5px 12px', fontSize: 12, color: 'var(--text)',
+                      cursor: 'pointer',
+                      background: checked ? 'var(--accent-subtle, #eff6ff)' : 'transparent',
+                      transition: 'background 0.1s',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggle(opt)}
+                      style={{ width: 13, height: 13, cursor: 'pointer', accentColor: 'var(--accent, #4f7fff)' }}
+                    />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {opt}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+
+      {/* Selected value chips — one per selected value, each with its own × */}
+      {selected.map((val) => (
+        <span
+          key={val}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            fontSize: 12, padding: '3px 6px 3px 9px',
+            background: 'var(--accent-subtle, #eff6ff)',
+            border: '1px solid #bfdbfe',
+            borderRadius: 5,
+            color: 'var(--accent, #4f7fff)',
+            whiteSpace: 'nowrap',
+            maxWidth: 160,
+            overflow: 'hidden',
+          }}
+        >
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{val}</span>
+          <button
+            onClick={() => removeChip(val)}
+            title={`Remove ${val}`}
+            style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 14, height: 14, padding: 0, border: 'none', borderRadius: '50%',
+              background: 'transparent', color: 'var(--accent, #4f7fff)',
+              cursor: 'pointer', fontSize: 11, fontWeight: 700, flexShrink: 0,
+              lineHeight: 1,
+            }}
+          >
+            &#x2715;
+          </button>
+        </span>
+      ))}
+    </>
   );
 }
 

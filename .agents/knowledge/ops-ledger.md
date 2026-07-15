@@ -25,6 +25,26 @@
 
 ---
 
+## 2026-07-15: Fix "entitys" pluralization bug + widget mis-trigger on ranking queries
+
+**Root cause**: Two bugs found from a screenshot of "column chart showing the top 15 countries by population in 2023" being rendered as an interactive widget with a broken time-series chart.
+
+**Bug 1 — "entitys" typo in chart title**:
+`InteractiveWidgetView.tsx` line 347 was appending `s` to the control label verbatim: `"entity" + "s"` → `"entitys"`. Fixed by adding a `pluralize()` helper that handles the `-y → -ies` rule (entity→entities, country→countries) and the `-s/-sh/-ch/-x/-z → -es` rule, falling back to `+ "s"`.
+
+**Bug 2 — LLM generating interactive widget for "top N" ranking queries**:
+The user asked "column chart showing the top 15 countries by population in 2023". The LLM triggered `INTERACTIVE_WIDGET` mode with a `MULTI_SELECT` on the categorical `entity` column, producing 17,599 base rows (all country×year combinations) rendered as a column chart. The result was a meaningless spike chart.
+
+**Fix**: Added a CRITICAL section to `public/skills/query.md` under "Interactive Widget Mode" explicitly listing what must NOT trigger widget mode:
+- "top N [entities]" → write direct `ORDER BY ... DESC LIMIT N` query, use `COLUMN_CHART`/`BAR_CHART`
+- "show me the biggest/smallest" → ranking query, fixed answer, no widget
+- "which [entities] have the highest/lowest [metric]" → direct aggregate query
+
+**Rule**: Interactive widgets are for user-driven **exploration**. Ranking queries have a fixed answer — compute and return it directly as a `COLUMN_CHART` or `BAR_CHART`.
+
+---
+
+
 ## 2026-07-14: Heatmap shown for ranked country list -- filter column leaking into SELECT
 
 
