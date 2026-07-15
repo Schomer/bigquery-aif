@@ -384,9 +384,6 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
         gap: 10,
         flexWrap: 'wrap',
         padding: '10px 14px',
-        background: 'var(--surface-2, #f8f9fc)',
-        border: '1px solid var(--border, #e8edf5)',
-        borderRadius: 10,
       }}>
         {widgetData.controls.map((ctrl, i) => {
           if (ctrl.type === 'DATE_RANGE') {
