@@ -41,41 +41,61 @@ function artifactIcon(type: string, data?: any): string {
   return 'bar_chart';
 }
 
-function envelopeLabel(env: CompositionEnvelope): string {
-  const { type, data } = env.primaryArtifact;
+function artifactTypeLabel(type: string, data?: any): string {
+  if (type === 'TABLE') return 'Query Result';
   if (type === 'SCHEMA_VIEW') {
     const d = data as any;
-    if (d?.scope === 'DATASET' && d?.columns?.length) return `${d.columns.length} tables`;
-    if (d?.scope === 'TABLE' && d?.table) return d.table;
-    if (d?.scope === 'PROJECT') return 'Datasets';
+    if (d?.scope === 'TABLE') return 'Table Schema';
+    if (d?.scope === 'DATASET') return 'Dataset';
     return 'Schema';
   }
-  if (type === 'TABLE') {
-    const d = data as any;
-    // rowCount is the real BigQuery count; rows.length is just the in-memory sample
-    const count = typeof d?.rowCount === 'number' ? d.rowCount : d?.rows?.length;
-    if (count !== undefined) return `${count.toLocaleString()} rows`;
-    return 'Table';
-  }
   if (type === 'KPI_CARD') return 'KPI';
-  if (type === 'DATA_QUALITY_VIEW') {
-    const d = data as any;
-    return d?.table ? `Quality: ${d.table}` : 'Quality';
-  }
+  if (type === 'DATA_QUALITY_VIEW') return 'Data Quality';
   if (type === 'DISCOVERY_VIEW') return 'Discovery';
-  if (type === 'MONITORING_VIEW') return 'Monitor';
-  if (type === 'CONFIRMATION_CARD' || type === 'COST_CONFIRM_CARD') return 'Confirm';
-  if (type === 'COMPLETION_CARD') return 'Done';
+  if (type === 'MONITORING_VIEW') return 'Monitoring';
+  if (type === 'COMPLETION_CARD') return 'Completed';
   if (type === 'DATA_LOADING_VIEW') return 'Export';
   if (type === 'PIPELINE_VIEW') return 'Pipelines';
   if (type === 'MULTISTEP_VIEW') return 'Workflow';
   const chartNames: Record<string, string> = {
-    LINE_CHART: 'Line chart', BAR_CHART: 'Bar chart', AREA_CHART: 'Area chart',
-    PIE_CHART: 'Pie chart', DONUT_CHART: 'Donut chart', COLUMN_CHART: 'Column chart',
-    SCATTER: 'Scatter plot', HISTOGRAM: 'Histogram', HEATMAP: 'Heatmap',
+    LINE_CHART: 'Line Chart', BAR_CHART: 'Bar Chart', AREA_CHART: 'Area Chart',
+    PIE_CHART: 'Pie Chart', DONUT_CHART: 'Donut Chart', COLUMN_CHART: 'Column Chart',
+    SCATTER: 'Scatter Plot', HISTOGRAM: 'Histogram', HEATMAP: 'Heatmap',
     FUNNEL: 'Funnel', TREEMAP: 'Treemap', GAUGE: 'Gauge',
   };
   return chartNames[type] || 'Chart';
+}
+
+function envelopeSubtitle(env: CompositionEnvelope): string {
+  const { type, data } = env.primaryArtifact;
+  const d = data as any;
+  if (type === 'TABLE') {
+    const count = typeof d?.rowCount === 'number' ? d.rowCount : d?.rows?.length;
+    if (count !== undefined) return `${count.toLocaleString()} rows`;
+    return '';
+  }
+  if (type === 'SCHEMA_VIEW') {
+    if (d?.scope === 'DATASET' && d?.columns?.length) return `${d.columns.length} tables`;
+    if (d?.scope === 'TABLE' && d?.table) return d.table;
+    if (d?.scope === 'PROJECT') return d?.project || '';
+    return '';
+  }
+  if (type === 'DATA_QUALITY_VIEW') return d?.table ? d.table : '';
+  if (type === 'PIPELINE_VIEW') {
+    const count = d?.schedules?.length;
+    return count !== undefined ? `${count} schedule${count !== 1 ? 's' : ''}` : '';
+  }
+  const chartNames: Record<string, string> = {
+    LINE_CHART: 'Line Chart', BAR_CHART: 'Bar Chart', AREA_CHART: 'Area Chart',
+    PIE_CHART: 'Pie Chart', DONUT_CHART: 'Donut Chart', COLUMN_CHART: 'Column Chart',
+    SCATTER: 'Scatter Plot', HISTOGRAM: 'Histogram', HEATMAP: 'Heatmap',
+    FUNNEL: 'Funnel', TREEMAP: 'Treemap', GAUGE: 'Gauge',
+  };
+  if (chartNames[type]) {
+    const rows = d?.rows?.length;
+    return rows !== undefined ? `${rows.toLocaleString()} rows` : '';
+  }
+  return '';
 }
 
 // ---- Props ------------------------------------------------------------------
@@ -438,24 +458,29 @@ export function ResultsSidebar({
                       );
                     }
                     return nonConfirm.length > 0 ? (
-                      <>
-                        <div className="chat-sidebar-assistant-text">
-                          {nonConfirm.map((env) => env.briefing?.narrative || env.headline.text).join(' ')}
-                        </div>
-                        <div className="chat-sidebar-artifact-links">
-                          {nonConfirm.map((env) => (
+                      <div className="chat-sidebar-artifact-cards">
+                        {nonConfirm.map((env) => {
+                          const subtitle = envelopeSubtitle(env);
+                          return (
                             <button
                               key={env.id}
-                              className="chat-sidebar-artifact-link"
+                              className="chat-sidebar-artifact-card"
                               onClick={() => scrollToResult(env.id)}
-                              title={`View in results panel`}
+                              title="View in results panel"
                             >
-                              <span className="material-symbols-outlined">{artifactIcon(env.primaryArtifact.type, env.primaryArtifact.data)}</span>
-                              {envelopeLabel(env)}
+                              <div className="chat-sidebar-artifact-card-icon">
+                                <span className="material-symbols-outlined">{artifactIcon(env.primaryArtifact.type, env.primaryArtifact.data)}</span>
+                              </div>
+                              <div className="chat-sidebar-artifact-card-body">
+                                <div className="chat-sidebar-artifact-card-type">{artifactTypeLabel(env.primaryArtifact.type, env.primaryArtifact.data)}</div>
+                                <div className="chat-sidebar-artifact-card-headline">{env.headline.text}</div>
+                                {subtitle && <div className="chat-sidebar-artifact-card-sub">{subtitle}</div>}
+                              </div>
+                              <span className="material-symbols-outlined chat-sidebar-artifact-card-chevron">chevron_right</span>
                             </button>
-                          ))}
-                        </div>
-                      </>
+                          );
+                        })}
+                      </div>
                     ) : null;
                   })()}
                   {!msg.envelopes && msg.content && (
