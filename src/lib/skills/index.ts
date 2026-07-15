@@ -18,6 +18,7 @@ import { manifest as pipelineManifest } from './handle-pipeline';
 import { manifest as taskManifest } from './handle-task';
 import { manifest as governanceManifest } from './handle-governance';
 import { manifest as savedManifest } from './handle-saved';
+import { manifest as dashboardManifest } from './handle-dashboard';
 
 export const SKILL_MANIFESTS: SkillManifest[] = [
   schemaManifest,
@@ -32,6 +33,7 @@ export const SKILL_MANIFESTS: SkillManifest[] = [
   taskManifest,
   governanceManifest,
   savedManifest,
+  dashboardManifest,
 ];
 
 /** Map from skill name to manifest for O(1) lookup */

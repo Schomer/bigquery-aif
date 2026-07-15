@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { ComposableMap, Geographies, Geography } from 'react-simple-maps';
 import { COLORS, buildChartData, resolveAxes, drillDownMessage } from './chart-utils';
 import type { QueryResult } from '@/lib/types';
 import { BarChartRenderer } from './recharts-charts';

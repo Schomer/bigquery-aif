@@ -1,5 +1,4 @@
 'use client';
-
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { CrystalBallOracle } from '@/components/CrystalBallOracle';
 import { useAuth } from '@/lib/auth-context';
@@ -8,7 +7,7 @@ import { usePage } from '@/lib/page-context';
 import { useLayout } from '@/lib/layout-context';
 import { useChatOrchestration } from '@/hooks/useChatOrchestration';
 import { PromptsLibrary } from '@/components/PromptsLibrary';
-
+import { TabBar } from '@/components/TabBar';
 
 import { ChatThread } from '@/components/chat/ChatThread';
 import { ChatInput } from '@/components/chat/ChatInput';
@@ -30,7 +29,7 @@ import type { RecentItem } from '@/lib/firestore-service';
 export default function Home() {
   const { activeProject, user, projects, setActiveProject, accessToken } = useAuth();
   const { conversationId, loadConversation } = useConversation();
-  const { activePage, setActivePage } = usePage();
+  const { activePage, setActivePage, tabs, activeTabId } = usePage();
   const { layout, chatListOpen, setChatListOpen, historyVisible } = useLayout();
 
   // ---- Chat orchestration hook ----
@@ -152,7 +151,8 @@ export default function Home() {
 
   return (
     <>
-
+      {/* Tab bar — shown when multiple tabs are open */}
+      <TabBar />
 
       {/* -- How it works page -- */}
 
@@ -197,8 +197,18 @@ export default function Home() {
         </div>
       )}
 
-      {/* -- Dashboard page (legacy, kept for compatibility) -- */}
-      {activePage === 'dashboard' && user && (
+      {/* -- Dashboard tabs (AI-generated, opened from chat artifact card) -- */}
+      {tabs.filter((t) => t.id.startsWith('dashboard:')).map((tab) => (
+        <div
+          key={tab.id}
+          style={{ display: activeTabId === tab.id ? 'flex' : 'none', height: '100%', overflow: 'hidden', flexDirection: 'column' }}
+        >
+          <DashboardPage initialDashboardId={tab.dashboardId} />
+        </div>
+      ))}
+
+      {/* -- Legacy dashboard page (manual creation, kept for compatibility) -- */}
+      {activePage === 'dashboard' && activeTabId === 'chat' && user && (
         <div style={{ height: '100%', overflow: 'hidden' }}>
           <DashboardPage />
         </div>
@@ -227,7 +237,7 @@ export default function Home() {
          UNIFIED LAYOUT (original single-pane)
          ============================================================ */}
       {!isSplit && (
-        <div style={{ display: (activePage === 'prompts' || activePage === 'spaces' || activePage.startsWith('spaces:') || activePage === 'favorites' || activePage === 'dashboard' || activePage === 'templates') ? 'none' : 'flex', height: '100%', background: 'var(--chat-bg)' }}>
+        <div style={{ display: (activePage === 'prompts' || activePage === 'spaces' || activePage.startsWith('spaces:') || activePage === 'favorites' || activePage === 'dashboard' || activePage === 'templates' || activeTabId !== 'chat') ? 'none' : 'flex', height: '100%', background: 'var(--chat-bg)' }}>
 
           {/* Chat sidebar panel */}
           <ChatSidebar
@@ -461,7 +471,7 @@ export default function Home() {
       {isSplit && (
         <div
           className={`layout-split ${layout === 'chat-right' ? 'layout-chat-right' : 'layout-chat-left'}`}
-          style={{ display: (activePage === 'prompts' || activePage === 'spaces' || activePage.startsWith('spaces:') || activePage === 'favorites' || activePage === 'dashboard' || activePage === 'templates') ? 'none' : 'flex', height: '100%' }}
+          style={{ display: (activePage === 'prompts' || activePage === 'spaces' || activePage.startsWith('spaces:') || activePage === 'favorites' || activePage === 'dashboard' || activePage === 'templates' || activeTabId !== 'chat') ? 'none' : 'flex', height: '100%' }}
         >
           {/* Chat list view */}
           {splitView === 'list' && (

@@ -16,7 +16,8 @@ export type SkillName =
   | 'multistep'
   | 'task'
   | 'governance'
-  | 'saved';
+  | 'saved'
+  | 'dashboard';
 
 // ─── Skill manifest (self-registering skill pattern) ─────────────────────────
 
@@ -124,6 +125,7 @@ export type ArtifactType =
   | 'TASK_VIEW'
   | 'GOVERNANCE_VIEW'
   | 'INTERACTIVE_WIDGET'
+  | 'DASHBOARD_VIEW'
   | 'CONVERSATION';
 
 export interface CompositionEnvelope {
@@ -539,6 +541,11 @@ export interface DashboardTile {
   row: number;                     // 0-indexed row
   colSpan: number;                 // 1–12
   rowSpan: number;                 // 1–4
+  tileType?: 'query' | 'text';     // 'query' runs SQL, 'text' is static prose
+  textContent?: string;            // for tileType === 'text'
+  vizType?: string;                // e.g. 'BAR_CHART', 'LINE_CHART', 'TABLE', 'KPI'
+  xAxis?: string | null;
+  yAxis?: string[] | null;
   cachedSql?: string;              // SQL to re-run on dashboard load
   lastSnapshot?: {                 // cached result from last successful run
     columns: string[];
@@ -557,6 +564,16 @@ export interface SavedDashboard {
   project?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// ─── Dashboard skill result (returned from handle-dashboard, shown as chat card) ─
+
+export interface DashboardResult {
+  skill: 'dashboard';
+  dashboardId: string;    // Firestore savedDashboards doc id
+  name: string;
+  tileCount: number;
+  tileNames: string[];    // for preview in the artifact card
 }
 
 // ─── W3-12: Join Definition (Firestore: joinDefinitions/{id}) ────────────────

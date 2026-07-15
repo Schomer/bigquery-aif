@@ -36,13 +36,14 @@ import type {
   SkillName,
   QualityFlag,
   PipelineResult,
+  DashboardResult,
 } from './types';
 
 // ─── Main compose function ────────────────────────────────────────────────────
 
 export function compose(
   skill: SkillName,
-  result: SchemaResult | QueryResult | DataManagementResult | MonitoringResult | AlertResult | DiscoveryResult | DataQualityResult | DataLoadingResult | StorageBreakdownResult | AccessPatternResult | CostAnalysisResult | FreshnessResult | GovernanceResult | PipelineResult,
+  result: SchemaResult | QueryResult | DataManagementResult | MonitoringResult | AlertResult | DiscoveryResult | DataQualityResult | DataLoadingResult | StorageBreakdownResult | AccessPatternResult | CostAnalysisResult | FreshnessResult | GovernanceResult | PipelineResult | DashboardResult,
   qualityFlags?: QualityFlag[],
   userIntent?: ArtifactType | null,
 ): CompositionEnvelope {
@@ -75,9 +76,39 @@ export function compose(
       return composeGovernance(result as GovernanceResult);
     case 'pipeline':
       return composePipeline(result as unknown as PipelineResult);
+    case 'dashboard':
+      return composeDashboard(result as DashboardResult);
     default:
       return composeGeneric(skill, result);
   }
+}
+
+// ─── Dashboard composition ───────────────────────────────────────────────────────
+
+function composeDashboard(result: DashboardResult): CompositionEnvelope {
+  const id = randomUUID();
+  const tileCount = result.tileCount;
+  const headlineText = result.dashboardId
+    ? `${result.name} — ${tileCount} tile${tileCount !== 1 ? 's' : ''} ready`
+    : 'No project selected';
+  return {
+    id,
+    skill: 'dashboard',
+    headline: { text: headlineText, tone: 'POSITIVE', basis: 'STATUS' },
+    primaryArtifact: {
+      type: 'DASHBOARD_VIEW',
+      data: {
+        dashboardId: result.dashboardId,
+        name: result.name,
+        tileCount: result.tileCount,
+        tileNames: result.tileNames,
+      },
+    },
+    provenance: { visibility: 'COLLAPSED' },
+    nextActions: [],
+    presentation: 'custom',
+    skipSelfReview: true,
+  };
 }
 
 // ─── Schema composition ───────────────────────────────────────────────────────

@@ -29,6 +29,7 @@ import TaskWorkflowView from './TaskWorkflowView';
 import { GovernanceView } from './GovernanceView';
 import { InteractiveWidgetView } from './InteractiveWidgetView';
 import { BriefingBlock } from './BriefingBlock';
+import { DashboardArtifactCard } from './DashboardArtifactCard';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { usePreferences } from '@/lib/preferences-context';
 
@@ -778,6 +779,8 @@ function CustomArtifact(props: import('@/lib/types').CustomViewProps) {
       return <GovernanceView {...props} />;
     case 'INTERACTIVE_WIDGET':
       return <InteractiveWidgetView {...props} />;
+    case 'DASHBOARD_VIEW':
+      return <DashboardArtifactCard {...props} />;
     default:
       // Fallback: render as standard Artifact (shouldn't happen in practice)
       return (
