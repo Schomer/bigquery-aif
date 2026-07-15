@@ -408,14 +408,66 @@ export function GeoPointMapRenderer({ result, onSendMessage }: ChartProps) {
 }
 
 // ---------------------------------------------------------------------------
-// 2. USAMapRenderer
+// Shared choropleth legend + tooltip used by both map renderers
 // ---------------------------------------------------------------------------
 
+function ChoroplethLegend({ valueKey, minValue, maxValue, formatValue }: {
+  valueKey: string; minValue: number; maxValue: number; formatValue: (v: number) => string;
+}) {
+  return (
+    <div style={{
+      position: 'absolute', bottom: 10, left: 10,
+      background: 'rgba(255,255,255,0.96)', borderRadius: 6, padding: '8px 12px',
+      boxShadow: '0 1px 6px rgba(0,0,0,0.12)', fontFamily: 'system-ui, sans-serif',
+      fontSize: 11, pointerEvents: 'none', zIndex: 10,
+    }}>
+      <div style={{ fontWeight: 600, marginBottom: 5, color: '#374151' }}>{valueKey}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: 10, color: '#6b7280' }}>{formatValue(minValue)}</span>
+        <div style={{
+          width: 100, height: 10, borderRadius: 4,
+          background: 'linear-gradient(to right, #dbeafe, #1e3a8a)',
+        }} />
+        <span style={{ fontSize: 10, color: '#6b7280' }}>{formatValue(maxValue)}</span>
+      </div>
+      <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div style={{ width: 12, height: 12, borderRadius: 2, background: '#e2e8f0', border: '1px solid #cbd5e1' }} />
+        <span style={{ fontSize: 10, color: '#9ca3af' }}>No data</span>
+      </div>
+    </div>
+  );
+}
+
+interface TooltipState { name: string; value: string; x: number; y: number }
+
+function ChoroplethTooltip({ tooltip, valueKey }: { tooltip: TooltipState | null; valueKey: string }) {
+  if (!tooltip) return null;
+  return (
+    <div style={{
+      position: 'fixed', left: tooltip.x + 10, top: tooltip.y - 40,
+      background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6,
+      padding: '6px 10px', boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+      fontSize: 12, fontFamily: 'system-ui, sans-serif',
+      pointerEvents: 'none', zIndex: 9999,
+    }}>
+      <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: 2 }}>{tooltip.name}</div>
+      <div style={{ color: '#64748b' }}>{valueKey}: <strong>{tooltip.value}</strong></div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 2. USAMapRenderer -- SVG choropleth of US states via react-simple-maps
+// ---------------------------------------------------------------------------
+
+// Abbreviation → full state name lookup built from RAW_STATES above
+const ABBR_TO_STATE_NAME: Record<string, string> = {};
+for (const [name, abbr] of RAW_STATES) {
+  ABBR_TO_STATE_NAME[abbr.toUpperCase()] = name.toLowerCase();
+}
+
 export function USAMapRenderer({ result, onSendMessage }: ChartProps) {
-  const { loaded, error } = useGoogleMaps();
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const markersRef = useRef<any[]>([]);
+  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
   const data = useMemo(
     () => buildChartData(result.columns, result.rows),
@@ -427,84 +479,109 @@ export function USAMapRenderer({ result, onSendMessage }: ChartProps) {
     [result.columns, result.xAxis, result.yAxis],
   );
 
-  const valueKey = yKeys[0] ?? result.columns[1];
+  // Robust numeric/geo axis detection (same as WorldMapRenderer)
+  const { safeXKey, valueKey } = useMemo(() => {
+    if (data.length === 0) return { safeXKey: xKey, valueKey: yKeys[0] ?? result.columns[1] };
+    const sample = data[0];
+    const isNum = (col: string) => sample[col] != null && !isNaN(Number(sample[col]));
+    const numericCol = result.columns.find((c) => isNum(c));
+    const geoCol = !isNum(xKey) ? xKey : result.columns.find((c) => !isNum(c)) ?? xKey;
+    return { safeXKey: geoCol, valueKey: numericCol ?? (yKeys[0] ?? result.columns[1]) };
+  }, [data, xKey, yKeys, result.columns]);
 
-  // Compute max value for proportional sizing
-  const maxValue = useMemo(() => {
-    let max = 0;
+  // Build state-name → value map; handles both full names and abbreviations in data
+  const { stateValueMap, maxValue, minValue } = useMemo(() => {
+    const vm = new Map<string, number>();
     for (const row of data) {
-      const v = Number(row[valueKey]);
-      if (!isNaN(v) && v > max) max = v;
-    }
-    return max || 1;
-  }, [data, valueKey]);
+      const key = String(row[safeXKey] ?? '').trim();
+      if (!key) continue;
+      const rawVal = row[valueKey];
+      if (rawVal == null) continue;
+      const val = Number(rawVal);
+      if (isNaN(val)) continue;
 
-  useEffect(() => {
-    if (!loaded || !mapRef.current) return;
+      const lower = key.toLowerCase();
+      vm.set(lower, val); // index by full name (lowercase) or abbr
 
-    const map = new window.google.maps.Map(mapRef.current, {
-      center: { lat: 39.8283, lng: -98.5795 },
-      zoom: 4,
-    });
-    mapInstanceRef.current = map;
-
-    const markers: any[] = [];
-    for (const row of data) {
-      const stateKey = String(row[xKey] ?? '').trim();
-      const coords = STATE_COORDS[stateKey] ?? STATE_COORDS[stateKey.toLowerCase()];
-      if (!coords) continue;
-
-      const value = Number(row[valueKey]);
-      const ratio = isNaN(value) ? 0.3 : value / maxValue;
-      const radius = Math.max(8, Math.min(30, 8 + ratio * 22));
-
-      const marker = new window.google.maps.Marker({
-        map,
-        position: { lat: coords.lat, lng: coords.lng },
-        title: `${coords.abbr}: ${isNaN(value) ? 'N/A' : value}`,
-        label: {
-          text: coords.abbr,
-          color: '#fff',
-          fontSize: '10px',
-          fontWeight: '600',
-        },
-        icon: {
-          path: window.google.maps.SymbolPath.CIRCLE,
-          scale: radius,
-          fillColor: COLORS[0],
-          fillOpacity: 0.7,
-          strokeColor: 'rgba(255,255,255,0.8)',
-          strokeWeight: 2,
-        },
-      });
-      marker.addListener('click', () => {
-        if (!onSendMessage) return;
-        onSendMessage(drillDownMessage(xKey, stateKey));
-      });
-      markers.push(marker);
-    }
-    markersRef.current = markers;
-
-    return () => {
-      for (const m of markersRef.current) {
-        m.map = null;
+      // If key is a 2-char abbreviation, also index by full state name
+      if (key.length === 2) {
+        const fullName = ABBR_TO_STATE_NAME[key.toUpperCase()];
+        if (fullName) vm.set(fullName, val);
       }
-      markersRef.current = [];
-    };
-  }, [loaded, data, xKey, valueKey, maxValue]);
+    }
+    let max = 0, min = Infinity;
+    for (const v of vm.values()) { if (v > max) max = v; if (v < min) min = v; }
+    if (min === Infinity) min = 0;
+    return { stateValueMap: vm, maxValue: max || 1, minValue: min };
+  }, [data, safeXKey, valueKey]);
 
-  if (error) return <MapFallback message={error} />;
-  if (!loaded) return <MapFallback message="Loading Google Maps..." />;
+  const formatValue = useCallback((v: number) => {
+    if (v >= 1e9) return (v / 1e9).toFixed(1) + 'B';
+    if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+    if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+    return v.toLocaleString();
+  }, []);
+
+  const getStateFill = useCallback((properties: any) => {
+    // GeoJSON from PublicaMundi has properties.name = "Alabama"
+    const geoName = (properties.name || properties.NAME || '').toLowerCase();
+    const value = stateValueMap.get(geoName);
+    if (value === undefined) return '#e2e8f0';
+    const ratio = maxValue > minValue ? (value - minValue) / (maxValue - minValue) : 0.5;
+    return choroplethColor(ratio);
+  }, [stateValueMap, maxValue, minValue]);
 
   return (
-    <div style={{ width: '100%', height: 400, borderRadius: 8, overflow: 'hidden' }}>
-      <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
+    <div style={{ position: 'relative', background: '#ffffff', borderRadius: 8, overflow: 'hidden', border: '1px solid #f1f5f9' }}>
+      <ComposableMap
+        projection="geoAlbersUsa"
+        style={{ width: '100%', height: 420 }}
+      >
+        <Geographies geography="/us-states.geojson">
+          {({ geographies }) =>
+            geographies.map((geo) => {
+              const fill = getStateFill(geo.properties as any);
+              const geoName = String((geo.properties as any).name || (geo.properties as any).NAME || '');
+              return (
+                <Geography
+                  key={geo.rsmKey}
+                  geography={geo}
+                  fill={fill}
+                  stroke="#ffffff"
+                  strokeWidth={1}
+                  onMouseEnter={(e: React.MouseEvent) => {
+                    const geoNameLower = geoName.toLowerCase();
+                    const val = stateValueMap.get(geoNameLower);
+                    setTooltip({
+                      name: geoName,
+                      value: val !== undefined ? formatValue(val) : 'No data',
+                      x: e.clientX, y: e.clientY,
+                    });
+                  }}
+                  onMouseMove={(e: React.MouseEvent) =>
+                    setTooltip((t) => t ? { ...t, x: e.clientX, y: e.clientY } : null)
+                  }
+                  onMouseLeave={() => setTooltip(null)}
+                  style={{
+                    default: { outline: 'none' },
+                    hover: { outline: 'none', opacity: 0.78, cursor: 'pointer' },
+                    pressed: { outline: 'none' },
+                  }}
+                />
+              );
+            })
+          }
+        </Geographies>
+      </ComposableMap>
+
+      <ChoroplethTooltip tooltip={tooltip} valueKey={valueKey} />
+      <ChoroplethLegend valueKey={valueKey} minValue={minValue} maxValue={maxValue} formatValue={formatValue} />
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// 3. WorldMapRenderer -- choropleth via Google Maps Data layer + GeoJSON
+// 3. WorldMapRenderer -- SVG choropleth of countries via react-simple-maps
 // ---------------------------------------------------------------------------
 
 // ISO-3 → ISO-2 mapping for the most common countries (covers Natural Earth GeoJSON SU_A3 codes)
@@ -528,23 +605,22 @@ const ISO3_TO_ISO2: Record<string, string> = {
   LUX: 'LU', MDG: 'MG', MWI: 'MW', MDV: 'MV', MLI: 'ML', MLT: 'MT', MHL: 'MH', MRT: 'MR',
   MUS: 'MU', FSM: 'FM', MDA: 'MD', MCO: 'MC', MNG: 'MN', MNE: 'ME', MOZ: 'MZ', MMR: 'MM',
   NAM: 'NA', NPL: 'NP', NIC: 'NI', NER: 'NE', MKD: 'MK', OMN: 'OM', PLW: 'PW', PAN: 'PA',
-  PNG: 'PG', PRY: 'PY', PRI: 'PR', MDA2: 'MD', SEN: 'SN', SRB: 'RS', SLE: 'SL', SVK: 'SK',
+  PNG: 'PG', PRY: 'PY', PRI: 'PR', SEN: 'SN', SRB: 'RS', SLE: 'SL', SVK: 'SK',
   SVN: 'SI', SLB: 'SB', SOM: 'SO', SSD: 'SS', LKA: 'LK', SDN: 'SD', SUR: 'SR', SYR: 'SY',
   STP: 'ST', TJK: 'TJ', TLS: 'TL', TGO: 'TG', TON: 'TO', TTO: 'TT', TUN: 'TN', TKM: 'TM',
   TUV: 'TV', UGA: 'UG', URY: 'UY', UZB: 'UZ', VUT: 'VU', VEN: 'VE', WSM: 'WS', YEM: 'YE',
   ZMB: 'ZM', ZWE: 'ZW',
 };
 
-// Interpolate a value in [0,1] to a blue choropleth color
+// Interpolate a value in [0,1] to a blue choropleth color matching the legend gradient #dbeafe → #1e3a8a
 function choroplethColor(ratio: number): string {
-  // Light blue (#dbeafe = rgb(219,234,254)) → deep blue (#1e3a8a = rgb(30,58,138))
   const r = Math.round(219 - ratio * (219 - 30));
-  const g = Math.round(234 - ratio * (234 - 58)); // was 190 — caused purple tint at low values
+  const g = Math.round(234 - ratio * (234 - 58));
   const b = Math.round(254 - ratio * (254 - 138));
   return `rgb(${r},${g},${b})`;
 }
 
-// Build a lookup: ISO-2, ISO-3, and full name → numeric value
+// Build a lookup: lowercase name / ISO-2 / ISO-3 → numeric value
 function buildCountryValueMap(
   data: Record<string, any>[],
   xKey: string,
@@ -554,20 +630,17 @@ function buildCountryValueMap(
   for (const row of data) {
     const key = String(row[xKey] ?? '').trim();
     const rawVal = row[valueKey];
-    if (rawVal == null) continue; // null/undefined → "no data", not zero
+    if (rawVal == null) continue;
     const val = Number(rawVal);
     if (!key || isNaN(val)) continue;
 
     const lower = key.toLowerCase();
-    // Index by whatever the user provided
     map.set(lower, val);
 
-    // If it looks like ISO-2 (2 chars), also index the name
     if (key.length === 2) {
       const coords = COUNTRY_COORDS[key.toUpperCase()] ?? COUNTRY_COORDS[lower];
       if (coords) map.set(coords.name.toLowerCase(), val);
     }
-    // If it looks like ISO-3 (3 chars), also resolve to ISO-2
     if (key.length === 3) {
       const iso2 = ISO3_TO_ISO2[key.toUpperCase()];
       if (iso2) {
@@ -580,7 +653,7 @@ function buildCountryValueMap(
   return map;
 }
 
-// Resolve a GeoJSON feature's country names/codes to a value
+// Resolve a GeoJSON feature's country names/codes to a value using multiple candidate keys
 function resolveFeatureValue(
   properties: Record<string, any>,
   valueMap: Map<string, number>,
@@ -595,7 +668,6 @@ function resolveFeatureValue(
     properties.ISO_A3,
   ].filter(Boolean).map((s: string) => s.toLowerCase());
 
-  // Also resolve ISO-3 → ISO-2
   if (properties.ADM0_A3) {
     const iso2 = ISO3_TO_ISO2[properties.ADM0_A3.toUpperCase()];
     if (iso2) candidates.push(iso2.toLowerCase());
@@ -612,9 +684,7 @@ function resolveFeatureValue(
 }
 
 export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
-  const { loaded, error } = useGoogleMaps();
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
+  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
   const data = useMemo(
     () => buildChartData(result.columns, result.rows),
@@ -626,203 +696,84 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
     [result.columns, result.xAxis, result.yAxis],
   );
 
-  // Robust axis detection for world maps: find the first numeric column as the value,
-  // and the best string column as the geographic key (prefer xKey, fallback to first
-  // non-numeric column). This handles multi-column results like [Country, Code, Population]
-  // where yKeys[0] might be a string code rather than the numeric measure.
+  // Robust axis detection: scan all columns for the first numeric measure and first string geo key
   const { safeXKey, valueKey } = useMemo(() => {
-    if (data.length === 0) {
-      return { safeXKey: xKey, valueKey: yKeys[0] ?? result.columns[1] };
-    }
+    if (data.length === 0) return { safeXKey: xKey, valueKey: yKeys[0] ?? result.columns[1] };
     const sample = data[0];
     const isNum = (col: string) => sample[col] != null && !isNaN(Number(sample[col]));
-
-    // Find the first numeric column across all columns (not just yKeys)
     const numericCol = result.columns.find((c) => isNum(c));
-    // Use the declared xKey if it's a string, otherwise take the first non-numeric col
     const geoCol = !isNum(xKey) ? xKey : result.columns.find((c) => !isNum(c)) ?? xKey;
-
-    return {
-      safeXKey: geoCol,
-      valueKey: numericCol ?? (yKeys[0] ?? result.columns[1]),
-    };
+    return { safeXKey: geoCol, valueKey: numericCol ?? (yKeys[0] ?? result.columns[1]) };
   }, [data, xKey, yKeys, result.columns]);
 
   const { valueMap, maxValue, minValue } = useMemo(() => {
     const vm = buildCountryValueMap(data, safeXKey, valueKey);
-    let max = 0;
-    let min = Infinity;
-    for (const v of vm.values()) {
-      if (v > max) max = v;
-      if (v < min) min = v;
-    }
+    let max = 0, min = Infinity;
+    for (const v of vm.values()) { if (v > max) max = v; if (v < min) min = v; }
     if (min === Infinity) min = 0;
     return { valueMap: vm, maxValue: max || 1, minValue: min };
   }, [data, safeXKey, valueKey]);
 
   const formatValue = useCallback((v: number) => {
-    if (v >= 1_000_000_000) return (v / 1_000_000_000).toFixed(1) + 'B';
-    if (v >= 1_000_000) return (v / 1_000_000).toFixed(1) + 'M';
-    if (v >= 1_000) return (v / 1_000).toFixed(1) + 'K';
+    if (v >= 1e9) return (v / 1e9).toFixed(1) + 'B';
+    if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+    if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
     return v.toLocaleString();
   }, []);
 
-  // Stable refs so the style effect can read current values without recreating the map
-  const valueMapRef = useRef(valueMap);
-  const maxValueRef = useRef(maxValue);
-  const minValueRef = useRef(minValue);
-  const valueKeyRef = useRef(valueKey);
-  const formatValueRef = useRef(formatValue);
-  valueMapRef.current = valueMap;
-  maxValueRef.current = maxValue;
-  minValueRef.current = minValue;
-  valueKeyRef.current = valueKey;
-  formatValueRef.current = formatValue;
-
-  // Helper: returns a Maps Style object for a GeoJSON feature using current ref values
-  const buildFeatureStyle = useCallback((feature: any) => {
-    const getName = (k: string) => { try { return feature.getProperty(k); } catch { return undefined; } };
-    const properties = {
-      ADMIN: getName('ADMIN'), NAME: getName('NAME'), name: getName('name'),
-      SU_A3: getName('SU_A3'), ADM0_A3: getName('ADM0_A3'),
-      ISO_A2: getName('ISO_A2'), ISO_A3: getName('ISO_A3'),
-    };
-    const value = resolveFeatureValue(properties, valueMapRef.current);
-    if (value === null) {
-      return { fillColor: '#cbd5e1', fillOpacity: 1.0, strokeColor: '#94a3b8', strokeWeight: 0.6 };
-    }
-    const range = maxValueRef.current - minValueRef.current;
-    const ratio = range > 0 ? (value - minValueRef.current) / range : 0.5;
-    return { fillColor: choroplethColor(ratio), fillOpacity: 1.0, strokeColor: '#ffffff', strokeWeight: 0.8 };
-  }, []); // refs are always current — no deps needed
-
-  // Effect 1: Initialize map and load GeoJSON once when Google Maps script is ready.
-  // Does NOT depend on data/valueMap — avoids recreating the map on every query result.
-  useEffect(() => {
-    if (!loaded || !mapRef.current) return;
-
-    const controller = new AbortController();
-
-    const map = new window.google.maps.Map(mapRef.current, {
-      center: { lat: 25, lng: 0 },
-      zoom: 2,
-      mapTypeControl: false,
-      streetViewControl: false,
-      fullscreenControl: true,
-      styles: [
-        { featureType: 'water', stylers: [{ color: '#c8d7e8' }] },
-        { featureType: 'landscape', stylers: [{ color: '#f5f7fa' }] },
-        { featureType: 'administrative.country', elementType: 'geometry.stroke', stylers: [{ color: '#8a9bb0' }, { weight: 0.8 }] },
-        { featureType: 'road', stylers: [{ visibility: 'off' }] },
-        { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-      ],
-    });
-    mapInstanceRef.current = map;
-
-    const infoWindow = new window.google.maps.InfoWindow();
-
-    // Load GeoJSON from local public/ file (avoids external dependency and CORS issues)
-    fetch('/world-countries.geojson', { signal: controller.signal })
-      .then((r) => r.json())
-      .then((geojson) => {
-        if (controller.signal.aborted) return;
-        map.data.addGeoJson(geojson);
-        // Apply initial styles using current ref values
-        map.data.setStyle((feature: any) => buildFeatureStyle(feature));
-
-        // Click handler
-        map.data.addListener('click', (event: any) => {
-          const getName = (k: string) => { try { return event.feature.getProperty(k); } catch { return undefined; } };
-          const properties = {
-            ADMIN: getName('ADMIN'), NAME: getName('NAME'), name: getName('name'),
-            SU_A3: getName('SU_A3'), ADM0_A3: getName('ADM0_A3'),
-            ISO_A2: getName('ISO_A2'), ISO_A3: getName('ISO_A3'),
-          };
-          const countryName = properties.ADMIN || properties.NAME || properties.name || 'Unknown';
-          const value = resolveFeatureValue(properties, valueMapRef.current);
-          const displayValue = value !== null ? formatValueRef.current(value) : 'No data';
-          infoWindow.setContent(
-            `<div style="font-family:system-ui,sans-serif;padding:4px 2px;min-width:140px">
-              <div style="font-weight:600;font-size:13px;margin-bottom:4px">${countryName}</div>
-              <div style="font-size:12px;color:#475569">${valueKeyRef.current}: <strong>${displayValue}</strong></div>
-            </div>`
-          );
-          infoWindow.setPosition(event.latLng);
-          infoWindow.open(map);
-        });
-      })
-      .catch((err) => {
-        if (controller.signal.aborted) return;
-        // GeoJSON load failed -- fall back to bubble markers
-        for (const row of data) {
-          const countryKey = String(row[safeXKey] ?? '').trim();
-          const coords = COUNTRY_COORDS[countryKey] ?? COUNTRY_COORDS[countryKey.toLowerCase()];
-          if (!coords) continue;
-          const value = Number(row[valueKey]);
-          const ratio = isNaN(value) ? 0.3 : value / maxValueRef.current;
-          const radius = Math.max(8, Math.min(30, 8 + ratio * 22));
-          new window.google.maps.Marker({
-            map,
-            position: { lat: coords.lat, lng: coords.lng },
-            title: `${coords.name}: ${isNaN(value) ? 'N/A' : value}`,
-            icon: {
-              path: window.google.maps.SymbolPath.CIRCLE,
-              scale: radius,
-              fillColor: COLORS[4],
-              fillOpacity: 0.7,
-              strokeColor: 'rgba(255,255,255,0.8)',
-              strokeWeight: 2,
-            },
-          });
-        }
-      });
-
-    return () => {
-      controller.abort();
-      mapInstanceRef.current = null;
-    };
-  }, [loaded, buildFeatureStyle]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Effect 2: Re-style existing map features when data changes.
-  // Does NOT recreate the map — just updates the style function on the existing instance.
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-    map.data.setStyle((feature: any) => buildFeatureStyle(feature));
-  }, [valueMap, maxValue, minValue, valueKey, buildFeatureStyle]);
-
-
-  if (error) return <MapFallback message={error} />;
-  if (!loaded) return <MapFallback message="Loading Google Maps..." />;
+  // Compute fill color directly from valueMap — no async, no race conditions
+  const getFill = useCallback((properties: any) => {
+    const value = resolveFeatureValue(properties, valueMap);
+    if (value === null) return '#e2e8f0';
+    const ratio = maxValue > minValue ? (value - minValue) / (maxValue - minValue) : 0.5;
+    return choroplethColor(ratio);
+  }, [valueMap, maxValue, minValue]);
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: 420, borderRadius: 8, overflow: 'hidden' }}>
-      <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
-      {/* Choropleth legend */}
-      <div style={{
-        position: 'absolute', bottom: 28, left: 10,
-        background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(4px)',
-        borderRadius: 6, padding: '8px 12px',
-        boxShadow: '0 1px 6px rgba(0,0,0,0.15)',
-        fontFamily: 'system-ui, sans-serif', fontSize: 11,
-        pointerEvents: 'none',
-      }}>
-        <div style={{ fontWeight: 600, marginBottom: 5, fontSize: 11, color: '#374151' }}>
-          {valueKey}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 10, color: '#6b7280' }}>{formatValue(minValue)}</span>
-          <div style={{
-            width: 100, height: 10, borderRadius: 4,
-            background: 'linear-gradient(to right, #dbeafe, #1e3a8a)',
-          }} />
-          <span style={{ fontSize: 10, color: '#6b7280' }}>{formatValue(maxValue)}</span>
-        </div>
-        <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <div style={{ width: 12, height: 12, borderRadius: 2, background: '#e2e8f0', border: '1px solid #cbd5e1' }} />
-          <span style={{ fontSize: 10, color: '#9ca3af' }}>No data</span>
-        </div>
-      </div>
+    <div style={{ position: 'relative', background: '#ffffff', borderRadius: 8, overflow: 'hidden', border: '1px solid #f1f5f9' }}>
+      <ComposableMap
+        projection="geoNaturalEarth1"
+        projectionConfig={{ scale: 153 }}
+        style={{ width: '100%', height: 420 }}
+      >
+        <Geographies geography="/world-countries.geojson">
+          {({ geographies }) =>
+            geographies.map((geo) => {
+              const fill = getFill(geo.properties as any);
+              const name = String((geo.properties as any).ADMIN || (geo.properties as any).NAME || (geo.properties as any).name || '');
+              return (
+                <Geography
+                  key={geo.rsmKey}
+                  geography={geo}
+                  fill={fill}
+                  stroke="#ffffff"
+                  strokeWidth={0.5}
+                  onMouseEnter={(e: React.MouseEvent) => {
+                    const value = resolveFeatureValue(geo.properties, valueMap);
+                    setTooltip({
+                      name,
+                      value: value !== null ? formatValue(value) : 'No data',
+                      x: e.clientX, y: e.clientY,
+                    });
+                  }}
+                  onMouseMove={(e: React.MouseEvent) =>
+                    setTooltip((t) => t ? { ...t, x: e.clientX, y: e.clientY } : null)
+                  }
+                  onMouseLeave={() => setTooltip(null)}
+                  style={{
+                    default: { outline: 'none' },
+                    hover: { outline: 'none', opacity: 0.78, cursor: 'pointer' },
+                    pressed: { outline: 'none' },
+                  }}
+                />
+              );
+            })
+          }
+        </Geographies>
+      </ComposableMap>
+
+      <ChoroplethTooltip tooltip={tooltip} valueKey={valueKey} />
+      <ChoroplethLegend valueKey={valueKey} minValue={minValue} maxValue={maxValue} formatValue={formatValue} />
     </div>
   );
 }

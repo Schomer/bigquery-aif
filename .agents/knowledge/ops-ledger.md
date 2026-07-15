@@ -1,5 +1,28 @@
 # Operations Ledger
 
+## 2026-07-15: AI-driven dashboard builder + tab navigation
+
+**Feature**: User asks "create a dashboard showing X, Y, Z" in chat. The dashboard skill handler generates SQL for each tile, fetches initial data, saves to Firestore, and returns a `DASHBOARD_VIEW` artifact card. Clicking "Open Dashboard" opens a new tab in the main view without losing the chat context.
+
+**Architecture decisions**:
+- `page-context.tsx` extended from a single `activePage` string to a full tab system (`tabs: AppTab[]`, `activeTabId`). Chat tab is always present and not closeable.
+- Dashboard tabs are stored by id `dashboard:{dashboardId}`. Multiple can be open simultaneously.
+- `TabBar` component renders only when `tabs.length > 1` (no visual noise when only chat is open).
+- Chat/split layout areas hide themselves when `activeTabId !== 'chat'` so dashboard fills the full content area.
+- `DashboardPage` accepts `initialDashboardId` prop. When set (from tab), it auto-selects and runs that dashboard's queries on mount.
+
+**Stale-while-revalidate**: Dashboard tiles store `lastSnapshot` (last executed result). On open, the snapshot renders instantly. Background queries run in parallel and update tiles as they complete. An `AbortController` prevents stale results from landing after the user switches dashboards.
+
+**Skeleton loading**: New tiles that have no snapshot yet show an animated shimmer skeleton while their query runs.
+
+**Edit mode**: Editing controls (drag handles, span controls, remove buttons, "Add tile" / "Add text") are hidden behind an "Edit" toggle button to keep the default view clean.
+
+**Pre-existing build error fixed**: `react-simple-maps` had no `@types` package. Added `src/types/react-simple-maps.d.ts` as a declaration shim.
+
+**Rule**: Always check that the `compose()` function result has `presentation: 'custom'` set for any artifact type handled by `CustomArtifact` dispatcher, otherwise the card renders with the default chrome instead of the custom view.
+
+---
+
 ## 2026-07-15: Saved chart not appearing in Queries page after save
 
 **Symptom**: User saves a chart via the save button, names it, and then navigates to the Queries page -- the new item does not appear.
