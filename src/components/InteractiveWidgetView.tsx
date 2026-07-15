@@ -195,7 +195,7 @@ function MultiSelectDropdown({
 
 // ─── Main widget view ─────────────────────────────────────────────────────────
 
-export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewProps) {
+export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, isPinned }: CustomViewProps) {
   const widgetData = envelope.primaryArtifact.data as InteractiveWidgetData;
 
   const [startDate, setStartDate] = useState<string>(widgetData.defaultStart ?? '');
@@ -475,10 +475,44 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
           </span>
         )}
 
-        {/* Row count */}
+        {/* Row count + action buttons */}
         <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>
           {currentResult.rowCount.toLocaleString()} row{currentResult.rowCount !== 1 ? 's' : ''}
         </span>
+        {onSave && (
+          <button
+            onClick={() => onSave(envelope)}
+            title="Save"
+            aria-label="Save"
+            style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 26, height: 26, padding: 0, border: 'none',
+              background: 'transparent', cursor: 'pointer', borderRadius: 6,
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-3, #eff0f3)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+          >
+            <img src="/icons/save.svg" alt="Save" width={16} height={16} style={{ opacity: 0.65 }} />
+          </button>
+        )}
+        {onPin && (
+          <button
+            onClick={() => onPin(envelope)}
+            title={isPinned ? 'Using as context' : 'Use as context'}
+            aria-label={isPinned ? 'Using as context' : 'Use as context'}
+            style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 26, height: 26, padding: 0, border: 'none',
+              background: isPinned ? 'var(--accent-subtle, #eff6ff)' : 'transparent',
+              cursor: 'pointer', borderRadius: 6, flexShrink: 0,
+            }}
+            onMouseEnter={(e) => { if (!isPinned) e.currentTarget.style.background = 'var(--surface-3, #eff0f3)'; }}
+            onMouseLeave={(e) => { if (!isPinned) e.currentTarget.style.background = 'transparent'; }}
+          >
+            <img src="/icons/add_to_context.svg" alt="Add to context" width={16} height={16} style={{ opacity: isPinned ? 1 : 0.65 }} />
+          </button>
+        )}
       </div>
 
       {/* Error */}
