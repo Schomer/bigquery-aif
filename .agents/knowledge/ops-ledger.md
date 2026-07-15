@@ -1,5 +1,25 @@
 # Operations Ledger
 
+## 2026-07-15: Data type handling audit -- seven gaps fixed across the stack
+
+**What happened**: Comprehensive audit of how every BigQuery column type flows through the pipeline (SQL generation, widget substitution, BQ client coercion, chart rendering).
+
+**Fixes applied:**
+
+1. **MULTI_SELECT numeric detection** (`InteractiveWidgetView.tsx`): MULTI_SELECT always quoted all values. If all selected values are pure integers/decimals (INT64/FLOAT64 columns), it now substitutes bare numbers. Prevents `WHERE year IN ('2020', '2021')` type errors.
+2. **DROPDOWN BOOL detection** (`InteractiveWidgetView.tsx`): `true`/`false`/`TRUE`/`FALSE` dropdown values now substitute as unquoted `TRUE`/`FALSE` SQL keywords, not strings. Prevents `WHERE active = 'TRUE'` type errors on BOOL columns.
+3. **Numeric regex: scientific notation** (`InteractiveWidgetView.tsx`): Extended `/^-?\d+(\.\d+)?$/` to `/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/`. FLOAT64 dropdowns can produce values like `1.5e10` which were mis-classified as strings.
+4. **BOOL coercion: '1'/'0' and 'True'** (`bigquery-client.ts`): BQ REST API can return BOOLEAN columns as `'1'`/`'0'`/`'True'`. Only `'true'` and `'TRUE'` were handled before.
+5. **Null values in choropleth** (`map-charts.tsx`): `Number(null) === 0` in JS, so countries with null measure values were colored as the minimum-value blue instead of "no data" grey. Added explicit `== null` check before `Number()` coercion.
+6. **BOOL SQL rule in prompt** (`query.md`): Added rule: BOOL/BOOLEAN columns use unquoted `TRUE` or `FALSE` in WHERE clauses — never `'TRUE'` or `1`.
+7. **MULTI_SELECT scope warning in prompt** (`query.md`): MULTI_SELECT is for STRING/categorical columns only. Numeric dimensions should use DROPDOWN.
+
+**Deferred**: BIGNUMERIC/large INT64 precision loss (requires string-value pipeline), REPEATED/ARRAY type classifier, TIME fallback heuristic. All low-frequency in practice.
+
+**Rule**: Any new filter control type must handle numeric, boolean, and string values explicitly. Never assume "everything should be quoted".
+
+---
+
 ## 2026-07-15: Data task routing -- keywords are the wrong tool
 
 **What happened**: User asked to perform data tasks like "delete all rows that have a date less than 0". The app was routing through the conversation agent, which called `execute_dml` directly with no preview or confirmation step.

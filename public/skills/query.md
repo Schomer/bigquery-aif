@@ -107,6 +107,47 @@ When the schema contains complex types:
 - **STRUCT/RECORD**: Access nested fields with dot notation (`struct_col.field_name`). Enumerate the specific nested fields needed rather than selecting the whole struct.
 - **ARRAY/REPEATED**: Use `UNNEST()` to flatten when aggregating or filtering on array contents. For display, `ARRAY_TO_STRING()` can produce a readable representation.
 
+### BigQuery job history (INFORMATION_SCHEMA.JOBS)
+
+Queries about query history, expensive queries, slot usage, bytes billed, or job errors use `INFORMATION_SCHEMA.JOBS` — a **region-level** view, not a dataset-level table.
+
+CRITICAL: INFORMATION_SCHEMA views must be OUTSIDE the backtick-quoted identifier:
+- Correct: `` `project`.`region`.INFORMATION_SCHEMA.JOBS ``
+- Also correct (uses default region): `region-us.INFORMATION_SCHEMA.JOBS` (no backticks needed for the region prefix)
+- Wrong: `` `project.dataset.INFORMATION_SCHEMA.JOBS` `` (this breaks)
+
+For the most expensive queries in the past N days:
+```sql
+SELECT
+  job_id,
+  user_email,
+  query,
+  total_bytes_billed,
+  ROUND(total_bytes_billed / POW(1024, 4) * 6.25, 4) AS estimated_cost_usd,
+  total_slot_ms,
+  creation_time,
+  state
+FROM `region-us`.INFORMATION_SCHEMA.JOBS
+WHERE
+  creation_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
+  AND job_type = 'QUERY'
+  AND state = 'DONE'
+  AND error_result IS NULL
+ORDER BY total_bytes_billed DESC
+LIMIT 10
+```
+
+Key fields: `total_bytes_billed` (bytes charged), `total_slot_ms` (slot usage), `creation_time`, `user_email`, `query` (the SQL text), `job_id`, `state`, `error_result`.
+
+Cost formula: `(total_bytes_billed / 1 TB) * $6.25` — i.e., `total_bytes_billed / POW(1024, 4) * 6.25`.
+
+Common access patterns:
+- `region-us.INFORMATION_SCHEMA.JOBS` — US multi-region
+- `region-eu.INFORMATION_SCHEMA.JOBS` — EU multi-region
+- `us-central1.INFORMATION_SCHEMA.JOBS` — specific region
+
+Do NOT call `get_table_schema` or `list_tables` for INFORMATION_SCHEMA queries — write and run the SQL directly. INFORMATION_SCHEMA views always return 0 bytes processed (Tier 0 cost).
+
 ### External queries (federated sources)
 
 For tables connected via BigQuery Connection API (Cloud SQL, Spanner, etc.):
@@ -386,7 +427,7 @@ For ML.EVALUATE results, suggest visualization:
 For listing models, query INFORMATION_SCHEMA.MODELS:
 ```sql
 SELECT model_name, model_type, creation_time, training_runs
-FROM `project.dataset.INFORMATION_SCHEMA.MODELS`
+FROM `project.dataset`.INFORMATION_SCHEMA.MODELS
 ORDER BY creation_time DESC
 ```
 
