@@ -204,7 +204,8 @@ After running the query, provide a brief one-line summary of what the results sh
     toolExecutor,
     project,
     onStatus,
-    maxIterations: 10,
+    maxIterations: 15,
+    terminateAfter: ['run_query'],
   });
 
   // -- If the LLM never called run_query, return a text-only response --

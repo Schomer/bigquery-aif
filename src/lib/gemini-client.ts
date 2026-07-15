@@ -204,8 +204,18 @@ export interface CallGeminiWithToolsArgs {
   toolExecutor: (name: string, args: Record<string, unknown>) => Promise<unknown>;
   project?: string;
   onStatus?: (msg: string) => void;
-  /** Safety cap on loop iterations (default 6). */
+  /** Safety cap on loop iterations (default 8). */
   maxIterations?: number;
+  /**
+   * When set, the loop exits immediately after any of the named tools executes
+   * successfully (no error thrown). The tool result is still fed back to the
+   * LLM as a functionResponse, but then we break — the LLM does not get
+   * another round to call more tools.
+   *
+   * Use this in the query handler to guarantee we stop after run_query, not
+   * after the LLM optionally decides to stop.
+   */
+  terminateAfter?: string[];
 }
 
 /**
@@ -223,7 +233,8 @@ export async function callGeminiWithTools({
   toolExecutor,
   project,
   onStatus,
-  maxIterations = 6,
+  maxIterations = 8,
+  terminateAfter,
 }: CallGeminiWithToolsArgs): Promise<ToolCallResult> {
   const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
@@ -312,6 +323,22 @@ export async function callGeminiWithTools({
 
     // Feed function results back as the next user turn
     contents.push({ role: 'user', parts: responseParts });
+
+    // If a terminateAfter tool succeeded this round, break before the LLM
+    // gets another chance to call more tools.
+    if (terminateAfter && terminateAfter.length > 0) {
+      const successfulNames = allToolCalls
+        .slice(-functionCalls.length)
+        .filter((tc) => !(tc.result as Record<string, unknown>)?.error)
+        .map((tc) => tc.name);
+      if (successfulNames.some((n) => terminateAfter.includes(n))) {
+        // Return whatever text the model produced before the function call,
+        // or an empty string (the code path that reads capture.value will
+        // handle the actual result).
+        const preCallTextPart = parts.find((p: Record<string, unknown>) => p.text);
+        return { textResponse: (preCallTextPart?.text as string) || '', toolCalls: allToolCalls };
+      }
+    }
   }
 
   // Exhausted iteration cap
