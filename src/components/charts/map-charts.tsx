@@ -625,10 +625,26 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
     [result.columns, result.xAxis, result.yAxis],
   );
 
-  const valueKey = yKeys[0] ?? result.columns[1];
+  // Defensive axis correction: if the LLM put the numeric column first and the country
+  // column second (wrong order), the resolved valueKey would be the string column, causing
+  // Number("China") = NaN and a blank map. Detect this and swap.
+  const { safeXKey, valueKey } = useMemo(() => {
+    const candidateValue = yKeys[0] ?? result.columns[1];
+    const candidateX = xKey;
+    if (data.length > 0) {
+      const sample = data[0];
+      const valueIsNumeric = sample[candidateValue] != null && !isNaN(Number(sample[candidateValue]));
+      const xIsNumeric = sample[candidateX] != null && !isNaN(Number(sample[candidateX]));
+      if (!valueIsNumeric && xIsNumeric) {
+        // Columns are reversed — swap so the string col is the geo key
+        return { safeXKey: candidateValue, valueKey: candidateX };
+      }
+    }
+    return { safeXKey: candidateX, valueKey: candidateValue };
+  }, [data, xKey, yKeys, result.columns]);
 
   const { valueMap, maxValue, minValue } = useMemo(() => {
-    const vm = buildCountryValueMap(data, xKey, valueKey);
+    const vm = buildCountryValueMap(data, safeXKey, valueKey);
     let max = 0;
     let min = Infinity;
     for (const v of vm.values()) {
@@ -637,7 +653,7 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
     }
     if (min === Infinity) min = 0;
     return { valueMap: vm, maxValue: max || 1, minValue: min };
-  }, [data, xKey, valueKey]);
+  }, [data, safeXKey, valueKey]);
 
   const formatValue = useCallback((v: number) => {
     if (v >= 1_000_000_000) return (v / 1_000_000_000).toFixed(1) + 'B';
@@ -741,7 +757,7 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
       .catch(() => {
         // GeoJSON load failed -- fall back to bubble markers
         for (const row of data) {
-          const countryKey = String(row[xKey] ?? '').trim();
+          const countryKey = String(row[safeXKey] ?? '').trim();
           const coords = COUNTRY_COORDS[countryKey] ?? COUNTRY_COORDS[countryKey.toLowerCase()];
           if (!coords) continue;
           const value = Number(row[valueKey]);
@@ -766,7 +782,7 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
     return () => {
       mapInstanceRef.current = null;
     };
-  }, [loaded, data, xKey, valueKey, valueMap, maxValue, minValue, formatValue]);
+  }, [loaded, data, safeXKey, valueKey, valueMap, maxValue, minValue, formatValue]);
 
   if (error) return <MapFallback message={error} />;
   if (!loaded) return <MapFallback message="Loading Google Maps..." />;

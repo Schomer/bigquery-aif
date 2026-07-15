@@ -2,6 +2,14 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-15: Sample rows -- pagination, page size, and row filtering
+
+**Changes**:
+- `src/lib/preview-client.ts`: New `fetchTablePage()` for paginated + filtered row fetching.
+- `src/components/SchemaView.tsx`: `SampleTab` now has a toolbar with filter input, rows-per-page dropdown (20/50/100/500), and first/prev/next/last pagination. Count query runs in parallel to display `1-N of total` range. Initial view still uses cheap eager sampleData.
+
+---
+
 ## 2026-07-14: Fix degenerate heatmap for ranked lists with a filter column
 
 **Context**: "Top 10 countries by population in year 900" was rendering as a heatmap because the LLM included `year` in SELECT/GROUP BY, producing 2 categorical columns that triggered the heatmap rule.

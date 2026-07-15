@@ -308,7 +308,7 @@ WIDGET_SPEC_END
 - `filterColumn`: the exact column name used in the WHERE clause.
 - `filterParam`: the placeholder string (e.g., `{{entity}}`). Must exactly match the placeholder in `parameterizedSql`.
 - `optionsSql`: must return a single column of distinct string values. These are pre-fetched by the system and displayed as dropdown options.
-- `defaultValue`: the pre-selected option, or null (meaning "show all data" on load).
+- `defaultValue`: **always set to `null` unless the user explicitly asked for a pre-selected default** (e.g., "default to 2023" or "start with United States selected"). Do NOT pick a "sensible" default like the most recent year or the largest country — the filter should start empty (showing all data) unless the user specifically requested otherwise.
 - The baseSql always shows all data — it is what runs when no option is selected.
 
 ---

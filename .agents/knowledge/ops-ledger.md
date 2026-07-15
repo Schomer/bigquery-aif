@@ -1,6 +1,18 @@
 # Operations Ledger
 
-## 2026-07-15: INFORMATION_SCHEMA.JOBS queries hitting iteration cap
+## 2026-07-15: Sample rows tab -- pagination, page size, and filtering
+
+**What happened**: User wanted to see more than 20 rows, page through the table, and filter rows.
+
+**Changes**:
+- `src/lib/preview-client.ts`: Added `fetchTablePage()` -- builds a `SELECT * WHERE (CAST(col AS STRING) LIKE '%filter%' OR ...) LIMIT n OFFSET m` query plus a parallel `COUNT(*)` query. WHERE clause covers all non-GEOGRAPHY/STRUCT/ARRAY/JSON columns to avoid BigQuery CAST errors.
+- `src/components/SchemaView.tsx`: Rewrote `SampleTab` component with: filter input (Enter to apply, x to clear), Filter button, rows-per-page selector (20/50/100/500), and first/prev/next/last pagination buttons with a `1-N of total` row range indicator. Loading overlay keeps table visible during re-fetches. Page 0 / 20 rows / no filter still uses the eagerly-fetched sampleData prop with zero extra cost.
+
+**Rule**: The filter uses SQL LIKE on CAST(...AS STRING). This means: (1) it is case-sensitive on some BQ storage backends, (2) GEOGRAPHY/STRUCT/ARRAY/JSON columns must be excluded from the filter clause or BQ will error.
+
+---
+
+
 
 **What happened**: User asked "Show me the 10 most expensive BigQuery queries run in the past 7 days, with bytes billed and estimated cost." The app displayed "Reached maximum tool-call iterations." -- the LLM burned all 10 iterations without ever calling `run_query`.
 
