@@ -248,6 +248,50 @@ COUNTRY_COORDS['uae'] = COUNTRY_COORDS['ae'];
 COUNTRY_COORDS['united arab emirates'] = COUNTRY_COORDS['ae'];
 COUNTRY_COORDS['czechia'] = COUNTRY_COORDS['cz'];
 
+
+// ---------------------------------------------------------------------------
+// detectChoroplethType: inspect query result to decide USA_MAP vs WORLD_MAP
+// ---------------------------------------------------------------------------
+
+export function detectChoroplethType(result: QueryResult): 'USA_MAP' | 'WORLD_MAP' {
+  if (!result.columns.length || !result.rows.length) return 'WORLD_MAP';
+
+  // Find the dimension column (first non-numeric column, or column 0)
+  let dimIdx = 0;
+  for (let i = 0; i < result.columns.length; i++) {
+    const hasNumeric = result.rows.some((r) => typeof r[i] === 'number');
+    const hasString = result.rows.some((r) => typeof r[i] === 'string' && r[i]);
+    if (hasString && !hasNumeric) { dimIdx = i; break; }
+  }
+
+  // Sample up to 15 rows
+  const sample = result.rows
+    .slice(0, 15)
+    .map((r) => String(r[dimIdx] ?? '').trim())
+    .filter(Boolean);
+
+  if (sample.length === 0) return 'WORLD_MAP';
+
+  let stateHits = 0;
+  let countryHits = 0;
+
+  for (const val of sample) {
+    const lower = val.toLowerCase();
+    if (STATE_COORDS[lower] || STATE_COORDS[val]) {
+      stateHits++;
+    } else if (COUNTRY_COORDS[lower] || COUNTRY_COORDS[val.toUpperCase()] || COUNTRY_COORDS[val]) {
+      // Exclude US-only entries that are also state abbreviations
+      if (!STATE_COORDS[lower] && !STATE_COORDS[val]) {
+        countryHits++;
+      }
+    }
+  }
+
+  // Need at least one confident match; if ambiguous, prefer WORLD_MAP
+  if (stateHits > countryHits) return 'USA_MAP';
+  return 'WORLD_MAP';
+}
+
 // ---------------------------------------------------------------------------
 // 1. GeoPointMapRenderer
 // ---------------------------------------------------------------------------

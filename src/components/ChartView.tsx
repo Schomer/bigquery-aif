@@ -38,6 +38,7 @@ import {
   GeoPointMapRenderer,
   USAMapRenderer,
   WorldMapRenderer,
+  detectChoroplethType,
 } from './charts/map-charts';
 
 type ChartType =
@@ -87,7 +88,17 @@ const RENDERERS: Record<ChartType, React.ComponentType<{ result: QueryResult; on
 };
 
 export function ChartView({ result, chartType, onSendMessage }: Props) {
-  const Renderer = RENDERERS[chartType];
+  // For map types, inspect the data to confirm the geography rather than
+  // trusting the router's guess from the user's text alone.
+  let resolvedType = chartType;
+  if (chartType === 'USA_MAP' || chartType === 'WORLD_MAP') {
+    const detected = detectChoroplethType(result);
+    if (detected === 'USA_MAP' || detected === 'WORLD_MAP') {
+      resolvedType = detected;
+    }
+  }
+
+  const Renderer = RENDERERS[resolvedType];
 
   if (!Renderer) {
     return (
