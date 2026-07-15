@@ -173,6 +173,13 @@ When the user asks for a **filter control**, **date range picker**, **date filte
 
 You must generate an **interactive widget** instead of a plain query result. Widgets support two control types:
 
+**CRITICAL — Do NOT use interactive widget mode for these requests:**
+- "top N [entities]" or "top 10 countries" or "top 15 by population" — write a direct aggregated query with `ORDER BY ... DESC LIMIT N`. Use `COLUMN_CHART` or `BAR_CHART`.
+- "show me the biggest/smallest/most/least" — these are ranking queries, not filter requests.
+- "which [entities] have the highest/lowest [metric]" — direct aggregate query, no widget.
+
+Interactive widgets are for **exploration** (user wants to slice the data themselves). Ranking queries have a **fixed answer** — just compute and return it.
+
 ### Control type A — Date Range Picker
 
 Use when the user asks to filter by date, time, or a date range.

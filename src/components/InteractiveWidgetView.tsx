@@ -16,6 +16,18 @@ type ViewMode = 'chart' | 'table';
 
 const SEARCH_THRESHOLD = 8; // show search when there are more than this many options
 
+// English pluralization for chart titles ("3 entities", "5 countries", etc.)
+function pluralize(word: string): string {
+  if (word.endsWith('y') && !/[aeiou]y$/.test(word)) {
+    return word.slice(0, -1) + 'ies'; // entity→entities, country→countries
+  }
+  if (word.endsWith('s') || word.endsWith('sh') || word.endsWith('ch') || word.endsWith('x') || word.endsWith('z')) {
+    return word + 'es'; // class→classes
+  }
+  return word + 's'; // region→regions
+}
+
+
 function MultiSelectDropdown({
   id,
   label,
@@ -344,7 +356,7 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
       } else if (ctrl.type === 'MULTI_SELECT') {
         const vals = multiSelectValues[ctrl.param] ?? [];
         if (vals.length === 1) parts.push(vals[0]);
-        else if (vals.length > 1) parts.push(`${vals.length} ${ctrl.label.toLowerCase()}s`);
+        else if (vals.length > 1) parts.push(`${vals.length} ${pluralize(ctrl.label.toLowerCase())}`);
       } else if (ctrl.type === 'DATE_RANGE') {
         if (startDate && endDate) parts.push(`${fmtDate(startDate)}\u2013${fmtDate(endDate)}`);
         else if (startDate) parts.push(`from ${fmtDate(startDate)}`);
