@@ -76,7 +76,7 @@ export async function handleQuery(
   const cachedPlan = findReusablePlan(message, dataset);
   if (cachedPlan) {
     onStatus?.(`Picking up where we left off (cached plan for ${dataset})...`);
-    return executeCachedPlan(cachedPlan, project, dataset, onStatus);
+    return executeCachedPlan(cachedPlan, project, dataset, onStatus, context?.userIntent ?? null);
   }
 
   // -- Build conversation messages --
@@ -370,9 +370,13 @@ After running the query, provide a brief one-line summary of what the results sh
 
 
       if (controls.length > 0) {
-        // Use the LLM-specified visualization if provided; it knows the filtered shape
-        const viz = (widgetSpec.visualization as VisualizationType | undefined)
-          ?? (result.suggestedVisualization !== 'INTERACTIVE_WIDGET' ? result.suggestedVisualization : 'LINE_CHART') as VisualizationType;
+        // Explicit user intent takes absolute priority over the LLM's visualization hint.
+        // If the user said "show as a bar chart", we honor that even for geo data.
+        const viz = (context?.userIntent && context.userIntent !== 'INTERACTIVE_WIDGET'
+          ? context.userIntent
+          : (widgetSpec.visualization as VisualizationType | undefined)
+          ?? (result.suggestedVisualization !== 'INTERACTIVE_WIDGET' ? result.suggestedVisualization : 'LINE_CHART')
+        ) as VisualizationType;
 
         const widgetData: InteractiveWidgetData = {
           baseSql: widgetSpec.baseSql,
@@ -428,6 +432,7 @@ async function executeCachedPlan(
   project: string,
   dataset: string,
   onStatus?: StatusCallback,
+  userIntent?: ArtifactType | null,
 ): Promise<CompositionEnvelope[]> {
   const sql = cachedPlan.substitutedSql;
 
@@ -465,7 +470,7 @@ async function executeCachedPlan(
     resultSummary: null,
   };
 
-  return [compose('query', result, qualityFlags)];
+  return [compose('query', result, qualityFlags, userIntent ?? null)];
 }
 
 // ─── Skill manifest ───────────────────────────────────────────────────────────

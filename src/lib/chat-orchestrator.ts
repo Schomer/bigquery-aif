@@ -342,7 +342,7 @@ The user's new message is a continuation of this conversation. Treat it as a fol
           envelopes.map((env) =>
             (env.requiresConfirmation || env.skipSelfReview)
               ? Promise.resolve(env)
-              : selfReviewEnvelope(env, resolvedMessage, project, onStatus)
+              : selfReviewEnvelope(env, resolvedMessage, project, onStatus, userIntent)
           )
         );
         envelopes = reviewed;

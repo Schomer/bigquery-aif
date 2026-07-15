@@ -90,6 +90,7 @@ export async function selfReviewEnvelope(
   userMessage: string,
   project: string,
   _onStatus?: StatusCallback,
+  userIntent?: import('./types').ArtifactType | null,
 ): Promise<CompositionEnvelope> {
   const snapshot = buildReviewSnapshot(envelope);
 
@@ -157,7 +158,11 @@ ${JSON.stringify(snapshot, null, 2)}`,
     if (envelope.skill === 'query' && data && 'rows' in data) {
       const qd = data as unknown as QueryResult;
 
-      if (review.betterVisualization && review.betterVisualization !== qd.suggestedVisualization) {
+      // Code-level guard: if the user explicitly requested a chart type, never
+      // allow self-review to override it -- regardless of what the LLM suggests.
+      const vizOverrideBlocked = !!(userIntent && userIntent !== null);
+
+      if (!vizOverrideBlocked && review.betterVisualization && review.betterVisualization !== qd.suggestedVisualization) {
         const updatedData = { ...qd, suggestedVisualization: review.betterVisualization };
         if (review.improvedXAxis) updatedData.xAxis = review.improvedXAxis;
         if (review.improvedYAxis && review.improvedYAxis.length > 0) updatedData.yAxis = review.improvedYAxis;

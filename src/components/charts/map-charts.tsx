@@ -666,8 +666,41 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
     return v.toLocaleString();
   }, []);
 
+  // Stable refs so the style effect can read current values without recreating the map
+  const valueMapRef = useRef(valueMap);
+  const maxValueRef = useRef(maxValue);
+  const minValueRef = useRef(minValue);
+  const valueKeyRef = useRef(valueKey);
+  const formatValueRef = useRef(formatValue);
+  valueMapRef.current = valueMap;
+  maxValueRef.current = maxValue;
+  minValueRef.current = minValue;
+  valueKeyRef.current = valueKey;
+  formatValueRef.current = formatValue;
+
+  // Helper: returns a Maps Style object for a GeoJSON feature using current ref values
+  const buildFeatureStyle = useCallback((feature: any) => {
+    const getName = (k: string) => { try { return feature.getProperty(k); } catch { return undefined; } };
+    const properties = {
+      ADMIN: getName('ADMIN'), NAME: getName('NAME'), name: getName('name'),
+      SU_A3: getName('SU_A3'), ADM0_A3: getName('ADM0_A3'),
+      ISO_A2: getName('ISO_A2'), ISO_A3: getName('ISO_A3'),
+    };
+    const value = resolveFeatureValue(properties, valueMapRef.current);
+    if (value === null) {
+      return { fillColor: '#cbd5e1', fillOpacity: 1.0, strokeColor: '#94a3b8', strokeWeight: 0.6 };
+    }
+    const range = maxValueRef.current - minValueRef.current;
+    const ratio = range > 0 ? (value - minValueRef.current) / range : 0.5;
+    return { fillColor: choroplethColor(ratio), fillOpacity: 1.0, strokeColor: '#ffffff', strokeWeight: 0.8 };
+  }, []); // refs are always current — no deps needed
+
+  // Effect 1: Initialize map and load GeoJSON once when Google Maps script is ready.
+  // Does NOT depend on data/valueMap — avoids recreating the map on every query result.
   useEffect(() => {
     if (!loaded || !mapRef.current) return;
+
+    const controller = new AbortController();
 
     const map = new window.google.maps.Map(mapRef.current, {
       center: { lat: 25, lng: 0 },
@@ -687,85 +720,45 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
 
     const infoWindow = new window.google.maps.InfoWindow();
 
-    // Load GeoJSON from public Natural Earth dataset
-    fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson')
+    // Load GeoJSON from local public/ file (avoids external dependency and CORS issues)
+    fetch('/world-countries.geojson', { signal: controller.signal })
       .then((r) => r.json())
       .then((geojson) => {
+        if (controller.signal.aborted) return;
         map.data.addGeoJson(geojson);
+        // Apply initial styles using current ref values
+        map.data.setStyle((feature: any) => buildFeatureStyle(feature));
 
-        map.data.setStyle((feature: any) => {
-          const props = feature.f ?? feature.j ?? {};
-          // Try to get properties via the Maps API accessor
-          const getName = (k: string) => {
-            try { return feature.getProperty(k); } catch { return undefined; }
-          };
-          const properties = {
-            ADMIN: getName('ADMIN'),
-            NAME: getName('NAME'),
-            name: getName('name'),
-            SU_A3: getName('SU_A3'),
-            ADM0_A3: getName('ADM0_A3'),
-            ISO_A2: getName('ISO_A2'),
-            ISO_A3: getName('ISO_A3'),
-          };
-
-          const value = resolveFeatureValue(properties, valueMap);
-          if (value === null) {
-            return {
-              fillColor: '#cbd5e1', // distinct from #f5f7fa landscape so borders are visible
-              fillOpacity: 1.0,
-              strokeColor: '#94a3b8',
-              strokeWeight: 0.6,
-            };
-          }
-          const range = maxValue - minValue;
-          const ratio = range > 0 ? (value - minValue) / range : 0.5;
-          return {
-            fillColor: choroplethColor(ratio),
-            fillOpacity: 1.0,
-            strokeColor: '#ffffff',
-            strokeWeight: 0.8,
-          };
-        });
-
-        // Click to show info window
+        // Click handler
         map.data.addListener('click', (event: any) => {
-          const getName = (k: string) => {
-            try { return event.feature.getProperty(k); } catch { return undefined; }
-          };
+          const getName = (k: string) => { try { return event.feature.getProperty(k); } catch { return undefined; } };
           const properties = {
-            ADMIN: getName('ADMIN'),
-            NAME: getName('NAME'),
-            name: getName('name'),
-            SU_A3: getName('SU_A3'),
-            ADM0_A3: getName('ADM0_A3'),
-            ISO_A2: getName('ISO_A2'),
-            ISO_A3: getName('ISO_A3'),
+            ADMIN: getName('ADMIN'), NAME: getName('NAME'), name: getName('name'),
+            SU_A3: getName('SU_A3'), ADM0_A3: getName('ADM0_A3'),
+            ISO_A2: getName('ISO_A2'), ISO_A3: getName('ISO_A3'),
           };
-
           const countryName = properties.ADMIN || properties.NAME || properties.name || 'Unknown';
-          const value = resolveFeatureValue(properties, valueMap);
-          const displayValue = value !== null ? formatValue(value) : 'No data';
-
+          const value = resolveFeatureValue(properties, valueMapRef.current);
+          const displayValue = value !== null ? formatValueRef.current(value) : 'No data';
           infoWindow.setContent(
             `<div style="font-family:system-ui,sans-serif;padding:4px 2px;min-width:140px">
               <div style="font-weight:600;font-size:13px;margin-bottom:4px">${countryName}</div>
-              <div style="font-size:12px;color:#475569">${valueKey}: <strong>${displayValue}</strong></div>
+              <div style="font-size:12px;color:#475569">${valueKeyRef.current}: <strong>${displayValue}</strong></div>
             </div>`
           );
           infoWindow.setPosition(event.latLng);
           infoWindow.open(map);
-
         });
       })
-      .catch(() => {
+      .catch((err) => {
+        if (controller.signal.aborted) return;
         // GeoJSON load failed -- fall back to bubble markers
         for (const row of data) {
           const countryKey = String(row[safeXKey] ?? '').trim();
           const coords = COUNTRY_COORDS[countryKey] ?? COUNTRY_COORDS[countryKey.toLowerCase()];
           if (!coords) continue;
           const value = Number(row[valueKey]);
-          const ratio = isNaN(value) ? 0.3 : value / maxValue;
+          const ratio = isNaN(value) ? 0.3 : value / maxValueRef.current;
           const radius = Math.max(8, Math.min(30, 8 + ratio * 22));
           new window.google.maps.Marker({
             map,
@@ -784,9 +777,19 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
       });
 
     return () => {
+      controller.abort();
       mapInstanceRef.current = null;
     };
-  }, [loaded, data, safeXKey, valueKey, valueMap, maxValue, minValue, formatValue]);
+  }, [loaded, buildFeatureStyle]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Effect 2: Re-style existing map features when data changes.
+  // Does NOT recreate the map — just updates the style function on the existing instance.
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    map.data.setStyle((feature: any) => buildFeatureStyle(feature));
+  }, [valueMap, maxValue, minValue, valueKey, buildFeatureStyle]);
+
 
   if (error) return <MapFallback message={error} />;
   if (!loaded) return <MapFallback message="Loading Google Maps..." />;
