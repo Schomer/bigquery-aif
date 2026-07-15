@@ -52,7 +52,9 @@ function envelopeLabel(env: CompositionEnvelope): string {
   }
   if (type === 'TABLE') {
     const d = data as any;
-    if (d?.rows?.length !== undefined) return `${d.rows.length} rows`;
+    // rowCount is the real BigQuery count; rows.length is just the in-memory sample
+    const count = typeof d?.rowCount === 'number' ? d.rowCount : d?.rows?.length;
+    if (count !== undefined) return `${count.toLocaleString()} rows`;
     return 'Table';
   }
   if (type === 'KPI_CARD') return 'KPI';

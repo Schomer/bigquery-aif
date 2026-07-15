@@ -323,12 +323,15 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       });
     }
 
-    const rowCount = Array.isArray(data.rows) ? (data.rows as unknown[]).length : null;
+    // Prefer rowCount (actual BigQuery row count) over rows.length (in-memory sample)
+    const rowCount = typeof data.rowCount === 'number'
+      ? data.rowCount
+      : Array.isArray(data.rows) ? (data.rows as unknown[]).length : null;
     if (rowCount !== null && env.primaryArtifact.type !== 'SCHEMA_VIEW') {
       items.push({
         id: `res_${env.id}`,
         type: 'result',
-        label: `${rowCount} rows`,
+        label: `${rowCount.toLocaleString()} rows`,
         icon: 'query_stats',
         dataset: ds,
         table: tbl,
