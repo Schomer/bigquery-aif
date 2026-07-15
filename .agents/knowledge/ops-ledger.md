@@ -1,5 +1,21 @@
 # Operations Ledger
 
+## 2026-07-15: Blank world map + filter pre-selecting a value
+
+**Issue 1 — Blank map (legend showed "Country" with 0→1 scale):**
+Root cause: The LLM generated SQL with the numeric population column first and the country name column second. `resolveAxes` honored that order, making `valueKey = "Country"`. `Number("China") = NaN` → every country skipped → all grey. The 0→1 scale appeared because `maxValue: max || 1` with zero valid values.
+
+Fix: `WorldMapRenderer` now inspects the first data row after `resolveAxes`. If `valueKey`'s data is non-numeric AND `xKey`'s data is numeric → columns are reversed → swap `safeXKey` and `valueKey`. This handles column order bugs without requiring the LLM to always get it right.
+
+**Issue 2 — Filter dropdown pre-selected "2023" without being asked:**
+Root cause: The model was choosing a "sensible default" (most recent year) rather than null. The previous prompt rule said `defaultValue` is "the pre-selected option, or null" — the model interpreted this as permission to pick a default.
+
+Fix: Strengthened the `query.md` rule: `defaultValue` must always be `null` unless the user explicitly asked for a pre-selected value. Added specific examples of what "explicitly asked" means.
+
+**Rule**: Map renderers should never trust column order — always validate that the resolved value column contains numeric data and the dimension column contains string data. Swap if wrong.
+
+---
+
 ## 2026-07-15: Sample rows tab -- pagination, page size, and filtering
 
 **What happened**: User wanted to see more than 20 rows, page through the table, and filter rows.

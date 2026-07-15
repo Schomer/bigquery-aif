@@ -625,22 +625,26 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
     [result.columns, result.xAxis, result.yAxis],
   );
 
-  // Defensive axis correction: if the LLM put the numeric column first and the country
-  // column second (wrong order), the resolved valueKey would be the string column, causing
-  // Number("China") = NaN and a blank map. Detect this and swap.
+  // Robust axis detection for world maps: find the first numeric column as the value,
+  // and the best string column as the geographic key (prefer xKey, fallback to first
+  // non-numeric column). This handles multi-column results like [Country, Code, Population]
+  // where yKeys[0] might be a string code rather than the numeric measure.
   const { safeXKey, valueKey } = useMemo(() => {
-    const candidateValue = yKeys[0] ?? result.columns[1];
-    const candidateX = xKey;
-    if (data.length > 0) {
-      const sample = data[0];
-      const valueIsNumeric = sample[candidateValue] != null && !isNaN(Number(sample[candidateValue]));
-      const xIsNumeric = sample[candidateX] != null && !isNaN(Number(sample[candidateX]));
-      if (!valueIsNumeric && xIsNumeric) {
-        // Columns are reversed — swap so the string col is the geo key
-        return { safeXKey: candidateValue, valueKey: candidateX };
-      }
+    if (data.length === 0) {
+      return { safeXKey: xKey, valueKey: yKeys[0] ?? result.columns[1] };
     }
-    return { safeXKey: candidateX, valueKey: candidateValue };
+    const sample = data[0];
+    const isNum = (col: string) => sample[col] != null && !isNaN(Number(sample[col]));
+
+    // Find the first numeric column across all columns (not just yKeys)
+    const numericCol = result.columns.find((c) => isNum(c));
+    // Use the declared xKey if it's a string, otherwise take the first non-numeric col
+    const geoCol = !isNum(xKey) ? xKey : result.columns.find((c) => !isNum(c)) ?? xKey;
+
+    return {
+      safeXKey: geoCol,
+      valueKey: numericCol ?? (yKeys[0] ?? result.columns[1]),
+    };
   }, [data, xKey, yKeys, result.columns]);
 
   const { valueMap, maxValue, minValue } = useMemo(() => {

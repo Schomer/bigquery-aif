@@ -399,6 +399,8 @@ If the result contains lat/lng coordinates or region codes:
 - ISO country codes + measure -> suggest `WORLD_MAP`
 - Region codes + measure (general) -> suggest `CHOROPLETH`
 
+**WORLD_MAP / USA_MAP column rule**: For map queries, SELECT exactly two columns — the geographic dimension (country name, state name, or ISO code) and the numeric measure. Do NOT select extra columns like `Code`, `ISO_A2`, or `region` alongside the country name. Extra string columns confuse the map renderer which cannot determine which is the geographic key and which is the value. Correct: `SELECT Country, SUM(Population) AS Total_Population`. Wrong: `SELECT Country, Code, SUM(Population) AS Total_Population`.
+
 ### Sparkline arrays
 
 For compact inline visualizations: `ARRAY_AGG(value ORDER BY date)` produces the array a sparkline component needs. Suggest this when embedding a trend in a table cell.
