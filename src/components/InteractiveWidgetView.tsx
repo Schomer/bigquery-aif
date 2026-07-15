@@ -175,10 +175,10 @@ function MultiSelectDropdown({
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 4,
             fontSize: 12, padding: '3px 6px 3px 9px',
-            background: 'var(--accent-subtle, #eff6ff)',
-            border: '1px solid #bfdbfe',
+            background: 'var(--surface-3, #e2e8f0)',
+            border: '1px solid var(--border, #e8edf5)',
             borderRadius: 5,
-            color: 'var(--accent, #4f7fff)',
+            color: 'var(--text-muted, #64748b)',
             whiteSpace: 'nowrap',
             maxWidth: 160,
             overflow: 'hidden',
@@ -191,7 +191,7 @@ function MultiSelectDropdown({
             style={{
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               width: 14, height: 14, padding: 0, border: 'none', borderRadius: '50%',
-              background: 'transparent', color: 'var(--accent, #4f7fff)',
+              background: 'transparent', color: 'var(--text-muted, #94a3b8)',
               cursor: 'pointer', fontSize: 11, fontWeight: 700, flexShrink: 0,
               lineHeight: 1,
             }}

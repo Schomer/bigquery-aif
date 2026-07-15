@@ -1,5 +1,18 @@
 # Operations Ledger
 
+## 2026-07-15: Map chart query failing -- INT64 = STRING type error
+
+**What happened**: User asked for a map chart and got: `No matching signature for operator = for argument types: INT64, STRING`.
+
+**Root cause**: The LLM wrote a WHERE clause like `WHERE Year = '2023'` (quoted string literal) against an INT64 `Year` column. BigQuery does not coerce string literals to integers in comparisons.
+
+**Fix**: Added a rule to `public/skills/query.md` (SQL rules section):
+> Match literal types to column types in WHERE clauses. If a column is INTEGER/INT64/FLOAT/NUMERIC, use an unquoted numeric literal (`WHERE Year = 2023`, NOT `WHERE Year = '2023'`). Only use quoted string literals for STRING/VARCHAR columns. Check the schema column type before writing any filter.
+
+**Rule**: Never quote a numeric literal in a WHERE clause. INT64 columns require bare integers; STRING columns require quoted strings. When in doubt, call `get_table_schema` first.
+
+---
+
 ## 2026-07-15: Zero-row results on population_data -- LLM adding implicit year filter
 
 **What happened**: Querying `population_data` (117,648 rows, columns: Country, Code, Year, Population) consistently returned 0 rows with the headline "No population data found for the requested countries or dates".
