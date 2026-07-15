@@ -30,11 +30,7 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
     return initial;
   });
 
-  const hasDropdownWithNoDefault = widgetData.controls.some(
-    (c) => c.type === 'DROPDOWN' && !c.defaultValue,
-  );
-
-  const [viewMode, setViewMode] = useState<ViewMode>(hasDropdownWithNoDefault ? 'table' : 'chart');
+  const [viewMode, setViewMode] = useState<ViewMode>('chart');
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,17 +79,12 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
         rows: result.rows,
         rowCount: result.rowCount,
       });
-      // If user picked a specific dropdown value and we're on table view, switch to chart
-      const hasDropdownSelection = Object.values(dropdownValues).some((v) => v.length > 0);
-      if (hasDropdownSelection && isChartable) {
-        setViewMode('chart');
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Query failed');
     } finally {
       setIsLoading(false);
     }
-  }, [startDate, endDate, dropdownValues, widgetData, isChartable]);
+  }, [startDate, endDate, dropdownValues, widgetData]);
 
 
   const handleClear = useCallback(() => {
