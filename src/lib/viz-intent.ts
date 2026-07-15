@@ -177,17 +177,19 @@ const EXPLICIT_INTENT_MAP: Array<{ patterns: RegExp[]; type: ArtifactType }> = [
       /\bstate map\b/i,
       /\bby state\b/i,
       /\bmap (?:by|of) (?:states?|usa?)\b/i,
-      /\bchoropleth\b/i,
+      /\bchoropleth (?:by |of )?(?:state|us|usa)\b/i,
     ],
     type: 'USA_MAP',
   },
-  // World map
+  // World map / choropleth
   {
     patterns: [
       /\bworld map\b/i,
       /\bglobal map\b/i,
       /\bby country\b/i,
       /\bmap (?:by|of) (?:country|countries|the world|region)\b/i,
+      /\bchoropleth\b/i,
+      /\beach country\b/i,
     ],
     type: 'WORLD_MAP',
   },

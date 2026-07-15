@@ -459,14 +459,115 @@ export function USAMapRenderer({ result, onSendMessage }: ChartProps) {
 }
 
 // ---------------------------------------------------------------------------
-// 3. WorldMapRenderer
+// 3. WorldMapRenderer -- choropleth via Google Maps Data layer + GeoJSON
 // ---------------------------------------------------------------------------
+
+// ISO-3 → ISO-2 mapping for the most common countries (covers Natural Earth GeoJSON SU_A3 codes)
+const ISO3_TO_ISO2: Record<string, string> = {
+  USA: 'US', CHN: 'CN', JPN: 'JP', DEU: 'DE', IND: 'IN', GBR: 'GB', FRA: 'FR', ITA: 'IT',
+  BRA: 'BR', CAN: 'CA', RUS: 'RU', KOR: 'KR', AUS: 'AU', ESP: 'ES', MEX: 'MX', IDN: 'ID',
+  NLD: 'NL', SAU: 'SA', TUR: 'TR', CHE: 'CH', TWN: 'TW', POL: 'PL', SWE: 'SE', BEL: 'BE',
+  NOR: 'NO', AUT: 'AT', ISR: 'IL', IRL: 'IE', SGP: 'SG', ARG: 'AR', ZAF: 'ZA', THA: 'TH',
+  DNK: 'DK', PHL: 'PH', MYS: 'MY', COL: 'CO', NGA: 'NG', FIN: 'FI', CHL: 'CL', EGY: 'EG',
+  PRT: 'PT', CZE: 'CZ', NZL: 'NZ', PER: 'PE', ROU: 'RO', GRC: 'GR', VNM: 'VN', ARE: 'AE',
+  BGD: 'BD', PAK: 'PK', KEN: 'KE', GHA: 'GH', ETH: 'ET', TZA: 'TZ', MAR: 'MA', UKR: 'UA',
+  HUN: 'HU', QAT: 'QA', KWT: 'KW', IRN: 'IR', IRQ: 'IQ', AFG: 'AF', AGO: 'AO', ALB: 'AL',
+  DZA: 'DZ', AND: 'AD', ATG: 'AG', ARM: 'AM', AZE: 'AZ', BHS: 'BS', BHR: 'BH', BLR: 'BY',
+  BLZ: 'BZ', BEN: 'BJ', BTN: 'BT', BOL: 'BO', BIH: 'BA', BWA: 'BW', BRN: 'BN', BGR: 'BG',
+  BFA: 'BF', BDI: 'BI', CPV: 'CV', KHM: 'KH', CMR: 'CM', CAF: 'CF', TCD: 'TD', COM: 'KM',
+  COD: 'CD', COG: 'CG', CRI: 'CR', CIV: 'CI', HRV: 'HR', CUB: 'CU', CYP: 'CY', DJI: 'DJ',
+  DOM: 'DO', ECU: 'EC', SLV: 'SV', GNQ: 'GQ', ERI: 'ER', EST: 'EE', SWZ: 'SZ', FJI: 'FJ',
+  GAB: 'GA', GMB: 'GM', GEO: 'GE', GTM: 'GT', GIN: 'GN', GNB: 'GW', GUY: 'GY', HTI: 'HT',
+  HND: 'HN', ISL: 'IS', JAM: 'JM', JOR: 'JO', KAZ: 'KZ', KIR: 'KI', PRK: 'KP', KGZ: 'KG',
+  LAO: 'LA', LVA: 'LV', LBN: 'LB', LSO: 'LS', LBR: 'LR', LBY: 'LY', LIE: 'LI', LTU: 'LT',
+  LUX: 'LU', MDG: 'MG', MWI: 'MW', MDV: 'MV', MLI: 'ML', MLT: 'MT', MHL: 'MH', MRT: 'MR',
+  MUS: 'MU', FSM: 'FM', MDA: 'MD', MCO: 'MC', MNG: 'MN', MNE: 'ME', MOZ: 'MZ', MMR: 'MM',
+  NAM: 'NA', NPL: 'NP', NIC: 'NI', NER: 'NE', MKD: 'MK', OMN: 'OM', PLW: 'PW', PAN: 'PA',
+  PNG: 'PG', PRY: 'PY', PRI: 'PR', MDA2: 'MD', SEN: 'SN', SRB: 'RS', SLE: 'SL', SVK: 'SK',
+  SVN: 'SI', SLB: 'SB', SOM: 'SO', SSD: 'SS', LKA: 'LK', SDN: 'SD', SUR: 'SR', SYR: 'SY',
+  STP: 'ST', TJK: 'TJ', TLS: 'TL', TGO: 'TG', TON: 'TO', TTO: 'TT', TUN: 'TN', TKM: 'TM',
+  TUV: 'TV', UGA: 'UG', URY: 'UY', UZB: 'UZ', VUT: 'VU', VEN: 'VE', WSM: 'WS', YEM: 'YE',
+  ZMB: 'ZM', ZWE: 'ZW',
+};
+
+// Interpolate a value in [0,1] to a blue choropleth color
+function choroplethColor(ratio: number): string {
+  // Light blue (#dbeafe) → deep blue (#1e3a8a)
+  const r = Math.round(219 - ratio * (219 - 30));
+  const g = Math.round(190 - ratio * (190 - 58));
+  const b = Math.round(254 - ratio * (254 - 138));
+  return `rgb(${r},${g},${b})`;
+}
+
+// Build a lookup: ISO-2, ISO-3, and full name → numeric value
+function buildCountryValueMap(
+  data: Record<string, any>[],
+  xKey: string,
+  valueKey: string,
+): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const row of data) {
+    const key = String(row[xKey] ?? '').trim();
+    const val = Number(row[valueKey]);
+    if (!key || isNaN(val)) continue;
+
+    const lower = key.toLowerCase();
+    // Index by whatever the user provided
+    map.set(lower, val);
+
+    // If it looks like ISO-2 (2 chars), also index the name
+    if (key.length === 2) {
+      const coords = COUNTRY_COORDS[key.toUpperCase()] ?? COUNTRY_COORDS[lower];
+      if (coords) map.set(coords.name.toLowerCase(), val);
+    }
+    // If it looks like ISO-3 (3 chars), also resolve to ISO-2
+    if (key.length === 3) {
+      const iso2 = ISO3_TO_ISO2[key.toUpperCase()];
+      if (iso2) {
+        map.set(iso2.toLowerCase(), val);
+        const coords = COUNTRY_COORDS[iso2];
+        if (coords) map.set(coords.name.toLowerCase(), val);
+      }
+    }
+  }
+  return map;
+}
+
+// Resolve a GeoJSON feature's country names/codes to a value
+function resolveFeatureValue(
+  properties: Record<string, any>,
+  valueMap: Map<string, number>,
+): number | null {
+  const candidates: string[] = [
+    properties.ADMIN,
+    properties.NAME,
+    properties.name,
+    properties.SU_A3,
+    properties.ADM0_A3,
+    properties.ISO_A2,
+    properties.ISO_A3,
+  ].filter(Boolean).map((s: string) => s.toLowerCase());
+
+  // Also resolve ISO-3 → ISO-2
+  if (properties.ADM0_A3) {
+    const iso2 = ISO3_TO_ISO2[properties.ADM0_A3.toUpperCase()];
+    if (iso2) candidates.push(iso2.toLowerCase());
+  }
+  if (properties.ISO_A3) {
+    const iso2 = ISO3_TO_ISO2[properties.ISO_A3.toUpperCase()];
+    if (iso2) candidates.push(iso2.toLowerCase());
+  }
+
+  for (const c of candidates) {
+    if (valueMap.has(c)) return valueMap.get(c)!;
+  }
+  return null;
+}
 
 export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
   const { loaded, error } = useGoogleMaps();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
-  const markersRef = useRef<any[]>([]);
 
   const data = useMemo(
     () => buildChartData(result.columns, result.rows),
@@ -480,14 +581,24 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
 
   const valueKey = yKeys[0] ?? result.columns[1];
 
-  const maxValue = useMemo(() => {
+  const { valueMap, maxValue, minValue } = useMemo(() => {
+    const vm = buildCountryValueMap(data, xKey, valueKey);
     let max = 0;
-    for (const row of data) {
-      const v = Number(row[valueKey]);
-      if (!isNaN(v) && v > max) max = v;
+    let min = Infinity;
+    for (const v of vm.values()) {
+      if (v > max) max = v;
+      if (v < min) min = v;
     }
-    return max || 1;
-  }, [data, valueKey]);
+    if (min === Infinity) min = 0;
+    return { valueMap: vm, maxValue: max || 1, minValue: min };
+  }, [data, xKey, valueKey]);
+
+  const formatValue = useCallback((v: number) => {
+    if (v >= 1_000_000_000) return (v / 1_000_000_000).toFixed(1) + 'B';
+    if (v >= 1_000_000) return (v / 1_000_000).toFixed(1) + 'M';
+    if (v >= 1_000) return (v / 1_000).toFixed(1) + 'K';
+    return v.toLocaleString();
+  }, []);
 
   useEffect(() => {
     if (!loaded || !mapRef.current) return;
@@ -495,63 +606,153 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
     const map = new window.google.maps.Map(mapRef.current, {
       center: { lat: 25, lng: 0 },
       zoom: 2,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: true,
+      styles: [
+        { featureType: 'water', stylers: [{ color: '#c8d7e8' }] },
+        { featureType: 'landscape', stylers: [{ color: '#f5f7fa' }] },
+        { featureType: 'administrative.country', elementType: 'geometry.stroke', stylers: [{ color: '#8a9bb0' }, { weight: 0.8 }] },
+        { featureType: 'road', stylers: [{ visibility: 'off' }] },
+        { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+      ],
     });
     mapInstanceRef.current = map;
 
-    const markers: any[] = [];
-    for (const row of data) {
-      const countryKey = String(row[xKey] ?? '').trim();
-      const coords = COUNTRY_COORDS[countryKey] ?? COUNTRY_COORDS[countryKey.toLowerCase()];
-      if (!coords) continue;
+    const infoWindow = new window.google.maps.InfoWindow();
 
-      const value = Number(row[valueKey]);
-      const ratio = isNaN(value) ? 0.3 : value / maxValue;
-      const radius = Math.max(8, Math.min(30, 8 + ratio * 22));
+    // Load GeoJSON from public Natural Earth dataset
+    fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson')
+      .then((r) => r.json())
+      .then((geojson) => {
+        map.data.addGeoJson(geojson);
 
-      // Show short country code if available, otherwise truncate name
-      const label = countryKey.length <= 3 ? countryKey.toUpperCase() : countryKey.slice(0, 3);
+        map.data.setStyle((feature: any) => {
+          const props = feature.f ?? feature.j ?? {};
+          // Try to get properties via the Maps API accessor
+          const getName = (k: string) => {
+            try { return feature.getProperty(k); } catch { return undefined; }
+          };
+          const properties = {
+            ADMIN: getName('ADMIN'),
+            NAME: getName('NAME'),
+            name: getName('name'),
+            SU_A3: getName('SU_A3'),
+            ADM0_A3: getName('ADM0_A3'),
+            ISO_A2: getName('ISO_A2'),
+            ISO_A3: getName('ISO_A3'),
+          };
 
-      const marker = new window.google.maps.Marker({
-        map,
-        position: { lat: coords.lat, lng: coords.lng },
-        title: `${coords.name}: ${isNaN(value) ? 'N/A' : value}`,
-        label: {
-          text: label,
-          color: '#fff',
-          fontSize: '9px',
-          fontWeight: '600',
-        },
-        icon: {
-          path: window.google.maps.SymbolPath.CIRCLE,
-          scale: radius,
-          fillColor: COLORS[4],
-          fillOpacity: 0.7,
-          strokeColor: 'rgba(255,255,255,0.8)',
-          strokeWeight: 2,
-        },
+          const value = resolveFeatureValue(properties, valueMap);
+          if (value === null) {
+            return {
+              fillColor: '#e2e8f0',
+              fillOpacity: 0.6,
+              strokeColor: '#8a9bb0',
+              strokeWeight: 0.5,
+            };
+          }
+          const range = maxValue - minValue;
+          const ratio = range > 0 ? (value - minValue) / range : 0.5;
+          return {
+            fillColor: choroplethColor(ratio),
+            fillOpacity: 0.85,
+            strokeColor: '#ffffff',
+            strokeWeight: 0.8,
+          };
+        });
+
+        // Click to show info window
+        map.data.addListener('click', (event: any) => {
+          const getName = (k: string) => {
+            try { return event.feature.getProperty(k); } catch { return undefined; }
+          };
+          const properties = {
+            ADMIN: getName('ADMIN'),
+            NAME: getName('NAME'),
+            name: getName('name'),
+            SU_A3: getName('SU_A3'),
+            ADM0_A3: getName('ADM0_A3'),
+            ISO_A2: getName('ISO_A2'),
+            ISO_A3: getName('ISO_A3'),
+          };
+
+          const countryName = properties.ADMIN || properties.NAME || properties.name || 'Unknown';
+          const value = resolveFeatureValue(properties, valueMap);
+          const displayValue = value !== null ? formatValue(value) : 'No data';
+
+          infoWindow.setContent(
+            `<div style="font-family:system-ui,sans-serif;padding:4px 2px;min-width:140px">
+              <div style="font-weight:600;font-size:13px;margin-bottom:4px">${countryName}</div>
+              <div style="font-size:12px;color:#475569">${valueKey}: <strong>${displayValue}</strong></div>
+            </div>`
+          );
+          infoWindow.setPosition(event.latLng);
+          infoWindow.open(map);
+
+        });
+      })
+      .catch(() => {
+        // GeoJSON load failed -- fall back to bubble markers
+        for (const row of data) {
+          const countryKey = String(row[xKey] ?? '').trim();
+          const coords = COUNTRY_COORDS[countryKey] ?? COUNTRY_COORDS[countryKey.toLowerCase()];
+          if (!coords) continue;
+          const value = Number(row[valueKey]);
+          const ratio = isNaN(value) ? 0.3 : value / maxValue;
+          const radius = Math.max(8, Math.min(30, 8 + ratio * 22));
+          new window.google.maps.Marker({
+            map,
+            position: { lat: coords.lat, lng: coords.lng },
+            title: `${coords.name}: ${isNaN(value) ? 'N/A' : value}`,
+            icon: {
+              path: window.google.maps.SymbolPath.CIRCLE,
+              scale: radius,
+              fillColor: COLORS[4],
+              fillOpacity: 0.7,
+              strokeColor: 'rgba(255,255,255,0.8)',
+              strokeWeight: 2,
+            },
+          });
+        }
       });
-      marker.addListener('click', () => {
-        if (!onSendMessage) return;
-        onSendMessage(drillDownMessage(xKey, countryKey));
-      });
-      markers.push(marker);
-    }
-    markersRef.current = markers;
 
     return () => {
-      for (const m of markersRef.current) {
-        m.map = null;
-      }
-      markersRef.current = [];
+      mapInstanceRef.current = null;
     };
-  }, [loaded, data, xKey, valueKey, maxValue]);
+  }, [loaded, data, xKey, valueKey, valueMap, maxValue, minValue, formatValue]);
 
   if (error) return <MapFallback message={error} />;
   if (!loaded) return <MapFallback message="Loading Google Maps..." />;
 
   return (
-    <div style={{ width: '100%', height: 400, borderRadius: 8, overflow: 'hidden' }}>
+    <div style={{ position: 'relative', width: '100%', height: 420, borderRadius: 8, overflow: 'hidden' }}>
       <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
+      {/* Choropleth legend */}
+      <div style={{
+        position: 'absolute', bottom: 28, left: 10,
+        background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(4px)',
+        borderRadius: 6, padding: '8px 12px',
+        boxShadow: '0 1px 6px rgba(0,0,0,0.15)',
+        fontFamily: 'system-ui, sans-serif', fontSize: 11,
+        pointerEvents: 'none',
+      }}>
+        <div style={{ fontWeight: 600, marginBottom: 5, fontSize: 11, color: '#374151' }}>
+          {valueKey}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 10, color: '#6b7280' }}>{formatValue(minValue)}</span>
+          <div style={{
+            width: 100, height: 10, borderRadius: 4,
+            background: 'linear-gradient(to right, #dbeafe, #1e3a8a)',
+          }} />
+          <span style={{ fontSize: 10, color: '#6b7280' }}>{formatValue(maxValue)}</span>
+        </div>
+        <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ width: 12, height: 12, borderRadius: 2, background: '#e2e8f0', border: '1px solid #cbd5e1' }} />
+          <span style={{ fontSize: 10, color: '#9ca3af' }}>No data</span>
+        </div>
+      </div>
     </div>
   );
 }
