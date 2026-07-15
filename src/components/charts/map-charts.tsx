@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { ComposableMap, Geographies, Geography } from 'react-simple-maps';
 import { COLORS, buildChartData, resolveAxes, drillDownMessage } from './chart-utils';
 import type { QueryResult } from '@/lib/types';
 import { BarChartRenderer } from './recharts-charts';
@@ -408,9 +407,66 @@ export function GeoPointMapRenderer({ result, onSendMessage }: ChartProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Shared choropleth legend + tooltip used by both map renderers
+// Pure SVG choropleth utilities -- zero dependencies, works in any build env
 // ---------------------------------------------------------------------------
 
+// Module-level GeoJSON cache so re-renders don't refetch
+const GEOJSON_CACHE: Record<string, any> = {};
+
+function useGeoJson(url: string) {
+  const [geojson, setGeojson] = useState<any>(GEOJSON_CACHE[url] ?? null);
+  useEffect(() => {
+    if (GEOJSON_CACHE[url]) { setGeojson(GEOJSON_CACHE[url]); return; }
+    let active = true;
+    fetch(url)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!active) return;
+        GEOJSON_CACHE[url] = data;
+        setGeojson(data);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [url]);
+  return geojson;
+}
+
+// Project a (lon, lat) pair to SVG (x, y) using equirectangular projection
+// Bounds: lon in [-180, 180], lat in [-90, 90]
+// Map to SVG space [0, width] x [0, height]
+function projectEq(
+  lon: number, lat: number,
+  lonMin: number, lonMax: number,
+  latMin: number, latMax: number,
+  w: number, h: number,
+): [number, number] {
+  const x = (lon - lonMin) / (lonMax - lonMin) * w;
+  const y = (latMax - lat) / (latMax - latMin) * h;
+  return [x, y];
+}
+
+type Projector = (lon: number, lat: number) => [number, number];
+
+// Convert a GeoJSON geometry to an SVG path `d` string
+function geometryToPath(geometry: any, project: Projector): string {
+  if (!geometry) return '';
+  const polys: number[][][][] =
+    geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
+  let d = '';
+  for (const polygon of polys) {
+    for (const ring of polygon) {
+      if (ring.length < 2) continue;
+      for (let i = 0; i < ring.length; i++) {
+        const [x, y] = project(ring[i][0], ring[i][1]);
+        d += i === 0 ? `M${x.toFixed(1)},${y.toFixed(1)}` : `L${x.toFixed(1)},${y.toFixed(1)}`;
+      }
+      d += 'Z';
+    }
+  }
+  return d;
+}
+
+// Shared legend
 function ChoroplethLegend({ valueKey, minValue, maxValue, formatValue }: {
   valueKey: string; minValue: number; maxValue: number; formatValue: (v: number) => string;
 }) {
@@ -457,29 +513,59 @@ function ChoroplethTooltip({ tooltip, valueKey }: { tooltip: TooltipState | null
 }
 
 // ---------------------------------------------------------------------------
-// 2. USAMapRenderer -- SVG choropleth of US states via react-simple-maps
+// 2. USAMapRenderer -- pure SVG choropleth of US states
 // ---------------------------------------------------------------------------
 
-// Abbreviation → full state name lookup built from RAW_STATES above
+// Abbreviation → full state name (lowercase) built from RAW_STATES above
 const ABBR_TO_STATE_NAME: Record<string, string> = {};
 for (const [name, abbr] of RAW_STATES) {
   ABBR_TO_STATE_NAME[abbr.toUpperCase()] = name.toLowerCase();
 }
 
+// Continental US bounding box
+const US_LON_MIN = -125, US_LON_MAX = -66, US_LAT_MIN = 24, US_LAT_MAX = 50;
+// Alaska inset bounding box in geographic coords
+const AK_LON_MIN = -180, AK_LON_MAX = -130, AK_LAT_MIN = 54, AK_LAT_MAX = 72;
+// Hawaii inset
+const HI_LON_MIN = -161, HI_LON_MAX = -154, HI_LAT_MIN = 18.5, HI_LAT_MAX = 22.5;
+
 export function USAMapRenderer({ result, onSendMessage }: ChartProps) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const geojson = useGeoJson('/us-states.geojson');
+
+  const svgWidth = 800;
+  const svgHeight = 500;
+  // Main map takes up the full height except insets
+  const mainH = svgHeight - 110;
+
+  // Inset rectangles (in SVG coords)
+  const akRect = { x: 0, y: svgHeight - 110, w: 160, h: 105 };
+  const hiRect = { x: 170, y: svgHeight - 90, w: 130, h: 80 };
+
+  const projectMain = useCallback(
+    (lon: number, lat: number) =>
+      projectEq(lon, lat, US_LON_MIN, US_LON_MAX, US_LAT_MIN, US_LAT_MAX, svgWidth, mainH),
+    [],
+  );
+  const projectAk = useCallback(
+    (lon: number, lat: number) =>
+      projectEq(lon, lat, AK_LON_MIN, AK_LON_MAX, AK_LAT_MIN, AK_LAT_MAX, akRect.w, akRect.h),
+    [],
+  );
+  const projectHi = useCallback(
+    (lon: number, lat: number) =>
+      projectEq(lon, lat, HI_LON_MIN, HI_LON_MAX, HI_LAT_MIN, HI_LAT_MAX, hiRect.w, hiRect.h),
+    [],
+  );
 
   const data = useMemo(
     () => buildChartData(result.columns, result.rows),
     [result.columns, result.rows],
   );
-
   const { xKey, yKeys } = useMemo(
     () => resolveAxes(result.columns, result.xAxis, result.yAxis),
     [result.columns, result.xAxis, result.yAxis],
   );
-
-  // Robust numeric/geo axis detection (same as WorldMapRenderer)
   const { safeXKey, valueKey } = useMemo(() => {
     if (data.length === 0) return { safeXKey: xKey, valueKey: yKeys[0] ?? result.columns[1] };
     const sample = data[0];
@@ -489,24 +575,18 @@ export function USAMapRenderer({ result, onSendMessage }: ChartProps) {
     return { safeXKey: geoCol, valueKey: numericCol ?? (yKeys[0] ?? result.columns[1]) };
   }, [data, xKey, yKeys, result.columns]);
 
-  // Build state-name → value map; handles both full names and abbreviations in data
   const { stateValueMap, maxValue, minValue } = useMemo(() => {
     const vm = new Map<string, number>();
     for (const row of data) {
       const key = String(row[safeXKey] ?? '').trim();
       if (!key) continue;
-      const rawVal = row[valueKey];
-      if (rawVal == null) continue;
-      const val = Number(rawVal);
+      const val = Number(row[valueKey]);
       if (isNaN(val)) continue;
-
       const lower = key.toLowerCase();
-      vm.set(lower, val); // index by full name (lowercase) or abbr
-
-      // If key is a 2-char abbreviation, also index by full state name
+      vm.set(lower, val);
       if (key.length === 2) {
-        const fullName = ABBR_TO_STATE_NAME[key.toUpperCase()];
-        if (fullName) vm.set(fullName, val);
+        const full = ABBR_TO_STATE_NAME[key.toUpperCase()];
+        if (full) vm.set(full, val);
       }
     }
     let max = 0, min = Infinity;
@@ -522,58 +602,73 @@ export function USAMapRenderer({ result, onSendMessage }: ChartProps) {
     return v.toLocaleString();
   }, []);
 
-  const getStateFill = useCallback((properties: any) => {
-    // GeoJSON from PublicaMundi has properties.name = "Alabama"
-    const geoName = (properties.name || properties.NAME || '').toLowerCase();
-    const value = stateValueMap.get(geoName);
-    if (value === undefined) return '#e2e8f0';
-    const ratio = maxValue > minValue ? (value - minValue) / (maxValue - minValue) : 0.5;
+  const getStateFill = useCallback((name: string) => {
+    const val = stateValueMap.get(name.toLowerCase());
+    if (val === undefined) return '#e2e8f0';
+    const ratio = maxValue > minValue ? (val - minValue) / (maxValue - minValue) : 0.5;
     return choroplethColor(ratio);
   }, [stateValueMap, maxValue, minValue]);
 
+  const features = geojson?.features ?? [];
+
+  const renderFeature = (
+    feature: any,
+    project: Projector,
+    offsetX: number,
+    offsetY: number,
+  ) => {
+    const name = String(feature.properties?.name || feature.properties?.NAME || '');
+    const d = geometryToPath(feature.geometry, (lon, lat) => {
+      const [x, y] = project(lon, lat);
+      return [x + offsetX, y + offsetY];
+    });
+    if (!d) return null;
+    const fill = getStateFill(name);
+    return (
+      <path
+        key={feature.properties?.name || feature.properties?.id}
+        d={d}
+        fill={fill}
+        stroke="#ffffff"
+        strokeWidth={1}
+        onMouseEnter={(e) => {
+          const val = stateValueMap.get(name.toLowerCase());
+          setTooltip({
+            name,
+            value: val !== undefined ? formatValue(val) : 'No data',
+            x: e.clientX, y: e.clientY,
+          });
+        }}
+        onMouseMove={(e) => setTooltip((t) => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
+        onMouseLeave={() => setTooltip(null)}
+        style={{ cursor: 'pointer' }}
+      />
+    );
+  };
+
+  const isAk = (f: any) => (f.properties?.name || '').toLowerCase() === 'alaska';
+  const isHi = (f: any) => (f.properties?.name || '').toLowerCase() === 'hawaii';
+  const isContiguous = (f: any) => !isAk(f) && !isHi(f);
+
   return (
     <div style={{ position: 'relative', background: '#ffffff', borderRadius: 8, overflow: 'hidden', border: '1px solid #f1f5f9' }}>
-      <ComposableMap
-        projection="geoAlbersUsa"
-        style={{ width: '100%', height: 420 }}
-      >
-        <Geographies geography="/us-states.geojson">
-          {({ geographies }) =>
-            geographies.map((geo) => {
-              const fill = getStateFill(geo.properties as any);
-              const geoName = String((geo.properties as any).name || (geo.properties as any).NAME || '');
-              return (
-                <Geography
-                  key={geo.rsmKey}
-                  geography={geo}
-                  fill={fill}
-                  stroke="#ffffff"
-                  strokeWidth={1}
-                  onMouseEnter={(e: React.MouseEvent) => {
-                    const geoNameLower = geoName.toLowerCase();
-                    const val = stateValueMap.get(geoNameLower);
-                    setTooltip({
-                      name: geoName,
-                      value: val !== undefined ? formatValue(val) : 'No data',
-                      x: e.clientX, y: e.clientY,
-                    });
-                  }}
-                  onMouseMove={(e: React.MouseEvent) =>
-                    setTooltip((t) => t ? { ...t, x: e.clientX, y: e.clientY } : null)
-                  }
-                  onMouseLeave={() => setTooltip(null)}
-                  style={{
-                    default: { outline: 'none' },
-                    hover: { outline: 'none', opacity: 0.78, cursor: 'pointer' },
-                    pressed: { outline: 'none' },
-                  }}
-                />
-              );
-            })
-          }
-        </Geographies>
-      </ComposableMap>
-
+      {!geojson && (
+        <div style={{ height: svgHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontFamily: 'system-ui', fontSize: 13 }}>
+          Loading map...
+        </div>
+      )}
+      {geojson && (
+        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ width: '100%', height: 420, display: 'block' }}>
+          {/* Continental US */}
+          {features.filter(isContiguous).map((f: any) => renderFeature(f, projectMain, 0, 0))}
+          {/* Alaska inset background */}
+          <rect x={akRect.x} y={akRect.y} width={akRect.w} height={akRect.h} fill="#f8fafc" stroke="#e2e8f0" strokeWidth={0.5} />
+          {features.filter(isAk).map((f: any) => renderFeature(f, projectAk, akRect.x, akRect.y))}
+          {/* Hawaii inset background */}
+          <rect x={hiRect.x} y={hiRect.y} width={hiRect.w} height={hiRect.h} fill="#f8fafc" stroke="#e2e8f0" strokeWidth={0.5} />
+          {features.filter(isHi).map((f: any) => renderFeature(f, projectHi, hiRect.x, hiRect.y))}
+        </svg>
+      )}
       <ChoroplethTooltip tooltip={tooltip} valueKey={valueKey} />
       <ChoroplethLegend valueKey={valueKey} minValue={minValue} maxValue={maxValue} formatValue={formatValue} />
     </div>
@@ -581,7 +676,7 @@ export function USAMapRenderer({ result, onSendMessage }: ChartProps) {
 }
 
 // ---------------------------------------------------------------------------
-// 3. WorldMapRenderer -- SVG choropleth of countries via react-simple-maps
+// 3. WorldMapRenderer -- pure SVG choropleth of world countries
 // ---------------------------------------------------------------------------
 
 // ISO-3 → ISO-2 mapping for the most common countries (covers Natural Earth GeoJSON SU_A3 codes)
@@ -612,7 +707,7 @@ const ISO3_TO_ISO2: Record<string, string> = {
   ZMB: 'ZM', ZWE: 'ZW',
 };
 
-// Interpolate a value in [0,1] to a blue choropleth color matching the legend gradient #dbeafe → #1e3a8a
+// #dbeafe (219,234,254) → #1e3a8a (30,58,138) — matches the CSS gradient in the legend exactly
 function choroplethColor(ratio: number): string {
   const r = Math.round(219 - ratio * (219 - 30));
   const g = Math.round(234 - ratio * (234 - 58));
@@ -620,7 +715,6 @@ function choroplethColor(ratio: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
-// Build a lookup: lowercase name / ISO-2 / ISO-3 → numeric value
 function buildCountryValueMap(
   data: Record<string, any>[],
   xKey: string,
@@ -633,10 +727,8 @@ function buildCountryValueMap(
     if (rawVal == null) continue;
     const val = Number(rawVal);
     if (!key || isNaN(val)) continue;
-
     const lower = key.toLowerCase();
     map.set(lower, val);
-
     if (key.length === 2) {
       const coords = COUNTRY_COORDS[key.toUpperCase()] ?? COUNTRY_COORDS[lower];
       if (coords) map.set(coords.name.toLowerCase(), val);
@@ -653,7 +745,6 @@ function buildCountryValueMap(
   return map;
 }
 
-// Resolve a GeoJSON feature's country names/codes to a value using multiple candidate keys
 function resolveFeatureValue(
   properties: Record<string, any>,
   valueMap: Map<string, number>,
@@ -676,27 +767,36 @@ function resolveFeatureValue(
     const iso2 = ISO3_TO_ISO2[properties.ISO_A3.toUpperCase()];
     if (iso2) candidates.push(iso2.toLowerCase());
   }
-
   for (const c of candidates) {
     if (valueMap.has(c)) return valueMap.get(c)!;
   }
   return null;
 }
 
+// World map equirectangular bounds
+const W_LON_MIN = -180, W_LON_MAX = 180, W_LAT_MIN = -90, W_LAT_MAX = 90;
+
 export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const geojson = useGeoJson('/world-countries.geojson');
+
+  const svgWidth = 960;
+  const svgHeight = 480;
+
+  const project = useCallback(
+    (lon: number, lat: number) =>
+      projectEq(lon, lat, W_LON_MIN, W_LON_MAX, W_LAT_MIN, W_LAT_MAX, svgWidth, svgHeight),
+    [],
+  );
 
   const data = useMemo(
     () => buildChartData(result.columns, result.rows),
     [result.columns, result.rows],
   );
-
   const { xKey, yKeys } = useMemo(
     () => resolveAxes(result.columns, result.xAxis, result.yAxis),
     [result.columns, result.xAxis, result.yAxis],
   );
-
-  // Robust axis detection: scan all columns for the first numeric measure and first string geo key
   const { safeXKey, valueKey } = useMemo(() => {
     if (data.length === 0) return { safeXKey: xKey, valueKey: yKeys[0] ?? result.columns[1] };
     const sample = data[0];
@@ -721,7 +821,6 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
     return v.toLocaleString();
   }, []);
 
-  // Compute fill color directly from valueMap — no async, no race conditions
   const getFill = useCallback((properties: any) => {
     const value = resolveFeatureValue(properties, valueMap);
     if (value === null) return '#e2e8f0';
@@ -729,49 +828,46 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
     return choroplethColor(ratio);
   }, [valueMap, maxValue, minValue]);
 
+  const features = geojson?.features ?? [];
+
   return (
     <div style={{ position: 'relative', background: '#ffffff', borderRadius: 8, overflow: 'hidden', border: '1px solid #f1f5f9' }}>
-      <ComposableMap
-        projection="geoNaturalEarth1"
-        projectionConfig={{ scale: 153 }}
-        style={{ width: '100%', height: 420 }}
-      >
-        <Geographies geography="/world-countries.geojson">
-          {({ geographies }) =>
-            geographies.map((geo) => {
-              const fill = getFill(geo.properties as any);
-              const name = String((geo.properties as any).ADMIN || (geo.properties as any).NAME || (geo.properties as any).name || '');
-              return (
-                <Geography
-                  key={geo.rsmKey}
-                  geography={geo}
-                  fill={fill}
-                  stroke="#ffffff"
-                  strokeWidth={0.5}
-                  onMouseEnter={(e: React.MouseEvent) => {
-                    const value = resolveFeatureValue(geo.properties, valueMap);
-                    setTooltip({
-                      name,
-                      value: value !== null ? formatValue(value) : 'No data',
-                      x: e.clientX, y: e.clientY,
-                    });
-                  }}
-                  onMouseMove={(e: React.MouseEvent) =>
-                    setTooltip((t) => t ? { ...t, x: e.clientX, y: e.clientY } : null)
-                  }
-                  onMouseLeave={() => setTooltip(null)}
-                  style={{
-                    default: { outline: 'none' },
-                    hover: { outline: 'none', opacity: 0.78, cursor: 'pointer' },
-                    pressed: { outline: 'none' },
-                  }}
-                />
-              );
-            })
-          }
-        </Geographies>
-      </ComposableMap>
-
+      {!geojson && (
+        <div style={{ height: 420, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontFamily: 'system-ui', fontSize: 13 }}>
+          Loading map...
+        </div>
+      )}
+      {geojson && (
+        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ width: '100%', height: 420, display: 'block' }}>
+          {features.map((feature: any) => {
+            const props = feature.properties ?? {};
+            const name = String(props.ADMIN || props.NAME || props.name || '');
+            const fill = getFill(props);
+            const d = geometryToPath(feature.geometry, project);
+            if (!d) return null;
+            return (
+              <path
+                key={name || Math.random()}
+                d={d}
+                fill={fill}
+                stroke="#ffffff"
+                strokeWidth={0.5}
+                onMouseEnter={(e) => {
+                  const value = resolveFeatureValue(props, valueMap);
+                  setTooltip({
+                    name,
+                    value: value !== null ? formatValue(value) : 'No data',
+                    x: e.clientX, y: e.clientY,
+                  });
+                }}
+                onMouseMove={(e) => setTooltip((t) => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
+                onMouseLeave={() => setTooltip(null)}
+                style={{ cursor: 'pointer' }}
+              />
+            );
+          })}
+        </svg>
+      )}
       <ChoroplethTooltip tooltip={tooltip} valueKey={valueKey} />
       <ChoroplethLegend valueKey={valueKey} minValue={minValue} maxValue={maxValue} formatValue={formatValue} />
     </div>

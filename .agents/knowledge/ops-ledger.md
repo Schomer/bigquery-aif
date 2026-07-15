@@ -1,5 +1,22 @@
 # Operations Ledger
 
+## 2026-07-15: Replaced Google Maps choropleth with react-simple-maps SVG
+
+**Root cause (days of debugging)**: Google Maps Data Layer + GeoJSON fetch is inherently async. The `useEffect` deps array included `valueMap` (a new object every query result). This caused the effect to re-fire after data loaded, creating a second Maps instance on the same DOM element. The first GeoJSON fetch attached to the abandoned first instance; the second fetch completed correctly but by then the data was loaded. Even when split into two effects, the browser couldn't render country fills reliably through the Data Layer API.
+
+**Fix**: Replaced both `WorldMapRenderer` and `USAMapRenderer` with `react-simple-maps` SVG choropleth:
+- `ComposableMap` + `Geographies` + `Geography` render all countries as `<path>` SVG elements synchronously
+- `fill` is computed directly as a JavaScript value — no async, no Google Maps styling API
+- World map uses `geoNaturalEarth1` projection; US map uses `geoAlbersUsa` (repositions AK/HI)
+- Both load local GeoJSON files from `public/`: `world-countries.geojson` (819KB), `us-states.geojson` (87KB)
+- GeoPointMapRenderer (DOT_MAP) still uses Google Maps — it needs actual map tiles for lat/lng scatter
+
+**.npmrc**: Added `legacy-peer-deps=true` so Cloud Build installs `react-simple-maps` without requiring a flag. `react-simple-maps@3.0.0` lists React <19 as peer dep but is compatible.
+
+**Rule**: For choropleth maps, always use SVG-based rendering (react-simple-maps, d3-geo, or similar). Never use Google Maps Data Layer for this purpose — it has no synchronous fill API.
+
+---
+
 ## 2026-07-15: AI-driven dashboard builder + tab navigation
 
 **Feature**: User asks "create a dashboard showing X, Y, Z" in chat. The dashboard skill handler generates SQL for each tile, fetches initial data, saves to Firestore, and returns a `DASHBOARD_VIEW` artifact card. Clicking "Open Dashboard" opens a new tab in the main view without losing the chat context.
