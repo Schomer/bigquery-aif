@@ -271,6 +271,7 @@ After running the query, provide a brief one-line summary of what the results sh
       parameterizedSql?: string;
       baseSql?: string;
       visualization?: string;
+      chartTitle?: string;
       // DATE_RANGE fields
       dateColumn?: string;
       defaultStart?: string | null;
@@ -365,6 +366,7 @@ After running the query, provide a brief one-line summary of what the results sh
           visualization: viz,
           xAxis: initialColumns[0] ?? null,
           yAxis: initialColumns.slice(1),
+          chartTitle: widgetSpec.chartTitle ?? null,
           initialResult: {
             columns: initialColumns,
             columnTypes: initialColumnTypes,

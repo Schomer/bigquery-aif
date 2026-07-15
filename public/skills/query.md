@@ -197,6 +197,7 @@ GROUP BY month ORDER BY month
 WIDGET_SPEC_START
 {
   "controlType": "DATE_RANGE",
+  "chartTitle": "Revenue over time",
   "visualization": "LINE_CHART",
   "parameterizedSql": "... WHERE order_date BETWEEN '{{start_date}}' AND '{{end_date}}' ...",
   "baseSql": "... (no date filter) ...",
@@ -238,6 +239,7 @@ SELECT DISTINCT entity FROM `project.dataset.population` ORDER BY entity LIMIT 3
 WIDGET_SPEC_START
 {
   "controlType": "DROPDOWN",
+  "chartTitle": "Population over time",
   "visualization": "LINE_CHART",
   "parameterizedSql": "... WHERE entity = '{{entity}}' ...",
   "baseSql": "... (no entity filter) ...",
@@ -249,6 +251,7 @@ WIDGET_SPEC_START
 WIDGET_SPEC_END
 ```
 
+- `chartTitle`: a short, plain-English title describing what the chart measures (e.g., "Population over time", "Revenue by month", "Daily active users"). The app appends the selected filter value automatically — so write the title as if no filter is applied. Keep it under 8 words. Do NOT include the filter column name in the title.
 - `visualization`: the chart type that makes sense for the **filtered** result (e.g., `LINE_CHART` for year+population after filtering by entity). Choose based on what the data looks like with one value selected, NOT the all-data base shape which may have mixed dimensions.
 
 - `filterColumn`: the exact column name used in the WHERE clause.

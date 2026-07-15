@@ -135,9 +135,11 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
 
   const chartType = widgetData.visualization as Exclude<VisualizationType, 'TABLE' | 'KPI_CARD' | 'STAT_ROW' | 'INTERACTIVE_WIDGET'>;
 
-  // Dynamic title: base headline + current filter selections
+  // Dynamic title: use LLM-provided chartTitle as the base, fall back to headline.
+  // Filter selections are appended client-side so the title updates live.
   const chartTitle = (() => {
-    const base = typeof envelope.headline.text === 'string' ? envelope.headline.text : '';
+    const base = widgetData.chartTitle
+      || (typeof envelope.headline.text === 'string' ? envelope.headline.text : '');
     const parts: string[] = [];
 
     for (const ctrl of widgetData.controls) {
@@ -146,7 +148,7 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
         if (val) parts.push(val);
       } else if (ctrl.type === 'DATE_RANGE') {
         if (startDate && endDate) {
-          parts.push(`${fmtDate(startDate)}–${fmtDate(endDate)}`);
+          parts.push(`${fmtDate(startDate)}\u2013${fmtDate(endDate)}`);
         } else if (startDate) {
           parts.push(`from ${fmtDate(startDate)}`);
         } else if (endDate) {
@@ -155,7 +157,7 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
       }
     }
 
-    return parts.length > 0 ? `${base} — ${parts.join(', ')}` : base;
+    return parts.length > 0 ? `${base} \u2014 ${parts.join(', ')}` : base;
   })();
 
   return (

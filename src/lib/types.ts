@@ -365,6 +365,12 @@ export interface InteractiveWidgetData {
   defaultEnd?: string | null;
   /** BigQuery project, needed for re-query calls */
   project: string;
+  /**
+   * Short, human-readable chart title describing what the chart shows
+   * (e.g., "Population over time"). Filter context is appended dynamically.
+   * Falls back to the envelope headline if not set.
+   */
+  chartTitle?: string | null;
 }
 
 // ─── Data Management normalized result (bigquery-skill-data-management.md) ───
