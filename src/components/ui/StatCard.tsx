@@ -44,26 +44,27 @@ export function StatCard({
 
   return (
     <div style={{
-      background: 'var(--surface-2)',
-      borderRadius: 8,
-      padding: '12px 16px',
       display: 'flex',
       flexDirection: 'column',
-      gap: 3,
-      minWidth: 100,
+      gap: 1,
+      padding: '0 14px',
     }}>
       <span style={{
-        fontSize: 11,
+        fontSize: 10,
         color: highlight ? 'var(--accent)' : 'var(--text-muted)',
         fontWeight: 500,
+        letterSpacing: '0.02em',
+        textTransform: 'uppercase',
+        whiteSpace: 'nowrap',
       }}>
         {label}
       </span>
       <span style={{
-        fontSize: 16,
-        fontWeight: 700,
+        fontSize: 13,
+        fontWeight: 600,
         color: valueColor,
         fontFamily: mono ? 'var(--font-mono)' : 'inherit',
+        whiteSpace: 'nowrap',
       }}>
         {value}
       </span>

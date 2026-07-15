@@ -312,28 +312,47 @@ function TableSchemaView({ result, onSendMessage }: { result: SchemaResult; onSe
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
       {/* Table stats */}
       {(result.rowCount || result.sizeBytes || result.partitioning || result.lastModifiedTime) && (
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          background: '#f7f8f9',
+          borderRadius: 8,
+          border: '1px solid #e8eaed',
+          padding: '7px 0',
+          marginBottom: 14,
+          gap: 0,
+        }}>
           {result.rowCount && (
             <StatCard label="Rows" value={result.rowCount.toLocaleString()} mono />
           )}
           {result.sizeBytes && (
-            <StatCard label="Size" value={formatBytes(result.sizeBytes)} mono />
+            <>
+              <div style={{ width: 1, alignSelf: 'stretch', background: '#e2e4e7', margin: '2px 0' }} />
+              <StatCard label="Size" value={formatBytes(result.sizeBytes)} mono />
+            </>
           )}
           {result.partitioning && (
-            <StatCard
-              label="Partitioned by"
-              value={`${result.partitioning.field} (${result.partitioning.type})`}
-              color="var(--accent)"
-              mono
-            />
+            <>
+              <div style={{ width: 1, alignSelf: 'stretch', background: '#e2e4e7', margin: '2px 0' }} />
+              <StatCard
+                label="Partitioned by"
+                value={`${result.partitioning.field} (${result.partitioning.type})`}
+                color="var(--accent)"
+                mono
+              />
+            </>
           )}
           {result.clustering && (
-            <StatCard
-              label="Clustered by"
-              value={result.clustering.join(', ')}
-              color="var(--accent)"
-              mono
-            />
+            <>
+              <div style={{ width: 1, alignSelf: 'stretch', background: '#e2e4e7', margin: '2px 0' }} />
+              <StatCard
+                label="Clustered by"
+                value={result.clustering.join(', ')}
+                color="var(--accent)"
+                mono
+              />
+            </>
           )}
           {result.lastModifiedTime && (() => {
             const ageHours = (Date.now() - new Date(result.lastModifiedTime!).getTime()) / 3_600_000;
@@ -343,28 +362,37 @@ function TableSchemaView({ result, onSendMessage }: { result: SchemaResult; onSe
               : ageHours < 48 ? 'yesterday'
               : `${Math.floor(ageHours / 24)}d ago`;
             return (
-              <StatCard label="Last Updated" value={relativeLabel} color={freshnessColor} mono />
+              <>
+                <div style={{ width: 1, alignSelf: 'stretch', background: '#e2e4e7', margin: '2px 0' }} />
+                <StatCard label="Last Updated" value={relativeLabel} color={freshnessColor} mono />
+              </>
             );
           })()}
           {result.usageSignals && (
-            <StatCard
-              label="Queried (30d)"
-              value={result.usageSignals.queryCount30d === 0
-                ? 'rarely'
-                : `${result.usageSignals.queryCount30d.toLocaleString()}x`}
-              color={result.usageSignals.queryCount30d > 100 ? '#2563eb' : result.usageSignals.queryCount30d > 10 ? '#059669' : undefined}
-              mono
-            />
+            <>
+              <div style={{ width: 1, alignSelf: 'stretch', background: '#e2e4e7', margin: '2px 0' }} />
+              <StatCard
+                label="Queried (30d)"
+                value={result.usageSignals.queryCount30d === 0
+                  ? 'rarely'
+                  : `${result.usageSignals.queryCount30d.toLocaleString()}x`}
+                color={result.usageSignals.queryCount30d > 100 ? '#2563eb' : result.usageSignals.queryCount30d > 10 ? '#059669' : undefined}
+                mono
+              />
+            </>
           )}
           {result.usageSignals?.lastQueriedAt && (
-            <StatCard
-              label="Last Queried"
-              value={(() => {
-                const h = (Date.now() - new Date(result.usageSignals!.lastQueriedAt!).getTime()) / 3_600_000;
-                return h < 1 ? 'just now' : h < 24 ? `${Math.round(h)}h ago` : `${Math.floor(h / 24)}d ago`;
-              })()}
-              mono
-            />
+            <>
+              <div style={{ width: 1, alignSelf: 'stretch', background: '#e2e4e7', margin: '2px 0' }} />
+              <StatCard
+                label="Last Queried"
+                value={(() => {
+                  const h = (Date.now() - new Date(result.usageSignals!.lastQueriedAt!).getTime()) / 3_600_000;
+                  return h < 1 ? 'just now' : h < 24 ? `${Math.round(h)}h ago` : `${Math.floor(h / 24)}d ago`;
+                })()}
+                mono
+              />
+            </>
           )}
         </div>
       )}
