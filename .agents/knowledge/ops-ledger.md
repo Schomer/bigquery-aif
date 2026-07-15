@@ -1,6 +1,20 @@
 # Operations Ledger
 
+## 2026-07-15: Zero-row results on population_data -- LLM adding implicit year filter
+
+**What happened**: Querying `population_data` (117,648 rows, columns: Country, Code, Year, Population) consistently returned 0 rows with the headline "No population data found for the requested countries or dates".
+
+**Root cause**: The system prompt in `handle-query.ts` injects `Today's date: <ISO date>`. The LLM interpreted this as an instruction to filter to current data and added `WHERE Year = 2026` (or similar). The `population_data` table has `Year` as an integer column (including ancient negative years), and has no rows for 2026 or recent years beyond its data cutoff. Result: 0 rows, LLM summary becomes the headline.
+
+**Fix**: Added a CRITICAL rule to `public/skills/query.md` (SQL rules section):
+> Do NOT apply implicit year or date filters based on today's date. Today's date is for relative date range computation only. Many tables have integer Year columns that don't include the current year. When no year is specified, omit the filter or use `WHERE year = (SELECT MAX(year) FROM ...)`.
+
+**Rule**: `Today's date` in the system prompt is for relative ranges ("last 30 days"), not for implying recency filters. Any WHERE clause on a year/date column must be traceable to an explicit user request.
+
+---
+
 ## 2026-07-14: Interactive widget with date range picker added
+
 
 **What was built**: When a user asks for "a date range picker", "filter by date", "date filter", "let me filter", etc., the query skill now returns an `INTERACTIVE_WIDGET` artifact instead of a plain query result. The widget has:
 - Date range pickers (start/end, empty by default, all data shown on load)

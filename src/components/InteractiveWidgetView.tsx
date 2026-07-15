@@ -608,10 +608,10 @@ const selectStyle: React.CSSProperties = {
 
 const clearBtnStyle: React.CSSProperties = {
   width: 20, height: 20, borderRadius: '50%',
-  background: '#bfdbfe',
+  background: 'var(--surface-3, #e2e8f0)',
   border: 'none', cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  color: '#1d4ed8', fontSize: 11, fontWeight: 700, lineHeight: 1,
+  color: 'var(--text-muted, #94a3b8)', fontSize: 11, fontWeight: 700, lineHeight: 1,
   padding: 0, flexShrink: 0, transition: 'background 0.15s',
 };
 
