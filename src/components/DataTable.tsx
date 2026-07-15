@@ -12,19 +12,12 @@ interface Props {
 }
 
 export function DataTable({ result, emphasis, onSendMessage }: Props) {
-  const [filter, setFilter] = useState('');
   const [sortCol, setSortCol] = useState<number | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const { columns, rows } = result;
 
-  let filtered = filter
-    ? rows.filter((row) =>
-        row.some((cell) =>
-          String(cell).toLowerCase().includes(filter.toLowerCase())
-        )
-      )
-    : rows;
+  let filtered = rows;
 
   if (sortCol !== null) {
     filtered = [...filtered].sort((a, b) => {
@@ -50,27 +43,7 @@ export function DataTable({ result, emphasis, onSendMessage }: Props) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {/* Filter bar (only if > 8 rows) */}
-      {rows.length > 8 && (
-        <input
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter rows..."
-          style={{
-            background: 'var(--surface-2)',
-            border: '1px solid var(--border)',
-            borderRadius: 6,
-            padding: '6px 10px',
-            fontSize: 12,
-            color: 'var(--text)',
-            outline: 'none',
-            width: '100%',
-          }}
-        />
-      )}
-
-      <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid var(--border)' }}>
+    <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid var(--border)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
@@ -181,9 +154,6 @@ export function DataTable({ result, emphasis, onSendMessage }: Props) {
             )}
           </tbody>
         </table>
-      </div>
-
-
     </div>
   );
 }

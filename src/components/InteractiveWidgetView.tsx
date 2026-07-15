@@ -135,6 +135,29 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
 
   const chartType = widgetData.visualization as Exclude<VisualizationType, 'TABLE' | 'KPI_CARD' | 'STAT_ROW' | 'INTERACTIVE_WIDGET'>;
 
+  // Dynamic title: base headline + current filter selections
+  const chartTitle = (() => {
+    const base = typeof envelope.headline.text === 'string' ? envelope.headline.text : '';
+    const parts: string[] = [];
+
+    for (const ctrl of widgetData.controls) {
+      if (ctrl.type === 'DROPDOWN') {
+        const val = dropdownValues[ctrl.param];
+        if (val) parts.push(val);
+      } else if (ctrl.type === 'DATE_RANGE') {
+        if (startDate && endDate) {
+          parts.push(`${fmtDate(startDate)}–${fmtDate(endDate)}`);
+        } else if (startDate) {
+          parts.push(`from ${fmtDate(startDate)}`);
+        } else if (endDate) {
+          parts.push(`until ${fmtDate(endDate)}`);
+        }
+      }
+    }
+
+    return parts.length > 0 ? `${base} — ${parts.join(', ')}` : base;
+  })();
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
@@ -245,7 +268,21 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
         </div>
       )}
 
+      {/* Dynamic chart title */}
+      {chartTitle && (
+        <p style={{
+          margin: 0,
+          fontSize: 13,
+          fontWeight: 600,
+          color: 'var(--text, #1e293b)',
+          lineHeight: 1.4,
+        }}>
+          {chartTitle}
+        </p>
+      )}
+
       {/* Chart / Table switcher */}
+
       {isChartable && (
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <div style={{
@@ -352,3 +389,10 @@ const clearBtnStyle: React.CSSProperties = {
   flexShrink: 0,
   transition: 'background 0.15s',
 };
+// Date formatting helper: 'Jan 15, 2024'
+function fmtDate(iso: string): string {
+  const [year, month, day] = iso.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const m = months[parseInt(month, 10) - 1] ?? month;
+  return `${m} ${parseInt(day, 10)}, ${year}`;
+}
