@@ -300,8 +300,8 @@ After running the query, provide a brief one-line summary of what the results sh
       let initialRowCount = captured.rowCount;
       let initialJobId = captured.jobId || undefined;
 
-      if (controlType === 'DROPDOWN' && widgetSpec.filterColumn && widgetSpec.filterParam && widgetSpec.optionsSql) {
-        // Fetch dropdown options
+      if ((controlType === 'DROPDOWN' || controlType === 'MULTI_SELECT') && widgetSpec.filterColumn && widgetSpec.filterParam && widgetSpec.optionsSql) {
+        // Fetch options (shared between DROPDOWN and MULTI_SELECT)
         let options: string[] = [];
         try {
           onStatus?.(`Loading ${widgetSpec.filterColumn} options...`);
@@ -311,43 +311,53 @@ After running the query, provide a brief one-line summary of what the results sh
           // Non-fatal
         }
 
-        // Pick the effective default: only if LLM explicitly specified one
-        const effectiveDefault = widgetSpec.defaultValue ?? null;
+        if (controlType === 'MULTI_SELECT') {
+          const defaultValues = (widgetSpec as unknown as { defaultValues?: string[] | null }).defaultValues ?? null;
+          controls = [{
+            type: 'MULTI_SELECT',
+            label: widgetSpec.filterColumn.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+            param: widgetSpec.filterParam,
+            column: widgetSpec.filterColumn,
+            options,
+            defaultValues,
+          }];
+        } else {
+          // DROPDOWN
+          const effectiveDefault = widgetSpec.defaultValue ?? null;
 
-
-        if (effectiveDefault) {
-          try {
-            onStatus?.(`Loading ${effectiveDefault}...`);
-            const safe = effectiveDefault.replace(/'/g, "''");
-            const quotedLiteral = `'${safe}'`;
-            const escapedParam = widgetSpec.filterParam.replace(/[{}]/g, '\\$&');
-            let filteredSql = widgetSpec.parameterizedSql;
-            const quotedPlaceholder = new RegExp(`'${escapedParam}'`, 'g');
-            if (quotedPlaceholder.test(filteredSql)) {
-              filteredSql = filteredSql.replace(quotedPlaceholder, quotedLiteral);
-            } else {
-              filteredSql = filteredSql.replace(new RegExp(escapedParam, 'g'), quotedLiteral);
+          if (effectiveDefault) {
+            try {
+              onStatus?.(`Loading ${effectiveDefault}...`);
+              const safe = effectiveDefault.replace(/'/g, "''");
+              const quotedLiteral = `'${safe}'`;
+              const escapedParam = widgetSpec.filterParam.replace(/[{}]/g, '\\$&');
+              let filteredSql = widgetSpec.parameterizedSql;
+              const quotedPlaceholder = new RegExp(`'${escapedParam}'`, 'g');
+              if (quotedPlaceholder.test(filteredSql)) {
+                filteredSql = filteredSql.replace(quotedPlaceholder, quotedLiteral);
+              } else {
+                filteredSql = filteredSql.replace(new RegExp(escapedParam, 'g'), quotedLiteral);
+              }
+              const filteredResult = await executeQuery(filteredSql, project);
+              initialColumns = filteredResult.columns;
+              initialColumnTypes = filteredResult.columnTypes;
+              initialRows = filteredResult.rows;
+              initialRowCount = filteredResult.rowCount;
+              initialJobId = filteredResult.jobId || undefined;
+            } catch {
+              // Non-fatal -- fall back to baseSql capture
             }
-            const filteredResult = await executeQuery(filteredSql, project);
-            initialColumns = filteredResult.columns;
-            initialColumnTypes = filteredResult.columnTypes;
-            initialRows = filteredResult.rows;
-            initialRowCount = filteredResult.rowCount;
-            initialJobId = filteredResult.jobId || undefined;
-          } catch {
-            // Non-fatal -- fall back to baseSql capture
           }
+
+          controls = [{
+            type: 'DROPDOWN',
+            label: widgetSpec.filterColumn.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+            param: widgetSpec.filterParam,
+            column: widgetSpec.filterColumn,
+            options,
+            defaultValue: effectiveDefault,
+          }];
         }
-
-
-        controls = [{
-          type: 'DROPDOWN',
-          label: widgetSpec.filterColumn.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
-          param: widgetSpec.filterParam,
-          column: widgetSpec.filterColumn,
-          options,
-          defaultValue: effectiveDefault,
-        }];
       } else if (widgetSpec.dateColumn) {
         controls = [{
           type: 'DATE_RANGE',
@@ -357,6 +367,7 @@ After running the query, provide a brief one-line summary of what the results sh
           dateColumn: widgetSpec.dateColumn,
         }];
       }
+
 
       if (controls.length > 0) {
         // Use the LLM-specified visualization if provided; it knows the filtered shape

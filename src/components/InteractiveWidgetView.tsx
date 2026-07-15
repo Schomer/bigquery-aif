@@ -1,16 +1,199 @@
 'use client';
 
 // InteractiveWidgetView.tsx
-// Renders an INTERACTIVE_WIDGET envelope: filter controls + chart/table switcher.
-// Supports DATE_RANGE and DROPDOWN controls. Filters apply immediately on change.
+// Renders an INTERACTIVE_WIDGET: filter controls (DATE_RANGE, DROPDOWN, MULTI_SELECT)
+// + chart/table switcher. Filters apply immediately on change.
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { CustomViewProps, InteractiveWidgetData, VisualizationType } from '@/lib/types';
 import { executeQuery } from '@/lib/bigquery-client';
 import { ChartView } from './ChartView';
 import { DataTable } from './DataTable';
 
 type ViewMode = 'chart' | 'table';
+
+// ─── Multi-select dropdown ────────────────────────────────────────────────────
+
+const SEARCH_THRESHOLD = 8; // show search when there are more than this many options
+
+function MultiSelectDropdown({
+  id,
+  label,
+  options,
+  selected,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  options: string[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const visible = search
+    ? options.filter((o) => o.toLowerCase().includes(search.toLowerCase()))
+    : options;
+
+  const toggle = (opt: string) => {
+    const next = selected.includes(opt)
+      ? selected.filter((s) => s !== opt)
+      : [...selected, opt];
+    onChange(next);
+  };
+
+  const triggerLabel =
+    selected.length === 0 ? 'All'
+    : selected.length === 1 ? selected[0]
+    : `${selected.length} selected`;
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+      {/* Trigger */}
+      <button
+        id={id}
+        onClick={() => setOpen((v) => !v)}
+        aria-label={`${label} filter`}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          fontSize: 12,
+          fontFamily: 'inherit',
+          padding: '5px 10px 5px 10px',
+          border: '1px solid var(--border, #e8edf5)',
+          borderRadius: 7,
+          background: selected.length > 0 ? 'var(--accent-subtle, #eff6ff)' : '#fff',
+          color: selected.length > 0 ? 'var(--accent, #4f7fff)' : 'var(--text)',
+          cursor: 'pointer',
+          minWidth: 100,
+          maxWidth: 220,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {triggerLabel}
+        </span>
+        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ flexShrink: 0, opacity: 0.5 }}>
+          <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+
+      {/* Panel */}
+      {open && (
+        <div style={{
+          position: 'absolute',
+          top: 'calc(100% + 4px)',
+          left: 0,
+          zIndex: 100,
+          background: '#fff',
+          border: '1px solid var(--border, #e8edf5)',
+          borderRadius: 10,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+          minWidth: 220,
+          maxWidth: 320,
+        }}>
+          {/* Search — shown only when there are more than SEARCH_THRESHOLD options */}
+          {options.length > SEARCH_THRESHOLD && (
+            <div style={{ padding: '8px 10px 0' }}>
+              <input
+                autoFocus
+                type="text"
+                placeholder="Search..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{
+                  width: '100%',
+                  fontSize: 12,
+                  fontFamily: 'inherit',
+                  padding: '5px 8px',
+                  border: '1px solid var(--border, #e8edf5)',
+                  borderRadius: 6,
+                  outline: 'none',
+                  background: 'var(--surface-2, #f8f9fc)',
+                  color: 'var(--text)',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+          )}
+
+          {/* Quick actions */}
+          <div style={{
+            display: 'flex',
+            gap: 6,
+            padding: '7px 10px 5px',
+            borderBottom: '1px solid var(--border, #e8edf5)',
+          }}>
+            <button
+              onClick={() => onChange(options)}
+              style={quickActionStyle}
+            >Select all</button>
+            <button
+              onClick={() => onChange([])}
+              style={quickActionStyle}
+            >Clear</button>
+          </div>
+
+          {/* Option list */}
+          <div style={{ maxHeight: 240, overflowY: 'auto', padding: '4px 0' }}>
+            {visible.length === 0 ? (
+              <p style={{ margin: 0, padding: '8px 12px', fontSize: 12, color: 'var(--text-muted)' }}>
+                No matches
+              </p>
+            ) : visible.map((opt) => {
+              const checked = selected.includes(opt);
+              return (
+                <label
+                  key={opt}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '5px 12px',
+                    fontSize: 12,
+                    color: 'var(--text)',
+                    cursor: 'pointer',
+                    background: checked ? 'var(--accent-subtle, #eff6ff)' : 'transparent',
+                    transition: 'background 0.1s',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggle(opt)}
+                    style={{ width: 13, height: 13, cursor: 'pointer', accentColor: 'var(--accent, #4f7fff)' }}
+                  />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {opt}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main widget view ─────────────────────────────────────────────────────────
 
 export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewProps) {
   const widgetData = envelope.primaryArtifact.data as InteractiveWidgetData;
@@ -21,9 +204,15 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
   const [dropdownValues, setDropdownValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     for (const ctrl of widgetData.controls) {
-      if (ctrl.type === 'DROPDOWN') {
-        initial[ctrl.param] = ctrl.defaultValue ?? '';
-      }
+      if (ctrl.type === 'DROPDOWN') initial[ctrl.param] = ctrl.defaultValue ?? '';
+    }
+    return initial;
+  });
+
+  const [multiSelectValues, setMultiSelectValues] = useState<Record<string, string[]>>(() => {
+    const initial: Record<string, string[]> = {};
+    for (const ctrl of widgetData.controls) {
+      if (ctrl.type === 'MULTI_SELECT') initial[ctrl.param] = ctrl.defaultValues ?? [];
     }
     return initial;
   });
@@ -41,41 +230,49 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
 
   const isChartable = !['TABLE', 'KPI_CARD', 'STAT_ROW', 'INTERACTIVE_WIDGET'].includes(widgetData.visualization);
 
-  // Core query runner — takes explicit values so it works correctly in onChange
-  // handlers before React state has flushed.
   const runQuery = useCallback(async (opts: {
     startDate: string;
     endDate: string;
     dropdownValues: Record<string, string>;
+    multiSelectValues: Record<string, string[]>;
   }) => {
     setError(null);
 
     const hasDateRange = opts.startDate.length > 0 || opts.endDate.length > 0;
     const hasDropdown = Object.values(opts.dropdownValues).some((v) => v.length > 0);
-    const hasAnyFilter = hasDateRange || hasDropdown;
+    const hasMultiSelect = Object.values(opts.multiSelectValues).some((v) => v.length > 0);
+    const hasAnyFilter = hasDateRange || hasDropdown || hasMultiSelect;
 
     let sqlToRun = hasAnyFilter ? widgetData.parameterizedSql : widgetData.baseSql;
 
+    // DATE_RANGE substitution
     if (hasDateRange) {
       sqlToRun = sqlToRun
         .replace(/\{\{start_date\}\}/g, opts.startDate || '1900-01-01')
         .replace(/\{\{end_date\}\}/g, opts.endDate || '2100-12-31');
     }
 
+    // DROPDOWN substitution — handles quoted/unquoted placeholder
     for (const [param, value] of Object.entries(opts.dropdownValues)) {
       if (value) {
-        // Escape single quotes using BigQuery's '' convention (not backslash)
         const safe = value.replace(/'/g, "''");
         const quotedLiteral = `'${safe}'`;
         const escapedParam = param.replace(/[{}]/g, '\\$&');
-        // Match '{{param}}' (LLM included quotes) first, then {{param}} (no quotes)
-        // so the replacement always yields a properly-quoted SQL string literal
         const quotedPlaceholder = new RegExp(`'${escapedParam}'`, 'g');
         if (quotedPlaceholder.test(sqlToRun)) {
           sqlToRun = sqlToRun.replace(quotedPlaceholder, quotedLiteral);
         } else {
           sqlToRun = sqlToRun.replace(new RegExp(escapedParam, 'g'), quotedLiteral);
         }
+      }
+    }
+
+    // MULTI_SELECT substitution — replaces {{param}} with 'val1', 'val2', 'val3'
+    for (const [param, values] of Object.entries(opts.multiSelectValues)) {
+      if (values.length > 0) {
+        const inList = values.map((v) => `'${v.replace(/'/g, "''")}'`).join(', ');
+        const escapedParam = param.replace(/[{}]/g, '\\$&');
+        sqlToRun = sqlToRun.replace(new RegExp(escapedParam, 'g'), inList);
       }
     }
 
@@ -98,32 +295,64 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
   const handleDropdownChange = useCallback((param: string, value: string) => {
     const next = { ...dropdownValues, [param]: value };
     setDropdownValues(next);
-    runQuery({ startDate, endDate, dropdownValues: next });
-  }, [dropdownValues, startDate, endDate, runQuery]);
+    runQuery({ startDate, endDate, dropdownValues: next, multiSelectValues });
+  }, [dropdownValues, startDate, endDate, multiSelectValues, runQuery]);
+
+  const handleMultiSelectChange = useCallback((param: string, values: string[]) => {
+    const next = { ...multiSelectValues, [param]: values };
+    setMultiSelectValues(next);
+    runQuery({ startDate, endDate, dropdownValues, multiSelectValues: next });
+  }, [multiSelectValues, startDate, endDate, dropdownValues, runQuery]);
 
   const handleStartDateChange = useCallback((value: string) => {
     setStartDate(value);
-    runQuery({ startDate: value, endDate, dropdownValues });
-  }, [endDate, dropdownValues, runQuery]);
+    runQuery({ startDate: value, endDate, dropdownValues, multiSelectValues });
+  }, [endDate, dropdownValues, multiSelectValues, runQuery]);
 
   const handleEndDateChange = useCallback((value: string) => {
     setEndDate(value);
-    runQuery({ startDate, endDate: value, dropdownValues });
-  }, [startDate, dropdownValues, runQuery]);
+    runQuery({ startDate, endDate: value, dropdownValues, multiSelectValues });
+  }, [startDate, dropdownValues, multiSelectValues, runQuery]);
 
   const handleClear = useCallback(() => {
-    const cleared: Record<string, string> = {};
-    for (const k of Object.keys(dropdownValues)) cleared[k] = '';
+    const clearedDropdown: Record<string, string> = {};
+    for (const k of Object.keys(dropdownValues)) clearedDropdown[k] = '';
+    const clearedMulti: Record<string, string[]> = {};
+    for (const k of Object.keys(multiSelectValues)) clearedMulti[k] = [];
     setStartDate('');
     setEndDate('');
-    setDropdownValues(cleared);
-    runQuery({ startDate: '', endDate: '', dropdownValues: cleared });
-  }, [dropdownValues, runQuery]);
+    setDropdownValues(clearedDropdown);
+    setMultiSelectValues(clearedMulti);
+    runQuery({ startDate: '', endDate: '', dropdownValues: clearedDropdown, multiSelectValues: clearedMulti });
+  }, [dropdownValues, multiSelectValues, runQuery]);
 
   const hasAnyFilter =
     startDate.length > 0 ||
     endDate.length > 0 ||
-    Object.values(dropdownValues).some((v) => v.length > 0);
+    Object.values(dropdownValues).some((v) => v.length > 0) ||
+    Object.values(multiSelectValues).some((v) => v.length > 0);
+
+  // Dynamic title — uses LLM chartTitle as the base, appends filter context
+  const chartTitle = (() => {
+    const base = widgetData.chartTitle
+      || (typeof envelope.headline.text === 'string' ? envelope.headline.text : '');
+    const parts: string[] = [];
+    for (const ctrl of widgetData.controls) {
+      if (ctrl.type === 'DROPDOWN') {
+        const val = dropdownValues[ctrl.param];
+        if (val) parts.push(val);
+      } else if (ctrl.type === 'MULTI_SELECT') {
+        const vals = multiSelectValues[ctrl.param] ?? [];
+        if (vals.length === 1) parts.push(vals[0]);
+        else if (vals.length > 1) parts.push(`${vals.length} ${ctrl.label.toLowerCase()}s`);
+      } else if (ctrl.type === 'DATE_RANGE') {
+        if (startDate && endDate) parts.push(`${fmtDate(startDate)}\u2013${fmtDate(endDate)}`);
+        else if (startDate) parts.push(`from ${fmtDate(startDate)}`);
+        else if (endDate) parts.push(`until ${fmtDate(endDate)}`);
+      }
+    }
+    return parts.length > 0 ? `${base} \u2014 ${parts.join(', ')}` : base;
+  })();
 
   const queryResult = {
     skill: 'query' as const,
@@ -144,31 +373,6 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
   };
 
   const chartType = widgetData.visualization as Exclude<VisualizationType, 'TABLE' | 'KPI_CARD' | 'STAT_ROW' | 'INTERACTIVE_WIDGET'>;
-
-  // Dynamic title: use LLM-provided chartTitle as the base, fall back to headline.
-  // Filter selections are appended client-side so the title updates live.
-  const chartTitle = (() => {
-    const base = widgetData.chartTitle
-      || (typeof envelope.headline.text === 'string' ? envelope.headline.text : '');
-    const parts: string[] = [];
-
-    for (const ctrl of widgetData.controls) {
-      if (ctrl.type === 'DROPDOWN') {
-        const val = dropdownValues[ctrl.param];
-        if (val) parts.push(val);
-      } else if (ctrl.type === 'DATE_RANGE') {
-        if (startDate && endDate) {
-          parts.push(`${fmtDate(startDate)}\u2013${fmtDate(endDate)}`);
-        } else if (startDate) {
-          parts.push(`from ${fmtDate(startDate)}`);
-        } else if (endDate) {
-          parts.push(`until ${fmtDate(endDate)}`);
-        }
-      }
-    }
-
-    return parts.length > 0 ? `${base} \u2014 ${parts.join(', ')}` : base;
-  })();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -236,23 +440,34 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
             );
           }
 
+          if (ctrl.type === 'MULTI_SELECT') {
+            return (
+              <div key={i} style={{ display: 'contents' }}>
+                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                  {ctrl.label}
+                </span>
+                <MultiSelectDropdown
+                  id={`widget-multiselect-${i}`}
+                  label={ctrl.label}
+                  options={ctrl.options}
+                  selected={multiSelectValues[ctrl.param] ?? []}
+                  onChange={(values) => handleMultiSelectChange(ctrl.param, values)}
+                />
+              </div>
+            );
+          }
+
           return null;
         })}
 
         {/* Round X clear button */}
         {hasAnyFilter && (
-          <button
-            onClick={handleClear}
-            style={clearBtnStyle}
-            aria-label="Clear filters"
-            title="Clear filters"
-          >
-            {/* × character, visually centered */}
+          <button onClick={handleClear} style={clearBtnStyle} aria-label="Clear filters" title="Clear filters">
             &#x2715;
           </button>
         )}
 
-        {/* Loading indicator */}
+        {/* Spinner */}
         {isLoading && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)' }}>
             <span className="widget-spinner" />
@@ -266,45 +481,24 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
         </span>
       </div>
 
-      {/* Inline error */}
+      {/* Error */}
       {error && (
-        <div style={{
-          padding: '8px 12px',
-          background: '#fff5f5',
-          border: '1px solid #fecaca',
-          borderRadius: 8,
-          fontSize: 12,
-          color: '#b91c1c',
-        }}>
+        <div style={{ padding: '8px 12px', background: '#fff5f5', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#b91c1c' }}>
           {error}
         </div>
       )}
 
       {/* Dynamic chart title */}
       {chartTitle && (
-        <p style={{
-          margin: 0,
-          fontSize: 15,
-          fontWeight: 500,
-          color: '#334155',
-          lineHeight: 1.5,
-        }}>
+        <p style={{ margin: 0, fontSize: 15, fontWeight: 500, color: '#334155', lineHeight: 1.5 }}>
           {chartTitle}
         </p>
       )}
 
       {/* Chart / Table switcher */}
-
       {isChartable && (
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <div style={{
-            display: 'inline-flex',
-            background: 'var(--surface-2)',
-            border: '1px solid var(--border)',
-            borderRadius: 20,
-            padding: 2,
-            gap: 2,
-          }}>
+          <div style={{ display: 'inline-flex', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 20, padding: 2, gap: 2 }}>
             {(['chart', 'table'] as const).map((v) => (
               <button
                 key={v}
@@ -340,68 +534,52 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
       <style>{`
         .widget-spinner {
           display: inline-block;
-          width: 10px;
-          height: 10px;
+          width: 10px; height: 10px;
           border: 1.5px solid var(--border, #e8edf5);
           border-top-color: var(--accent, #4f7fff);
           border-radius: 50%;
           animation: widget-spin 0.6s linear infinite;
           vertical-align: middle;
         }
-        @keyframes widget-spin {
-          to { transform: rotate(360deg); }
-        }
+        @keyframes widget-spin { to { transform: rotate(360deg); } }
       `}</style>
     </div>
   );
 }
 
+// ─── Shared styles ────────────────────────────────────────────────────────────
+
 const dateInputStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontFamily: 'inherit',
-  padding: '5px 8px',
-  border: '1px solid var(--border, #e8edf5)',
-  borderRadius: 7,
-  background: '#fff',
-  color: 'var(--text)',
-  outline: 'none',
-  cursor: 'pointer',
+  fontSize: 12, fontFamily: 'inherit', padding: '5px 8px',
+  border: '1px solid var(--border, #e8edf5)', borderRadius: 7,
+  background: '#fff', color: 'var(--text)', outline: 'none', cursor: 'pointer',
 };
 
 const selectStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontFamily: 'inherit',
-  padding: '5px 32px 5px 8px',
-  border: '1px solid var(--border, #e8edf5)',
-  borderRadius: 7,
-  background: '#fff',
-  color: 'var(--text)',
-  outline: 'none',
-  cursor: 'pointer',
-  appearance: 'auto',
-  maxWidth: 220,
+  fontSize: 12, fontFamily: 'inherit', padding: '5px 32px 5px 8px',
+  border: '1px solid var(--border, #e8edf5)', borderRadius: 7,
+  background: '#fff', color: 'var(--text)', outline: 'none',
+  cursor: 'pointer', appearance: 'auto', maxWidth: 220,
 };
 
-// Round X clear button
 const clearBtnStyle: React.CSSProperties = {
-  width: 20,
-  height: 20,
-  borderRadius: '50%',
+  width: 20, height: 20, borderRadius: '50%',
   background: '#bfdbfe',
-  border: 'none',
-  cursor: 'pointer',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  color: '#fff',
-  fontSize: 11,
-  fontWeight: 700,
-  lineHeight: 1,
-  padding: 0,
-  flexShrink: 0,
-  transition: 'background 0.15s',
+  border: 'none', cursor: 'pointer',
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  color: '#1d4ed8', fontSize: 11, fontWeight: 700, lineHeight: 1,
+  padding: 0, flexShrink: 0, transition: 'background 0.15s',
 };
-// Date formatting helper: 'Jan 15, 2024'
+
+const quickActionStyle: React.CSSProperties = {
+  fontSize: 11, fontFamily: 'inherit', padding: '2px 8px',
+  border: '1px solid var(--border, #e8edf5)', borderRadius: 5,
+  background: 'transparent', color: 'var(--text-muted)',
+  cursor: 'pointer', transition: 'background 0.1s',
+};
+
+// ─── Date helper ──────────────────────────────────────────────────────────────
+
 function fmtDate(iso: string): string {
   const [year, month, day] = iso.split('-');
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];

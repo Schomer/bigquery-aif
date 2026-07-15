@@ -341,6 +341,15 @@ export type WidgetControl =
       options: string[];    // pre-fetched distinct values (populated by handler)
       /** null means "show all" (no WHERE clause added) */
       defaultValue?: string | null;
+    }
+  | {
+      type: 'MULTI_SELECT';
+      label: string;
+      param: string;        // e.g. '{{entity_list}}'
+      column: string;       // column name used in WHERE clause
+      options: string[];    // pre-fetched distinct values
+      /** null / [] means show all; non-empty array pre-selects those values */
+      defaultValues?: string[] | null;
     };
 
 export interface InteractiveWidgetData {

@@ -262,6 +262,41 @@ WIDGET_SPEC_END
 
 ---
 
+### Control type C — Multi-select (multiple categorical values)
+
+Use when the user says **"filter by multiple"**, **"allow selecting more than one"**, **"multi-select"**, or any phrasing that implies the user can pick several values at once from a list.
+
+**parameterizedSql** — use `IN ({{param}})` with the placeholder **inside** the parentheses:
+```sql
+SELECT year, entity, population FROM `project.dataset.population`
+WHERE entity IN ({{entity_list}})
+ORDER BY year
+```
+
+**widgetSpec** for multi-select:
+```
+WIDGET_SPEC_START
+{
+  "controlType": "MULTI_SELECT",
+  "chartTitle": "Population over time",
+  "visualization": "LINE_CHART",
+  "parameterizedSql": "... WHERE entity IN ({{entity_list}}) ...",
+  "baseSql": "... (no entity filter) ...",
+  "filterColumn": "entity",
+  "filterParam": "{{entity_list}}",
+  "optionsSql": "SELECT DISTINCT entity FROM `project.dataset.population` ORDER BY entity LIMIT 300",
+  "defaultValues": null
+}
+WIDGET_SPEC_END
+```
+
+- `filterParam`: the placeholder **without** quotes — the system adds `'value1', 'value2'` quoting automatically when substituting.
+- `defaultValues`: array of pre-selected values, or null (show all on load).
+- The baseSql runs when nothing is selected (all values).
+- Do NOT put quotes around `{{entity_list}}` in parameterizedSql — the parentheses `IN ({{entity_list}})` are correct as shown.
+
+---
+
 ### General rules for Interactive Widget Mode
 
 1. Always call `run_query` with **baseSql** (no filters). Set `visualizationHint` to `"INTERACTIVE_WIDGET"`.
