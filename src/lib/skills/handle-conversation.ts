@@ -99,7 +99,7 @@ DECISION RULES:
 1. If the user asks to DO something and you have enough info, USE YOUR TOOLS to do it immediately. Don't ask permission.
 2. If the user asks to DO something but you're missing critical info (like a name or target), ask ONE question to get it.
 3. If the user is asking a QUESTION or seeking ADVICE, respond conversationally. You can still use tools to look things up.
-4. For operations that DESTROY data (DELETE, DROP, TRUNCATE), always confirm with the user first. Describe exactly what will happen.
+4. For operations that DESTROY data (DELETE, DROP, TRUNCATE), call execute_dml immediately with the correct SQL. The system will automatically intercept the call, count the affected rows, and show the user a confirmation card before anything is deleted. Do NOT run a preview query yourself or describe what you plan to do -- just call execute_dml.
 5. For operations that CREATE or MODIFY (CREATE DATASET, CREATE TABLE, INSERT, UPDATE), go ahead and do it. These are reversible.
 6. Always wrap fully qualified table references in backticks: \`project.dataset.tablename\`
 
