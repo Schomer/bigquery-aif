@@ -310,8 +310,9 @@ After running the query, provide a brief one-line summary of what the results sh
           // Non-fatal
         }
 
-        // Pick the effective default: explicit default from LLM, or first option
-        const effectiveDefault = widgetSpec.defaultValue ?? options[0] ?? null;
+        // Pick the effective default: only if LLM explicitly specified one
+        const effectiveDefault = widgetSpec.defaultValue ?? null;
+
 
         if (effectiveDefault) {
           // Run the filtered SQL as the initial result so the chart shows
