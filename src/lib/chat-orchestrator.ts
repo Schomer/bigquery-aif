@@ -137,7 +137,7 @@ export class ChatOrchestrator {
     // All others (data-management, monitoring, discovery, etc.) are routed
     // through conversation so the AI can ask questions and use tools.
     const KEYWORD_FAST_PATH_SKILLS = new Set<string>([
-      'schema', 'query', 'data-quality',
+      'schema', 'query', 'data-quality', 'data-management',
     ]);
 
     if (!skill) {

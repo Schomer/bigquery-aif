@@ -42,7 +42,7 @@ These principles govern all design decisions. They are not suggestions -- they a
 
 ---
 
-- **AI-first routing -- conversation handler is the default**: Only schema, query, and data-quality have a keyword fast-path (high-confidence keyword bypass). All other skills (data-management, monitoring, discovery, etc.) are routed through the conversation handler, which is a tool-calling agent that decides what to do. This replaces the old pattern where every high-confidence keyword match went directly to a specialized handler.
+- **AI-first routing -- conversation handler is the default, with exceptions**: schema, query, data-quality, and **data-management** have a keyword fast-path (high-confidence keyword bypass). data-management is in the fast path because `handleDataManagement` is the only way to produce the structured preview+confirm UX for destructive operations (DELETE, TRUNCATE, DROP). The conversation agent's `execute_dml` tool runs DML directly without that safety flow. All other skills (monitoring, discovery, etc.) are routed through the conversation handler.
 - **Conversation handler is a tool-calling agent**: `handleConversation()` uses `callGeminiWithTools()` with 6 tools: `run_query`, `get_table_schema`, `list_tables`, `list_datasets`, `create_dataset`, `execute_dml`. It can both converse AND execute operations.
 - **LLM classifier results also prefer conversation**: When the LLM classifier returns a skill that is NOT in the fast-path set (schema, query, data-quality), the orchestrator routes to conversation instead.
 - **Final fallback is conversation, not keyword result**: When both keyword router and LLM classifier fail, the orchestrator defaults to conversation, not the keyword result.
