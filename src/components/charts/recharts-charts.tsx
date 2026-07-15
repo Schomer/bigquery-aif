@@ -361,7 +361,6 @@ export function PieChartRenderer({ result, onSendMessage }: ChartProps) {
             ))}
           </Pie>
           <Tooltip {...TOOLTIP_STYLE} />
-          <Legend iconSize={8} iconType="circle" />
         </PieChart>
       </ResponsiveContainer>
       <ChartTip />
@@ -400,7 +399,6 @@ export function DonutChartRenderer({ result, onSendMessage }: ChartProps) {
             ))}
           </Pie>
           <Tooltip {...TOOLTIP_STYLE} />
-          <Legend iconSize={8} iconType="circle" />
           {/* Centered total label */}
           <text
             x="50%"
@@ -711,7 +709,7 @@ export function ComposedChartRenderer({ result, onSendMessage }: ChartProps) {
               dot={false}
             />
           ))}
-          <Legend iconSize={8} />
+          {yKeys.length > 1 && <Legend iconSize={8} />}
         </ComposedChart>
       </ResponsiveContainer>
       <ChartTip />

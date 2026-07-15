@@ -1,6 +1,25 @@
 # Operations Ledger
 
+## 2026-07-15: INFORMATION_SCHEMA.JOBS queries hitting iteration cap
+
+**What happened**: User asked "Show me the 10 most expensive BigQuery queries run in the past 7 days, with bytes billed and estimated cost." The app displayed "Reached maximum tool-call iterations." -- the LLM burned all 10 iterations without ever calling `run_query`.
+
+**Root cause**: The query handler pre-fetches the active dataset's table list and injects it into the system prompt. For an `INFORMATION_SCHEMA.JOBS` query, there is no relevant table -- it is a region-level view. The LLM had no template for the correct syntax, so it made repeated exploratory calls (`list_datasets`, `get_table_schema`, etc.) trying to figure out how to query job history, exhausting the 10-iteration cap before ever writing SQL.
+
+**Fix**: Added an `INFORMATION_SCHEMA.JOBS` section to `public/skills/query.md` with:
+- The correct backtick form for region-level INFORMATION_SCHEMA access (`region-us.INFORMATION_SCHEMA.JOBS`)
+- A ready-to-use SQL template for "most expensive queries in past N days" including cost formula
+- Explicit instruction NOT to call `get_table_schema` or `list_tables` for INFORMATION_SCHEMA queries
+- Notes on common region identifiers (US multi-region, EU multi-region, specific regions)
+
+**Also fixed**: `INFORMATION_SCHEMA.MODELS` was using the wrong backtick form: `` `project.dataset.INFORMATION_SCHEMA.MODELS` `` -- this is the prohibited form per the invariants doc. Corrected to `` `project.dataset`.INFORMATION_SCHEMA.MODELS ``.
+
+**Rule**: Any INFORMATION_SCHEMA view that is not dataset-scoped (JOBS, RESERVATION_*, etc.) needs an explicit SQL template in the skill doc. Without one, the LLM loops exhaustively trying to find the right table.
+
+---
+
 ## 2026-07-15: Data type handling audit -- seven gaps fixed across the stack
+
 
 **What happened**: Comprehensive audit of how every BigQuery column type flows through the pipeline (SQL generation, widget substitution, BQ client coercion, chart rendering).
 
