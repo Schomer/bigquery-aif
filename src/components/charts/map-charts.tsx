@@ -536,9 +536,9 @@ const ISO3_TO_ISO2: Record<string, string> = {
 
 // Interpolate a value in [0,1] to a blue choropleth color
 function choroplethColor(ratio: number): string {
-  // Light blue (#dbeafe) → deep blue (#1e3a8a)
+  // Light blue (#dbeafe = rgb(219,234,254)) → deep blue (#1e3a8a = rgb(30,58,138))
   const r = Math.round(219 - ratio * (219 - 30));
-  const g = Math.round(190 - ratio * (190 - 58));
+  const g = Math.round(234 - ratio * (234 - 58)); // was 190 — caused purple tint at low values
   const b = Math.round(254 - ratio * (254 - 138));
   return `rgb(${r},${g},${b})`;
 }
@@ -712,10 +712,10 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
           const value = resolveFeatureValue(properties, valueMap);
           if (value === null) {
             return {
-              fillColor: '#e2e8f0',
+              fillColor: '#cbd5e1', // distinct from #f5f7fa landscape so borders are visible
               fillOpacity: 1.0,
-              strokeColor: '#8a9bb0',
-              strokeWeight: 0.5,
+              strokeColor: '#94a3b8',
+              strokeWeight: 0.6,
             };
           }
           const range = maxValue - minValue;
