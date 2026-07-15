@@ -1,5 +1,21 @@
 # Operations Ledger
 
+## 2026-07-15: Fix "Reached maximum tool-call iterations" on simple data queries
+
+**Symptom**: User gets "Reached maximum tool-call iterations" after a query runs and returns results. The query DID succeed (data visible in the card) but the LLM kept calling additional tools, exhausting the 10-iteration cap before producing a text response.
+
+**Root cause**: `callGeminiWithTools()` relies on the LLM to stop calling tools once it has the data it needs. The system prompt says "STOP after run_query succeeds" but the LLM occasionally makes additional exploratory tool calls (another `get_table_schema`, a `list_tables`). With only 10 iterations and no code-level enforcement, simple queries could exhaust the cap.
+
+**Fix**: Added `terminateAfter?: string[]` to `CallGeminiWithToolsArgs`. When set, the loop exits immediately after any of the named tools succeeds — before feeding results back for another LLM round. `handleQuery()` sets `terminateAfter: ['run_query']`. The LLM's pre-call text (including WIDGET_SPEC blocks) from that same response is still captured and returned. Also raised `handleQuery()` cap from 10 to 15 (complex widgets legitimately need: schema fetch + base query + options fetch = 3+ rounds).
+
+**Files changed**:
+- `src/lib/gemini-client.ts`: Added `terminateAfter` option; default cap raised from 6 to 8
+- `src/lib/skills/handle-query.ts`: `maxIterations: 15`, `terminateAfter: ['run_query']`
+
+**Rule**: Never rely only on a prompt instruction to guarantee loop termination. Prompt instructions are probabilistic. Use `terminateAfter` for hard code-level loop control.
+
+---
+
 ## 2026-07-15: Replaced Google Maps choropleth with react-simple-maps SVG
 
 **Root cause (days of debugging)**: Google Maps Data Layer + GeoJSON fetch is inherently async. The `useEffect` deps array included `valueMap` (a new object every query result). This caused the effect to re-fire after data loaded, creating a second Maps instance on the same DOM element. The first GeoJSON fetch attached to the abandoned first instance; the second fetch completed correctly but by then the data was loaded. Even when split into two effects, the browser couldn't render country fills reliably through the Data Layer API.

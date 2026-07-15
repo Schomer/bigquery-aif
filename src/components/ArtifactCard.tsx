@@ -138,6 +138,38 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
 
   const sqlIsModified = editedSql !== (envelope.provenance.sql ?? '');
 
+  // Derive the best BigQuery console URL for this envelope, if any.
+  const bqUrl = (() => {
+    const base = 'https://console.cloud.google.com/bigquery';
+    const prov = envelope.provenance;
+
+    // Job results: deepest link
+    if (prov.jobId && prov.project) {
+      return `${base}?project=${encodeURIComponent(prov.project)}&j=bq:US:${encodeURIComponent(prov.jobId)}&page=queryresults`;
+    }
+
+    // Schema view: link directly to the table / dataset / project
+    if (envelope.primaryArtifact.type === 'SCHEMA_VIEW') {
+      const d = envelope.primaryArtifact.data as { project?: string; dataset?: string | null; table?: string | null } | undefined;
+      if (d?.project) {
+        if (d.table && d.dataset) {
+          return `${base}?p=${encodeURIComponent(d.project)}&d=${encodeURIComponent(d.dataset)}&t=${encodeURIComponent(d.table)}&page=table`;
+        }
+        if (d.dataset) {
+          return `${base}?p=${encodeURIComponent(d.project)}&d=${encodeURIComponent(d.dataset)}&page=dataset`;
+        }
+        return `${base}?project=${encodeURIComponent(d.project)}`;
+      }
+    }
+
+    // Generic: link to the project console if we have a project
+    if (prov.project) {
+      return `${base}?project=${encodeURIComponent(prov.project)}`;
+    }
+
+    return null;
+  })();
+
   return (
     <div
       className={`fade-up ${toneClass}`}
@@ -161,6 +193,18 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
           }}>
             {typeof envelope.headline.text === 'string' ? envelope.headline.text : String(envelope.headline.text ?? '')}
           </p>
+          {bqUrl && !envelope.requiresConfirmation && envelope.primaryArtifact.type !== 'COMPLETION_CARD' && envelope.primaryArtifact.type !== 'MULTISTEP_VIEW' && envelope.primaryArtifact.type !== 'COST_CONFIRM_CARD' && (
+            <a
+              href={bqUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="context-action-btn"
+              title="Open in BigQuery"
+              style={{ flexShrink: 0, marginTop: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16, opacity: 0.7 }}>open_in_new</span>
+            </a>
+          )}
           {onSave && !envelope.requiresConfirmation && envelope.primaryArtifact.type !== 'COMPLETION_CARD' && envelope.primaryArtifact.type !== 'MULTISTEP_VIEW' && envelope.primaryArtifact.type !== 'COST_CONFIRM_CARD' && (
             <button
               className="context-action-btn"
