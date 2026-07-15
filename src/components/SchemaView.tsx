@@ -1,7 +1,7 @@
 'use client';
 
 import type { SchemaResult, SchemaColumn, PreviewResponse, PreviewColumn } from '@/lib/types';
-import { fetchTablePreview } from '@/lib/preview-client';
+import { fetchTablePreview, fetchTablePage } from '@/lib/preview-client';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth-context';
@@ -468,7 +468,13 @@ function TableSchemaView({ result, onSendMessage }: { result: SchemaResult; onSe
           <SchemaTab result={result} tableRef={tableRef} onSendMessage={onSendMessage} />
         )}
         {activeTab === 'sample' && (
-          <SampleTab sampleData={sampleData} error={sampleError} />
+          <SampleTab
+            sampleData={sampleData}
+            error={sampleError}
+            tableRef={tableRef}
+            project={project}
+            columns={result.columns.map((c) => ({ name: c.name, type: c.type }))}
+          />
         )}
         {activeTab === 'profile' && (
           <ProfileTab
@@ -569,7 +575,57 @@ function SchemaTab({ result, tableRef, onSendMessage }: {
 
 // ─── Sample rows tab ──────────────────────────────────────────────────────────
 
-function SampleTab({ sampleData, error }: { sampleData: { columns: string[]; rows: unknown[][] } | null; error: string | null }) {
+const PAGE_SIZES = [20, 50, 100, 500] as const;
+
+function SampleTab({
+  sampleData,
+  error,
+  tableRef,
+  project,
+  columns,
+}: {
+  sampleData: { columns: string[]; rows: unknown[][] } | null;
+  error: string | null;
+  tableRef: string;
+  project: string | undefined;
+  columns: Array<{ name: string; type: string }>;
+}) {
+  const [pageSize, setPageSize] = useState<number>(20);
+  const [page, setPage] = useState(0); // 0-indexed
+  const [filterInput, setFilterInput] = useState('');
+  const [appliedFilter, setAppliedFilter] = useState('');
+
+  // State for paginated data (null = use sampleData for page 0 w/ no filter)
+  const [pageData, setPageData] = useState<{ columns: string[]; rows: unknown[][]; totalCount: number } | null>(null);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
+
+  // Determine whether we are on the initial cheap load (page 0, no filter, size 20)
+  const isInitialState = page === 0 && pageSize === 20 && appliedFilter === '' && !pageData;
+
+  // Use initial sampleData for the first render; refetch on any control change
+  useEffect(() => {
+    if (isInitialState) return; // first render handled by sampleData prop
+    let cancelled = false;
+    setPageLoading(true);
+    setPageError(null);
+    fetchTablePage(tableRef, columns, project, {
+      limit: pageSize,
+      offset: page * pageSize,
+      filter: appliedFilter,
+    })
+      .then((result) => {
+        if (!cancelled) setPageData(result);
+      })
+      .catch((e) => {
+        if (!cancelled) setPageError(e instanceof Error ? e.message : 'Failed to load rows');
+      })
+      .finally(() => {
+        if (!cancelled) setPageLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [page, pageSize, appliedFilter, tableRef, project]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (error) {
     return (
       <div style={{
@@ -584,68 +640,259 @@ function SampleTab({ sampleData, error }: { sampleData: { columns: string[]; row
     );
   }
 
-  if (!sampleData) {
+  if (!sampleData && !pageData) {
     return <SkeletonRows />;
   }
 
-  const { columns, rows } = sampleData;
+  // Which data to display
+  const displayColumns = pageData ? pageData.columns : (sampleData?.columns ?? []);
+  const displayRows = pageData ? pageData.rows : (sampleData?.rows ?? []);
+  // totalCount: from pageData if available; from sampleData we only know there are >=N rows
+  const totalCount = pageData ? pageData.totalCount : null;
 
-  if (rows.length === 0) {
-    return (
-      <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--text-dim)', fontSize: 12 }}>
-        No rows returned
-      </div>
-    );
+  function applyFilter() {
+    setAppliedFilter(filterInput);
+    setPage(0);
+    setPageData(null); // force re-fetch
   }
+
+  function clearFilter() {
+    setFilterInput('');
+    setAppliedFilter('');
+    setPage(0);
+    setPageData(null);
+  }
+
+  const totalPages = totalCount !== null ? Math.max(1, Math.ceil(totalCount / pageSize)) : null;
+  const firstRow = page * pageSize + 1;
+  const lastRow = page * pageSize + displayRows.length;
+
+  const controlStyle: React.CSSProperties = {
+    height: 28,
+    fontSize: 12,
+    padding: '0 8px',
+    background: 'var(--surface-2)',
+    border: '1px solid var(--border)',
+    borderRadius: 5,
+    color: 'var(--text)',
+    cursor: 'pointer',
+  };
+
+  const btnStyle = (disabled: boolean): React.CSSProperties => ({
+    ...controlStyle,
+    opacity: disabled ? 0.35 : 1,
+    cursor: disabled ? 'default' : 'pointer',
+    minWidth: 28,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-      <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 480, borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--border)' }}>
-              {columns.map((col) => (
-                <th key={col} style={{
-                  padding: '6px 12px',
-                  textAlign: 'left',
-                  color: 'var(--text-muted)',
-                  fontWeight: 500,
-                  whiteSpace: 'nowrap',
-                  position: 'sticky',
-                  top: 0,
-                  background: 'var(--surface)',
-                  zIndex: 1,
-                  boxShadow: '0 1px 0 var(--border)',
-                }}>{col}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, ri) => (
-              <tr
-                key={ri}
-                style={{ borderBottom: '1px solid var(--border-subtle)' }}
-              >
-                {(row as unknown[]).map((cell, ci) => (
-                  <td key={ci} style={{
-                    padding: '6px 12px',
-                    color: cell === null ? 'var(--text-dim)' : 'var(--text)',
-                    fontSize: 12,
-                    whiteSpace: 'nowrap',
-                    maxWidth: 240,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}>
-                    {cell === null ? <span style={{ opacity: 0.4 }}>NULL</span> : typeof cell === 'object' ? JSON.stringify(cell) : String(cell)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+
+      {/* Toolbar */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '0 0 10px 0',
+        flexWrap: 'wrap',
+      }}>
+        {/* Filter input */}
+        <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 0 }}>
+          <input
+            type="text"
+            value={filterInput}
+            onChange={(e) => setFilterInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') applyFilter(); }}
+            placeholder="Filter rows..."
+            style={{
+              ...controlStyle,
+              width: '100%',
+              paddingLeft: 28,
+              boxSizing: 'border-box',
+            }}
+          />
+          <span
+            className="material-symbols-outlined"
+            style={{
+              position: 'absolute',
+              left: 7,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontSize: 15,
+              color: 'var(--text-dim)',
+              pointerEvents: 'none',
+            }}
+          >search</span>
+          {filterInput && (
+            <button
+              onClick={clearFilter}
+              style={{
+                position: 'absolute',
+                right: 6,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+                lineHeight: 1,
+                color: 'var(--text-dim)',
+                fontSize: 14,
+              }}
+            >x</button>
+          )}
+        </div>
+        <button
+          onClick={applyFilter}
+          disabled={pageLoading}
+          style={{
+            ...controlStyle,
+            padding: '0 12px',
+            background: 'var(--accent)',
+            color: '#fff',
+            border: 'none',
+            fontWeight: 500,
+          }}
+        >
+          Filter
+        </button>
+
+        {/* Spacer */}
+        <div style={{ flex: '1 0 0' }} />
+
+        {/* Rows per page */}
+        <span style={{ fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>Rows per page</span>
+        <select
+          value={pageSize}
+          onChange={(e) => {
+            setPageSize(Number(e.target.value));
+            setPage(0);
+            setPageData(null);
+          }}
+          style={controlStyle}
+        >
+          {PAGE_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+
+        {/* Pagination controls */}
+        <button
+          disabled={page === 0 || pageLoading}
+          onClick={() => setPage(0)}
+          style={btnStyle(page === 0 || pageLoading)}
+          title="First page"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>first_page</span>
+        </button>
+        <button
+          disabled={page === 0 || pageLoading}
+          onClick={() => setPage((p) => p - 1)}
+          style={btnStyle(page === 0 || pageLoading)}
+          title="Previous page"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chevron_left</span>
+        </button>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+          {displayRows.length === 0 ? 'No rows' : `${firstRow}–${lastRow}${totalCount !== null ? ` of ${totalCount.toLocaleString()}` : ''}`}
+        </span>
+        <button
+          disabled={pageLoading || (totalPages !== null && page >= totalPages - 1) || displayRows.length < pageSize}
+          onClick={() => setPage((p) => p + 1)}
+          style={btnStyle(pageLoading || (totalPages !== null && page >= totalPages - 1) || displayRows.length < pageSize)}
+          title="Next page"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chevron_right</span>
+        </button>
+        <button
+          disabled={pageLoading || totalPages === null || page >= totalPages - 1}
+          onClick={() => totalPages !== null && setPage(totalPages - 1)}
+          style={btnStyle(pageLoading || totalPages === null || page >= totalPages - 1)}
+          title="Last page"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>last_page</span>
+        </button>
       </div>
-      <div style={{ padding: '8px 12px', fontSize: 11, color: 'var(--text-dim)' }}>
-        Showing {rows.length} sample rows
+
+      {/* Table */}
+      <div style={{ position: 'relative' }}>
+        {pageLoading && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(var(--surface-rgb, 255,255,255), 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10,
+            borderRadius: 6,
+            fontSize: 12,
+            color: 'var(--text-dim)',
+          }}>
+            Loading...
+          </div>
+        )}
+        {pageError && (
+          <div style={{ padding: '12px', fontSize: 12, color: 'var(--attention)' }}>
+            [!] {pageError}
+          </div>
+        )}
+        {displayRows.length === 0 && !pageLoading ? (
+          <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--text-dim)', fontSize: 12 }}>
+            No rows match the current filter
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 480, borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  {displayColumns.map((col) => (
+                    <th key={col} style={{
+                      padding: '6px 12px',
+                      textAlign: 'left',
+                      color: 'var(--text-muted)',
+                      fontWeight: 500,
+                      whiteSpace: 'nowrap',
+                      position: 'sticky',
+                      top: 0,
+                      background: 'var(--surface)',
+                      zIndex: 1,
+                      boxShadow: '0 1px 0 var(--border)',
+                    }}>{col}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {displayRows.map((row, ri) => (
+                  <tr
+                    key={ri}
+                    style={{ borderBottom: '1px solid var(--border-subtle)' }}
+                  >
+                    {(row as unknown[]).map((cell, ci) => (
+                      <td key={ci} style={{
+                        padding: '6px 12px',
+                        color: cell === null ? 'var(--text-dim)' : 'var(--text)',
+                        fontSize: 12,
+                        whiteSpace: 'nowrap',
+                        maxWidth: 240,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}>
+                        {cell === null ? <span style={{ opacity: 0.4 }}>NULL</span> : typeof cell === 'object' ? JSON.stringify(cell) : String(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div style={{ padding: '8px 0 0', fontSize: 11, color: 'var(--text-dim)' }}>
+        {appliedFilter ? `Filtered by "${appliedFilter}"` : ''}
       </div>
     </div>
   );

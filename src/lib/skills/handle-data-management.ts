@@ -262,18 +262,37 @@ export async function executeConfirmedOperation(
 
   console.log('[executeConfirmedOperation] Rows affected:', dmlResult.rowsAffected, 'Job:', dmlResult.jobId);
 
-  const mismatch = dmlResult.rowsAffected !== confirmed.affectedRowCount;
+  // BigQuery's numDmlAffectedRows is unreliable for DELETE on some table configurations
+  // (partitioned tables, certain storage formats). When it reports 0 but we expected rows,
+  // re-run the preview COUNT to verify whether the rows are actually gone.
+  let actualRowsAffected = dmlResult.rowsAffected;
+  if (actualRowsAffected === 0 && confirmed.affectedRowCount > 0 && confirmed.previewSql) {
+    try {
+      const { executeQuery } = await import('../bigquery-client');
+      const verifyResult = await executeQuery(confirmed.previewSql, project);
+      const remainingRows = Number(verifyResult.rows[0]?.[0]);
+      console.log('[executeConfirmedOperation] Verification count remaining:', remainingRows);
+      if (Number.isFinite(remainingRows) && remainingRows === 0) {
+        // Rows are gone -- numDmlAffectedRows was unreliable, trust the preview count
+        actualRowsAffected = confirmed.affectedRowCount;
+      }
+    } catch {
+      // Non-fatal -- fall back to 0
+    }
+  }
+
+  const mismatch = actualRowsAffected !== confirmed.affectedRowCount;
 
   const completeResult: DataManagementResult = {
     skill: 'data-management',
     requiresConfirmation: false,
     operation: confirmed.operation,
     table: confirmed.table,
-    rowsAffected: dmlResult.rowsAffected,
+    rowsAffected: actualRowsAffected,
     rowsExpected: confirmed.affectedRowCount,
     mismatch,
     mismatchNote: mismatch
-      ? `Removed ${dmlResult.rowsAffected} of the ${confirmed.affectedRowCount} rows — the other ${confirmed.affectedRowCount - dmlResult.rowsAffected} no longer matched by the time this ran.`
+      ? `Removed ${actualRowsAffected.toLocaleString()} of the ${confirmed.affectedRowCount.toLocaleString()} rows — the other ${(confirmed.affectedRowCount - actualRowsAffected).toLocaleString()} no longer matched by the time this ran.`
       : null,
     schemaInvalidated: [],
     jobId: dmlResult.jobId,

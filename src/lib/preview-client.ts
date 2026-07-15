@@ -52,6 +52,53 @@ function buildProfileSql(
   return `SELECT\n  COUNT(*) AS __total_rows,\n  ${selects.join(',\n  ')}\nFROM \`${tableRef}\``;
 }
 
+export interface TablePageResult {
+  columns: string[];
+  rows: unknown[][];
+  totalCount: number;
+}
+
+/** Fetch a single page of rows with optional substring filter and LIMIT/OFFSET. */
+export async function fetchTablePage(
+  tableRef: string,
+  columns: Array<{ name: string; type: string }>,
+  project: string | undefined,
+  opts: { limit: number; offset: number; filter?: string },
+): Promise<TablePageResult> {
+  const { limit, offset, filter } = opts;
+
+  // Build WHERE clause: filter across all non-complex columns using CAST to STRING LIKE
+  let whereClause = '';
+  if (filter && filter.trim()) {
+    const safe = filter.replace(/'/g, "\\'");
+    const filterableCols = columns.filter(
+      (c) => !NO_DISTINCT_TYPES.has(c.type.toUpperCase()),
+    );
+    if (filterableCols.length > 0) {
+      const conditions = filterableCols.map(
+        (c) => `CAST(\`${c.name}\` AS STRING) LIKE '%${safe}%'`,
+      );
+      whereClause = `WHERE (${conditions.join(' OR ')})`;
+    }
+  }
+
+  const dataSql = `SELECT * FROM \`${tableRef}\` ${whereClause} LIMIT ${limit} OFFSET ${offset}`;
+  const countSql = `SELECT COUNT(*) AS __count FROM \`${tableRef}\` ${whereClause}`;
+
+  const [dataResult, countResult] = await Promise.all([
+    executeQuery(dataSql, project),
+    executeQuery(countSql, project),
+  ]);
+
+  const totalCount = Number(countResult.rows[0]?.[0] ?? 0);
+
+  return {
+    columns: dataResult.columns,
+    rows: dataResult.rows,
+    totalCount,
+  };
+}
+
 export async function fetchTablePreview(
   tableRef: string,
   columns: Array<{ name: string; type: string }>,
