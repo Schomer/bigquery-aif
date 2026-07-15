@@ -217,8 +217,9 @@ WIDGET_SPEC_START
 WIDGET_SPEC_END
 ```
 
-- Use `BETWEEN '{{start_date}}' AND '{{end_date}}'` for DATE columns. For TIMESTAMP, cast: `WHERE CAST(ts_col AS DATE) BETWEEN '{{start_date}}' AND '{{end_date}}'`.
+- Use `BETWEEN '{{start_date}}' AND '{{end_date}}'` for DATE/TIMESTAMP columns. For TIMESTAMP, cast: `WHERE CAST(ts_col AS DATE) BETWEEN '{{start_date}}' AND '{{end_date}}'`.
 - `defaultStart`/`defaultEnd`: set only if the user explicitly requested a default range ("default to last 30 days"). Otherwise null.
+- **CRITICAL: Do NOT use DATE_RANGE for integer year columns (INT64/INTEGER type).** A `Year` column that stores integers like `1990`, `2000`, `2023` is NOT a date column. Using date-string placeholders like `'{{start_date}}'` against an INT64 column produces a type error (`INT64 = STRING`). For integer year columns, use `DROPDOWN` (Control type B) instead, with `optionsSql: SELECT DISTINCT Year FROM ... ORDER BY Year DESC LIMIT 100`. In the parameterizedSql, write `WHERE Year = {{year}}` with no quotes around the placeholder.
 
 ---
 

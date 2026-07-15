@@ -263,17 +263,27 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
         .replace(/\{\{end_date\}\}/g, opts.endDate || '2100-12-31');
     }
 
-    // DROPDOWN substitution — handles quoted/unquoted placeholder
+    // DROPDOWN substitution — handles quoted/unquoted placeholder.
+    // If the value is a pure integer or decimal, substitute without string quotes
+    // to avoid INT64 = STRING type errors on numeric columns (e.g. Year).
     for (const [param, value] of Object.entries(opts.dropdownValues)) {
       if (value) {
-        const safe = value.replace(/'/g, "''");
-        const quotedLiteral = `'${safe}'`;
+        const isNumeric = /^-?\d+(\.\d+)?$/.test(value.trim());
         const escapedParam = param.replace(/[{}]/g, '\\$&');
-        const quotedPlaceholder = new RegExp(`'${escapedParam}'`, 'g');
-        if (quotedPlaceholder.test(sqlToRun)) {
-          sqlToRun = sqlToRun.replace(quotedPlaceholder, quotedLiteral);
+        if (isNumeric) {
+          // Numeric value — substitute bare (no quotes) to match INT64/FLOAT columns
+          const quotedPlaceholder = new RegExp(`'${escapedParam}'`, 'g');
+          sqlToRun = sqlToRun.replace(quotedPlaceholder, value.trim());
+          sqlToRun = sqlToRun.replace(new RegExp(escapedParam, 'g'), value.trim());
         } else {
-          sqlToRun = sqlToRun.replace(new RegExp(escapedParam, 'g'), quotedLiteral);
+          const safe = value.replace(/'/g, "''");
+          const quotedLiteral = `'${safe}'`;
+          const quotedPlaceholder = new RegExp(`'${escapedParam}'`, 'g');
+          if (quotedPlaceholder.test(sqlToRun)) {
+            sqlToRun = sqlToRun.replace(quotedPlaceholder, quotedLiteral);
+          } else {
+            sqlToRun = sqlToRun.replace(new RegExp(escapedParam, 'g'), quotedLiteral);
+          }
         }
       }
     }
