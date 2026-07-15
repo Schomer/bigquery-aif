@@ -316,15 +316,18 @@ After running the query, provide a brief one-line summary of what the results sh
 
 
         if (effectiveDefault) {
-          // Run the filtered SQL as the initial result so the chart shows
-          // one entity on load, not hundreds of mixed rows
           try {
             onStatus?.(`Loading ${effectiveDefault}...`);
-            const safe = effectiveDefault.replace(/'/g, "\\'");
-            const filteredSql = widgetSpec.parameterizedSql.replace(
-              new RegExp(widgetSpec.filterParam.replace(/[{}]/g, '\\$&'), 'g'),
-              safe,
-            );
+            const safe = effectiveDefault.replace(/'/g, "''");
+            const quotedLiteral = `'${safe}'`;
+            const escapedParam = widgetSpec.filterParam.replace(/[{}]/g, '\\$&');
+            let filteredSql = widgetSpec.parameterizedSql;
+            const quotedPlaceholder = new RegExp(`'${escapedParam}'`, 'g');
+            if (quotedPlaceholder.test(filteredSql)) {
+              filteredSql = filteredSql.replace(quotedPlaceholder, quotedLiteral);
+            } else {
+              filteredSql = filteredSql.replace(new RegExp(escapedParam, 'g'), quotedLiteral);
+            }
             const filteredResult = await executeQuery(filteredSql, project);
             initialColumns = filteredResult.columns;
             initialColumnTypes = filteredResult.columnTypes;
@@ -335,6 +338,7 @@ After running the query, provide a brief one-line summary of what the results sh
             // Non-fatal -- fall back to baseSql capture
           }
         }
+
 
         controls = [{
           type: 'DROPDOWN',

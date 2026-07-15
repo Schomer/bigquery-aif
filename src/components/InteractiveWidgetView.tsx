@@ -64,8 +64,18 @@ export function InteractiveWidgetView({ envelope, onSendMessage }: CustomViewPro
 
     for (const [param, value] of Object.entries(opts.dropdownValues)) {
       if (value) {
-        const safe = value.replace(/'/g, "\\'");
-        sqlToRun = sqlToRun.replace(new RegExp(param.replace(/[{}]/g, '\\$&'), 'g'), safe);
+        // Escape single quotes using BigQuery's '' convention (not backslash)
+        const safe = value.replace(/'/g, "''");
+        const quotedLiteral = `'${safe}'`;
+        const escapedParam = param.replace(/[{}]/g, '\\$&');
+        // Match '{{param}}' (LLM included quotes) first, then {{param}} (no quotes)
+        // so the replacement always yields a properly-quoted SQL string literal
+        const quotedPlaceholder = new RegExp(`'${escapedParam}'`, 'g');
+        if (quotedPlaceholder.test(sqlToRun)) {
+          sqlToRun = sqlToRun.replace(quotedPlaceholder, quotedLiteral);
+        } else {
+          sqlToRun = sqlToRun.replace(new RegExp(escapedParam, 'g'), quotedLiteral);
+        }
       }
     }
 
