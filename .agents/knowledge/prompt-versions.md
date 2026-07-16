@@ -2,7 +2,7 @@
 
 The app's behavior is heavily driven by the prompts sent to Gemini. This file tracks the key prompts, where they live, and when/why they changed. Prompt changes are high-impact and should be tested against the canonical test cases before deploying.
 
-Last updated: 2026-06-30
+Last updated: 2026-07-16
 
 ---
 
@@ -95,6 +95,59 @@ Loaded from `public/skills/*.md` by `loadSkillDoc()`. Cached in memory.
 - **What changed**: Added new "String filtering (entity names, categories, labels)" section after "SQL rules"
 - **Why**: LLM was using `=` for entity name filters (store name, vendor, etc.) causing zero-row results when actual values contain suffixes/qualifiers
 - **Key rules added**: Default to `UPPER(column) LIKE UPPER('%value%')`, include filtered column in output when matches could be ambiguous, use sample values from schema context when available
+
+### 2026-07-10: Zero-row diagnostic rules added to query skill prompt
+- **File**: `src/lib/composer.ts` (via `buildQueryHeadline()` rules)
+- **What changed**: Zero-row results now always use SQL-aware diagnostic headlines, never the LLM `resultSummary`
+- **Why**: LLM summary is written at generation time before results are known; it cannot produce an accurate zero-row message
+- **Key rules**: INFORMATION_SCHEMA queries get "No metadata returned -- check region and permissions"; WHERE-filtered queries get "No rows matched your filter criteria"; generic queries get "Query returned no results"
+
+### 2026-07-12: Aggregation patterns ("by X" = GROUP BY) added to query.md
+- **File**: `public/skills/query.md`
+- **What changed**: Added CRITICAL aggregation section with wrong/correct examples for 5 common "by X" patterns
+- **Why**: LLM was returning raw SELECT rows for questions like "orders by status" instead of GROUP BY aggregations
+- **Key rules added**: "By X" always means GROUP BY X. "Top N [entity]" must GROUP BY entity and ORDER BY metric DESC LIMIT N. Never return scalar COUNT(*) for a top-N question.
+
+### 2026-07-14: Filter column leak rule added to query.md
+- **File**: `public/skills/query.md`
+- **What changed**: Added SQL rule prohibiting SELECT of columns used only in WHERE filters
+- **Why**: LLM was including filter columns (e.g. `year = 900`) in SELECT/GROUP BY, producing a constant-valued second categorical column that triggered HEATMAP instead of bar chart
+- **Key rule**: Do NOT SELECT columns that are only used as WHERE filters. Correct: `WHERE year = 900 GROUP BY country`. Wrong: `SELECT country, year ... GROUP BY country, year`.
+
+### 2026-07-14: Literal type matching rule added to query.md
+- **File**: `public/skills/query.md`
+- **What changed**: Added rule requiring matching literal types to column types in WHERE clauses
+- **Why**: LLM was writing `WHERE Year = '2023'` against INT64 columns, causing type mismatch errors. Also added BOOL rule (`TRUE`/`FALSE` not `'TRUE'` or `1`).
+- **Key rule**: INTEGER/INT64 columns require unquoted numeric literals. STRING columns require quoted strings. BOOL columns use unquoted `TRUE`/`FALSE`.
+
+### 2026-07-15: Implicit year/date filter prohibition added to query.md
+- **File**: `public/skills/query.md`
+- **What changed**: Added CRITICAL rule prohibiting implicit year/date filters based on today's date
+- **Why**: LLM was interpreting "Today's date: 2026-07-15" in the system prompt as a signal to add `WHERE Year = 2026`, returning 0 rows from historical datasets (e.g., population data, scientific records)
+- **Key rule**: Today's date is for relative range computation only ("last 30 days"). Never add implicit recency filters. Use `WHERE year = (SELECT MAX(year) FROM ...)` when no year is specified.
+
+### 2026-07-15: Multi-entity IN filter rule added to query.md
+- **File**: `public/skills/query.md`
+- **What changed**: Added rule requiring `IN (...)` with case-insensitive matching when the user names multiple specific entities
+- **Why**: LLM was omitting filters or using single-value filters for multi-entity questions (e.g., "China and USA"), returning all rows (alphabetically, Aruba first)
+- **Key rule**: Multiple named entities always require `WHERE LOWER(col) IN ('a', 'b')` with common name variants. Never omit the filter.
+
+### 2026-07-15: Interactive widget mode added to query.md
+- **File**: `public/skills/query.md`
+- **What changed**: Added "Interactive Widget Mode" section. Defines `{{start_date}}`/`{{end_date}}` placeholders, WIDGET_SPEC JSON format, and CRITICAL list of what must NOT trigger widget mode.
+- **Why**: New feature for date-range-picker and multi-select filter widgets. Without the CRITICAL list, LLM was triggering widget mode for "top N" ranking queries, producing meaningless spike charts.
+- **Key rule**: Interactive widgets are for user-driven exploration. Ranking queries ("top N", "biggest", "which X has the highest Y") have a fixed answer and must use direct SQL with BAR/COLUMN chart.
+
+### 2026-07-15: INFORMATION_SCHEMA.JOBS template added to query.md
+- **File**: `public/skills/query.md`
+- **What changed**: Added INFORMATION_SCHEMA.JOBS section with correct region-level syntax and a ready-to-use SQL template for "most expensive queries in past N days"
+- **Why**: Without a template, the LLM looped exhaustively calling `list_tables` and `get_table_schema` trying to find JOBS, exhausting the 10-iteration cap before ever writing SQL
+- **Key rule**: Any INFORMATION_SCHEMA view not dataset-scoped (JOBS, RESERVATION_*, etc.) needs an explicit SQL template. Do NOT call `get_table_schema` or `list_tables` for these views.
+
+### 2026-07-15: BOOL/MULTI_SELECT scope rules added to query.md
+- **File**: `public/skills/query.md`
+- **What changed**: Added rule that BOOL columns use unquoted `TRUE`/`FALSE` in WHERE clauses. Added note that MULTI_SELECT widget is for STRING/categorical columns only; use DROPDOWN for numeric dimensions.
+- **Why**: LLM was generating `WHERE active = 'TRUE'` (string) against BOOL columns, and using MULTI_SELECT for numeric year columns producing quoted integer strings like `WHERE year IN ('2020', '2021')`.
 
 ---
 

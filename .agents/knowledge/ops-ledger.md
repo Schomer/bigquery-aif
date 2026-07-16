@@ -1,5 +1,47 @@
 # Operations Ledger
 
+## 2026-07-16: Query progress panel + BQ async job polling
+
+**What changed**: Replaced the single-line spinner + status text with a `QueryProgressPanel` that shows (A) elapsed time, (B) a breadcrumb log of prior steps, and (D) live BigQuery job state during `run_query`.
+
+**Key technical points**:
+- `executeQuery` in `bigquery-client.ts` was switched from the synchronous `/queries` endpoint to `POST /jobs` + poll loop (every 1.5s), identical to `executeDml`. After DONE, results are fetched from `/queries/{jobId}?maxResults=1000&timeoutMs=0`.
+- An `onJobProgress` callback threads from `bigquery-client` → `run_query` tool → `handle-query` / `handle-conversation` → `gemini-client` toolExecutor → orchestration hook → UI.
+- `useChatOrchestration` now maintains `liveSteps` (accumulated steps visible during loading) and `loadingStartTime` (epoch ms for timer). Both are reset on load start and cleared in all finally blocks.
+- `QueryProgressPanel` is defined in `ChatThread.tsx` and exported for reuse in `ResultsSidebar.tsx`.
+- The `StatusCallback` type (`string | StepInfo`) was propagated up through `gemini-client.ts`, `bq-tools.ts`, `handle-query.ts`, and `handle-conversation.ts` toolExecutor signatures.
+
+**Rule**: `executeQuery` is now async-job-based. Do not revert it to the synchronous `/queries` endpoint. If polling causes issues, fix the poll logic, not the job submission.
+
+---
+
+## 2026-07-16: Iteration cap raised to 30, terminateAfter on DML tools, graceful MAX_ITERATIONS sentinel
+
+**What changed**: `handle-conversation.ts` now passes `maxIterations: 30` and `terminateAfter: ['execute_dml', 'create_dataset']` to `callGeminiWithTools`. The exhausted-cap sentinel was changed from a user-visible string to `__MAX_ITERATIONS_REACHED__`; the caller converts it to a friendly message.
+
+**Rule**: The dedupe cache in `callGeminiWithTools` (identical calls are never re-executed) is the real runaway guard — a high iteration cap is safe. `terminateAfter` ensures the agent exits as soon as a terminal action succeeds rather than spinning for another LLM round.
+
+---
+
+## 2026-07-16: Fix "Reached maximum tool-call iterations" on de-dupe and multi-step tasks
+
+**Symptom**: User asked to de-duplicate table rows and received "Reached maximum tool-call iterations." The conversation agent was hitting the 8-iteration cap before completing the task.
+
+**Root cause**: `handleConversation()` had no `terminateAfter` — unlike `handleQuery()` which exits immediately after `run_query` succeeds. A de-dupe task needs at minimum: schema fetch + count preview + execute_dml = 3 tool-call iterations, often more if the agent does exploratory calls first. With a hard cap of 8 and no code-level exit, complex tasks exhausted the budget.
+
+Secondary issue: when the cap was hit, the raw internal string `'Reached maximum tool-call iterations.'` was surfaced directly to the user with no context or guidance.
+
+**Fix**:
+- `callGeminiWithTools()`: replaced `'Reached maximum tool-call iterations.'` with sentinel `'__MAX_ITERATIONS_REACHED__'` so callers can detect and handle it.
+- `handleConversation()`: raised `maxIterations` from 8 to 30. The deduplication cache (identical tool calls are never re-executed) is the real runaway guard. An arbitrary low cap is the wrong abstraction.
+- `handleConversation()`: added `terminateAfter: ['execute_dml', 'create_dataset']` — loop exits by code immediately after a terminal tool succeeds, not by LLM discretion.
+- `handleConversation()` system prompt: added rules 7 and 8 — skip schema fetch if schema is already in context; for de-dupe write the SQL directly and call execute_dml once.
+- `handleConversation()`: sentinel is caught and converted to a user-friendly message explaining what happened and what to try.
+
+**Rule**: The iteration cap is a runaway guard, not a task budget. The real protection against infinite loops is the deduplication cache. `terminateAfter` is the right way to guarantee loop exit at task completion — prompt instructions alone are probabilistic.
+
+---
+
 ## 2026-07-16: Non-numeric columns plotted as chart bars (dataset_id, table_id, last_modified)
 
 **Symptom**: Bar chart for a metadata query (e.g. `INFORMATION_SCHEMA.TABLES`) showed a giant single-color blob with string columns like `dataset_id`, `last_modified`, and `table_id` listed in the legend alongside actual numeric columns like `size_bytes` and `row_count`.

@@ -2,7 +2,8 @@
 
 Rules that must hold true across all code changes. Violating any of these has caused bugs in the past or would break critical functionality. Before making a change, check it against this list. If a change would violate an invariant, either the invariant needs updating (with justification) or the change needs rethinking.
 
-Last verified: 2026-07-09
+Last verified: 2026-07-16
+Note: "Last verified" = last time this document was audited for completeness and accuracy. Individual invariants were added throughout July as new bugs were discovered and fixed. See ops-ledger.md for derivation history.
 
 ---
 
@@ -54,8 +55,9 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **Query handler uses tool-calling agent loop**: `handleQuery()` uses `callGeminiWithTools()` with 4 tools (`run_query`, `get_table_schema`, `list_tables`, `list_datasets`). The LLM decides what context to fetch. Do NOT re-introduce the old pipeline of `buildSchemaContext()` + `callGemini()` + `dryRun()` + `executeQuery()`.
 - **Query handler pre-fetches the table list**: When a dataset is resolved, `handleQuery()` calls `fetchSchema(dataset)` and includes the table names in the system prompt. This eliminates `list_tables`/`list_datasets` tool calls in the common case. The prompt tells the LLM not to call these tools unless querying a different dataset.
 - **Query auto-retry is implicit**: Errors from `run_query` tool calls feed back to the LLM as function responses. The LLM can fix its SQL and call `run_query` again within the iteration cap. Do not add explicit retry logic.
-- **Tool-calling loop cap is 8 iterations for both query and conversation**: `callGeminiWithTools()` defaults to 8 iterations. `handleQuery()` previously used 15 but was lowered to 8 to prevent overcomplexity. Redundant tools (list_datasets, list_tables) are now stripped from declarations when context is already available. Tool-call deduplication prevents identical calls from re-executing.
-- **`terminateAfter: ['run_query']` is set in `handleQuery()`**: After `run_query` succeeds, the loop exits immediately. The LLM's pre-call text (including `WIDGET_SPEC_START...WIDGET_SPEC_END` blocks emitted alongside the `functionCall`) is still captured and returned. This is a code-level guarantee — do NOT rely only on the system prompt instruction "STOP after run_query succeeds".
+- **The iteration cap is a runaway guard, not a task budget**: `callGeminiWithTools()` defaults to 8 iterations, but handlers should override this to match their task complexity. `handleQuery()` uses 15; `handleConversation()` uses 30. The real protection against infinite loops is the tool-call deduplication cache -- identical calls are never re-executed, so a high cap is safe. Do NOT lower caps to fix correctness bugs; use `terminateAfter` instead.
+- **`terminateAfter: ['run_query']` is set in `handleQuery()`**: After `run_query` succeeds, the loop exits immediately. This is a code-level guarantee -- do NOT rely only on the system prompt instruction "STOP after run_query succeeds".
+- **`terminateAfter: ['execute_dml', 'create_dataset']` is set in `handleConversation()`**: After any terminal DML or dataset creation succeeds, the loop exits immediately. This prevents the agent from continuing to make tool calls after a task is complete.
 - **Self-review is non-fatal**: The `selfReviewEnvelope()` function catches all errors and returns the original envelope if review fails. Never make self-review failures block response delivery.
 - **buildSchemaContext still used by data-management**: `buildSchemaContext()` in `orchestrator-utils.ts` is used by `handle-data-management.ts`. Do not remove it.
 - **Available datasets are fetched once per turn**: The `getAvailableDatasets()` result is passed through `enrichedContext` to all handlers. Handlers must not re-fetch this list independently.

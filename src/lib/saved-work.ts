@@ -2,7 +2,7 @@
 // Unified persistence layer for saved artifacts.
 // Follows the same Firestore patterns as firestore-service.ts.
 
-import { doc, getDoc, setDoc, deleteField, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, deleteField, updateDoc, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from './firebase';
 import type {
   SavedArtifact,
@@ -11,10 +11,11 @@ import type {
   ArtifactStep,
   SkillName,
   Space,
+  SharedArtifactSummary,
 } from './types';
 
 // Re-export for consumers
-export type { SavedArtifact, SavedArtifactType, ParameterDef, Space } from './types';
+export type { SavedArtifact, SavedArtifactType, ParameterDef, Space, SharedArtifactSummary } from './types';
 
 // ── Legacy type alias (deprecated) ──────────────────────────────────────────
 
@@ -233,6 +234,62 @@ export async function recordRun(
 export async function getPinnedArtifacts(userId: string): Promise<SavedArtifact[]> {
   const items = await getArtifacts(userId);
   return items.filter((item) => item.pinned === true);
+}
+
+// ── Sharing Operations ────────────────────────────────────────────────────────
+
+function sharedDoc(artifactId: string) {
+  return doc(db, 'sharedWork', artifactId);
+}
+
+/**
+ * Makes an artifact publicly visible to all authenticated users.
+ * Writes a full copy (including SQL) to the top-level `sharedWork/{id}` collection
+ * and marks `isPublic: true` on the owner's personal copy.
+ */
+export async function publishArtifact(
+  userId: string,
+  artifactId: string,
+  ownerEmail: string,
+): Promise<void> {
+  const artifact = await getArtifact(userId, artifactId);
+  if (!artifact) return;
+  const sharedCopy: SharedArtifactSummary = {
+    ...artifact,
+    isPublic: true,
+    ownerEmail,
+    sharedAt: nowISO(),
+  };
+  // Write the shared copy first, then update the owner's record
+  await setDoc(sharedDoc(artifactId), sharedCopy);
+  await updateArtifact(userId, artifactId, { isPublic: true, ownerEmail });
+}
+
+/**
+ * Removes an artifact from the public shared gallery.
+ * Deletes the `sharedWork/{id}` document and marks `isPublic: false` on the owner's copy.
+ */
+export async function unpublishArtifact(
+  userId: string,
+  artifactId: string,
+): Promise<void> {
+  await deleteDoc(sharedDoc(artifactId));
+  await updateArtifact(userId, artifactId, { isPublic: false });
+}
+
+/**
+ * Returns public artifacts shared by all users.
+ * Reads from the top-level `sharedWork` collection (any authenticated user can read).
+ * Results are ordered by sharedAt descending, capped at 100.
+ */
+export async function getSharedArtifacts(): Promise<SharedArtifactSummary[]> {
+  const q = query(
+    collection(db, 'sharedWork'),
+    orderBy('sharedAt', 'desc'),
+    limit(100),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => d.data() as SharedArtifactSummary);
 }
 
 // ── Space CRUD Operations ───────────────────────────────────────────────────────

@@ -2,7 +2,7 @@
 
 A guide to the codebase structure, key files, their responsibilities, and where to find things. Consult this before making changes to understand what you're touching and what might be affected.
 
-Last updated: 2026-07-09
+Last updated: 2026-07-16
 
 ---
 
@@ -119,6 +119,10 @@ UI Components (src/components/)
 - Dry-run cost check
 - Auto-retry on SQL errors (sends error back to Gemini for fix)
 - Result quality analysis via `analyzeResultQuality()`
+- `terminateAfter: ['run_query']` -- hard loop exit after run_query succeeds
+- Pre-fetches table list when dataset is resolved (eliminates list_tables tool calls)
+- Strips list_datasets/list_tables from tool declarations when context already available
+- Accepts `conversationState` for SESSION HISTORY injection
 
 ### `handle-data-management.ts` (275 lines)
 - DML plan generation (INSERT, UPDATE, DELETE, CREATE, ALTER, etc.)
@@ -150,6 +154,7 @@ UI Components (src/components/)
 - Google Sheets export via BigQuery extract
 - Scheduled query creation via Data Transfer API
 - Query save to Firestore
+- Added 2026-07-13: CSV Upload (UPLOAD_CSV) -- 3-phase flow, client-side BigQuery multipart upload
 
 ### `handle-pipeline.ts` (~390 lines)
 - 6 operation types: LIST_SCHEDULES, SCHEDULE_DETAILS, CREATE_PIPELINE, UPDATE_SCHEDULE, DELETE_SCHEDULE, RUN_HISTORY
@@ -167,6 +172,25 @@ UI Components (src/components/)
 - Fuzzy-matches user message against saved artifact names
 - Executes cached SQL directly without Gemini calls
 - Records run count via `recordRun()`
+- Added 2026-07-14: Injects `savedArtifactSql/Name/VizType` into QueryResult for CTE context forwarding
+
+### `handle-conversation.ts` [Added 2026-07-13]
+- Complete rewrite of the conversation skill as a tool-calling agent using `callGeminiWithTools`
+- 6 tools: `run_query`, `get_table_schema`, `list_tables`, `list_datasets`, `create_dataset`, `execute_dml`
+- Destructive DML intercept: DELETE/TRUNCATE/DROP are blocked, a COUNT preview runs, CONFIRMATION_CARD returned
+- Expert BigQuery/GCP system prompt; loads skill doc summaries for capability awareness
+- Default routing target for all non-fast-path skills and LLM classifier results
+- No keyword signals (empty manifest.signals) -- never reached by keyword scoring
+
+### `handle-governance.ts` [Added ~2026-07-11]
+- 4 sub-types: ACCESS_AUDIT, TABLE_SECURITY, SENSITIVE_DATA_SCAN, DATA_CLASSIFICATION
+- Queries IAM policies and INFORMATION_SCHEMA for access/security metadata
+- Returns `GOVERNANCE_VIEW` envelope with `presentation: 'custom'`
+
+### `handle-dashboard.ts` [Added 2026-07-15]
+- AI-driven dashboard builder: interprets "create a dashboard showing X, Y, Z" in chat
+- Generates SQL for each tile, fetches initial data, saves to Firestore
+- Returns `DASHBOARD_VIEW` artifact which opens as a new tab in the app
 
 ---
 
@@ -292,8 +316,91 @@ UI Components (src/components/)
 - `SkillName`, `CompositionEnvelope`, `SchemaResult`, `QueryResult`
 - `DataManagementResult`, `DataQualityResult`, `MonitoringResult`
 - `DiscoveryResult`, `DataLoadingResult`, `AlertResult`
+- Added 2026-07-11: `briefing` field on `CompositionEnvelope`
+- Added 2026-07-12: `SavedDashboard`, `DashboardTile`, `JoinDefinition`
+- Added 2026-07-13: `CsvUploadPreview`, `UPLOAD_PREVIEW`, `UPLOAD_CSV`, `CSV_UPLOAD_VIEW`
+- Added 2026-07-15: `PLAN_CARD` artifact type, `InteractiveWidgetData`
 
 ---
+
+### `src/lib/conversation-state.ts` [Added 2026-07-15]
+**Responsibility**: Cross-turn conversational memory.
+- `ConversationState` type: `queriedTables` (max 20), `appliedFilters`, `mentionedEntities`, `activeTable/Dataset`, `queryHistory` (last 5 SQL)
+- `updateState()` -- accumulates from each `CompositionEnvelope`
+- `extractFiltersFromSql()` -- parses WHERE clauses for =, !=, >, <, LIKE, IN, BETWEEN
+- `formatStateForPrompt()` -- produces ~200-400 token compact block for LLM injection
+
+### `src/lib/sql-guard.ts` [Added ~2026-07-15]
+**Responsibility**: Pre-execution SQL type-safety auto-correction.
+- `checkAndFixTypes()` -- detects and auto-corrects INT64 = 'string' and BOOL = 'string' type mismatches before query execution
+- Zero-row retry support: relaxes EXTRACT(YEAR) filters and exact string matches
+
+### `src/lib/column-classifier.ts` [Added ~2026-07-12]
+**Responsibility**: Column type classification for chart rendering.
+- `classifyColumns(columns, rows)` -- returns classification per column: 'measure', 'dimension', 'date', 'id'
+- Used by `resolveAxes()` in `chart-utils.ts` to exclude non-numeric columns from yKeys
+
+### `src/lib/viz-intent.ts` [Added 2026-07-12]
+**Responsibility**: Explicit user visualization intent extraction.
+- `extractVisualizationIntent(message)` -- returns a `VizType` or null
+- `EXPLICIT_INTENT_MAP` array: ordered first-match-wins (explicit chart types before geographic patterns)
+- 6 generic map patterns, 45 full country names for geo detection
+- Result threads through `enrichedContext.userIntent` → `handleQuery()` → `compose()` → `inferVisualizationType()` as the highest-priority signal
+
+### `src/lib/monitoring-history.ts` [Added 2026-07-12]
+**Responsibility**: Firestore persistence for data quality check history.
+- `saveMonitoringSnapshot()` -- fire-and-forget write after FRESHNESS/COMPLETENESS DQ checks
+- `getMonitoringHistory(tableRef, limit?)` -- reads last N snapshots for sparkline rendering
+- Collection: `monitoringHistory/{tableRef}/snapshots`
+
+### `src/lib/preview-client.ts` [Added 2026-07-15]
+**Responsibility**: Paginated and filtered row fetching for the Sample tab.
+- `fetchTablePage(project, dataset, table, token, {page, pageSize, filter})` -- builds SELECT + COUNT(*) queries
+- Filter uses SQL LIKE on CAST(...AS STRING); excludes GEOGRAPHY/STRUCT/ARRAY/JSON columns from the filter clause
+
+### `src/lib/bq-tools.ts` [Added ~2026-07-13]
+**Responsibility**: Tool definitions for the tool-calling agent loops.
+- `BQ_TOOLS` array: `run_query`, `get_table_schema`, `list_tables`, `list_datasets`, `create_dataset`, `execute_dml`
+- Each tool definition matches the function signature expected by `callGeminiWithTools()`
+- `createDatasetTool`, `executeDmlTool` added 2026-07-13
+
+### `src/lib/result-insights.ts` [Added ~2026-07-11]
+**Responsibility**: Heuristic insights computed from query result data.
+- `computeInsights(columns, rows)` -- returns severity-ranked findings
+- Used for BAR, SCATTER, PIE, FUNNEL chart types
+- Medium/high severity insights surfaced as briefing findings
+
+### `src/lib/chat-run-state-context.tsx` [Added 2026-07-12]
+**Responsibility**: Cross-chat running status tracking.
+- `ChatRunStateProvider` wraps `ShellLayout`
+- `runningId: string | null` -- set to conversation ID while a query is in flight
+- Read by `ChatSidebar` to show pulsing blue dot on the running conversation
+
+### `src/lib/preferences-context.tsx` [Added 2026-07-11]
+**Responsibility**: User display preferences persisted to localStorage.
+- `showProvenance: boolean` -- controls ProvenancePanel visibility in ArtifactCard
+- `showSuggestions: boolean` -- controls suggestion chips visibility
+- Toggled via kebab menu in TopBar
+
+### `src/lib/page-context.tsx` [Added/extended ~2026-07-15]
+**Responsibility**: Tab system for the main content area.
+- Extended from single `activePage` string to full tab system: `tabs: AppTab[]`, `activeTabId`
+- Chat tab is always present and not closeable
+- Dashboard tabs stored by id `dashboard:{dashboardId}`
+- `TabBar` renders only when `tabs.length > 1`
+
+### `src/lib/layout-context.tsx`
+**Responsibility**: Shared layout state.
+- `chatListOpen`, `setChatListOpen`, `toggleChatList` -- overlay chat list in unified mode
+- Layout mode: 'unified' | 'chat-left' | 'chat-right'
+- `historyVisible` / `setHistoryVisible` -- history toggle in TopBar
+
+### `src/lib/firestore-service.ts`
+**Responsibility**: Thin Firestore abstraction layer.
+- Wraps Firebase Firestore SDK calls used across multiple modules
+- Prevents direct SDK calls from being scattered across the codebase
+
+
 
 ### `src/hooks/useChatOrchestration.ts` (682 lines)
 **Responsibility**: Custom hook encapsulating all chat orchestration state and logic.
@@ -338,12 +445,12 @@ UI Components (src/components/)
 
 | Component | Size | Renders |
 |-----------|------|--------|
-| SchemaView.tsx | 67KB | Dataset/table listings, full table schemas |
+| SchemaView.tsx | 67KB | Dataset/table listings, full table schemas, Sample tab with pagination/filter (added 2026-07-15) |
 | PromptsLibrary.tsx | 33KB | Saved prompts and quick actions |
 | MultistepView.tsx | 15KB | Multi-step workflow cards |
 | ErDiagramView.tsx | 14KB | Entity-relationship diagrams |
 | LineageDagView.tsx | 14KB | Data lineage DAG visualization |
-| ArtifactCard.tsx | 28KB | Artifact rendering wrapper with two paths: default (fixed chrome) and custom (thin container, view owns layout). Includes CustomArtifact dispatcher. |
+| ArtifactCard.tsx | 28KB | Artifact rendering wrapper with two paths: default (fixed chrome) and custom (thin container, view owns layout). Includes CustomArtifact dispatcher. Added dispatchers for: CSV_UPLOAD_VIEW (2026-07-13), INTERACTIVE_WIDGET (2026-07-14), PLAN_CARD (2026-07-15), DASHBOARD_VIEW (2026-07-15). |
 | ProvenancePanel.tsx | 14KB | Collapsible provenance panel (SQL, cost, job, tables, quality flags) |
 | HowItWorksPanel.tsx | 8KB | Static trust/transparency page (security, queries, costs) |
 | CostAnalysisView.tsx | 15KB | Cost breakdown visualizations |
@@ -351,10 +458,11 @@ UI Components (src/components/)
 | StorageBreakdownView.tsx | 15KB | Storage treemaps |
 | SettingsPage.tsx | 15KB | App settings UI |
 | DataLoadingView.tsx | 9KB | Export/schedule confirmations |
-| CsvUploadView.tsx | 8KB | CSV upload: file drop zone, preview table, upload confirm |
+| CsvUploadView.tsx | 8KB | CSV upload: file drop zone, preview table, upload confirm. Added 2026-07-13. |
+| InteractiveWidgetView.tsx | ~10KB | Date range picker + multi-select filter widget. Apply/Clear buttons re-run parameterized SQL client-side. Added 2026-07-14. |
 | PipelineView.tsx | 10KB | Scheduled query list, details, run history, pipeline creation |
 | DiscoveryView.tsx | 9KB | Search results |
-| DataQualityView.tsx | 8KB | Quality check results |
+| DataQualityView.tsx | 8KB | Quality check results. Added QualityTrendSparkline (2026-07-12). |
 | EmptyCanvasAnimation.tsx | 8KB | Welcome screen animation |
 | AnimatedCrystalBall.tsx | 8KB | Loading animation |
 | DataTable.tsx | 6KB | Generic data table renderer |
@@ -368,6 +476,16 @@ UI Components (src/components/)
 | ChartView.tsx | 3KB | Chart rendering dispatcher |
 | SavedPage.tsx (SpacesPage) | 28KB | Spaces/folder management, card/list view toggle, drag-and-drop, inline rename, context menus, breadcrumb nav |
 | FavoritesPage.tsx | 14KB | Starred chats + pinned artifacts grid with filter tabs |
+| TaskWorkflowView.tsx | ~10KB | Task framework UI -- shows resolved plan, step-by-step execution progress, results. Added ~2026-07-11. |
+| TabBar.tsx | ~3KB | Tab bar for main content area; renders when >1 tab open. Tabs: chat (always present), dashboard tabs. Added 2026-07-15. |
+| DashboardArtifactCard.tsx | ~8KB | Dashboard tile card used in the dashboard page. Added 2026-07-15. |
+| SavedWorkLibrary.tsx | ~10KB | Alternate saved items view. |
+| chat/PlanCard.tsx | ~6KB | PLAN_CARD artifact: title, summary, numbered steps, Cancel/Comment/Proceed actions. Comment mode has inline textarea for amendments. Added 2026-07-15. |
+| chat/InlineConfirmation.tsx | ~3KB | Inline confirmation prompt for low-stakes confirmations within the chat thread. |
+| CrystalBallOracle.tsx | ~5KB | Enhanced crystal ball loading animation variant. |
+| SparkSpinner.tsx | ~2KB | Lightweight spinner used in compact contexts. |
+| StatRowCard.tsx | ~3KB | Horizontal stat row card variant. |
+| ErrorBoundary.tsx | ~3KB | React error boundary wrapping skill-specific views. |
 
 ---
 

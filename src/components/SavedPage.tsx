@@ -13,13 +13,18 @@ import {
   deleteSpace,
   moveToSpace,
   duplicateArtifact,
+  publishArtifact,
+  unpublishArtifact,
+  getSharedArtifacts,
 } from '@/lib/saved-work';
+import { useAuth } from '@/lib/auth-context';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 type TabKey = 'all' | SavedArtifactType;
 type SortMode = 'recent' | 'name' | 'most-used' | 'type';
 type ViewMode = 'card' | 'list';
+type VisibilityFilter = 'all' | 'public' | 'private';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -612,6 +617,56 @@ const S = {
     alignItems: 'center',
     gap: 10,
   } as React.CSSProperties,
+  sharedBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '2px 8px',
+    fontSize: 11,
+    fontWeight: 500,
+    background: '#e8f0fe',
+    color: '#1a4077',
+    borderRadius: 10,
+    border: '1px solid #c5d8fd',
+    whiteSpace: 'nowrap' as const,
+  } as React.CSSProperties,
+
+  privateBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '2px 8px',
+    fontSize: 11,
+    fontWeight: 500,
+    background: '#f1f3f4',
+    color: '#5f6368',
+    borderRadius: 10,
+    border: '1px solid #dadce0',
+    whiteSpace: 'nowrap' as const,
+  } as React.CSSProperties,
+
+  filterChips: {
+    display: 'flex',
+    gap: 6,
+    marginBottom: 20,
+    alignItems: 'center',
+  } as React.CSSProperties,
+
+  filterChip: (active: boolean) => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    padding: '5px 14px',
+    fontSize: 13,
+    fontWeight: active ? 600 : 400,
+    background: active ? '#d3e3fd' : 'white',
+    color: active ? '#1a4077' : 'var(--text-muted, #5f6368)',
+    border: `1px solid ${active ? '#a8c7fa' : 'var(--border, #dadce0)'}`,
+    borderRadius: 20,
+    cursor: 'pointer',
+    fontFamily: "'Google Sans', sans-serif",
+    transition: 'all 0.15s',
+  } as React.CSSProperties),
 } as const;
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -625,6 +680,7 @@ interface SpacesPageProps {
 }
 
 export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }: SpacesPageProps) {
+  const { user } = useAuth();
   const [items, setItems] = useState<SavedArtifact[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab ?? 'all');
@@ -633,6 +689,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
   const [viewMode, setViewMode] = useState<ViewMode>('card');
   const [loading, setLoading] = useState(true);
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+  const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilter>('all');
 
   // Space navigation
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
@@ -663,14 +720,22 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [spacesResult, itemsResult] = await Promise.all([
+      const [spacesResult, myItemsResult, sharedResult] = await Promise.all([
         getSpaces(userId),
         searchQuery.trim()
           ? searchArtifacts(userId, searchQuery.trim())
           : getArtifacts(userId, activeTab === 'all' ? undefined : activeTab as SavedArtifactType),
+        getSharedArtifacts(),
       ]);
       setSpaces(spacesResult);
-      setItems(itemsResult);
+      // Merge shared items from others into the list (de-duped by id).
+      // The owner's copy already has isPublic=true, so we only add items
+      // where the userId differs from the current user.
+      const myIds = new Set(myItemsResult.map((i) => i.id));
+      const othersShared = sharedResult
+        .filter((s) => s.userId !== userId && !myIds.has(s.id))
+        .map((s) => s as SavedArtifact);
+      setItems([...myItemsResult, ...othersShared]);
     } catch (err) {
       console.error('Failed to load data:', err);
       setItems([]);
@@ -813,6 +878,23 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
     }
   }
 
+  // Publish / unpublish
+  async function handleTogglePublic(item: SavedArtifact) {
+    setMenuOpenId(null);
+    const email = user?.email || '';
+    try {
+      if (item.isPublic) {
+        await unpublishArtifact(userId, item.id);
+        setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, isPublic: false } : i));
+      } else {
+        await publishArtifact(userId, item.id, email);
+        setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, isPublic: true, ownerEmail: email } : i));
+      }
+    } catch (err) {
+      console.error('Failed to toggle visibility:', err);
+    }
+  }
+
   // Move to space
   async function handleMoveToSpace(artifactId: string, spaceId: string | undefined) {
     setMenuOpenId(null);
@@ -881,11 +963,33 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
 
   // ── Derived data ─────────────────────────────────────────────────────────
 
-  const filteredItems = sortItems(items, sortBy);
+  const ownedItems = items.filter((i) => i.userId === userId);
+  const sharedByOthers = items.filter((i) => i.userId !== userId);
+
+  // Apply the visibility filter.
+  // For "all": show everything (own private + own public + others' public).
+  // For "public": own items marked public + others' public items.
+  // For "private": own items that are NOT public.
+  const visibilityFiltered = (() => {
+    if (visibilityFilter === 'public') {
+      return items.filter((i) => i.isPublic === true);
+    }
+    if (visibilityFilter === 'private') {
+      return ownedItems.filter((i) => !i.isPublic);
+    }
+    return items;
+  })();
+
+  const filteredItems = sortItems(
+    activeSpaceId
+      ? visibilityFiltered.filter((i) => i.spaceId === activeSpaceId && i.userId === userId)
+      : visibilityFiltered.filter((i) => !i.spaceId || i.userId !== userId),
+    sortBy,
+  );
 
   // Count items in each space (kept for context menu compatibility)
   function spaceItemCount(_spaceId: string): number {
-    return items.filter((i) => i.spaceId === _spaceId).length;
+    return ownedItems.filter((i) => i.spaceId === _spaceId).length;
   }
 
   // ── Render: inline name ──────────────────────────────────────────────────
@@ -998,6 +1102,26 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
             </div>
           )}
         </div>
+        {/* Visibility toggle -- only for items the current user owns */}
+        {(() => {
+          const item = items.find((i) => i.id === id);
+          if (!item || item.userId !== userId) return null;
+          return (
+            <>
+              <div style={S.menuDivider} />
+              <button
+                style={S.menuItem}
+                onMouseEnter={() => setMoveSubMenuOpen(false)}
+                onClick={() => handleTogglePublic(item)}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+                  {item.isPublic ? 'lock' : 'lock_open'}
+                </span>
+                {item.isPublic ? 'Make private' : 'Make public'}
+              </button>
+            </>
+          );
+        })()}
         <div style={S.menuDivider} />
         <button
           style={{ ...S.menuItem, ...S.menuItemDanger }}
@@ -1236,7 +1360,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
         onDragStart={(e) => handleDragStart(e, item.id)}
         onDragEnd={handleDragEnd}
       >
-        {/* Card header: avatar + name/subtype */}
+        {/* Card header: avatar + name/subtype + visibility badge */}
         <div style={{ ...S.cardHeaderPad, ...S.cardHeader }}>
           <div style={S.cardTitleRow}>
             <div style={S.cardIconAvatar}>
@@ -1249,16 +1373,29 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
               <div style={S.cardSubtype}>{subLabel}</div>
             </div>
           </div>
-          <button
-            style={S.moreBtn}
-            onClick={(e) => {
-              e.stopPropagation();
-              setMenuOpenId(menuOpenId === item.id ? null : item.id);
-              setMoveSubMenuOpen(false);
-            }}
-          >
-            <span className="material-symbols-outlined">more_vert</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            {item.isPublic && (
+              <span
+                style={S.sharedBadge}
+                title={item.userId !== userId ? `Shared by ${item.ownerEmail || 'a teammate'}` : 'Shared with your team'}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 13 }}>lock_open</span>
+                {item.userId !== userId ? (item.ownerEmail?.split('@')[0] || 'shared') : 'shared'}
+              </span>
+            )}
+            {item.userId === userId && (
+              <button
+                style={S.moreBtn}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpenId(menuOpenId === item.id ? null : item.id);
+                  setMoveSubMenuOpen(false);
+                }}
+              >
+                <span className="material-symbols-outlined">more_vert</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Thumbnail */}
@@ -1280,29 +1417,33 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
         {/* Footer: action buttons + delete */}
         <div style={S.cardFooter}>
           <button style={S.outlineBtn} onClick={() => onRun(item)}>Open</button>
-          <button
-            style={S.outlineBtn}
-            onClick={(e) => {
-              e.stopPropagation();
-              setMenuOpenId(menuOpenId === item.id ? null : item.id);
-              setMoveSubMenuOpen(false);
-            }}
-          >
-            More
-          </button>
-          <button
-            style={S.deleteIconBtn}
-            title="Delete"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDeleteItem(item.id);
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>delete</span>
-          </button>
+          {item.userId === userId && (
+            <button
+              style={S.outlineBtn}
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpenId(menuOpenId === item.id ? null : item.id);
+                setMoveSubMenuOpen(false);
+              }}
+            >
+              More
+            </button>
+          )}
+          {item.userId === userId && (
+            <button
+              style={S.deleteIconBtn}
+              title="Delete"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteItem(item.id);
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>delete</span>
+            </button>
+          )}
         </div>
 
-        {renderContextMenu(item.id, 'item', item.name)}
+        {item.userId === userId && renderContextMenu(item.id, 'item', item.name)}
       </div>
     );
   }
@@ -1380,21 +1521,38 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
           <span style={S.typeBadge}>{TYPE_LABELS[item.type] || item.type}</span>
         </td>
         <td style={S.listCellMuted}>
+          {item.isPublic ? (
+            <span style={S.sharedBadge}>
+              <span className="material-symbols-outlined" style={{ fontSize: 13 }}>lock_open</span>
+              {item.userId !== userId ? (item.ownerEmail?.split('@')[0] || 'shared') : 'shared'}
+            </span>
+          ) : (
+            <span style={S.privateBadge}>
+              <span className="material-symbols-outlined" style={{ fontSize: 13 }}>lock</span>
+              private
+            </span>
+          )}
+        </td>
+        <td style={S.listCellMuted}>
           {item.runCount > 0 ? `${item.runCount}x` : ''}
         </td>
         <td style={S.listCellMuted}>{relativeTime(item.updatedAt)}</td>
         <td style={{ ...S.listCell, width: 40, position: 'relative' as const }}>
-          <button
-            style={S.moreBtn}
-            onClick={(e) => {
-              e.stopPropagation();
-              setMenuOpenId(menuOpenId === item.id ? null : item.id);
-              setMoveSubMenuOpen(false);
-            }}
-          >
-            <span className="material-symbols-outlined">more_vert</span>
-          </button>
-          {renderContextMenu(item.id, 'item', item.name)}
+          {item.userId === userId && (
+            <>
+              <button
+                style={S.moreBtn}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpenId(menuOpenId === item.id ? null : item.id);
+                  setMoveSubMenuOpen(false);
+                }}
+              >
+                <span className="material-symbols-outlined">more_vert</span>
+              </button>
+              {renderContextMenu(item.id, 'item', item.name)}
+            </>
+          )}
         </td>
       </tr>
     );
@@ -1567,6 +1725,27 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Visibility filter chips */}
+      <div style={S.filterChips}>
+        {(['all', 'public', 'private'] as VisibilityFilter[]).map((f) => (
+          <button
+            key={f}
+            style={S.filterChip(visibilityFilter === f)}
+            onClick={() => setVisibilityFilter(f)}
+          >
+            {f === 'all' && <span className="material-symbols-outlined" style={{ fontSize: 14 }}>dashboard</span>}
+            {f === 'public' && <span className="material-symbols-outlined" style={{ fontSize: 14 }}>lock_open</span>}
+            {f === 'private' && <span className="material-symbols-outlined" style={{ fontSize: 14 }}>lock</span>}
+            {f === 'all' ? 'All' : f === 'public' ? 'Shared' : 'Private'}
+          </button>
+        ))}
+        {visibilityFilter === 'public' && sharedByOthers.length > 0 && (
+          <span style={{ fontSize: 12, color: 'var(--text-dim, #80868b)', marginLeft: 4 }}>
+            {sharedByOthers.length} from teammates
+          </span>
+        )}
       </div>
 
       {/* Content */}

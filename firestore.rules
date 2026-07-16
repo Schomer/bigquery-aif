@@ -1,10 +1,19 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // All user data is scoped under /users/{uid}/
-    // Only the authenticated user can read or write their own data.
+    // Personal data: only the owning user can read or write.
     match /users/{uid}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Shared gallery: any authenticated user can read.
+    // Only the artifact owner (matched by ownerId field) can write or delete.
+    match /sharedWork/{artifactId} {
+      allow read: if request.auth != null;
+      allow update, delete: if request.auth != null
+        && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.userId;
     }
   }
 }

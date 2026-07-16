@@ -2,7 +2,11 @@
 
 Known-good scenarios that must produce correct results. Before deploying any change, verify that these cases still work. Each test specifies the expected routing, expected behavior, and what a failure looks like.
 
-Last verified: 2026-06-30
+Last verified: 2026-07-16
+
+> **Architecture note (2026-07-13)**: The routing architecture changed from keyword-first to AI-first. Schema, query, and data-quality still have a keyword fast-path. All other skills (data-management, monitoring, discovery, pipeline, governance, task) now route through the conversation handler (`handle-conversation.ts`), which is a tool-calling agent that decides what to do. The LLM classifier result for non-fast-path skills also routes to conversation. The final fallback is conversation, not the keyword result.
+>
+> **Impact on test cases**: R6, R11 still pass -- the conversation agent calls `execute_dml` and the destructive DML intercept adds the confirmation/preview gate. R12 still passes -- the conversation agent recognizes export intent and calls appropriate tools. The expected "skill" for these is now `conversation` internally, though the behavior contract (what the user sees) is unchanged.
 
 ---
 
@@ -94,6 +98,18 @@ These test that messages route to the correct skill.
 - **Expected output**: Single number, sum of sales filtered by store name
 - **Failure looks like**: Creates a multistep workflow with schema listing + schema describe + query
 
+### R14: Conversational input routes to conversation
+- **Input**: "Hi, what can you help me with?"
+- **Expected skill**: conversation
+- **Expected output**: Prose response with action chips (not an artifact card)
+- **Failure looks like**: Routes to query or schema, returns empty or error
+
+### R15: Meta-conversational follow-up routes to conversation, not query
+- **Input**: "explain what you just did" (after any query result)
+- **Expected skill**: conversation
+- **Expected output**: Plain explanation prose, not a new query result
+- **Failure looks like**: Routes to query and runs a new SQL query
+
 ---
 
 ## Schema Tests
@@ -157,12 +173,19 @@ These test the schema skill's behavior.
 ### DM1: Destructive operation requires confirmation
 - **Input**: "Delete all rows where status = 'cancelled'"
 - **Expected**: Preview showing affected rows, confirmation card, execution only after confirm
+- **Note (2026-07-13)**: Confirmation gate is now enforced by the conversation handler's `execute_dml` tool intercept (not by `handleDataManagement` routing). The `pendingDestructiveDml` intercept fires on DELETE/TRUNCATE/DROP regardless of phrasing.
 - **Failure looks like**: Rows deleted without preview/confirmation
 
 ### DM2: Misrouted analytical query gets redirected
 - **Input**: "Analyze sales trends over time" (if LLM classifier misroutes to data-management)
 - **Expected**: Safety net detects mismatch, redirects to query handler
 - **Failure looks like**: Tries to generate DML for an analytical question
+
+### DM3: Destructive intent in any phrasing still requires confirmation
+- **Input**: "get rid of all the rows with null values" (or "clean out the cancelled orders")
+- **Expected**: Conversation agent calls `execute_dml`, intercept fires, confirmation card shown
+- **Note**: This phrasing would NOT have matched MUTATING_VERBS keywords. Passes because LLM understands intent.
+- **Failure looks like**: No confirmation shown, rows deleted immediately
 
 ---
 
@@ -287,3 +310,51 @@ Test IDs: F1-F5 (Foundation), Q1-Q6 (Query), DQ1-DQ3 (Data Quality), M1-M3 (Moni
 
 Results: `test-results/ux-eval-report.md` and `test-results/ux-eval-results.json`.
 Screenshots: `test-screenshots/ux-eval/`.
+
+---
+
+## New Feature Tests (Added 2026-07-10 through 2026-07-16)
+
+These cover features built after the original test-cases were written. They have not been automated yet.
+
+### NF1: /plan prefix shows a plan card before execution
+- **Input**: "/plan show me the top 10 orders by revenue"
+- **Expected**: PLAN_CARD artifact displayed with title, summary, numbered steps, and a Proceed button. No SQL executed.
+- **Click Proceed**: Re-sends the original query through the normal pipeline and shows result.
+- **Failure looks like**: Query executes immediately without showing a plan, or plan card crashes.
+
+### NF2: CSV upload flow works end-to-end
+- **Input**: User attaches a CSV file via the paperclip button
+- **Expected**: Phase 1 shows file drop zone. Phase 2 shows preview table + dataset/table fields. Phase 3 executes upload after confirm button.
+- **Failure looks like**: File attaches but no upload view appears, or upload executes without a preview.
+
+### NF3: Interactive widget -- date range picker
+- **Input**: "show me sales over time with a date range filter"
+- **Expected**: INTERACTIVE_WIDGET artifact with date pickers (start/end empty by default), Apply/Clear buttons, chart rendered below
+- **Failure looks like**: Plain query result with no filter controls.
+
+### NF4: Interactive widget -- NOT triggered for ranking queries
+- **Input**: "show me the top 15 countries by population in 2023"
+- **Expected**: BAR_CHART or COLUMN_CHART with 15 rows. No widget controls.
+- **Failure looks like**: Widget with a MULTI_SELECT for country (17,000+ rows).
+
+### NF5: Multi-series line chart pivots long-format data
+- **Input**: "show me population of China and USA over time"
+- **Expected**: LINE_CHART with two series (one per country), year on x-axis
+- **Failure looks like**: Two lines where one is the year values (flat near zero at chart scale) and the other is population.
+
+### NF6: Zero-row result shows diagnostic headline, not LLM summary
+- **Input**: Any query that returns 0 rows (e.g., a WHERE filter with no matches)
+- **Expected**: Diagnostic headline ("No rows matched your filter criteria"), TABLE artifact type, recovery chips ("Sample table", "View schema")
+- **Failure looks like**: Optimistic LLM summary as headline, or chart component receiving empty data.
+
+### NF7: Saved query follow-up uses CTE wrapping
+- **Input**: User runs a saved artifact, then asks "group by month"
+- **Expected**: SQL wraps the saved query as a CTE: `WITH saved AS (...) SELECT ... FROM saved GROUP BY month`
+- **Failure looks like**: LLM queries a real BigQuery table, ignoring the saved query context.
+
+### NF8: Sample rows tab -- pagination and filter
+- **Input**: In the SchemaView Sample tab, change rows-per-page to 100, type a filter, click Filter
+- **Expected**: Table updates to show filtered/paginated rows with "1-100 of N" indicator
+- **Failure looks like**: No pagination controls visible, or filter has no effect.
+

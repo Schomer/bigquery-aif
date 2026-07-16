@@ -2,6 +2,21 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-16: Query progress panel, BQ async polling, iteration cap improvements
+
+**Query progress panel (A + B + D)**:
+- Replaced single-line spinner with `QueryProgressPanel` in `ChatThread.tsx` (exported and reused in `ResultsSidebar.tsx`).
+- Shows: live elapsed timer (ticks every 1s via `setInterval`), current step text, and a muted breadcrumb log of up to 5 prior steps.
+- `executeQuery` in `bigquery-client.ts` switched from synchronous `/queries` to async `POST /jobs` + poll loop with `onJobProgress` callback. On each `RUNNING` tick, fires a status update with bytes processed when available.
+- `StatusCallback` (`string | StepInfo`) propagated through `gemini-client.ts`, `bq-tools.ts`, `handle-query.ts`, `handle-conversation.ts` toolExecutor signatures.
+- `useChatOrchestration` adds `liveSteps` and `loadingStartTime` state; both exposed in hook return and passed as props to `ChatThread` and `ResultsSidebar` via `page.tsx`.
+
+**Iteration cap + DML agent improvements (user edits)**:
+- `maxIterations` raised from 8 to 30 in `handle-conversation.ts`.
+- `terminateAfter: ['execute_dml', 'create_dataset']` added so agent exits cleanly after terminal actions.
+- Exhausted-cap sentinel changed to `__MAX_ITERATIONS_REACHED__`; converted to friendly user message in `handle-conversation.ts`.
+- System prompt rules added: skip schema fetch if schema already in context; write dedupe SQL directly without exploratory COUNT queries.
+
 ## 2026-07-15: /plan mode -- pre-execution planning with user approval
 
 **Context**: User wanted a way to see what the AI intends to do before any BigQuery queries run. Triggered by prefixing a message with `/plan`.

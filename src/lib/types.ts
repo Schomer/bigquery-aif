@@ -530,7 +530,21 @@ export interface SavedArtifact {
   runCount: number;
   lastRunAt?: string;
   spaceId?: string;
+  /** If true, the artifact is visible to all authenticated users in the shared gallery. */
+  isPublic?: boolean;
+  /** Display email of the owning user, stored so the shared gallery can render it without a user lookup. */
+  ownerEmail?: string;
 }
+
+/**
+ * The document written to the top-level `sharedWork/{artifactId}` collection.
+ * It is a full copy of the SavedArtifact (including SQL) so coworkers can run it
+ * under their own credentials. Access is restricted to authenticated users only.
+ */
+export type SharedArtifactSummary = SavedArtifact & {
+  /** ISO timestamp of when the item was made public. */
+  sharedAt: string;
+};
 
 // ─── W3-11: Saved Dashboard (Firestore: savedDashboards/{id}) ────────────────
 
