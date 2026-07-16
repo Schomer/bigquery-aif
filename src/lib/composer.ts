@@ -181,7 +181,7 @@ function composeSchema(result: SchemaResult): CompositionEnvelope {
     } else {
       const colCount = result.columns.length;
       const rowCount = result.rowCount?.toLocaleString() ?? 'unknown';
-      headlineText = `Here's the schema for \`${result.table}\` — ${colCount} columns, ${rowCount} rows`;
+      headlineText = `\`${result.table}\``;
     }
 
     // Contextual next-action chips for TABLE scope
