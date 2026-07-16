@@ -2,6 +2,35 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-15: Strategic overhaul -- 15 user pain points addressed
+
+**Context**: User reported the app "barely works for even the most basic prompts." Ran 8 parallel research agents across routing, visualization, prompt interpretation, UX quality, competitive intelligence, feature verification, query loop analysis, and routing accuracy. Identified exact root causes for every pain point.
+
+**Routing (router.ts, handle-schema.ts, handle-query.ts, handle-pipeline.ts, handle-data-loading.ts)**:
+- Added `META_CONVERSATIONAL_PATTERNS` pre-check -- "explain what you did", "why did you do that" now route to conversation instead of query.
+- Added `'show me'` to `TABLE_DESCRIBE_SIGNALS` and schema extraction regex -- eliminates unnecessary LLM call for common prompts, cutting latency from ~3-5s to ~1-2s.
+- Added 14 missing query signals: summarize, analyze, calculate, run a query, what happened, look up, show me the top, etc.
+- Fixed signal weight conflict: pipeline now owns "schedule" (w3), data-loading lowered to w1.
+
+**Visualization (composer.ts, viz-intent.ts)**:
+- Fixed `isSampleQuery` overriding `userIntent` -- explicit chart requests now respected even for SELECT * LIMIT queries.
+- Promoted LLM `visualizationHint` from Step 12 to Step 0b -- LLM chart suggestions now trusted over heuristics.
+- Added 6 generic map patterns to viz-intent ("show on a map", "map this", "geographic", etc.).
+- Added 45 full country names to `ISO_COUNTRY_CODES` for geo detection.
+- Warmed up heuristic headlines ("Here are your N datasets" instead of "Found N datasets").
+
+**UI (ArtifactCard.tsx, DataQualityView.tsx)**:
+- Fixed unconditional divider rendering (empty lines).
+- Generate Insights now passes SQL/columns/rowCount context instead of bare text.
+- Renamed "Severity" column to "Status", INFO severity renders as "OK" with green.
+
+**Handlers (handle-conversation.ts, handle-data-quality.ts, gemini-client.ts)**:
+- Conversation responses now get data-driven chips (Profile, Explore, Modify, Save) instead of empty array.
+- Degraded profile indicator shown when safe-mode fallback fires.
+- Status messages now context-aware ("Querying orders..." instead of "Running your query...").
+
+---
+
 ## 2026-07-15: Sample rows -- pagination, page size, and row filtering
 
 **Changes**:

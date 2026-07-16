@@ -108,6 +108,12 @@ When you need to visually verify the deployed app (after deploying UI changes, c
 1. Use the `browser_subagent` tool to navigate to `https://bigqueryaif.web.app`
 2. Take screenshots, inspect elements, verify layout
 
+If `browser_subagent`'s internal `open_browser_url` tool fails with "local chrome mode is only supported on Linux", do NOT give up and do NOT say browser testing is unavailable. Instead, fall back to the Puppeteer screenshot script:
+```bash
+source "$HOME/.nvm/nvm.sh" && node scripts/screenshot.mjs https://bigqueryaif.web.app
+```
+Then read the saved screenshot with `view_file`. This uses system Chrome at `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` and always works on macOS.
+
 For the full automated 20-test suite, use the Puppeteer script: `node scripts/visual-test.mjs`
 
 Read `.agents/skills/browser-testing/SKILL.md` for detailed usage examples.
