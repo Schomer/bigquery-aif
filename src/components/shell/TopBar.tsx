@@ -30,10 +30,10 @@ export function TopBar({ onNavToggle }: TopBarProps) {
   const { layout, setLayout, historyVisible, setHistoryVisible } = useLayout();
   const { showProvenance, setShowProvenance, showSuggestions, setShowSuggestions } = usePreferences();
 
-  const LAYOUT_OPTIONS: { value: ChatLayout; icon: string; label: string; flip?: boolean }[] = [
-    { value: 'unified', icon: 'view_stream', label: 'Unified' },
-    { value: 'chat-left', icon: 'side_navigation', label: 'Chat left' },
-    { value: 'chat-right', icon: 'side_navigation', label: 'Chat right', flip: true },
+  const LAYOUT_OPTIONS: { value: ChatLayout; icon: string; label: string }[] = [
+    { value: 'chat-left',  icon: '/icons/sidebar_left.svg',    label: 'Chat left' },
+    { value: 'unified',   icon: '/icons/sidebar_unified.svg', label: 'Unified' },
+    { value: 'chat-right', icon: '/icons/sidebar_right.svg',  label: 'Chat right' },
   ];
 
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
@@ -373,10 +373,17 @@ export function TopBar({ onNavToggle }: TopBarProps) {
               aria-checked={layout === opt.value}
               aria-label={opt.label}
               data-tooltip={opt.label}
-              className={`layout-seg-btn${layout === opt.value ? ' layout-seg-btn--active' : ''}${opt.flip ? ' layout-seg-btn--flip' : ''}`}
+              className={`layout-seg-btn${layout === opt.value ? ' layout-seg-btn--active' : ''}`}
               onClick={() => setLayout(opt.value)}
             >
-              <span className="material-symbols-outlined">{opt.icon}</span>
+              <img
+                src={opt.icon}
+                alt=""
+                aria-hidden="true"
+                className="layout-seg-btn-icon"
+                width={20}
+                height={20}
+              />
             </button>
           ))}
         </div>
