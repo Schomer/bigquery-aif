@@ -123,7 +123,7 @@ export function PlanCard({ data, onProceed, onComment, onCancel }: PlanCardProps
                       width: 20,
                       height: 20,
                       borderRadius: '50%',
-                      background: '#1B2E5D',
+                      background: '#496CC3',
                       color: 'white',
                       fontSize: 11,
                       fontWeight: 600,
