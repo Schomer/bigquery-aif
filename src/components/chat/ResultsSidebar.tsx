@@ -117,6 +117,8 @@ function envelopeStats(env: CompositionEnvelope): string {
     const cols = d?.columns?.length;
     if (rows !== undefined) parts.push(`${rows.toLocaleString()} rows`);
     if (cols) parts.push(`${cols} col${cols !== 1 ? 's' : ''}`);
+    const bytes = d?.totalBytesProcessed || env.provenance?.cost?.totalBytesProcessed;
+    if (bytes > 0) parts.push(formatBytes(bytes));
     return parts.join(' · ');
   }
   if (type === 'DATA_QUALITY_VIEW') {
@@ -504,10 +506,13 @@ export function ResultsSidebar({
                           const name = envelopeName(env);
                           const stats = envelopeStats(env);
                           return (
-                            <button
+                            <div
                               key={env.id}
                               className="chat-sidebar-artifact-card"
                               onClick={() => scrollToResult(env.id)}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => e.key === 'Enter' && scrollToResult(env.id)}
                               title="View in results panel"
                             >
                               <div className="chat-sidebar-artifact-card-icon">
@@ -517,8 +522,17 @@ export function ResultsSidebar({
                                 <div className="chat-sidebar-artifact-card-name">{name}</div>
                                 {stats && <div className="chat-sidebar-artifact-card-stats">{stats}</div>}
                               </div>
-                              <span className="material-symbols-outlined chat-sidebar-artifact-card-chevron">chevron_right</span>
-                            </button>
+                              {onSave && (
+                                <button
+                                  className="chat-sidebar-artifact-card-save"
+                                  onClick={(e) => { e.stopPropagation(); onSave(env); }}
+                                  title="Save to library"
+                                  aria-label="Save to library"
+                                >
+                                  <span className="material-symbols-outlined">bookmark_add</span>
+                                </button>
+                              )}
+                            </div>
                           );
                         })}
                       </div>

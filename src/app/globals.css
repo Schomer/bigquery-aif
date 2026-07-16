@@ -2341,16 +2341,34 @@ details>summary::marker {
   line-height: 1.2;
 }
 
-.chat-sidebar-artifact-card-chevron {
-  font-size: 16px !important;
-  color: var(--text-dim, #9ca3af);
+.chat-sidebar-artifact-card-save {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  cursor: pointer;
   flex-shrink: 0;
-  transition: color 0.15s, transform 0.15s;
+  transition: background 0.15s, color 0.15s;
+  padding: 0;
 }
 
-.chat-sidebar-artifact-card:hover .chat-sidebar-artifact-card-chevron {
-  color: var(--accent, #1a73e8);
-  transform: translateX(2px);
+.chat-sidebar-artifact-card-save .material-symbols-outlined {
+  font-size: 17px !important;
+  color: var(--text-dim, #9ca3af);
+  transition: color 0.15s;
+  font-variation-settings: 'FILL' 0;
+}
+
+.chat-sidebar-artifact-card-save:hover {
+  background: var(--accent-subtle, #e8f0fe);
+}
+
+.chat-sidebar-artifact-card-save:hover .material-symbols-outlined {
+  color: var(--accent, #496CC3);
 }
 
 /* Scroll highlight animation on target card */
@@ -3061,8 +3079,9 @@ details>summary::marker {
 .dark-theme .chat-sidebar-artifact-card-icon .material-symbols-outlined { color: #8a9bb5; }
 .dark-theme .chat-sidebar-artifact-card-name { color: #e8eaed; }
 .dark-theme .chat-sidebar-artifact-card-stats { color: #9aa0a6; }
-.dark-theme .chat-sidebar-artifact-card-chevron { color: #5f6368; }
-.dark-theme .chat-sidebar-artifact-card:hover .chat-sidebar-artifact-card-chevron { color: #8ab4f8; }
+.dark-theme .chat-sidebar-artifact-card-save .material-symbols-outlined { color: #5f6368; }
+.dark-theme .chat-sidebar-artifact-card-save:hover { background: #1e2d50; }
+.dark-theme .chat-sidebar-artifact-card-save:hover .material-symbols-outlined { color: #8ab4f8; }
 
 .dark-theme .context-chip { background: #1e2d4d; border-color: #3a5080; }
 
