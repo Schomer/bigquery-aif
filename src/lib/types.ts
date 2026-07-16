@@ -126,6 +126,7 @@ export type ArtifactType =
   | 'GOVERNANCE_VIEW'
   | 'INTERACTIVE_WIDGET'
   | 'DASHBOARD_VIEW'
+  | 'PLAN_CARD'
   | 'CONVERSATION';
 
 export interface CompositionEnvelope {

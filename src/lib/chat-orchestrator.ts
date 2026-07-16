@@ -358,4 +358,113 @@ The user's new message is a continuation of this conversation. Treat it as a fol
 
     return { envelopes, skill, resolvedContext: { availableDatasets, resolvedDataset } };
   }
+
+  /**
+   * Generate a plain-language plan for a user query without executing anything.
+   * Called when the user prefixes their message with /plan.
+   * Returns a single PLAN_CARD envelope.
+   */
+  static async generatePlan({
+    message,
+    context,
+    onStatus,
+  }: Pick<ProcessMessageArgs, 'message' | 'context' | 'onStatus'>): Promise<CompositionEnvelope> {
+    const project = context?.project || '';
+
+    onStatus?.('Building your plan...');
+
+    const resolvedMessage = resolveReferences(message, context);
+
+    // Get available datasets for context, but don't fail if unavailable
+    let availableDatasets: string[] = context?.availableDatasets || [];
+    let resolvedDataset = context?.resolvedDataset || context?.dataset || '';
+    try {
+      if (!availableDatasets.length) {
+        availableDatasets = await getAvailableDatasets(project);
+        resolvedDataset = resolveDefaultDatasetFromList(availableDatasets, context?.dataset, project);
+      }
+    } catch {
+      // Non-fatal -- plan can proceed without dataset list
+    }
+
+    const PlanSchema = {
+      type: 'OBJECT',
+      properties: {
+        title: { type: 'STRING' },
+        summary: { type: 'STRING' },
+        steps: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              label: { type: 'STRING' },
+              detail: { type: 'STRING' },
+            },
+            required: ['label', 'detail'],
+          },
+        },
+        estimatedCost: { type: 'STRING' },
+        dataAccessed: {
+          type: 'ARRAY',
+          items: { type: 'STRING' },
+        },
+      },
+      required: ['title', 'summary', 'steps'],
+    };
+
+    const systemPrompt = `You are a planning assistant for a BigQuery AI app.
+
+The user has asked you to describe — in plain language — what the assistant WOULD do to fulfill their request, before any queries are run. Do NOT execute anything. Do NOT write SQL. Just explain the plan clearly.
+
+Project: ${project}
+Active dataset: ${resolvedDataset || 'unknown'}
+Available datasets: ${availableDatasets.join(', ') || 'unknown'}
+
+Return a structured plan with:
+- title: A short title for the plan (max 8 words)
+- summary: 1-2 sentence description of what the assistant will do overall
+- steps: An ordered list of steps the assistant would take. Each step has:
+  - label: Short action label (e.g. "Query sales table", "Filter by region")
+  - detail: One sentence explaining what this step does and why
+- estimatedCost: Optional rough estimate ("< $0.01", "~$0.10", etc.) if a query will run. Omit if not applicable.
+- dataAccessed: List of table or dataset names that will be read (if known from the request). Empty array if uncertain.
+
+Be honest about uncertainty. If you don't know which table to use, say so in the relevant step's detail.`;
+
+    const result = await callGemini({
+      systemInstruction: systemPrompt,
+      messages: [{ role: 'user', content: resolvedMessage }],
+      schema: PlanSchema,
+      project,
+    });
+
+    const envelope: CompositionEnvelope = {
+      id: 'plan_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+      skill: 'query',
+      headline: {
+        text: result?.title || 'Plan ready — review before running',
+        tone: 'NEUTRAL',
+        basis: 'STATUS',
+      },
+      primaryArtifact: {
+        type: 'PLAN_CARD',
+        data: {
+          title: result?.title || 'Plan',
+          summary: result?.summary || '',
+          steps: result?.steps || [],
+          estimatedCost: result?.estimatedCost || null,
+          dataAccessed: result?.dataAccessed || [],
+          originalQuery: message, // stored for Proceed replay
+        },
+      },
+      provenance: {
+        visibility: 'COLLAPSED',
+      },
+      nextActions: [],
+      requiresConfirmation: true,
+      skipSelfReview: true,
+    };
+
+    return envelope;
+  }
 }

@@ -30,6 +30,8 @@ import { GovernanceView } from './GovernanceView';
 import { InteractiveWidgetView } from './InteractiveWidgetView';
 import { BriefingBlock } from './BriefingBlock';
 import { DashboardArtifactCard } from './DashboardArtifactCard';
+import { PlanCard } from './chat/PlanCard';
+import type { PlanCardData } from './chat/PlanCard';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { usePreferences } from '@/lib/preferences-context';
 
@@ -706,6 +708,15 @@ function Artifact({
       return null;
     case 'COST_CONFIRM_CARD':
       return <CostConfirmCard result={data as import('@/lib/types').CostEstimate} onConfirm={onConfirm} onCancel={onCancel} />;
+    case 'PLAN_CARD':
+      return (
+        <PlanCard
+          data={data as PlanCardData}
+          onProceed={(originalQuery) => onSendMessage(originalQuery)}
+          onComment={(originalQuery, comment) => onSendMessage(`/plan ${originalQuery} [Amendment: ${comment}]`)}
+          onCancel={() => onCancel?.()}
+        />
+      );
     case 'DISCOVERY_VIEW':
       return <DiscoveryView result={data as import('@/lib/types').DiscoveryResult} onSendMessage={onSendMessage} />;
     case 'DATA_QUALITY_VIEW':

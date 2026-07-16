@@ -483,6 +483,75 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       return;
     }
 
+    // ---- /plan prefix interception ----------------------------------------
+    // If the user typed "/plan <query>", generate a plan description without
+    // executing any queries. The resulting PLAN_CARD envelope lets them
+    // Cancel, Comment, or Proceed before anything runs.
+    const isPlanMode = text.startsWith('/plan ') || text === '/plan';
+    if (isPlanMode) {
+      const actualQuery = text.replace(/^\/plan\s*/, '').trim();
+      if (!actualQuery) {
+        setInput('');
+        return;
+      }
+
+      setInput('');
+      setLoading(true);
+      setRunning(conversationId);
+      pendingStepsRef.current = [];
+
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      const userMsg: ChatMessage = {
+        role: 'user',
+        content: text,
+        timestamp: new Date().toISOString(),
+      };
+      const updatedMsgs = [...messages, userMsg];
+      setMessages(updatedMsgs);
+
+      try {
+        const derivedCtx = deriveContextFromItems();
+        const planEnvelope = await withAuthRetry(() => ChatOrchestrator.generatePlan({
+          message: actualQuery,
+          context: { ...derivedCtx, conversationState, project: activeProject || derivedCtx.project, uid: user?.uid },
+          onStatus: (s: string | StepInfo) => {
+            if (controller.signal.aborted) return;
+            setStatusText(typeof s === 'string' ? s : s.text);
+            pendingStepsRef.current.push(s);
+          },
+        }));
+
+        const assistantMsg: ChatMessage = {
+          role: 'assistant',
+          content: '',
+          envelopes: [planEnvelope],
+          timestamp: new Date().toISOString(),
+        };
+        const finalMsgs = [...updatedMsgs, assistantMsg];
+        setMessages(finalMsgs);
+        const assistantIdx = finalMsgs.length - 1;
+        setThinkingSteps((prev) => ({ ...prev, [assistantIdx]: [...pendingStepsRef.current] }));
+        setLastError(null);
+        persistConversation(finalMsgs).catch((e) => console.warn('[persist]', e));
+      } catch (err: any) {
+        const msg = err?.message || String(err);
+        setLastError({ message: msg, type: 'unknown' });
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: '', timestamp: new Date().toISOString() },
+        ]);
+      } finally {
+        setLoading(false);
+        setRunning(null);
+        setStatusText(null);
+        abortRef.current = null;
+      }
+      return;
+    }
+    // -----------------------------------------------------------------------
+
     setInput('');
     setLoading(true);
     setRunning(conversationId);
