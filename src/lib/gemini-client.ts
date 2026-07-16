@@ -4,6 +4,7 @@
 
 import { getAccessToken } from './gis-auth';
 import { SKILL_NAMES } from './skills';
+import type { StatusCallback } from './types';
 
 // ─── System instructions ──────────────────────────────────────────────────────
 
@@ -201,9 +202,9 @@ export interface CallGeminiWithToolsArgs {
   /** Gemini function declarations (the schema half of each tool). */
   toolDeclarations: Array<{ name: string; description: string; parameters: unknown }>;
   /** Executes a named tool and returns the result for the LLM. */
-  toolExecutor: (name: string, args: Record<string, unknown>, onStatus?: (msg: string) => void) => Promise<unknown>;
+  toolExecutor: (name: string, args: Record<string, unknown>, onStatus?: StatusCallback) => Promise<unknown>;
   project?: string;
-  onStatus?: (msg: string) => void;
+  onStatus?: StatusCallback;
   /** Safety cap on loop iterations (default 8). */
   maxIterations?: number;
   /**

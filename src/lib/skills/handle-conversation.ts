@@ -174,7 +174,7 @@ export async function handleConversation(
   }
 
   // Tool executor: intercepts results for envelope composition
-  const toolExecutor = async (name: string, args: Record<string, unknown>, onStatusOverride?: (msg: string) => void): Promise<unknown> => {
+  const toolExecutor = async (name: string, args: Record<string, unknown>, onStatusOverride?: StatusCallback): Promise<unknown> => {
     const tool = BQ_TOOL_MAP.get(name);
     if (!tool) throw new Error(`Unknown tool: ${name}`);
     const statusFn = onStatusOverride ?? onStatus;

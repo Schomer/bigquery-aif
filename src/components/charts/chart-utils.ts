@@ -1,3 +1,5 @@
+import { classifyColumns } from '@/lib/column-classifier';
+
 // W3-03: 8-color WCAG AA-safe categorical palette
 // All colors pass 3:1+ contrast on dark (#0f0f17) and light (#ffffff) bg.
 // Perceptually spaced to avoid confusion between adjacent series.
@@ -143,15 +145,29 @@ export function pivotLongFormat(
 
 /**
  * Resolves which column is the x-axis and which columns are y-axes.
- * Falls back to first column for x and all remaining columns for y.
+ * When yAxis is not explicitly set, filters candidates to only numeric
+ * (measure) columns so that string/id/date columns are never plotted as bars.
  */
 export function resolveAxes(
   columns: string[],
   xAxis?: string | null,
   yAxis?: string[] | null,
+  rows?: unknown[][],
 ): { xKey: string; yKeys: string[] } {
   const xKey = xAxis ?? columns[0];
-  const yKeys = yAxis ?? columns.filter((c) => c !== xKey);
+
+  if (yAxis) {
+    return { xKey, yKeys: yAxis };
+  }
+
+  // Filter to only numeric (measure) columns — never plot strings as bars.
+  const roles = classifyColumns(columns, rows ?? []);
+  const numericKeys = columns.filter((c, i) => c !== xKey && roles[i] === 'measure');
+
+  // If no measures found (e.g. pure metadata query), fall back to all non-x
+  // columns so the chart still renders rather than showing nothing.
+  const yKeys = numericKeys.length > 0 ? numericKeys : columns.filter((c) => c !== xKey);
+
   return { xKey, yKeys };
 }
 

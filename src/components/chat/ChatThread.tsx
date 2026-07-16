@@ -16,7 +16,91 @@ import type {
 } from '@/lib/types';
 import type { ChatError } from '@/hooks/useChatOrchestration';
 
-// ---- Crystal-ball thinking indicator ----------------------------------------
+// ---- QueryProgressPanel -----------------------------------------------------
+
+function useElapsedSeconds(startTime: number | null): number {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (startTime === null) { setElapsed(0); return; }
+    setElapsed(Math.floor((Date.now() - startTime) / 1000));
+    const id = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [startTime]);
+  return elapsed;
+}
+
+function formatElapsed(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+
+interface QueryProgressPanelProps {
+  statusText: string | null;
+  liveSteps: (string | StepInfo)[];
+  loadingStartTime: number | null;
+}
+
+function QueryProgressPanel({ statusText, liveSteps, loadingStartTime }: QueryProgressPanelProps) {
+  const elapsed = useElapsedSeconds(loadingStartTime);
+  const currentText = statusText || 'Processing...';
+
+  // Prior steps: all steps except if the last one matches the current statusText
+  // (to avoid showing the current step twice). Cap at 5.
+  const priorSteps = liveSteps
+    .slice(0, -1)
+    .slice(-5)
+    .map((s) => (typeof s === 'string' ? s : s.text));
+
+  return (
+    <div style={{ padding: '8px 0 10px', marginLeft: 2 }}>
+      {/* Current step row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <SparkSpinner size={18} color="var(--text-muted)" />
+        <span style={{
+          fontSize: 13,
+          fontStyle: 'italic',
+          color: 'var(--text-muted)',
+          fontFamily: "'Google Sans', sans-serif",
+          letterSpacing: '0.01em',
+          flexGrow: 1,
+        }}>
+          {currentText}
+        </span>
+        {loadingStartTime !== null && (
+          <span style={{
+            fontSize: 11,
+            color: 'var(--text-muted)',
+            opacity: 0.65,
+            fontFamily: "'Google Sans', sans-serif",
+            fontVariantNumeric: 'tabular-nums',
+            minWidth: 32,
+            textAlign: 'right',
+          }}>
+            {formatElapsed(elapsed)}
+          </span>
+        )}
+      </div>
+      {/* Prior steps breadcrumb */}
+      {priorSteps.length > 0 && (
+        <div style={{ marginLeft: 26, marginTop: 5, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {priorSteps.map((step, i) => (
+            <span key={i} style={{
+              fontSize: 11,
+              color: 'var(--text-muted)',
+              opacity: 0.55,
+              fontFamily: "'Google Sans', sans-serif",
+              fontStyle: 'italic',
+            }}>
+              {step}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const THINKING_PHRASES = [
   'Gazing into the warehouse\u2026',
@@ -201,6 +285,8 @@ export interface ChatThreadProps {
   thinkingSteps: Record<number, (string | StepInfo)[]>;
   loading: boolean;
   statusText: string | null;
+  liveSteps: (string | StepInfo)[];
+  loadingStartTime: number | null;
   lastError: ChatError | null;
   setLastError: (error: ChatError | null) => void;
   editingIdx: number | null;
@@ -232,6 +318,8 @@ export function ChatThread({
   thinkingSteps,
   loading,
   statusText,
+  liveSteps,
+  loadingStartTime,
   lastError,
   setLastError,
   editingIdx,
@@ -530,25 +618,11 @@ export function ChatThread({
       ))}
 
       {loading && rerunningIdx === null && (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '6px 0 8px',
-          marginLeft: 2,
-        }}>
-          <SparkSpinner size={18} color="var(--text-muted)" />
-          <span style={{
-            fontSize: 13,
-            fontStyle: 'italic',
-            color: 'var(--text-muted)',
-            fontFamily: "'Google Sans', sans-serif",
-            letterSpacing: '0.01em',
-            transition: 'opacity 0.4s ease',
-          }}>
-            {statusText || 'Processing...'}
-          </span>
-        </div>
+        <QueryProgressPanel
+          statusText={statusText}
+          liveSteps={liveSteps}
+          loadingStartTime={loadingStartTime}
+        />
       )}
       <div ref={bottomRef} />
     </div>
@@ -556,4 +630,4 @@ export function ChatThread({
 }
 
 // Re-export subcomponents for use in split layout sidebar
-export { CrystalBallThinking, ErrorCard, RegenerateButton };
+export { CrystalBallThinking, ErrorCard, RegenerateButton, QueryProgressPanel };

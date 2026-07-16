@@ -19,7 +19,7 @@ export interface BqToolDeclaration {
 
 export interface BqTool {
   declaration: BqToolDeclaration;
-  execute: (args: Record<string, any>, project: string, onStatus?: (msg: string) => void) => Promise<unknown>;
+  execute: (args: Record<string, any>, project: string, onStatus?: (msg: string | import('./types').StepInfo) => void) => Promise<unknown>;
 }
 
 // ─── Tool: run_query ─────────────────────────────────────────────────────────

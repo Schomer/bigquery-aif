@@ -66,6 +66,8 @@ export interface ChatOrchestrationReturn {
   pinnedEnvelopeId: string | null;
   setPinnedEnvelopeId: React.Dispatch<React.SetStateAction<string | null>>;
   statusText: string | null;
+  liveSteps: (string | StepInfo)[];
+  loadingStartTime: number | null;
   lastError: ChatError | null;
   setLastError: (error: ChatError | null) => void;
   thinkingSteps: Record<number, (string | StepInfo)[]>;
@@ -140,6 +142,8 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
   const [contextItems, setContextItems] = useState<ContextItem[]>([]);
   const [pinnedEnvelopeId, setPinnedEnvelopeId] = useState<string | null>(null);
   const [statusText, setStatusText] = useState<string | null>(null);
+  const [liveSteps, setLiveSteps] = useState<(string | StepInfo)[]>([]);
+  const [loadingStartTime, setLoadingStartTime] = useState<number | null>(null);
   const [lastError, setLastError] = useState<ChatError | null>(null);
   const [thinkingSteps, setThinkingSteps] = useState<Record<number, (string | StepInfo)[]>>({});
   const [saveModalState, setSaveModalState] = useState<{
@@ -174,6 +178,8 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     setContextItems([]);
     setPinnedEnvelopeId(null);
     setStatusText(null);
+    setLiveSteps([]);
+    setLoadingStartTime(null);
     setLastError(null);
     setThinkingSteps({});
     setQueuedPrompt(null);
@@ -520,7 +526,9 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
           context: { ...derivedCtx, conversationState, project: activeProject || derivedCtx.project, uid: user?.uid },
           onStatus: (s: string | StepInfo) => {
             if (controller.signal.aborted) return;
-            setStatusText(typeof s === 'string' ? s : s.text);
+            const text = typeof s === 'string' ? s : s.text;
+            setStatusText(text);
+            setLiveSteps((prev) => [...prev, s]);
             pendingStepsRef.current.push(s);
           },
         }));
@@ -546,6 +554,8 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
         ]);
       } finally {
         setLoading(false);
+        setLoadingStartTime(null);
+        setLiveSteps([]);
         setRunning(null);
         setStatusText(null);
         abortRef.current = null;
@@ -556,6 +566,8 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
 
     setInput('');
     setLoading(true);
+    setLoadingStartTime(Date.now());
+    setLiveSteps([]);
     setRunning(conversationId);
     pendingStepsRef.current = [];
 
@@ -582,7 +594,9 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
         onStatus: (s: string | StepInfo) => {
           // Drop status updates after abort
           if (controller.signal.aborted) return;
-          setStatusText(typeof s === 'string' ? s : s.text);
+          const text = typeof s === 'string' ? s : s.text;
+          setStatusText(text);
+          setLiveSteps((prev) => [...prev, s]);
           pendingStepsRef.current.push(s);
         },
         signal: controller.signal,
@@ -667,6 +681,8 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       }
     } finally {
       setLoading(false);
+      setLoadingStartTime(null);
+      setLiveSteps([]);
       setRunning(null);
       setStatusText(null);
       abortRef.current = null;
@@ -1388,6 +1404,8 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     pinnedEnvelopeId,
     setPinnedEnvelopeId,
     statusText,
+    liveSteps,
+    loadingStartTime,
     lastError,
     setLastError,
     thinkingSteps,

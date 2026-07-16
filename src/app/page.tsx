@@ -131,7 +131,17 @@ export default function Home() {
   // In split layout, tracks whether the sidebar shows the chat list or the active thread
   const [splitView, setSplitView] = useState<'list' | 'thread'>('list');
 
-
+  // Increments each time the user navigates to any spaces page, forcing SpacesPage to re-fetch.
+  const [spacesVisitCount, setSpacesVisitCount] = useState(0);
+  const prevActivePage = useRef(activePage);
+  useEffect(() => {
+    const isSpacesNow = activePage === 'spaces' || activePage.startsWith('spaces:');
+    const wasSpacesBefore = prevActivePage.current === 'spaces' || prevActivePage.current.startsWith('spaces:');
+    if (isSpacesNow && !wasSpacesBefore) {
+      setSpacesVisitCount(n => n + 1);
+    }
+    prevActivePage.current = activePage;
+  }, [activePage]);
 
   // When entering split layout with a chat already loaded, show the thread
   useEffect(() => {
@@ -183,7 +193,7 @@ export default function Home() {
           <SpacesPage
             userId={user.uid}
             initialTab={activePage.startsWith('spaces:') ? (activePage.slice('spaces:'.length) as import('@/lib/types').SavedArtifactType | 'all') : 'all'}
-            refreshKey={chat.saveCount}
+            refreshKey={chat.saveCount + spacesVisitCount}
             onRun={(artifact: SavedArtifact) => {
               chat.setInput(`run my ${artifact.name}`);
               setActivePage('chat');
@@ -420,6 +430,8 @@ export default function Home() {
               thinkingSteps={chat.thinkingSteps}
               loading={chat.loading}
               statusText={chat.statusText}
+              liveSteps={chat.liveSteps}
+              loadingStartTime={chat.loadingStartTime}
               lastError={chat.lastError}
               setLastError={chat.setLastError}
               editingIdx={chat.editingIdx}
@@ -494,6 +506,8 @@ export default function Home() {
               thinkingSteps={chat.thinkingSteps}
               loading={chat.loading}
               statusText={chat.statusText}
+              liveSteps={chat.liveSteps}
+              loadingStartTime={chat.loadingStartTime}
               lastError={chat.lastError}
               setLastError={chat.setLastError}
               rerunningIdx={chat.rerunningIdx}

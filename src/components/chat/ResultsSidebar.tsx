@@ -16,7 +16,7 @@ import type {
   ContextItem,
 } from '@/lib/types';
 import type { ChatError } from '@/hooks/useChatOrchestration';
-import { CrystalBallThinking, ErrorCard, RegenerateButton } from './ChatThread';
+import { CrystalBallThinking, ErrorCard, RegenerateButton, QueryProgressPanel } from './ChatThread';
 import { ChatInput } from './ChatInput';
 import type { RecentItem } from '@/lib/firestore-service';
 
@@ -142,6 +142,8 @@ export interface ResultsSidebarProps {
   thinkingSteps: Record<number, (string | StepInfo)[]>;
   loading: boolean;
   statusText: string | null;
+  liveSteps: (string | StepInfo)[];
+  loadingStartTime: number | null;
   lastError: ChatError | null;
   setLastError: (error: ChatError | null) => void;
   rerunningIdx: number | null;
@@ -186,6 +188,8 @@ export function ResultsSidebar({
   thinkingSteps,
   loading,
   statusText,
+  liveSteps,
+  loadingStartTime,
   lastError,
   setLastError,
   rerunningIdx,
@@ -648,23 +652,11 @@ export function ResultsSidebar({
             </div>
           ))}
           {loading && rerunningIdx === null && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '4px 0',
-              marginLeft: 2,
-            }}>
-              <SparkSpinner size={16} color="var(--text-muted)" />
-              <span style={{
-                fontSize: 12,
-                fontStyle: 'italic',
-                color: 'var(--text-muted)',
-                fontFamily: "'Google Sans', sans-serif",
-              }}>
-                {statusText || 'Processing...'}
-              </span>
-            </div>
+            <QueryProgressPanel
+              statusText={statusText}
+              liveSteps={liveSteps}
+              loadingStartTime={loadingStartTime}
+            />
           )}
 
           <div ref={bottomRef} />

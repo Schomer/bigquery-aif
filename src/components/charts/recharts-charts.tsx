@@ -69,7 +69,7 @@ function ChartTip() {
 function useChartSetup(result: QueryResult) {
   const { columns, rows, xAxis, yAxis } = result;
   let data = buildChartData(columns, rows);
-  const { xKey, yKeys } = resolveAxes(columns, xAxis, yAxis);
+  const { xKey, yKeys } = resolveAxes(columns, xAxis, yAxis, rows);
 
   // Sort time-series data chronologically (oldest first) so line charts
   // read left-to-right in temporal order
