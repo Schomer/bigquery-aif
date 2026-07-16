@@ -78,6 +78,8 @@ export interface ChatOrchestrationReturn {
   sendMessage: (text?: string) => Promise<void>;
   sendMessageWithFile: (text: string, file: { name: string; content: string; size: number }) => void;
   stopMessage: () => void;
+  replanEnvelope: (envelopeId: string, amendedQuery: string) => Promise<void>;
+  executePlan: (query: string) => Promise<void>;
   handleConfirm: (envelope: CompositionEnvelope) => Promise<void>;
   handleCancel: (envelope: CompositionEnvelope) => void;
   handleChipClick: (chip: HandoffEnvelope) => Promise<void>;
@@ -690,6 +692,124 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     // loading/status will be cleared by the finally block in sendMessage
   }
 
+  /**
+   * Re-generate a PLAN_CARD envelope in-place.
+   * Called when the user adds a comment and hits Re-plan -- replaces only the
+   * existing plan envelope without adding new messages to the thread.
+   */
+  async function replanEnvelope(envelopeId: string, amendedQuery: string) {
+    if (loading) return;
+    setLoading(true);
+    setRunning(conversationId);
+    setStatusText('Updating plan...');
+
+    try {
+      const derivedCtx = deriveContextFromItems();
+
+      // Look up the existing plan data so generatePlan can edit it minimally
+      const existingEnvelope = messages
+        .flatMap((m) => m.envelopes || [])
+        .find((e) => e.id === envelopeId);
+      const existingPlan = existingEnvelope?.primaryArtifact?.data as {
+        title: string; summary: string;
+        steps: Array<{ label: string; detail: string }>;
+        estimatedCost?: string | null;
+        dataAccessed?: string[];
+        originalQuery: string;
+      } | undefined;
+
+      const newEnvelope = await ChatOrchestrator.generatePlan({
+        message: amendedQuery,
+        context: { ...derivedCtx, conversationState, project: activeProject || derivedCtx.project, uid: user?.uid },
+        onStatus: (s: string | StepInfo) => setStatusText(typeof s === 'string' ? s : s.text),
+        existingPlan,
+      });
+
+      // Replace the matching envelope in the messages array in-place
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (!msg.envelopes) return msg;
+          const idx = msg.envelopes.findIndex((e) => e.id === envelopeId);
+          if (idx === -1) return msg;
+          const updated = [...msg.envelopes];
+          updated[idx] = newEnvelope;
+          return { ...msg, envelopes: updated };
+        })
+      );
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      setLastError({ message: msg, type: 'unknown' });
+    } finally {
+      setLoading(false);
+      setRunning(null);
+      setStatusText(null);
+    }
+  }
+
+  /**
+   * Execute a plan query silently -- no user message bubble is added.
+   * Results appear as a new assistant message appended to the thread.
+   */
+  async function executePlan(query: string) {
+    if (loading) return;
+    setLoading(true);
+    setRunning(conversationId);
+    pendingStepsRef.current = [];
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const derivedCtx = deriveContextFromItems();
+      const data = await withAuthRetry(() => ChatOrchestrator.processMessage({
+        message: query,
+        history: messages,
+        context: { ...derivedCtx, conversationState, project: activeProject || derivedCtx.project, uid: user?.uid },
+        onStatus: (s: string | StepInfo) => {
+          if (controller.signal.aborted) return;
+          setStatusText(typeof s === 'string' ? s : s.text);
+          pendingStepsRef.current.push(s);
+        },
+        signal: controller.signal,
+      }));
+
+      const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
+      // No user bubble -- append only the assistant response
+      const assistantMsg: ChatMessage = {
+        role: 'assistant',
+        content: '',
+        envelopes,
+        timestamp: new Date().toISOString(),
+      };
+      const finalMsgs = [...messages, assistantMsg];
+      setMessages(finalMsgs);
+      const assistantIdx = finalMsgs.length - 1;
+      setThinkingSteps((prev) => ({ ...prev, [assistantIdx]: [...pendingStepsRef.current] }));
+      updateContextFromEnvelopes(envelopes);
+      if (data.resolvedContext) {
+        setContext((prev) => ({
+          ...prev,
+          ...(data.resolvedContext!.availableDatasets ? { availableDatasets: data.resolvedContext!.availableDatasets } : {}),
+          ...(data.resolvedContext!.resolvedDataset ? { dataset: data.resolvedContext!.resolvedDataset } : {}),
+        }));
+      }
+      setLastError(null);
+      persistConversation(finalMsgs).catch((e) => console.warn('[persist]', e));
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      setLastError({ message: msg, type: 'unknown' });
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: '', timestamp: new Date().toISOString() },
+      ]);
+    } finally {
+      setLoading(false);
+      setRunning(null);
+      setStatusText(null);
+      abortRef.current = null;
+    }
+  }
+
   /** Send a message with an attached CSV file. Forces the data-loading skill. */
   function sendMessageWithFile(text: string, file: { name: string; content: string; size: number }) {
     // Inject the file content into context so the orchestrator routes to data-loading
@@ -1279,6 +1399,8 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     sendMessage,
     sendMessageWithFile,
     stopMessage,
+    replanEnvelope,
+    executePlan,
     handleConfirm,
     handleCancel,
     handleChipClick,

@@ -440,6 +440,8 @@ export default function Home() {
               onRerun={chat.rerunMessage}
               extractContextItems={chat.extractContextItems}
               onSave={chat.saveEnvelopeAsArtifact}
+              onReplan={chat.replanEnvelope}
+              onExecutePlan={chat.executePlan}
             />
           )}
 

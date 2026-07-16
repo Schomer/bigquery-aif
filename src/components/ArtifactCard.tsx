@@ -44,6 +44,8 @@ interface Props {
   onSave?: (envelope: CompositionEnvelope) => void;
   onPin?: (envelope: CompositionEnvelope) => void;
   onRunSql?: (sql: string) => void;
+  onReplan?: (envelopeId: string, amendedQuery: string) => Promise<void>;
+  onExecutePlan?: (query: string) => Promise<void>;
   isPinned?: boolean;
 }
 
@@ -53,7 +55,7 @@ const TONE_CLASSES: Record<string, string> = {
   ATTENTION: 'tone-attention',
 };
 
-export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInlineClick, onSave, onPin, onRunSql, isPinned }: Props) {
+export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInlineClick, onSave, onPin, onRunSql, onReplan, onExecutePlan, isPinned }: Props) {
 
   const toneClass = TONE_CLASSES[envelope.headline.tone] ?? 'tone-neutral';
 
@@ -306,6 +308,8 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
           onConfirm={onConfirm}
           onCancel={onCancel}
           onSendMessage={handleInlineClick}
+          onReplan={onReplan}
+          onExecutePlan={onExecutePlan}
         />
 
 
@@ -655,11 +659,15 @@ function Artifact({
   onConfirm,
   onCancel,
   onSendMessage,
+  onReplan,
+  onExecutePlan,
 }: {
   envelope: CompositionEnvelope;
   onConfirm?: () => void;
   onCancel?: () => void;
   onSendMessage: (msg: string) => void;
+  onReplan?: (envelopeId: string, amendedQuery: string) => Promise<void>;
+  onExecutePlan?: (query: string) => Promise<void>;
 }) {
   const { type, data } = envelope.primaryArtifact;
 
@@ -712,8 +720,21 @@ function Artifact({
       return (
         <PlanCard
           data={data as PlanCardData}
-          onProceed={(originalQuery) => onSendMessage(originalQuery)}
-          onComment={(originalQuery, comment) => onSendMessage(`/plan ${originalQuery} [Amendment: ${comment}]`)}
+          onProceed={(originalQuery) => {
+            if (onExecutePlan) {
+              onExecutePlan(originalQuery);
+            } else {
+              onSendMessage(originalQuery);
+            }
+          }}
+          onComment={(originalQuery, comment) => {
+            const amended = `${originalQuery} [Amendment: ${comment}]`;
+            if (onReplan) {
+              onReplan(envelope.id, amended);
+            } else {
+              onSendMessage(`/plan ${amended}`);
+            }
+          }}
           onCancel={() => onCancel?.()}
         />
       );
