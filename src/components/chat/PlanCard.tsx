@@ -120,12 +120,12 @@ export function PlanCard({ data, onProceed, onComment, onCancel }: PlanCardProps
                   {/* Number badge + connector line column */}
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
                     <div style={{
-                      width: 32,
-                      height: 32,
+                      width: 20,
+                      height: 20,
                       borderRadius: '50%',
                       background: '#1B2E5D',
                       color: 'white',
-                      fontSize: 14,
+                      fontSize: 11,
                       fontWeight: 600,
                       display: 'flex',
                       alignItems: 'center',
@@ -152,7 +152,7 @@ export function PlanCard({ data, onProceed, onComment, onCancel }: PlanCardProps
                     paddingBottom: i < data.steps.length - 1 ? 20 : 0,
                   }}>
                     <span style={{
-                      fontSize: 16,
+                      fontSize: 13,
                       fontWeight: 700,
                       color: '#1B2E5D',
                       fontFamily: "'Google Sans', sans-serif",
