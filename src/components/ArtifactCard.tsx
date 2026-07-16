@@ -715,6 +715,8 @@ function Artifact({
       return <ConfirmationCard result={data as import('@/lib/types').DataManagementConfirmResult} onConfirm={onConfirm} onCancel={onCancel} />;
     case 'COMPLETION_CARD':
       return <CompletionCard result={data as import('@/lib/types').DataManagementCompleteResult} />;
+    case 'CONVERSATION':
+      return null;
     case 'COST_CONFIRM_CARD':
       return <CostConfirmCard result={data as import('@/lib/types').CostEstimate} onConfirm={onConfirm} onCancel={onCancel} />;
     case 'DISCOVERY_VIEW':

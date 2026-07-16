@@ -2,7 +2,25 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
-## 2026-07-15: Workstreams 1-5 -- query reliability, insights, self-review, SQL safety, UX
+## 2026-07-15: Conversation state object -- session-wide memory
+
+**Context**: App had no memory across turns beyond `lastTable`/`lastSkill`. After 5+ messages, prior tables, queries, and filters were gone. User couldn't say "go back to that orders table" or "use the same filters."
+
+**New file**: `src/lib/conversation-state.ts`
+- `ConversationState` type: queriedTables (max 20), appliedFilters, mentionedEntities, activeTable/Dataset, queryHistory (last 5 SQL)
+- `updateState()`: accumulates from each CompositionEnvelope -- extracts table/dataset/sql/columns/filters
+- `extractFiltersFromSql()`: parses WHERE clauses for =, !=, >, <, LIKE, IN, BETWEEN operators
+- `formatStateForPrompt()`: produces ~200-400 token compact text block for LLM injection
+
+**Modified**: `useChatOrchestration.ts` -- new `conversationState` React state, accumulated after each response, reset on new conversation, passed through to orchestrator context.
+
+**Modified**: `chat-orchestrator.ts` -- accepts ConversationState in context, uses `formatStateForPrompt()` in LLM classifier prompt (replaces single-sentence `buildConversationStateSummary()`).
+
+**Modified**: `handle-query.ts` -- accepts ConversationState, appends session history to system prompt as `SESSION HISTORY` block.
+
+---
+
+
 
 **Context**: Implementation plan approved. 11 changes across 5 workstreams executed by 3 parallel agents + parent fixups.
 
