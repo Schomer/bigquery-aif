@@ -123,7 +123,7 @@ function composeSchema(result: SchemaResult): CompositionEnvelope {
 
   if (result.scope === 'PROJECT') {
     const count = result.columns.length;
-    headlineText = `Found ${count} dataset${count !== 1 ? 's' : ''}`;
+    headlineText = `Here are your ${count} dataset${count !== 1 ? 's' : ''}`;
     // Add a chip for each dataset (up to 4) so the user can drill in immediately
     result.columns.slice(0, 4).forEach((ds) => {
       nextActions.push({
@@ -181,7 +181,7 @@ function composeSchema(result: SchemaResult): CompositionEnvelope {
     } else {
       const colCount = result.columns.length;
       const rowCount = result.rowCount?.toLocaleString() ?? 'unknown';
-      headlineText = `\`${result.table}\` — ${colCount} columns, ${rowCount} rows`;
+      headlineText = `Here's the schema for \`${result.table}\` — ${colCount} columns, ${rowCount} rows`;
     }
 
     // Contextual next-action chips for TABLE scope
@@ -329,9 +329,11 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[], userInt
   const isSampleQuery = /SELECT\s+\*\s+FROM\b/i.test(result.sql) && /\bLIMIT\s+\d+\b/i.test(result.sql);
   const artifactType = result.rowCount === 0
     ? 'TABLE' as ArtifactType
-    : isSampleQuery
-      ? 'TABLE' as ArtifactType
-      : inferVisualizationType(result, userIntent);
+    : userIntent
+      ? userIntent
+      : isSampleQuery
+        ? 'TABLE' as ArtifactType
+        : inferVisualizationType(result, userIntent);
 
   const nextActions: HandoffEnvelope[] = [];
   if (result.rowCount === 0) {
@@ -1152,7 +1154,21 @@ function isStateColumn(name: string, sampleValues: unknown[]): boolean {
   return matchCount / nonNull.length >= 0.6;
 }
 
-const ISO_COUNTRY_CODES = new Set(['us', 'gb', 'de', 'fr', 'ca', 'au', 'jp', 'cn', 'in', 'br', 'mx', 'it', 'es', 'kr', 'ru', 'nl', 'ch', 'se', 'no', 'dk', 'fi', 'be', 'at', 'sg', 'hk', 'nz', 'za', 'ar', 'cl', 'co', 'pe', 'eg', 'ng', 'ke', 'gh', 'th', 'vn', 'id', 'my', 'ph', 'tr', 'sa', 'ae', 'il', 'ir', 'pk', 'bd', 'ua', 'pl', 'cz', 'ro', 'hu', 'pt']);
+const ISO_COUNTRY_CODES = new Set([
+  // 2-letter ISO codes
+  'us', 'gb', 'de', 'fr', 'ca', 'au', 'jp', 'cn', 'in', 'br', 'mx', 'it', 'es', 'kr', 'ru',
+  'nl', 'ch', 'se', 'no', 'dk', 'fi', 'be', 'at', 'sg', 'hk', 'nz', 'za', 'ar', 'cl', 'co',
+  'pe', 'eg', 'ng', 'ke', 'gh', 'th', 'vn', 'id', 'my', 'ph', 'tr', 'sa', 'ae', 'il', 'ir',
+  'pk', 'bd', 'ua', 'pl', 'cz', 'ro', 'hu', 'pt',
+  // Full country names (lowercase)
+  'united states', 'united kingdom', 'germany', 'france', 'japan', 'china', 'canada',
+  'australia', 'brazil', 'india', 'mexico', 'russia', 'italy', 'spain', 'south korea',
+  'netherlands', 'switzerland', 'sweden', 'norway', 'denmark', 'finland', 'ireland',
+  'austria', 'belgium', 'portugal', 'poland', 'turkey', 'argentina', 'colombia', 'chile',
+  'peru', 'egypt', 'nigeria', 'south africa', 'kenya', 'indonesia', 'thailand', 'vietnam',
+  'philippines', 'malaysia', 'singapore', 'new zealand', 'israel', 'saudi arabia',
+  'united arab emirates',
+]);
 
 function isCountryColumn(name: string, sampleValues: unknown[]): boolean {
   if (/\b(country|country_name|country_code|iso_code|nation)\b/i.test(name)) return true;
@@ -1213,6 +1229,12 @@ function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType |
 
   const { columns, rows, rowCount, columnTypes, sql } = result;
   if (!columns || columns.length === 0 || !rows || rows.length === 0) return 'TABLE';
+
+  // Step 0b — LLM visualization hint (trusted over heuristics, but below user intent)
+  // Only trust specific chart types, not TABLE (which is the default/fallback).
+  if (result.suggestedVisualization && result.suggestedVisualization !== 'TABLE') {
+    return result.suggestedVisualization as ArtifactType;
+  }
 
   // Step 1 — Data validity gates
   const allIdCols = columns.every((c) => isIdColumn(c));
@@ -1374,10 +1396,7 @@ function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType |
     }
   }
 
-  // Step 12 — LLM hint passthrough (suggestedVisualization from run_query tool)
-  if (result.suggestedVisualization && result.suggestedVisualization !== 'TABLE') {
-    return result.suggestedVisualization as ArtifactType;
-  }
+  // Step 12 — (moved to Step 0b above)
 
   // Step 13 — TABLE (last resort)
   return 'TABLE';
@@ -1424,9 +1443,9 @@ function buildQueryHeadline(
         : 'No metadata returned -- check region and permissions';
     }
     if (/\bWHERE\b/i.test(sql)) {
-      return 'No rows matched your filter criteria';
+      return 'No matching data found for those filter criteria';
     }
-    return 'Query returned no results -- the table may be empty or filters too restrictive';
+    return 'No matching data found -- the table may be empty or filters too restrictive';
   }
 
   const table = extractTableFromSql(sql);

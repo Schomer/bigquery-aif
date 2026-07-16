@@ -328,7 +328,7 @@ export const manifest: SkillManifest = {
   signals: [
     { phrase: 'export', weight: 2 },
     { phrase: 'download', weight: 2 },
-    { phrase: 'schedule', weight: 2 },
+    { phrase: 'schedule', weight: 1 },
     { phrase: 'recurring', weight: 2 },
     { phrase: 'save this query', weight: 3 },
     { phrase: 'save this', weight: 2 },

@@ -293,23 +293,37 @@ export async function callGeminiWithTools({
     contents.push({ role: 'model', parts });
 
     // Execute each requested function call and collect responses
-    const TOOL_LABELS: Record<string, string> = {
-      run_query: 'Running your query...',
-      get_table_schema: 'Looking up the table schema...',
-      list_tables: 'Looking up available tables...',
-      list_datasets: 'Looking up available datasets...',
-      get_job_status: 'Checking job status...',
-      create_table: 'Creating the table...',
-      insert_rows: 'Inserting rows...',
-      delete_rows: 'Deleting rows...',
-      update_rows: 'Updating rows...',
-      create_dataset: 'Creating the dataset...',
-      execute_dml: 'Running the operation...',
-    };
+    // Build a context-aware status message from tool name + arguments
+    function getToolStatus(name: string, args: Record<string, unknown>): string {
+      if (name === 'run_query') {
+        const sql = typeof args.sql === 'string' ? args.sql : '';
+        const tableMatch = sql.match(/FROM\s+`?[\w.-]+\.[\w.-]+\.(\w+)`?/i);
+        return tableMatch ? `Querying ${tableMatch[1]}...` : 'Running your query...';
+      }
+      if (name === 'get_table_schema') {
+        const table = typeof args.table === 'string' ? args.table : '';
+        return table ? `Checking the structure of ${table}...` : 'Looking up the table schema...';
+      }
+      if (name === 'list_tables') {
+        const dataset = typeof args.dataset === 'string' ? args.dataset : '';
+        return dataset ? `Looking up tables in ${dataset}...` : 'Looking up available tables...';
+      }
+      const TOOL_LABELS: Record<string, string> = {
+        list_datasets: 'Looking up available datasets...',
+        get_job_status: 'Checking job status...',
+        create_table: 'Creating the table...',
+        insert_rows: 'Inserting rows...',
+        delete_rows: 'Deleting rows...',
+        update_rows: 'Updating rows...',
+        create_dataset: 'Creating the dataset...',
+        execute_dml: 'Running the operation...',
+      };
+      return TOOL_LABELS[name] ?? `Running ${name}...`;
+    }
     const responseParts: Array<Record<string, unknown>> = [];
     for (const fc of functionCalls) {
       const { name, args } = fc.functionCall;
-      onStatus?.(TOOL_LABELS[name] ?? `Running ${name}...`);
+      onStatus?.(getToolStatus(name, args ?? {}));
       try {
         const result = await toolExecutor(name, args ?? {});
         allToolCalls.push({ name, args: args ?? {}, result });

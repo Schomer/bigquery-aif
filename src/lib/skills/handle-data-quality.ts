@@ -572,12 +572,18 @@ export async function handleDataQuality(
   } catch (err) {
     // Auto-retry with safe query: null counts only (no DISTINCT/MIN/MAX)
     console.warn('[data-quality] Full profile query failed, retrying safe version:', err);
-    onStatus?.(`Full profile query failed, retrying with null-counts only on ${fqTable}...`);
+    onStatus?.('Running simplified analysis (some column statistics unavailable)...');
     const safeExprs = columns.map((col) =>
       `COUNTIF(${col.name} IS NULL) AS \`${col.name}__nulls\``
     );
     sql = `SELECT COUNT(*) AS __total_rows, ${safeExprs.join(', ')} FROM ${fqTable}`;
     executed = await executeQuery(sql, project);
+    findings.push({
+      column: '(all)',
+      metric: 'note',
+      value: 'Some column statistics were unavailable -- showing a simplified profile',
+      severity: 'INFO' as DqFinding['severity'],
+    });
   }
 
   const row = executed.rows[0] ?? [];

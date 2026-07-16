@@ -622,7 +622,7 @@ export const manifest: SkillManifest = {
     { phrase: 'every day', weight: 2 },
     { phrase: 'every hour', weight: 2 },
     { phrase: 'recurring', weight: 2 },
-    { phrase: 'schedule', weight: 1 },
+    { phrase: 'schedule', weight: 3 },
   ],
   handle: handlePipeline,
 };

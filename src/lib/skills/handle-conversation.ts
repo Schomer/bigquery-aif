@@ -355,7 +355,35 @@ export async function handleConversation(
       nextActions: [],
     };
 
-    // If a dataset was created, add useful next-action chips
+    // Build context-aware chips based on what tools were used
+    const chips: typeof envelope.nextActions = [];
+
+    // Add chips based on what tools were used
+    if (capturedQueries.length > 0) {
+      chips.push(
+        { targetSkill: 'query' as SkillName, label: 'Modify this query', context: {}, sourceSkill: 'conversation' as SkillName, sourceResultRef: '' },
+        { targetSkill: 'saved' as SkillName, label: 'Save this result', context: {}, sourceSkill: 'conversation' as SkillName, sourceResultRef: '' },
+      );
+    }
+
+    // Add chips based on conversation context
+    if (context?.lastTable && !datasetCreated) {
+      chips.push(
+        { targetSkill: 'data-quality' as SkillName, label: `Profile ${context.lastTable}`, context: {}, sourceSkill: 'conversation' as SkillName, sourceResultRef: '' },
+      );
+    }
+
+    if (context?.dataset || context?.resolvedDataset) {
+      const ds = context.resolvedDataset || context.dataset;
+      chips.push(
+        { targetSkill: 'schema' as SkillName, label: `Explore ${ds}`, context: {}, sourceSkill: 'conversation' as SkillName, sourceResultRef: '' },
+      );
+    }
+
+    // Cap at 4 chips
+    envelope.nextActions = chips.slice(0, 4);
+
+    // If a dataset was created, replace with dataset-specific chips
     if (datasetCreated) {
       const ds = datasetCreated as { datasetId: string; location: string };
       envelope.nextActions = [

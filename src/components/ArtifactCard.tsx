@@ -549,7 +549,7 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
         )}
 
         {/* Divider before suggestions */}
-        {!envelope.requiresConfirmation && showSuggestions && (
+        {!envelope.requiresConfirmation && showSuggestions && envelope.nextActions.length > 0 && (
           <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 12 }} />
         )}
 
@@ -592,7 +592,16 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
             {(envelope.skill === 'query' || envelope.skill === 'schema' || envelope.skill === 'data-quality' || envelope.skill === 'monitoring') && (
               <button
                 className="chip"
-                onClick={() => handleInlineClick('Generate insights about these results')}
+                onClick={() => {
+                  const d = envelope.primaryArtifact?.data as Record<string, unknown> | undefined;
+                  const sql = (d?.sql as string) || '';
+                  const cols = (d?.columns as string[]) || [];
+                  const rowCount = (d?.rowCount as number) || 0;
+                  const insightPrompt = sql
+                    ? `Analyze and generate insights about these query results. The SQL was: ${sql}. Columns returned: ${cols.join(', ')}. Total rows: ${rowCount}. Tell me what patterns, anomalies, or notable findings you see in this data.`
+                    : 'Generate insights about these results';
+                  handleInlineClick(insightPrompt);
+                }}
               >
                 Generate insights
               </button>
@@ -621,7 +630,16 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
             {(envelope.skill === 'query' || envelope.skill === 'schema' || envelope.skill === 'data-quality' || envelope.skill === 'monitoring') && (
               <button
                 className="chip"
-                onClick={() => handleInlineClick('Generate insights about these results')}
+                onClick={() => {
+                  const d = envelope.primaryArtifact?.data as Record<string, unknown> | undefined;
+                  const sql = (d?.sql as string) || '';
+                  const cols = (d?.columns as string[]) || [];
+                  const rowCount = (d?.rowCount as number) || 0;
+                  const insightPrompt = sql
+                    ? `Analyze and generate insights about these query results. The SQL was: ${sql}. Columns returned: ${cols.join(', ')}. Total rows: ${rowCount}. Tell me what patterns, anomalies, or notable findings you see in this data.`
+                    : 'Generate insights about these results';
+                  handleInlineClick(insightPrompt);
+                }}
               >
                 Generate insights
               </button>

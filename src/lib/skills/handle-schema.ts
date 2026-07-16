@@ -26,7 +26,7 @@ const TABLE_DESCRIBE_SIGNALS = [
   'list columns', 'column types', 'structure', 'what is in', "what's in",
   'tell me more', 'tell me about', 'show me more about', 'more about',
   'inspect', 'details about', 'explore', 'look at',
-  'find the', 'find dataset',
+  'find the', 'find dataset', 'show me',
 ];
 
 // Enrichment detection: signals that the user wants more than a basic listing
@@ -199,14 +199,14 @@ function extractSchemaIdentifiers(
     // Dotted dataset.table ref (no backticks): "show me more about iowa_liquor_sales.sales_deduped"
     // Must be checked BEFORE the single-name regex, which would stop at the dot.
     const dottedMatch = message.match(
-      /(?:describe|schema\s+(?:of|for)|(?:tell|more|details)\s+(?:me\s+)?(?:more\s+)?about|inspect|explore|look\s+at|what'?s?\s+in|find\s+(?:the\s+)?)\s*(?:the\s+)?[`]?(\w[\w-]*)\.(\w[\w-]*)[`]?/i
+      /(?:describe|schema\s+(?:of|for)|(?:tell|more|details)\s+(?:me\s+)?(?:more\s+)?about|inspect|explore|look\s+at|show\s+me|what'?s?\s+in|find\s+(?:the\s+)?)\s*(?:the\s+)?[`]?(\w[\w-]*)\.(\w[\w-]*)[`]?/i
     );
     if (dottedMatch) {
       return { scope: 'TABLE', dataset: dottedMatch[1], table: dottedMatch[2] };
     }
     // "describe orders", "schema of users", "tell me about orders"
     const tblMatch = message.match(
-      /(?:describe|schema\s+(?:of|for)|(?:tell|more|details)\s+(?:me\s+)?(?:more\s+)?about|inspect|explore|look\s+at|what'?s?\s+in|find\s+(?:the\s+)?)\s*(?:the\s+)?[`]?(\w[\w-]*)[`]?/i
+      /(?:describe|schema\s+(?:of|for)|(?:tell|more|details)\s+(?:me\s+)?(?:more\s+)?about|inspect|explore|look\s+at|show\s+me|what'?s?\s+in|find\s+(?:the\s+)?)\s*(?:the\s+)?[`]?(\w[\w-]*)[`]?/i
     );
     if (tblMatch) {
       const name = tblMatch[1];

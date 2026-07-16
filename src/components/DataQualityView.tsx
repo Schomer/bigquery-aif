@@ -134,7 +134,7 @@ export function DataQualityView({ result, onSendMessage }: Props) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
             <thead>
               <tr style={{ background: 'var(--surface)' }}>
-                {['Column', 'Metric', 'Value', 'Severity'].map((h) => (
+                {['Column', 'Metric', 'Value', 'Status'].map((h) => (
                   <th
                     key={h}
                     style={{
@@ -365,7 +365,9 @@ function FindingRow({
 }
 
 function SeverityBadge({ severity }: { severity: DqSeverity }) {
-  const color = severity === 'ISSUE' ? '#ef4444' : severity === 'WARNING' ? '#f59e0b' : severity === 'PASS' ? '#16a34a' : 'var(--text-muted)';
+  const isOk = severity === 'PASS' || severity === 'INFO';
+  const color = severity === 'ISSUE' ? '#ef4444' : severity === 'WARNING' ? '#f59e0b' : isOk ? '#16a34a' : 'var(--text-muted)';
+  const label = isOk ? 'OK' : severity;
   return (
     <span style={{
       fontSize: 10,
@@ -375,7 +377,7 @@ function SeverityBadge({ severity }: { severity: DqSeverity }) {
       borderRadius: 3,
       padding: '1px 5px',
     }}>
-      {severity}
+      {label}
     </span>
   );
 }

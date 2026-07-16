@@ -47,6 +47,21 @@ const MUTATING_VERB_PATTERNS = MUTATING_VERBS.map((verb) => {
   return new RegExp(`\\b${escaped}${suffix}`, 'i');
 });
 
+// ─── Meta-conversational patterns ─────────────────────────────────────────────
+// Catch reflective/meta questions about past actions before keyword scoring.
+// These should always route to conversation regardless of any keyword overlap.
+const META_CONVERSATIONAL_PATTERNS: RegExp[] = [
+  /\bexplain\s+(?:what|that|this|the|it|your)\b/i,
+  /\bwhat\s+(?:did\s+you|just\s+happened|was\s+that|happened)\b/i,
+  /\bwhy\s+did\s+(?:you|it|that)\b/i,
+  /\btell\s+me\s+(?:what|why|how)\s+(?:you|it|that)\b/i,
+  /\bwhat\s+(?:do\s+you\s+mean|are\s+you\s+doing)\b/i,
+  /\bcan\s+you\s+explain\b/i,
+  /\bhow\s+does\s+(?:this|that)\s+work\b/i,
+  /\bsummarize\s+(?:what|the|this|that|your)\b/i,
+  /\bwhat\s+does\s+(?:this|that)\s+mean\b/i,
+  /\bhelp\s+me\s+understand\b/i,
+];
 
 
 // ─── Scoring engine ───────────────────────────────────────────────────────────
@@ -141,6 +156,13 @@ export function classifyIntent(
   }
 ): RouterOutput {
   const lower = message.toLowerCase();
+
+  // ── Meta-conversational pre-check ───────────────────────────────────────────
+  // Reflective questions about past actions route to conversation before any
+  // keyword scoring can misclassify them.
+  if (META_CONVERSATIONAL_PATTERNS.some(p => p.test(message))) {
+    return { skill: 'conversation' as SkillName, confidence: 'high' as const, isHandoff: false, ambiguousReadWrite: false };
+  }
 
   // ── Hard rule: Data Management requires explicit mutating verb ─────────────
   // Mutating verbs are always high confidence — these are unambiguous action words.
