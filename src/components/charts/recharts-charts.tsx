@@ -286,10 +286,10 @@ export function ColumnChartRenderer({ result, onSendMessage }: ChartProps) {
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-        <BarChart data={data} margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage)}>
+        <BarChart data={data} margin={{ ...CHART_MARGIN, left: 8 }} onClick={makeClickHandler(xKey, onSendMessage)}>
           <CartesianGrid {...GRID_STYLE} />
           <XAxis dataKey={xKey} {...AXIS_STYLE} tickFormatter={xTickFmt} />
-          <YAxis {...AXIS_STYLE} tickFormatter={tickFmt} />
+          <YAxis {...AXIS_STYLE} tickFormatter={tickFmt} width={56} />
           <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
           {yKeys.map((k, i) => (
             <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} radius={[3, 3, 0, 0]} animationDuration={500} animationEasing="ease-out" />
