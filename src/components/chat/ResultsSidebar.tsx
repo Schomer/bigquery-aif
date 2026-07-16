@@ -276,9 +276,11 @@ export function ResultsSidebar({
     document.body.style.userSelect = 'none';
   }, [sidebarWidth, layout, setSidebarWidth]);
 
-  // Collect envelopes from visible assistant messages for the results panel
-  // Exclude confirmation envelopes -- those render inline in the chat sidebar
+  // Collect envelopes from visible assistant messages for the results panel.
+  // Exclude confirmation envelopes (render inline in the chat sidebar) and
+  // CONVERSATION envelopes (plain text -- render inline in the chat sidebar too).
   const CONFIRM_TYPES = new Set(['COST_CONFIRM_CARD', 'CONFIRMATION_CARD']);
+  const INLINE_TYPES = new Set(['COST_CONFIRM_CARD', 'CONFIRMATION_CARD', 'CONVERSATION']);
   const allEnvelopes = useMemo(() => {
     const result: CompositionEnvelope[] = [];
     for (let idx = 0; idx < messages.length; idx++) {
@@ -286,7 +288,7 @@ export function ResultsSidebar({
       const msg = messages[idx];
       if (msg.role === 'assistant' && msg.envelopes?.length) {
         for (const env of msg.envelopes) {
-          if (!CONFIRM_TYPES.has(env.primaryArtifact.type)) {
+          if (!INLINE_TYPES.has(env.primaryArtifact.type)) {
             result.push(env);
           }
         }
@@ -490,53 +492,66 @@ export function ResultsSidebar({
                     );
                   })}
 
-                  {/* Non-confirmation envelopes: show headline + artifact links */}
+                  {/* Non-confirmation envelopes: CONVERSATION renders inline; others show artifact cards */}
                   {(() => {
                     const nonConfirm = msg.envelopes?.filter(e => !CONFIRM_TYPES.has(e.primaryArtifact.type)) ?? [];
-                    if (nonConfirm.length === 0 && (!msg.envelopes || msg.envelopes.length === 0) && msg.content) {
-                      return (
-                        <div className="chat-sidebar-assistant-text">
-                          {typeof msg.content === 'string' ? msg.content : String(msg.content)}
-                        </div>
-                      );
-                    }
-                    return nonConfirm.length > 0 ? (
-                      <div className="chat-sidebar-artifact-cards">
-                        {nonConfirm.map((env) => {
-                          const name = envelopeName(env);
-                          const stats = envelopeStats(env);
-                          return (
-                            <div
-                              key={env.id}
-                              className="chat-sidebar-artifact-card"
-                              onClick={() => scrollToResult(env.id)}
-                              role="button"
-                              tabIndex={0}
-                              onKeyDown={(e) => e.key === 'Enter' && scrollToResult(env.id)}
-                              title="View in results panel"
-                            >
-                              <div className="chat-sidebar-artifact-card-icon">
-                                <span className="material-symbols-outlined">{artifactIcon(env.primaryArtifact.type, env.primaryArtifact.data)}</span>
-                              </div>
-                              <div className="chat-sidebar-artifact-card-body">
-                                <div className="chat-sidebar-artifact-card-name">{name}</div>
-                                {stats && <div className="chat-sidebar-artifact-card-stats">{stats}</div>}
-                              </div>
-                              {onSave && (
-                                <button
-                                  className="chat-sidebar-artifact-card-save"
-                                  onClick={(e) => { e.stopPropagation(); onSave(env); }}
-                                  title="Save to library"
-                                  aria-label="Save to library"
+                    // CONVERSATION envelopes are plain text -- render inline in the chat thread
+                    const conversationEnvs = nonConfirm.filter(e => e.primaryArtifact.type === 'CONVERSATION');
+                    const artifactEnvs = nonConfirm.filter(e => e.primaryArtifact.type !== 'CONVERSATION');
+
+                    return (
+                      <>
+                        {conversationEnvs.map((env) => (
+                          <div key={env.id} className="chat-sidebar-assistant-text">
+                            {typeof (env.primaryArtifact.data as { text: string }).text === 'string'
+                              ? (env.primaryArtifact.data as { text: string }).text
+                              : String((env.primaryArtifact.data as any).text ?? '')}
+                          </div>
+                        ))}
+                        {artifactEnvs.length > 0 && (
+                          <div className="chat-sidebar-artifact-cards">
+                            {artifactEnvs.map((env) => {
+                              const name = envelopeName(env);
+                              const stats = envelopeStats(env);
+                              return (
+                                <div
+                                  key={env.id}
+                                  className="chat-sidebar-artifact-card"
+                                  onClick={() => scrollToResult(env.id)}
+                                  role="button"
+                                  tabIndex={0}
+                                  onKeyDown={(e) => e.key === 'Enter' && scrollToResult(env.id)}
+                                  title="View in results panel"
                                 >
-                                  <span className="material-symbols-outlined">bookmark_add</span>
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : null;
+                                  <div className="chat-sidebar-artifact-card-icon">
+                                    <span className="material-symbols-outlined">{artifactIcon(env.primaryArtifact.type, env.primaryArtifact.data)}</span>
+                                  </div>
+                                  <div className="chat-sidebar-artifact-card-body">
+                                    <div className="chat-sidebar-artifact-card-name">{name}</div>
+                                    {stats && <div className="chat-sidebar-artifact-card-stats">{stats}</div>}
+                                  </div>
+                                  {onSave && (
+                                    <button
+                                      className="chat-sidebar-artifact-card-save"
+                                      onClick={(e) => { e.stopPropagation(); onSave(env); }}
+                                      title="Save to library"
+                                      aria-label="Save to library"
+                                    >
+                                      <span className="material-symbols-outlined">bookmark_add</span>
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {nonConfirm.length === 0 && (!msg.envelopes || msg.envelopes.length === 0) && msg.content && (
+                          <div className="chat-sidebar-assistant-text">
+                            {typeof msg.content === 'string' ? msg.content : String(msg.content)}
+                          </div>
+                        )}
+                      </>
+                    );
                   })()}
                   {!msg.envelopes && msg.content && (
                     <div className="chat-sidebar-assistant-text">

@@ -2,6 +2,29 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-16: Public/private sharing for saved items
+
+**Summary**: Added a lightweight sharing feature so coworkers can discover and run each other's saved artifacts (queries, workflows, etc.) without any admin setup. All sharing is Firestore-based; no external links.
+
+**New Firestore collection**: `sharedWork/{artifactId}` -- top-level collection. Any authenticated Firebase user can read; only the document's `userId` may write or delete. Rules deployed.
+
+**Type changes** (`src/lib/types.ts`):
+- `SavedArtifact` gains `isPublic?: boolean` and `ownerEmail?: string`.
+- New `SharedArtifactSummary = SavedArtifact & { sharedAt: string }` -- the full artifact is stored (including SQL) so coworkers can run it under their own credentials.
+
+**Persistence layer** (`src/lib/saved-work.ts`):
+- `publishArtifact(userId, artifactId, ownerEmail)` -- writes full copy to `sharedWork/{id}`, marks owner's copy `isPublic: true`.
+- `unpublishArtifact(userId, artifactId)` -- deletes `sharedWork/{id}`, marks owner's copy `isPublic: false`.
+- `getSharedArtifacts()` -- queries `sharedWork` ordered by `sharedAt` desc, limit 100.
+
+**SavedPage UI** (`src/components/SavedPage.tsx`):
+- Uses `useAuth()` to get the current user's email for publishing.
+- On load, fetches `getSharedArtifacts()` in parallel and merges others' public items into the items list (de-duped by id).
+- Visibility filter chip bar: **All / Shared / Private** filters the card/list view.
+- Shared badge on each card (blue `lock_open` pill with owner's username prefix). Private badge in list view (`lock` pill).
+- Context menu gains "Make public / Make private" toggle (only shown for owned items).
+- More/Delete buttons on cards suppressed for items owned by others (they can only Open/run).
+
 ## 2026-07-16: Query progress panel, BQ async polling, iteration cap improvements
 
 **Query progress panel (A + B + D)**:
