@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import {
   COLORS, AXIS_STYLE, TOOLTIP_STYLE, GRID_STYLE, CHART_HEIGHT, CHART_MARGIN,
-  buildChartData, resolveAxes, drillDownMessage,
+  buildChartData, resolveAxes, drillDownMessage, pivotLongFormat,
 } from './chart-utils';
 import { formatCompactValue, formatDisplayValue } from '@/lib/format-value';
 
@@ -135,6 +135,35 @@ function useChartSetup(result: QueryResult) {
   return { data, xKey, yKeys, tickFmt, tipFmt, xTickFmt };
 }
 
+function useChartSetupWithPivot(result: QueryResult) {
+  const base = useChartSetup(result);
+  // Attempt long-format pivot for multi-series line/area data.
+  // Only runs when the raw result has exactly 3 columns and low category cardinality.
+  const pivot = pivotLongFormat(result.columns, result.rows);
+  if (pivot.isPivoted) {
+    // Sort the pivoted data chronologically by x-axis
+    let pivotData = pivot.data;
+    if (pivotData.length >= 2) {
+      const firstX = pivotData[0]?.[pivot.xKey];
+      const isDateLikeStr = typeof firstX === 'string' && (
+        /^\d{4}-\d{2}/.test(firstX) ||
+        /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(firstX) ||
+        !isNaN(Date.parse(firstX))
+      );
+      const isNumeric = typeof firstX === 'number';
+      if (isDateLikeStr) {
+        pivotData = [...pivotData].sort((a, b) => {
+          return new Date(a[pivot.xKey] as string).getTime() - new Date(b[pivot.xKey] as string).getTime();
+        });
+      } else if (isNumeric) {
+        pivotData = [...pivotData].sort((a, b) => (a[pivot.xKey] as number) - (b[pivot.xKey] as number));
+      }
+    }
+    return { ...base, data: pivotData, xKey: pivot.xKey, yKeys: pivot.yKeys };
+  }
+  return base;
+}
+
 // ---------------------------------------------------------------------------
 function computeAvg(data: Record<string, unknown>[], key: string): number | null {
   const vals = data.map(r => Number(r[key])).filter(v => !isNaN(v));
@@ -145,7 +174,7 @@ function computeAvg(data: Record<string, unknown>[], key: string): number | null
 // 1. LineChartRenderer
 // ---------------------------------------------------------------------------
 export function LineChartRenderer({ result, onSendMessage }: ChartProps) {
-  const { data, xKey, yKeys, tickFmt, tipFmt, xTickFmt } = useChartSetup(result);
+  const { data, xKey, yKeys, tickFmt, tipFmt, xTickFmt } = useChartSetupWithPivot(result);
   const avg = yKeys.length === 1 ? computeAvg(data, yKeys[0]) : null;
   return (
     <div>
@@ -277,7 +306,7 @@ export function ColumnChartRenderer({ result, onSendMessage }: ChartProps) {
 // 4. AreaChartRenderer
 // ---------------------------------------------------------------------------
 export function AreaChartRenderer({ result, onSendMessage }: ChartProps) {
-  const { data, xKey, yKeys, tickFmt, tipFmt, xTickFmt } = useChartSetup(result);
+  const { data, xKey, yKeys, tickFmt, tipFmt, xTickFmt } = useChartSetupWithPivot(result);
   const avg = yKeys.length === 1 ? computeAvg(data, yKeys[0]) : null;
   return (
     <div>

@@ -87,6 +87,59 @@ export function buildChartData(
   return data;
 }
 
+/**
+ * Detects long-format multi-series data and pivots it to wide format.
+ *
+ * Long format: [category, x_axis, metric] — one row per category per x value.
+ * Example: [country, year, population] with China+USA rows.
+ *
+ * Wide format: [x_axis, Category1, Category2, ...] — one row per x value.
+ * Example: [year, China, United States] — ready for a multi-series line chart.
+ *
+ * Detection heuristic:
+ * - Exactly 3 columns
+ * - First column has low cardinality (2–20 unique values, and < 50% of row count)
+ * - At least 2 unique values in the first column (otherwise not multi-series)
+ */
+export function pivotLongFormat(
+  columns: string[],
+  rows: unknown[][],
+): { isPivoted: true; data: Record<string, unknown>[]; xKey: string; yKeys: string[] } | { isPivoted: false } {
+  if (columns.length !== 3 || rows.length < 2) return { isPivoted: false };
+
+  // Check cardinality of the first (category) column
+  const seriesValues = new Set(rows.map((r) => String((r as unknown[])[0] ?? '')));
+  const cardinality = seriesValues.size;
+  if (cardinality < 2 || cardinality > 20) return { isPivoted: false };
+  // If nearly every row has a unique category value, it's not long format
+  if (cardinality / rows.length >= 0.5) return { isPivoted: false };
+
+  const xKey = columns[1];  // e.g. "year"
+  const yKeys = Array.from(seriesValues);  // e.g. ["China", "United States"]
+
+  // Build pivot map keyed by the x-axis value
+  const pivotMap = new Map<unknown, Record<string, unknown>>();
+  for (const row of rows) {
+    const r = row as unknown[];
+    const seriesLabel = String(r[0] ?? '');
+    const xVal = r[1];
+    const rawMetric = r[2];
+    const metric =
+      typeof rawMetric === 'string' && rawMetric !== '' && !isNaN(Number(rawMetric))
+        ? Number(rawMetric)
+        : rawMetric;
+
+    if (!pivotMap.has(xVal)) {
+      pivotMap.set(xVal, { [xKey]: xVal });
+    }
+    pivotMap.get(xVal)![seriesLabel] = metric;
+  }
+
+  const data = Array.from(pivotMap.values());
+  return { isPivoted: true, data, xKey, yKeys };
+}
+
+
 
 /**
  * Resolves which column is the x-axis and which columns are y-axes.
