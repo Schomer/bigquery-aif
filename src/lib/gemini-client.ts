@@ -248,6 +248,7 @@ export async function callGeminiWithTools({
   }));
 
   const allToolCalls: ToolCallRecord[] = [];
+  const callCache = new Map<string, unknown>();
 
   for (let i = 0; i < maxIterations; i++) {
     const requestBody = {
@@ -325,7 +326,16 @@ export async function callGeminiWithTools({
       const { name, args } = fc.functionCall;
       onStatus?.(getToolStatus(name, args ?? {}));
       try {
+        // Deduplication: skip re-execution of identical tool calls
+        const callKey = `${name}:${JSON.stringify(args ?? {})}`;
+        const cached = callCache.get(callKey);
+        if (cached !== undefined) {
+          allToolCalls.push({ name, args: args ?? {}, result: cached });
+          responseParts.push({ functionResponse: { name, response: { result: cached } } });
+          continue;
+        }
         const result = await toolExecutor(name, args ?? {});
+        callCache.set(callKey, result);
         allToolCalls.push({ name, args: args ?? {}, result });
         responseParts.push({ functionResponse: { name, response: { result } } });
       } catch (err: unknown) {

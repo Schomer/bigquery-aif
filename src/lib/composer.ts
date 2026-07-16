@@ -2,7 +2,7 @@
 // Transforms a skill's normalized result into a CompositionEnvelope
 // Implements bigquery-response-composition.md
 import { formatBytes } from '@/lib/format';
-import { computeInsights } from '@/lib/result-insights';
+import { computeInsights, type StatInsight } from '@/lib/result-insights';
 
 function randomUUID(): string {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
@@ -322,7 +322,7 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[], userInt
     basis = 'DEVIATION';
   }
 
-  const insight = result.notableFindings ?? null;
+
 
   // Force TABLE for zero-row results -- chart components would receive empty data
   // Force TABLE for sample/preview queries -- charting random sample data is nonsensical
@@ -499,6 +499,34 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[], userInt
     } catch { /* non-fatal, companion is best-effort */ }
   }
 
+  // ── Statistical insights for all chart types ────────────────────────────────
+  let statInsights: StatInsight[] = [];
+  try {
+    if (result.rowCount >= 3 && result.columns.length >= 2) {
+      const xKey = result.columns[0];
+      const yKey = result.columns[1];
+      const chartData = result.rows.map(r => {
+        const row = r as unknown[];
+        const obj: Record<string, string | number> = {};
+        result.columns.forEach((col, idx) => { obj[col] = row[idx] as string | number; });
+        return obj;
+      });
+
+      // Map artifact type to insight category
+      const insightCategory: Parameters<typeof computeInsights>[0] | null =
+        (artifactType === 'LINE_CHART' || artifactType === 'AREA_CHART') ? 'TIME_SERIES' :
+        (artifactType === 'BAR_CHART' || artifactType === 'COLUMN_CHART') ? 'BAR' :
+        (artifactType === 'SCATTER') ? 'SCATTER' :
+        (artifactType === 'PIE_CHART' || artifactType === 'DONUT_CHART') ? 'PIE' :
+        (artifactType === 'FUNNEL') ? 'FUNNEL' :
+        null;
+
+      if (insightCategory) {
+        statInsights = computeInsights(insightCategory, chartData, xKey, yKey);
+      }
+    }
+  } catch { /* non-fatal */ }
+
   return {
     id,
     skill: 'query',
@@ -522,10 +550,20 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[], userInt
       project: extractProjectFromSql(result.sql),
     },
     nextActions,
-    insight,
+    insight: statInsights.length > 0
+      ? statInsights[0].message
+      : (result.notableFindings || null),
     qualityFlags: qualityFlags && qualityFlags.length > 0 ? qualityFlags : undefined,
     extractedParameters: result.extractedParameters,
-    briefing: queryBriefing,
+    briefing: {
+      ...queryBriefing,
+      findings: [
+        ...(queryBriefing.findings || []),
+        ...statInsights
+          .filter(i => i.severity !== 'low')
+          .map(i => ({ label: i.type, value: i.message })),
+      ],
+    },
     companionArtifact,
   };
 }

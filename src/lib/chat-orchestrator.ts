@@ -322,11 +322,13 @@ The user's new message is a continuation of this conversation. Treat it as a fol
           continue;
         }
 
-        // High-confidence + small result: review adds little value
+        // High-confidence + KPI-like result (tiny, single-value): review adds little value
         // EXCEPTION: never skip when user explicitly requested a chart type
         if (routerConfidence === 'high' && !userIntent && data && 'rows' in data) {
           const rows = (data as { rows: unknown[] }).rows;
-          if (Array.isArray(rows) && rows.length < 100) {
+          const cols = 'columns' in data ? (data as { columns: string[] }).columns : [];
+          // Only skip for KPI-like single-value results (1-2 rows, 1-2 columns)
+          if (Array.isArray(rows) && rows.length <= 2 && Array.isArray(cols) && cols.length <= 2) {
             env.skipSelfReview = true;
             continue;
           }

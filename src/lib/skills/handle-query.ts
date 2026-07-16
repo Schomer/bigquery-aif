@@ -6,6 +6,7 @@
 import { callGeminiWithTools, loadSkillDoc } from '../gemini-client';
 import { getAvailableDatasets, resolveDefaultDatasetFromList, extractDatasetFromMessage, stepWithLink } from '../orchestrator-utils';
 import { executeQuery } from '../bigquery-client';
+import { checkAndFixTypes } from '../sql-guard';
 import { fetchSchema } from './schema';
 import { compose } from '../composer';
 import { findReusablePlan, cachePlan } from '../plan-cache';
@@ -72,11 +73,30 @@ export async function handleQuery(
     if (fetches.length > 0) await Promise.all(fetches);
   }
 
+  // If no schema context from prior turn, try to extract table name from message
+  // and pre-fetch its schema to eliminate a get_table_schema tool call
+  if (lastTableSchema.length === 0 && tableList.length > 0 && dataset) {
+    const lowerMsg = message.toLowerCase();
+    const mentionedTable = tableList.find(t => lowerMsg.includes(t.toLowerCase()));
+    if (mentionedTable) {
+      try {
+        const pre = await fetchSchema(dataset, mentionedTable, project);
+        if (pre?.columns && pre.columns.length > 0) {
+          lastTableSchema = pre.columns.map(c => ({
+            name: c.name,
+            type: c.type,
+            description: c.description ?? undefined,
+          }));
+        }
+      } catch { /* non-fatal */ }
+    }
+  }
+
   // -- Plan cache: check for reusable query plan --
-  const cachedPlan = findReusablePlan(message, dataset);
-  if (cachedPlan) {
+  const cachedPlanHit = findReusablePlan(message, dataset);
+  if (cachedPlanHit) {
     onStatus?.(`Picking up where we left off (cached plan for ${dataset})...`);
-    return executeCachedPlan(cachedPlan, project, dataset, onStatus, context?.userIntent ?? null);
+    return executeCachedPlan(cachedPlanHit, project, dataset, onStatus, context?.userIntent ?? null);
   }
 
   // -- Build conversation messages --
@@ -122,11 +142,17 @@ ${savedSql}
 Write your SQL using \`${cteAlias}\` as the source. Available columns: ${lastTableSchema.length > 0 ? lastTableSchema.map((c) => c.name).join(', ') : 'run the CTE to discover columns'}.`
     : '';
 
+  // Inject few-shot examples from plan cache for similar prior queries
+  const cachedPlan = findReusablePlan(message, dataset || '');
+  const fewShotBlock = cachedPlan
+    ? `\n\nPREVIOUS SUCCESSFUL QUERY (use as reference if relevant):\nSQL used: ${cachedPlan.entry.sql}\nNote: Adapt this pattern to the current question -- do not copy it blindly.`
+    : '';
+
   const systemPrompt = `${skillDoc}
 
 The BigQuery project is: ${project}
 ${datasetLine}
-Available datasets in project ${project}: ${available.join(', ')}${lastTableLine}${tableListLine}${lastTableSchemaLine}${savedArtifactBlock}
+Available datasets in project ${project}: ${available.join(', ')}${lastTableLine}${tableListLine}${lastTableSchemaLine}${savedArtifactBlock}${fewShotBlock}
 Today's date: ${new Date().toISOString().split('T')[0]}
 
 CRITICAL: Always wrap fully qualified table references in literal backticks: \`${project}.DATASET.tablename\` (e.g. \`${project}.ecomm.order_items\`). This is CRITICAL to prevent syntax errors when project names contain dashes/hyphens.
@@ -140,12 +166,15 @@ EFFICIENCY RULES (most important):
 4. STOP after run_query succeeds. Do not call additional tools after you have query results. Just summarize the results and respond.
 5. If run_query fails with a "Not found" error, call get_table_schema to verify the table name before retrying.
 6. Do NOT run exploratory or summary queries. Answer the user's question directly.
+7. When filtering STRING columns and you are not certain of the exact stored value, prefer LIKE '%value%' or use LOWER() for case-insensitive comparison rather than exact = 'value'.
+8. For geographic names (states, countries, cities), always use a case-insensitive comparison.
 
 After running the query, provide a brief one-line summary of what the results show.`;
 
 
 
-  onStatus?.('Working out your query...');
+  const briefQuestion = message.length > 80 ? message.slice(0, 77) + '...' : message;
+  onStatus?.(`Analyzing: "${briefQuestion}"`);
 
   // -- Capture the full BQ execution result for the UI --
   // The tool executor sends a concise summary to the LLM but we capture the
@@ -166,14 +195,62 @@ After running the query, provide a brief one-line summary of what the results sh
     if (!tool) throw new Error(`Unknown tool: ${name}`);
 
     if (name === 'run_query') {
-      const sql = args.sql as string;
+      let sql = args.sql as string;
       const vizHint = args.visualizationHint as string | undefined;
+
+      // Auto-correct type mismatches if we have schema context
+      if (lastTableSchema.length > 0) {
+        const { sql: fixed, fixes } = checkAndFixTypes(sql, lastTableSchema);
+        if (fixes.length > 0) {
+          sql = fixed;
+          onStatus?.(`Auto-corrected ${fixes.length} type mismatch(es)...`);
+        }
+      }
+
       onStatus?.(stepWithLink(
         `Executing query on ${dataset || 'BigQuery'}...`,
         { project, dataset: dataset || undefined },
         'Open in BigQuery'
       ));
       const result = await executeQuery(sql, project);
+
+      // Zero-row retry: relax filters if no results found
+      if (result.rowCount === 0 && sql.toUpperCase().includes('WHERE')) {
+        // Check for implicit year filter
+        const yearPattern = /EXTRACT\s*\(\s*YEAR\s+FROM\s+\w+\)\s*=\s*\d{4}/i;
+        const yearMatch = sql.match(yearPattern);
+        if (yearMatch) {
+          const relaxedSql = sql.replace(yearMatch[0], 'TRUE');
+          onStatus?.('No data matched the date filter -- trying without it...');
+          try {
+            const retryResult = await executeQuery(relaxedSql, project);
+            if (retryResult.rowCount > 0) {
+              capture.value = { sql: relaxedSql, ...retryResult, visualizationHint: vizHint };
+              return { columns: retryResult.columns, rowCount: retryResult.rowCount, sampleRows: retryResult.rows.slice(0, 20) };
+            }
+          } catch { /* fall through to original result */ }
+        }
+
+        // Check for string exact match that could use LIKE
+        const exactMatch = sql.match(/(\w+)\s*=\s*'([^']+)'/);
+        if (exactMatch && !yearMatch) {
+          const col = exactMatch[1];
+          const val = exactMatch[2];
+          const relaxedSql = sql.replace(
+            `${col} = '${val}'`,
+            `LOWER(${col}) LIKE LOWER('%${val}%')`
+          );
+          onStatus?.('No exact match found -- trying a broader search...');
+          try {
+            const retryResult = await executeQuery(relaxedSql, project);
+            if (retryResult.rowCount > 0) {
+              capture.value = { sql: relaxedSql, ...retryResult, visualizationHint: vizHint };
+              return { columns: retryResult.columns, rowCount: retryResult.rowCount, sampleRows: retryResult.rows.slice(0, 20) };
+            }
+          } catch { /* fall through to original result */ }
+        }
+      }
+
       // Capture full result for the UI
       capture.value = { sql, ...result, visualizationHint: vizHint };
       // Return concise preview for the LLM
@@ -196,15 +273,22 @@ After running the query, provide a brief one-line summary of what the results sh
     return tool.execute(args, project);
   };
 
+  // Remove discovery tools when context is already available
+  const filteredTools = BQ_TOOLS.filter(t => {
+    if (t.declaration.name === 'list_datasets' && available.length > 0) return false;
+    if (t.declaration.name === 'list_tables' && tableList.length > 0) return false;
+    return true;
+  });
+
   // -- Run the tool-calling agent loop --
   const agentResult = await callGeminiWithTools({
     systemInstruction: systemPrompt,
     messages: [...messages, { role: 'user' as const, content: message }],
-    toolDeclarations: BQ_TOOLS.map((t) => t.declaration),
+    toolDeclarations: filteredTools.map((t) => t.declaration),
     toolExecutor,
     project,
     onStatus,
-    maxIterations: 15,
+    maxIterations: 8,
     terminateAfter: ['run_query'],
   });
 
