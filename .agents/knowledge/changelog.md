@@ -2,7 +2,29 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
-## 2026-07-15: Conversation state object -- session-wide memory
+## 2026-07-15: /plan mode -- pre-execution planning with user approval
+
+**Context**: User wanted a way to see what the AI intends to do before any BigQuery queries run. Triggered by prefixing a message with `/plan`.
+
+**New files**:
+- `src/components/chat/PlanCard.tsx` -- self-contained plan card component. Shows title, summary, numbered steps, optional cost estimate, and data sources. Three actions: Cancel (marks card dismissed, no execution), Comment (inline textarea that re-triggers /plan with amendment appended), Proceed (replays original query without /plan prefix through normal pipeline).
+
+**Modified**: `src/lib/types.ts` -- added `PLAN_CARD` to `ArtifactType` union.
+
+**Modified**: `src/lib/chat-orchestrator.ts` -- added `ChatOrchestrator.generatePlan()` static method. Single Gemini call (no BigQuery, no tools) that returns a structured plan (title, summary, steps[], estimatedCost, dataAccessed) wrapped in a `PLAN_CARD` envelope with `requiresConfirmation: true` and `skipSelfReview: true`.
+
+**Modified**: `src/hooks/useChatOrchestration.ts` -- added `/plan` prefix detection at the top of `sendMessage()`. If detected, strips prefix, calls `generatePlan()`, and adds the PLAN_CARD envelope as an assistant message. Returns early -- normal `processMessage()` path is completely bypassed. Non-plan messages are 100% unaffected.
+
+**Modified**: `src/components/ArtifactCard.tsx` -- added `PlanCard` import and `PLAN_CARD` dispatch case. `onProceed` calls `onSendMessage(originalQuery)` to replay; `onComment` calls `onSendMessage('/plan ${originalQuery} [Amendment: ${comment}]')` to re-plan with amendment.
+
+**Derived rules**:
+- `PLAN_CARD` always sets `requiresConfirmation: true` and `skipSelfReview: true` -- no review pass needed for a plan description.
+- `generatePlan()` is non-fatal on dataset list failures -- plan proceeds without dataset context.
+- Amendment re-planning appends `[Amendment: ...]` suffix to the original query so context is preserved in the new plan generation.
+
+---
+
+
 
 **Context**: App had no memory across turns beyond `lastTable`/`lastSkill`. After 5+ messages, prior tables, queries, and filters were gone. User couldn't say "go back to that orders table" or "use the same filters."
 

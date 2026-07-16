@@ -77,7 +77,7 @@ export function PlanCard({ data, onProceed, onComment, onCancel }: PlanCardProps
           </span>
           <span style={{
             fontSize: 14,
-            fontWeight: 600,
+            fontWeight: 500,
             color: 'var(--text)',
             fontFamily: "'Google Sans', sans-serif",
           }}>
@@ -138,7 +138,7 @@ export function PlanCard({ data, onProceed, onComment, onCancel }: PlanCardProps
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   <span style={{
                     fontSize: 13,
-                    fontWeight: 600,
+                    fontWeight: 500,
                     color: 'var(--text)',
                     fontFamily: "'Google Sans', sans-serif",
                   }}>
