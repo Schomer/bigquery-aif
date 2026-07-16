@@ -102,6 +102,8 @@ DECISION RULES:
 4. For operations that DESTROY data (DELETE, DROP, TRUNCATE), call execute_dml immediately with the correct SQL. The system will automatically intercept the call, count the affected rows, and show the user a confirmation card before anything is deleted. Do NOT run a preview query yourself or describe what you plan to do -- just call execute_dml.
 5. For operations that CREATE or MODIFY (CREATE DATASET, CREATE TABLE, INSERT, UPDATE), go ahead and do it. These are reversible.
 6. Always wrap fully qualified table references in backticks: \`project.dataset.tablename\`
+7. If the schema of the current table is already shown above (in "Schema of <table>:"), do NOT call get_table_schema -- use that schema directly. Skip the schema fetch entirely.
+8. For de-duplication tasks: write the dedupe SQL directly using the schema you already have, then call execute_dml once. Do not run exploratory COUNT queries first. The system intercepts execute_dml and shows the user a count and confirmation card before anything is deleted.
 
 CONVERSATION CONTEXT:
 - Project: ${project || '(not selected yet)'}
@@ -241,10 +243,24 @@ export async function handleConversation(
     toolExecutor,
     project,
     onStatus,
-    maxIterations: 8,
+    maxIterations: 30,
+    // Exit immediately after a terminal tool succeeds. The deduplication
+    // cache in callGeminiWithTools is the real runaway guard -- identical
+    // calls are never re-executed, so a high cap is safe.
+    terminateAfter: ['execute_dml', 'create_dataset'],
   });
 
-  const responseText = agentResult.textResponse || 'Done.';
+  // Handle iteration cap gracefully -- convert to a user-friendly message
+  // so users never see the raw internal sentinel string.
+  let responseText: string;
+  if (agentResult.textResponse === '__MAX_ITERATIONS_REACHED__') {
+    const lastTool = agentResult.toolCalls[agentResult.toolCalls.length - 1];
+    responseText = lastTool
+      ? `I wasn't able to finish — I ran out of steps while working on "${lastTool.name.replace(/_/g, ' ')}". Try breaking the request into smaller parts, or include more specific details like the exact table name.`
+      : `I wasn't able to finish the task. Try breaking it into smaller parts or rephrase with more specific details like the exact table and dataset names.`;
+  } else {
+    responseText = agentResult.textResponse || 'Done.';
+  }
   const envelopes: CompositionEnvelope[] = [];
 
   // If destructive DML was intercepted, run a count preview and return a confirmation card.

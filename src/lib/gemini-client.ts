@@ -368,7 +368,7 @@ export async function callGeminiWithTools({
 
   // Exhausted iteration cap
   return {
-    textResponse: 'Reached maximum tool-call iterations.',
+    textResponse: '__MAX_ITERATIONS_REACHED__',
     toolCalls: allToolCalls,
   };
 }
