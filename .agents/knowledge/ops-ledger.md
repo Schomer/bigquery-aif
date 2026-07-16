@@ -1,5 +1,24 @@
 # Operations Ledger
 
+## 2026-07-15: Wrong country data + single line chart for multi-series queries
+
+**Symptom**: "show the population of China and USA over time" returned Aruba rows in the table and a single line chart instead of two lines.
+
+**Root causes**:
+
+1. **Wrong data (Aruba)**: `query.md` had no explicit rule requiring `IN (...)` filters when the user names multiple entities. The LLM was generating SQL without a WHERE clause (or with a broken single-value filter), returning all countries alphabetically. Aruba appeared first. The headline "Aruba leads China by 2.0K in Year" confirmed the visualization layer was treating `year` as the metric (wrong axis assignment from the 3-column long-format schema).
+
+2. **Single line instead of two**: The query correctly returned long-format data: `[country, year, population]`. `resolveAxes()` treated column[0] (`country`) as xKey and `[year, population]` as yKeys — so the chart drew two lines (year values and population values), but year values are tiny (~1960) relative to population (billions), making one line invisible. The real fix is to pivot long-format data to wide format before rendering: `[year, China, United States]` with one row per year.
+
+**Fixes**:
+- `public/skills/query.md`: Added explicit rule — when user names multiple specific entities, always use `IN (...)` with case-insensitive matching, add common name variants, never omit the filter.
+- `src/components/charts/chart-utils.ts`: Added `pivotLongFormat()` — detects long-format data (3 columns, category col with 2–20 unique values and cardinality < 50% of row count) and pivots to wide format.
+- `src/components/charts/recharts-charts.tsx`: `LineChartRenderer` and `AreaChartRenderer` now use `useChartSetupWithPivot()` which applies the pivot before rendering.
+
+**Rule**: Long-format multi-series data `[category, x, metric]` must be pivoted to wide format before chart rendering. The pivot heuristic: exactly 3 columns, first column has 2–20 unique values AND cardinality < 50% of row count.
+
+---
+
 ## 2026-07-15: Fix "Reached maximum tool-call iterations" on simple data queries
 
 **Symptom**: User gets "Reached maximum tool-call iterations" after a query runs and returns results. The query DID succeed (data visible in the card) but the LLM kept calling additional tools, exhausting the 10-iteration cap before producing a text response.
