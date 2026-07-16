@@ -1,5 +1,19 @@
 # Operations Ledger
 
+## 2026-07-16: Non-numeric columns plotted as chart bars (dataset_id, table_id, last_modified)
+
+**Symptom**: Bar chart for a metadata query (e.g. `INFORMATION_SCHEMA.TABLES`) showed a giant single-color blob with string columns like `dataset_id`, `last_modified`, and `table_id` listed in the legend alongside actual numeric columns like `size_bytes` and `row_count`.
+
+**Root cause**: `resolveAxes()` in `chart-utils.ts` defaulted `yKeys` to every column that wasn't the x-axis. It had no awareness of column types, so string, date, and ID columns were all handed to Recharts as numeric series. Recharts coerced them to `NaN` / 0, producing nonsensical bars.
+
+**Fix**:
+- `src/components/charts/chart-utils.ts`: `resolveAxes()` now accepts an optional `rows` parameter and runs `classifyColumns()` to identify `'measure'` (numeric) columns. Only those are used as yKeys. Falls back to all non-x columns only if no numeric columns exist (so purely-string results still render rather than crashing).
+- `src/components/charts/recharts-charts.tsx`: `useChartSetup()` passes `rows` to `resolveAxes()`.
+
+**Rule**: `resolveAxes()` must never include non-numeric columns in `yKeys` by default. Always run `classifyColumns()` to filter. Only override with explicit `yAxis` from the query result.
+
+---
+
 ## 2026-07-15: Wrong country data + single line chart for multi-series queries
 
 **Symptom**: "show the population of China and USA over time" returned Aruba rows in the table and a single line chart instead of two lines.
