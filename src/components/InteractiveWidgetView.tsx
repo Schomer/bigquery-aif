@@ -557,7 +557,7 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
         {/* Chart / Table switcher — far right of filter row */}
         {isChartable && (
           <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
-            <div style={{ display: 'inline-flex', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 20, padding: 2, gap: 2 }}>
+            <div style={{ display: 'inline-flex', background: 'transparent', border: '1px solid #B7C3E0', borderRadius: 20, padding: 2, gap: 2 }}>
               {(['chart', 'table'] as const).map((v) => (
                 <button
                   key={v}
@@ -570,8 +570,8 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
                     border: 'none',
                     cursor: 'pointer',
                     transition: 'background 0.15s, color 0.15s',
-                    background: viewMode === v ? 'var(--accent, #4f7fff)' : 'transparent',
-                    color: viewMode === v ? '#fff' : 'var(--text-muted)',
+                    background: viewMode === v ? '#496CC3' : 'transparent',
+                    color: viewMode === v ? '#ffffff' : '#314F9B',
                   }}
                 >
                   {v === 'chart' ? '\u25B2 Chart' : '\u229E Table'}

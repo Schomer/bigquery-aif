@@ -20,6 +20,13 @@
     --attention: #b06000;
     --issue: #c5221f;
     --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    /* ── Button tokens ── */
+    --btn-active-bg: #496CC3;
+    --btn-active-color: #ffffff;
+    --btn-outline-color: #314F9B;
+    --btn-outline-border: #B7C3E0;
+    --btn-radius: 12px;
+    --btn-height: 32px;
   }
 }
 
@@ -148,15 +155,16 @@
   align-items: center;
   gap: 4px;
   padding: 4px 12px;
+  height: var(--btn-height);
   border: none;
-  border-radius: 8px;
-  background: var(--accent);
-  color: white;
+  border-radius: var(--btn-radius);
+  background: var(--btn-active-bg);
+  color: var(--btn-active-color);
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
-  line-height: 1.4;
+  line-height: 1;
 }
 
 .sql-run-btn:hover {
@@ -190,10 +198,10 @@ details>summary::marker {
   align-items: center;
   gap: 4px;
   padding: 3px 10px;
-  border: none;
-  border-radius: 12px;
-  background: #eff6ff;
-  color: #1e40af;
+  border: 1px solid var(--btn-outline-border);
+  border-radius: var(--btn-radius);
+  background: transparent;
+  color: var(--btn-outline-color);
   font-size: 11px;
   font-weight: 400;
   cursor: pointer;
@@ -203,8 +211,9 @@ details>summary::marker {
 }
 
 .chip:hover {
-  background: #dbeafe;
-  color: #1e3a8a;
+  background: var(--accent-dim);
+  border-color: var(--btn-active-bg);
+  color: var(--btn-active-bg);
 }
 
 /* Recent datasets / tables in empty state */
@@ -1829,8 +1838,8 @@ details>summary::marker {
 }
 
 .layout-seg-btn--active {
-  background: #d3e3fd;
-  color: #1a4077;
+  background: var(--btn-active-bg);
+  color: var(--btn-active-color);
   box-shadow: none;
 }
 
