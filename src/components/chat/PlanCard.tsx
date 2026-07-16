@@ -112,45 +112,67 @@ export function PlanCard({ data, onProceed, onComment, onCancel }: PlanCardProps
 
         {/* Steps */}
         {data.steps.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
             {data.steps.map((step, i) => (
-              <div key={i} style={{
-                display: 'flex',
-                gap: 12,
-                alignItems: 'flex-start',
-              }}>
-                <div style={{
-                  minWidth: 22,
-                  height: 22,
-                  borderRadius: '50%',
-                  background: '#e8f0fe',
-                  color: '#4f6ef7',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  marginTop: 1,
-                }}>
-                  {i + 1}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <span style={{
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: 'var(--text)',
-                    fontFamily: "'Google Sans', sans-serif",
+              <div key={i}>
+                {/* Step row */}
+                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                  {/* Number badge + connector line column */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                    <div style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '50%',
+                      background: '#1B2E5D',
+                      color: 'white',
+                      fontSize: 14,
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontFamily: "'Google Sans', sans-serif",
+                      flexShrink: 0,
+                    }}>
+                      {i + 1}
+                    </div>
+                    {/* Connector line — shown for all but last step */}
+                    {i < data.steps.length - 1 && (
+                      <div style={{
+                        width: 2,
+                        flex: 1,
+                        minHeight: 20,
+                        background: '#dadce0',
+                        margin: '4px 0',
+                      }} />
+                    )}
+                  </div>
+                  {/* Step content */}
+                  <div style={{
+                    paddingTop: 4,
+                    paddingBottom: i < data.steps.length - 1 ? 20 : 0,
                   }}>
-                    {step.label}
-                  </span>
-                  <span style={{
-                    fontSize: 12,
-                    color: 'var(--text-muted)',
-                    lineHeight: 1.5,
-                  }}>
-                    {step.detail}
-                  </span>
+                    <span style={{
+                      fontSize: 16,
+                      fontWeight: 700,
+                      color: '#1B2E5D',
+                      fontFamily: "'Google Sans', sans-serif",
+                      lineHeight: 1.3,
+                      display: 'block',
+                    }}>
+                      {step.label}
+                    </span>
+                    {step.detail && (
+                      <span style={{
+                        fontSize: 13,
+                        color: 'var(--text-muted)',
+                        lineHeight: 1.5,
+                        display: 'block',
+                        marginTop: 2,
+                      }}>
+                        {step.detail}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
