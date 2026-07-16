@@ -242,18 +242,59 @@ export interface QueryExecuteResult {
   jobId: string;
 }
 
-export async function executeQuery(sql: string, project?: string): Promise<QueryExecuteResult> {
+export interface QueryProgressEvent {
+  state: string;       // 'PENDING' | 'RUNNING' | 'DONE'
+  jobId: string;
+  bytesProcessed?: number;
+}
+
+export async function executeQuery(
+  sql: string,
+  project?: string,
+  onJobProgress?: (event: QueryProgressEvent) => void,
+): Promise<QueryExecuteResult> {
   const projectId = project || '';
   try {
-    const data = await bqFetch(`${BQ_BASE}/${encodeURIComponent(projectId)}/queries`, {
+    // Submit as async job so we can poll for progress (same pattern as executeDml)
+    const submitData = await bqFetch(`${BQ_BASE}/${encodeURIComponent(projectId)}/jobs`, {
       method: 'POST',
       body: JSON.stringify({
-        query: sql,
-        useLegacySql: false,
-        maxResults: 1000,
+        configuration: {
+          query: {
+            query: sql,
+            useLegacySql: false,
+          },
+        },
       }),
     });
-    return parseQueryResponse(data);
+
+    let job = submitData;
+    const jobId: string = job.jobReference?.jobId ?? '';
+
+    // Poll until DONE, firing progress callbacks on each tick
+    while (job.status?.state !== 'DONE') {
+      onJobProgress?.({
+        state: job.status?.state ?? 'PENDING',
+        jobId,
+        bytesProcessed: job.statistics?.query?.totalBytesProcessed
+          ? Number(job.statistics.query.totalBytesProcessed)
+          : undefined,
+      });
+      await new Promise((r) => setTimeout(r, 1500));
+      job = await bqFetch(
+        `${BQ_BASE}/${encodeURIComponent(projectId)}/jobs/${encodeURIComponent(jobId)}`,
+      );
+    }
+
+    if (job.status?.errors?.length) {
+      throw new Error(job.status.errors[0].message);
+    }
+
+    // Fetch up to 1000 result rows from the completed job
+    const resultsData = await bqFetch(
+      `${BQ_BASE}/${encodeURIComponent(projectId)}/queries/${encodeURIComponent(jobId)}?maxResults=1000&timeoutMs=0`,
+    );
+    return parseQueryResponse({ ...resultsData, jobReference: { jobId } });
   } catch (err: unknown) {
     throw new Error(`BigQuery query failed: ${err instanceof Error ? err.message : String(err)}`);
   }

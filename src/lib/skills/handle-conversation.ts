@@ -174,15 +174,23 @@ export async function handleConversation(
   }
 
   // Tool executor: intercepts results for envelope composition
-  const toolExecutor = async (name: string, args: Record<string, unknown>): Promise<unknown> => {
+  const toolExecutor = async (name: string, args: Record<string, unknown>, onStatusOverride?: (msg: string) => void): Promise<unknown> => {
     const tool = BQ_TOOL_MAP.get(name);
     if (!tool) throw new Error(`Unknown tool: ${name}`);
+    const statusFn = onStatusOverride ?? onStatus;
 
     if (name === 'run_query') {
       // Intercept full result for UI rendering
       const { executeQuery } = await import('../bigquery-client');
       const sql = args.sql as string;
-      const result = await executeQuery(sql, project);
+      const result = await executeQuery(sql, project, (ev) => {
+        if (ev.state === 'RUNNING') {
+          const bytes = ev.bytesProcessed;
+          statusFn?.(bytes && bytes > 0
+            ? `Query running — ${(bytes / (1024 * 1024)).toFixed(1)} MB scanned...`
+            : 'Query running...');
+        }
+      });
       capturedQueries.push({
         sql,
         columns: result.columns,
@@ -200,7 +208,7 @@ export async function handleConversation(
     }
 
     if (name === 'create_dataset') {
-      const result = await tool.execute(args, project);
+      const result = await tool.execute(args, project, statusFn);
       datasetCreated = result as { datasetId: string; location: string };
       return result;
     }
@@ -217,12 +225,12 @@ export async function handleConversation(
           message: 'Showing the user a count of affected rows and a confirmation prompt before executing.',
         };
       }
-      const result = await tool.execute(args, project) as { completed: boolean; numDmlAffectedRows: number };
+      const result = await tool.execute(args, project, statusFn) as { completed: boolean; numDmlAffectedRows: number };
       dmlExecuted = { sql, affectedRows: result.numDmlAffectedRows };
       return result;
     }
 
-    return tool.execute(args, project);
+    return tool.execute(args, project, statusFn);
   };
 
   // Run the agent loop

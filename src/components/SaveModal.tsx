@@ -239,11 +239,11 @@ export function SaveModal({
           <button
             onClick={onClose}
             style={{
-              padding: '10px 20px',
+              padding: '12px 28px',
               fontSize: 14,
               fontWeight: 500,
               border: '1px solid var(--border, #dadce0)',
-              borderRadius: 8,
+              borderRadius: 12,
               background: 'white',
               color: 'var(--text, #1a1a1a)',
               cursor: 'pointer',
@@ -256,12 +256,12 @@ export function SaveModal({
             onClick={handleSave}
             disabled={!name.trim()}
             style={{
-              padding: '10px 20px',
+              padding: '12px 28px',
               fontSize: 14,
-              fontWeight: 500,
+              fontWeight: 600,
               border: 'none',
-              borderRadius: 8,
-              background: name.trim() ? '#1967d2' : '#dadce0',
+              borderRadius: 12,
+              background: name.trim() ? '#496CC3' : '#dadce0',
               color: name.trim() ? 'white' : '#80868b',
               cursor: name.trim() ? 'pointer' : 'default',
               fontFamily: "'Google Sans', sans-serif",

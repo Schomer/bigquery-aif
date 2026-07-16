@@ -201,7 +201,7 @@ export interface CallGeminiWithToolsArgs {
   /** Gemini function declarations (the schema half of each tool). */
   toolDeclarations: Array<{ name: string; description: string; parameters: unknown }>;
   /** Executes a named tool and returns the result for the LLM. */
-  toolExecutor: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+  toolExecutor: (name: string, args: Record<string, unknown>, onStatus?: (msg: string) => void) => Promise<unknown>;
   project?: string;
   onStatus?: (msg: string) => void;
   /** Safety cap on loop iterations (default 8). */
@@ -334,7 +334,7 @@ export async function callGeminiWithTools({
           responseParts.push({ functionResponse: { name, response: { result: cached } } });
           continue;
         }
-        const result = await toolExecutor(name, args ?? {});
+        const result = await toolExecutor(name, args ?? {}, onStatus);
         callCache.set(callKey, result);
         allToolCalls.push({ name, args: args ?? {}, result });
         responseParts.push({ functionResponse: { name, response: { result } } });

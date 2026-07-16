@@ -3,7 +3,7 @@
 // Each tool has a Gemini function declaration and an executor.
 
 import { fetchSchema } from './skills/schema';
-import { executeQuery, createDataset, executeDml } from './bigquery-client';
+import { executeQuery, createDataset, executeDml, type QueryProgressEvent } from './bigquery-client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -19,7 +19,7 @@ export interface BqToolDeclaration {
 
 export interface BqTool {
   declaration: BqToolDeclaration;
-  execute: (args: Record<string, any>, project: string) => Promise<unknown>;
+  execute: (args: Record<string, any>, project: string, onStatus?: (msg: string) => void) => Promise<unknown>;
 }
 
 // ─── Tool: run_query ─────────────────────────────────────────────────────────
@@ -56,8 +56,16 @@ const runQueryTool: BqTool = {
       required: ['sql'],
     },
   },
-  execute: async (args, project) => {
-    const result = await executeQuery(args.sql, project);
+  execute: async (args, project, onStatus) => {
+    const result = await executeQuery(args.sql, project, (ev: QueryProgressEvent) => {
+      if (ev.state === 'RUNNING') {
+        const bytes = ev.bytesProcessed;
+        const msg = bytes && bytes > 0
+          ? `Query running — ${formatBytes(bytes)} scanned...`
+          : 'Query running...';
+        onStatus?.(msg);
+      }
+    });
     // Return a concise payload for the LLM. Full result is captured
     // separately by the handle-query caller via the interceptor.
     const previewRows = result.rows.slice(0, 20);
@@ -68,6 +76,13 @@ const runQueryTool: BqTool = {
     };
   },
 };
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
 
 // ─── Tool: get_table_schema ──────────────────────────────────────────────────
 

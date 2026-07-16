@@ -15,6 +15,15 @@ import { analyzeResultQuality } from '../result-quality';
 import { BQ_TOOLS, BQ_TOOL_MAP } from '../bq-tools';
 import type { ChatMessage, CompositionEnvelope, QueryResult, SkillManifest, StatusCallback, VisualizationType, ArtifactType, InteractiveWidgetData } from '../types';
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
 // ─── Tool-calling query handler ──────────────────────────────────────────────
 
 export async function handleQuery(
@@ -199,9 +208,10 @@ After running the query, provide a brief one-line summary of what the results sh
   };
   const capture: { value: CapturedExecution | null } = { value: null };
 
-  const toolExecutor = async (name: string, args: Record<string, unknown>): Promise<unknown> => {
+  const toolExecutor = async (name: string, args: Record<string, unknown>, onStatusOverride?: (msg: string) => void): Promise<unknown> => {
     const tool = BQ_TOOL_MAP.get(name);
     if (!tool) throw new Error(`Unknown tool: ${name}`);
+    const statusFn = onStatusOverride ?? onStatus;
 
     if (name === 'run_query') {
       let sql = args.sql as string;
@@ -212,16 +222,24 @@ After running the query, provide a brief one-line summary of what the results sh
         const { sql: fixed, fixes } = checkAndFixTypes(sql, lastTableSchema);
         if (fixes.length > 0) {
           sql = fixed;
-          onStatus?.(`Auto-corrected ${fixes.length} type mismatch(es)...`);
+          statusFn?.(`Auto-corrected ${fixes.length} type mismatch(es)...`);
         }
       }
 
-      onStatus?.(stepWithLink(
+      statusFn?.(stepWithLink(
         `Executing query on ${dataset || 'BigQuery'}...`,
         { project, dataset: dataset || undefined },
         'Open in BigQuery'
       ));
-      const result = await executeQuery(sql, project);
+      const result = await executeQuery(sql, project, (ev) => {
+        if (ev.state === 'RUNNING') {
+          const bytes = ev.bytesProcessed;
+          const msg = bytes && bytes > 0
+            ? `Query running — ${formatBytes(bytes)} scanned...`
+            : 'Query running...';
+          statusFn?.(msg);
+        }
+      });
 
       // Zero-row retry: relax filters if no results found
       if (result.rowCount === 0 && sql.toUpperCase().includes('WHERE')) {
@@ -230,7 +248,7 @@ After running the query, provide a brief one-line summary of what the results sh
         const yearMatch = sql.match(yearPattern);
         if (yearMatch) {
           const relaxedSql = sql.replace(yearMatch[0], 'TRUE');
-          onStatus?.('No data matched the date filter -- trying without it...');
+          statusFn?.('No data matched the date filter -- trying without it...');
           try {
             const retryResult = await executeQuery(relaxedSql, project);
             if (retryResult.rowCount > 0) {
@@ -249,7 +267,7 @@ After running the query, provide a brief one-line summary of what the results sh
             `${col} = '${val}'`,
             `LOWER(${col}) LIKE LOWER('%${val}%')`
           );
-          onStatus?.('No exact match found -- trying a broader search...');
+          statusFn?.('No exact match found -- trying a broader search...');
           try {
             const retryResult = await executeQuery(relaxedSql, project);
             if (retryResult.rowCount > 0) {
@@ -272,14 +290,14 @@ After running the query, provide a brief one-line summary of what the results sh
     }
 
     if (name === 'get_table_schema') {
-      onStatus?.(`Grabbing the schema for ${args.table}...`);
+      statusFn?.(`Grabbing the schema for ${args.table}...`);
     } else if (name === 'list_tables') {
-      onStatus?.(`Looking up tables in ${args.dataset}...`);
+      statusFn?.(`Looking up tables in ${args.dataset}...`);
     } else if (name === 'list_datasets') {
-      onStatus?.('Listing datasets...');
+      statusFn?.('Listing datasets...');
     }
 
-    return tool.execute(args, project);
+    return tool.execute(args, project, statusFn);
   };
 
   // Remove discovery tools when context is already available
