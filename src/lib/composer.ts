@@ -1320,11 +1320,16 @@ function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType |
   }
 
   // Step 3 — Geographic detection
-  for (let i = 0; i < columns.length; i++) {
-    if (colTypes[i] === 'categorical') {
-      const sampleValues = rows.slice(0, 10).map(r => (r as unknown[])[i]);
-      if (numericCols.length >= 1 && isStateColumn(columns[i], sampleValues)) return 'USA_MAP';
-      if (numericCols.length >= 1 && isCountryColumn(columns[i], sampleValues)) return 'WORLD_MAP';
+  // Skip geo charts for ranked / TOP-N queries: a result with ORDER BY + LIMIT
+  // is a sorted list, not an exhaustive geographic distribution.
+  const isRankedQuery = sql != null && /\bORDER\s+BY\b/i.test(sql) && /\bLIMIT\b/i.test(sql);
+  if (!isRankedQuery) {
+    for (let i = 0; i < columns.length; i++) {
+      if (colTypes[i] === 'categorical') {
+        const sampleValues = rows.slice(0, 10).map(r => (r as unknown[])[i]);
+        if (numericCols.length >= 1 && isStateColumn(columns[i], sampleValues)) return 'USA_MAP';
+        if (numericCols.length >= 1 && isCountryColumn(columns[i], sampleValues)) return 'WORLD_MAP';
+      }
     }
   }
 
@@ -1518,7 +1523,7 @@ function buildQueryHeadline(
       const numLabel = humanizeColumnName(numCols[0]);
       const count = rowCount.toLocaleString();
       if (rowCount <= 20) {
-        return `${count} ${catLabel.toLowerCase()}s by ${numLabel.toLowerCase()}`;
+        return `${count} ${pluralize(catLabel.toLowerCase())} by ${numLabel.toLowerCase()}`;
       }
       return `${count} rows: ${catLabel} by ${numLabel}`;
     }
@@ -1544,6 +1549,35 @@ function humanizeColumnName(col: string): string {
   label = label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
   return label;
 }
+
+/**
+ * Pluralize a lowercase word with correct English irregular forms.
+ * Handles the most common cases (country→countries, city→cities, etc.).
+ */
+function pluralize(word: string): string {
+  // Irregular plurals
+  const irregulars: Record<string, string> = {
+    country: 'countries',
+    city: 'cities',
+    category: 'categories',
+    currency: 'currencies',
+    territory: 'territories',
+    industry: 'industries',
+    company: 'companies',
+    agency: 'agencies',
+    entity: 'entities',
+    strategy: 'strategies',
+    property: 'properties',
+  };
+  if (irregulars[word]) return irregulars[word];
+  // Words ending in consonant+y → ies
+  if (/[^aeiou]y$/.test(word)) return word.slice(0, -1) + 'ies';
+  // Words ending in s, x, z, sh, ch → es
+  if (/(s|x|z|sh|ch)$/.test(word)) return word + 'es';
+  // Default: add s
+  return word + 's';
+}
+
 
 // ─── Data Quality composition ─────────────────────────────────────────────────
 
