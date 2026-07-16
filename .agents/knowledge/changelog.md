@@ -2,7 +2,36 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
-## 2026-07-15: Strategic overhaul -- 15 user pain points addressed
+## 2026-07-15: Workstreams 1-5 -- query reliability, insights, self-review, SQL safety, UX
+
+**Context**: Implementation plan approved. 11 changes across 5 workstreams executed by 3 parallel agents + parent fixups.
+
+**Query reliability (handle-query.ts)**:
+- `maxIterations` lowered from 15 to 8.
+- `list_datasets` and `list_tables` stripped from tool declarations when context already available.
+- Pre-fetch schema for tables mentioned in user message -- eliminates most `get_table_schema` tool calls on first interaction.
+- Few-shot examples from plan cache injected into system prompt for similar prior queries.
+- Fuzzy filter prompt rules added (LIKE over exact match for string columns).
+- Status messages now echo the user's question.
+
+**SQL safety (sql-guard.ts NEW, handle-query.ts)**:
+- New `checkAndFixTypes()` auto-corrects `INT64 = 'string'` and `BOOL = 'string'` type mismatches before query execution.
+- Zero-row retry: relaxes EXTRACT(YEAR) filters and exact string matches automatically.
+
+**Insights engine (composer.ts)**:
+- `computeInsights()` now called for BAR, SCATTER, PIE, FUNNEL chart types (was only TIME_SERIES).
+- Medium/high severity insights surfaced as briefing findings.
+- Top insight used as the `insight` field.
+
+**Self-review (chat-orchestrator.ts)**:
+- Skip condition relaxed from `rows < 100` to `rows <= 2 AND cols <= 2`. Most queries now get self-review for headline improvement.
+
+**Tool loop (gemini-client.ts)**:
+- Tool-call deduplication cache prevents re-executing identical tool calls within a single loop.
+
+---
+
+
 
 **Context**: User reported the app "barely works for even the most basic prompts." Ran 8 parallel research agents across routing, visualization, prompt interpretation, UX quality, competitive intelligence, feature verification, query loop analysis, and routing accuracy. Identified exact root causes for every pain point.
 

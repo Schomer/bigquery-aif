@@ -7,6 +7,7 @@ import { callGeminiWithTools, loadSkillDoc } from '../gemini-client';
 import { getAvailableDatasets, resolveDefaultDatasetFromList, extractDatasetFromMessage, stepWithLink } from '../orchestrator-utils';
 import { executeQuery } from '../bigquery-client';
 import { checkAndFixTypes } from '../sql-guard';
+import { formatStateForPrompt, type ConversationState } from '../conversation-state';
 import { fetchSchema } from './schema';
 import { compose } from '../composer';
 import { findReusablePlan, cachePlan } from '../plan-cache';
@@ -19,7 +20,7 @@ import type { ChatMessage, CompositionEnvelope, QueryResult, SkillManifest, Stat
 export async function handleQuery(
   message: string,
   history: ChatMessage[],
-  context?: { project?: string; dataset?: string; lastTable?: string; lastTableSchema?: { name: string; type: string; description?: string }[]; lastDatasetTables?: string[]; resolvedDataset?: string; availableDatasets?: string[]; userIntent?: ArtifactType | null; lastSavedArtifactSql?: string; lastSavedArtifactName?: string; lastSavedArtifactVizType?: string },
+  context?: { project?: string; dataset?: string; lastTable?: string; lastTableSchema?: { name: string; type: string; description?: string }[]; lastDatasetTables?: string[]; resolvedDataset?: string; availableDatasets?: string[]; userIntent?: ArtifactType | null; lastSavedArtifactSql?: string; lastSavedArtifactName?: string; lastSavedArtifactVizType?: string; conversationState?: ConversationState },
   onStatus?: StatusCallback
 ): Promise<CompositionEnvelope[]> {
   const project = context?.project || '';
@@ -171,6 +172,14 @@ EFFICIENCY RULES (most important):
 
 After running the query, provide a brief one-line summary of what the results show.`;
 
+  // Append session history if available
+  const stateBlock = context?.conversationState
+    ? formatStateForPrompt(context.conversationState)
+    : '';
+  const fullSystemPrompt = stateBlock
+    ? `${systemPrompt}\n\n${stateBlock}`
+    : systemPrompt;
+
 
 
   const briefQuestion = message.length > 80 ? message.slice(0, 77) + '...' : message;
@@ -282,7 +291,7 @@ After running the query, provide a brief one-line summary of what the results sh
 
   // -- Run the tool-calling agent loop --
   const agentResult = await callGeminiWithTools({
-    systemInstruction: systemPrompt,
+    systemInstruction: fullSystemPrompt,
     messages: [...messages, { role: 'user' as const, content: message }],
     toolDeclarations: filteredTools.map((t) => t.declaration),
     toolExecutor,

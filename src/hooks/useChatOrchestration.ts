@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { createEmptyState, updateState, type ConversationState } from '@/lib/conversation-state';
 import { useAuth } from '@/lib/auth-context';
 import { useConversation } from '@/lib/conversation-context';
 import { useChatRunState } from '@/lib/chat-run-state-context';
@@ -133,6 +134,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
   const [context, setContext] = useState<ChatContext>({});
+  const [conversationState, setConversationState] = useState<ConversationState>(createEmptyState());
   const [contextItems, setContextItems] = useState<ContextItem[]>([]);
   const [pinnedEnvelopeId, setPinnedEnvelopeId] = useState<string | null>(null);
   const [statusText, setStatusText] = useState<string | null>(null);
@@ -166,6 +168,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     setInput('');
     setLoading(false);
     setContext({});
+    setConversationState(createEmptyState());
     setContextItems([]);
     setPinnedEnvelopeId(null);
     setStatusText(null);
@@ -405,6 +408,14 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
         lastResultRef: last.id,
         ...extractContextFromEnvelope(last),
       }));
+      // Accumulate conversation state from all envelopes
+      setConversationState(prev => {
+        let updated = prev;
+        for (const env of envelopes) {
+          updated = updateState(updated, env);
+        }
+        return updated;
+      });
       const autoItems = extractContextItems(last);
       if (autoItems.length > 0) {
         setContextItems(autoItems);
@@ -496,7 +507,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       const data = await withAuthRetry(() => ChatOrchestrator.processMessage({
         message: text,
         history: messages,
-        context: { ...derivedCtx, project: activeProject || derivedCtx.project, uid: user?.uid },
+        context: { ...derivedCtx, conversationState, project: activeProject || derivedCtx.project, uid: user?.uid },
         onStatus: (s: string | StepInfo) => {
           // Drop status updates after abort
           if (controller.signal.aborted) return;

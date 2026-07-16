@@ -15,6 +15,7 @@ import {
   buildConversationStateSummary,
   stepWithLink,
 } from './orchestrator-utils';
+import { formatStateForPrompt, type ConversationState } from './conversation-state';
 import { selfReviewEnvelope } from './self-review';
 import { extractVisualizationIntent, isVizMutationOnly } from './viz-intent';
 
@@ -53,6 +54,8 @@ export interface ProcessMessageArgs {
     availableDatasets?: string[];
     // Handoff chain: full envelope context from chip clicks
     handoffContext?: Record<string, unknown>;
+    // Cumulative session state
+    conversationState?: ConversationState;
   };
   onStatus?: StatusCallback;
   /** Optional AbortSignal -- if aborted, in-flight work should stop as soon as possible. */
@@ -210,7 +213,9 @@ Current active dataset: ${dataset}
 Available datasets: ${available.join(', ')}
 
 CONVERSATION STATE:
-${buildConversationStateSummary(context)}
+${context?.conversationState
+  ? formatStateForPrompt(context.conversationState)
+  : buildConversationStateSummary(context)}
 The user's new message is a continuation of this conversation. Treat it as a follow-up to the current context unless it explicitly changes the subject. Do NOT re-derive context that is already established (e.g., do not add a schema step for a table the user is already looking at).`;
 
           const result = await callGemini({
