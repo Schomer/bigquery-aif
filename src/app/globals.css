@@ -2307,13 +2307,13 @@ details>summary::marker {
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  background: var(--accent-subtle, #e8f0fe);
+  background: #DBEDFC;
   flex-shrink: 0;
 }
 
 .chat-sidebar-artifact-card-icon .material-symbols-outlined {
   font-size: 18px;
-  color: var(--accent, #1a73e8);
+  color: #545F72;
 }
 
 .chat-sidebar-artifact-card-body {
@@ -2324,31 +2324,21 @@ details>summary::marker {
   gap: 2px;
 }
 
-.chat-sidebar-artifact-card-type {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--accent, #1a73e8);
-  line-height: 1.2;
-}
-
-.chat-sidebar-artifact-card-headline {
+.chat-sidebar-artifact-card-name {
   font-size: 12px;
   font-weight: 500;
   color: var(--text, #111827);
   line-height: 1.35;
+  white-space: nowrap;
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  text-overflow: ellipsis;
+  font-family: 'Google Sans Mono', 'Roboto Mono', monospace;
 }
 
-.chat-sidebar-artifact-card-sub {
+.chat-sidebar-artifact-card-stats {
   font-size: 11px;
   color: var(--text-muted, #6b7280);
   line-height: 1.2;
-  margin-top: 1px;
 }
 
 .chat-sidebar-artifact-card-chevron {
@@ -2873,10 +2863,10 @@ details>summary::marker {
     background: #f8f9ff;
   }
   .chat-sidebar-artifact-card-icon {
-    background: #e8f0fe;
+    background: #DBEDFC;
   }
   .chat-sidebar-artifact-card-icon .material-symbols-outlined {
-    color: #1a73e8;
+    color: #545F72;
   }
 
   /* -- Context chips -- */
@@ -3067,11 +3057,10 @@ details>summary::marker {
 
 .dark-theme .chat-sidebar-artifact-card { background: #1e1e26; border-color: #2e2e3a; }
 .dark-theme .chat-sidebar-artifact-card:hover { background: #25253a; border-color: #7b9ff5; box-shadow: 0 2px 8px rgba(138, 180, 248, 0.12); }
-.dark-theme .chat-sidebar-artifact-card-icon { background: #1e2d50; }
-.dark-theme .chat-sidebar-artifact-card-icon .material-symbols-outlined { color: #8ab4f8; }
-.dark-theme .chat-sidebar-artifact-card-type { color: #8ab4f8; }
-.dark-theme .chat-sidebar-artifact-card-headline { color: #e8eaed; }
-.dark-theme .chat-sidebar-artifact-card-sub { color: #9aa0a6; }
+.dark-theme .chat-sidebar-artifact-card-icon { background: #1a2840; }
+.dark-theme .chat-sidebar-artifact-card-icon .material-symbols-outlined { color: #8a9bb5; }
+.dark-theme .chat-sidebar-artifact-card-name { color: #e8eaed; }
+.dark-theme .chat-sidebar-artifact-card-stats { color: #9aa0a6; }
 .dark-theme .chat-sidebar-artifact-card-chevron { color: #5f6368; }
 .dark-theme .chat-sidebar-artifact-card:hover .chat-sidebar-artifact-card-chevron { color: #8ab4f8; }
 

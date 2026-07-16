@@ -41,59 +41,96 @@ function artifactIcon(type: string, data?: any): string {
   return 'bar_chart';
 }
 
-function artifactTypeLabel(type: string, data?: any): string {
-  if (type === 'TABLE') return 'Query Result';
-  if (type === 'SCHEMA_VIEW') {
-    const d = data as any;
-    if (d?.scope === 'TABLE') return 'Table Schema';
-    if (d?.scope === 'DATASET') return 'Dataset';
-    return 'Schema';
-  }
-  if (type === 'KPI_CARD') return 'KPI';
-  if (type === 'DATA_QUALITY_VIEW') return 'Data Quality';
-  if (type === 'DISCOVERY_VIEW') return 'Discovery';
-  if (type === 'MONITORING_VIEW') return 'Monitoring';
-  if (type === 'COMPLETION_CARD') return 'Completed';
-  if (type === 'DATA_LOADING_VIEW') return 'Export';
-  if (type === 'PIPELINE_VIEW') return 'Pipelines';
-  if (type === 'MULTISTEP_VIEW') return 'Workflow';
-  const chartNames: Record<string, string> = {
+function envelopeName(env: CompositionEnvelope): string {
+  const { type, data } = env.primaryArtifact;
+  const d = data as any;
+  const CHART_TYPES = new Set(['LINE_CHART','BAR_CHART','AREA_CHART','PIE_CHART','DONUT_CHART','COLUMN_CHART','SCATTER','HISTOGRAM','HEATMAP','FUNNEL','TREEMAP','GAUGE']);
+  const CHART_LABELS: Record<string, string> = {
     LINE_CHART: 'Line Chart', BAR_CHART: 'Bar Chart', AREA_CHART: 'Area Chart',
     PIE_CHART: 'Pie Chart', DONUT_CHART: 'Donut Chart', COLUMN_CHART: 'Column Chart',
     SCATTER: 'Scatter Plot', HISTOGRAM: 'Histogram', HEATMAP: 'Heatmap',
     FUNNEL: 'Funnel', TREEMAP: 'Treemap', GAUGE: 'Gauge',
   };
-  return chartNames[type] || 'Chart';
+  if (type === 'SCHEMA_VIEW') {
+    if (d?.scope === 'TABLE') return d?.table || 'Table';
+    if (d?.scope === 'DATASET') return d?.dataset || 'Dataset';
+    if (d?.scope === 'PROJECT') return d?.project || 'Project';
+    return 'Schema';
+  }
+  if (type === 'TABLE') {
+    // Try to pull a table name out of the SQL or provenance
+    const sql: string = env.provenance?.sql || '';
+    const m = sql.match(/\bFROM\s+`?([\w.]+)`?/i);
+    if (m) return m[1].split('.').pop() || 'Query Result';
+    return 'Query Result';
+  }
+  if (CHART_TYPES.has(type)) {
+    // Use yKey/metric column as the name, or fall back to chart type label
+    const col = d?.yKey || d?.metric || d?.valueKey;
+    return col || CHART_LABELS[type] || 'Chart';
+  }
+  if (type === 'DATA_QUALITY_VIEW') return d?.table || 'Data Quality';
+  if (type === 'MONITORING_VIEW') return d?.monitorType?.toLowerCase().replace(/_/g, ' ') || 'Monitoring';
+  if (type === 'PIPELINE_VIEW') return 'Pipelines';
+  if (type === 'DISCOVERY_VIEW') return d?.searchTerm || 'Discovery';
+  if (type === 'COMPLETION_CARD') return d?.operation || 'Completed';
+  if (type === 'DATA_LOADING_VIEW') return d?.operationType?.toLowerCase().replace(/_/g, ' ') || 'Export';
+  if (type === 'MULTISTEP_VIEW') return 'Workflow';
+  if (type === 'KPI_CARD') return d?.label || 'KPI';
+  return 'Result';
 }
 
-function envelopeSubtitle(env: CompositionEnvelope): string {
+function envelopeStats(env: CompositionEnvelope): string {
   const { type, data } = env.primaryArtifact;
   const d = data as any;
+  const CHART_TYPES = new Set(['LINE_CHART','BAR_CHART','AREA_CHART','PIE_CHART','DONUT_CHART','COLUMN_CHART','SCATTER','HISTOGRAM','HEATMAP','FUNNEL','TREEMAP','GAUGE']);
+  const parts: string[] = [];
+
   if (type === 'TABLE') {
-    const count = typeof d?.rowCount === 'number' ? d.rowCount : d?.rows?.length;
-    if (count !== undefined) return `${count.toLocaleString()} rows`;
-    return '';
+    const rows = typeof d?.rowCount === 'number' ? d.rowCount : d?.rows?.length;
+    if (rows !== undefined) parts.push(`${rows.toLocaleString()} rows`);
+    const cols = d?.columns?.length;
+    if (cols) parts.push(`${cols} col${cols !== 1 ? 's' : ''}`);
+    if (d?.totalBytesProcessed > 0) parts.push(formatBytes(d.totalBytesProcessed));
+    return parts.join(' · ');
   }
   if (type === 'SCHEMA_VIEW') {
-    if (d?.scope === 'DATASET' && d?.columns?.length) return `${d.columns.length} tables`;
-    if (d?.scope === 'TABLE' && d?.table) return d.table;
-    if (d?.scope === 'PROJECT') return d?.project || '';
+    if (d?.scope === 'TABLE') {
+      const cols = d?.columns?.length;
+      if (cols) parts.push(`${cols} col${cols !== 1 ? 's' : ''}`);
+      const rows = d?.rowCount;
+      if (rows != null) parts.push(`${Number(rows).toLocaleString()} rows`);
+      return parts.join(' · ');
+    }
+    if (d?.scope === 'DATASET') {
+      const count = d?.columns?.length;
+      return count !== undefined ? `${count} table${count !== 1 ? 's' : ''}` : '';
+    }
+    if (d?.scope === 'PROJECT') {
+      const count = d?.columns?.length || d?.datasets?.length;
+      return count !== undefined ? `${count} dataset${count !== 1 ? 's' : ''}` : '';
+    }
     return '';
   }
-  if (type === 'DATA_QUALITY_VIEW') return d?.table ? d.table : '';
+  if (CHART_TYPES.has(type)) {
+    const rows = d?.rows?.length;
+    const cols = d?.columns?.length;
+    if (rows !== undefined) parts.push(`${rows.toLocaleString()} rows`);
+    if (cols) parts.push(`${cols} col${cols !== 1 ? 's' : ''}`);
+    return parts.join(' · ');
+  }
+  if (type === 'DATA_QUALITY_VIEW') {
+    if (d?.checkType) parts.push(d.checkType.toLowerCase().replace(/_/g, ' '));
+    if (d?.summary?.rowsScanned) parts.push(`${Number(d.summary.rowsScanned).toLocaleString()} rows`);
+    return parts.join(' · ');
+  }
   if (type === 'PIPELINE_VIEW') {
     const count = d?.schedules?.length;
     return count !== undefined ? `${count} schedule${count !== 1 ? 's' : ''}` : '';
   }
-  const chartNames: Record<string, string> = {
-    LINE_CHART: 'Line Chart', BAR_CHART: 'Bar Chart', AREA_CHART: 'Area Chart',
-    PIE_CHART: 'Pie Chart', DONUT_CHART: 'Donut Chart', COLUMN_CHART: 'Column Chart',
-    SCATTER: 'Scatter Plot', HISTOGRAM: 'Histogram', HEATMAP: 'Heatmap',
-    FUNNEL: 'Funnel', TREEMAP: 'Treemap', GAUGE: 'Gauge',
-  };
-  if (chartNames[type]) {
-    const rows = d?.rows?.length;
-    return rows !== undefined ? `${rows.toLocaleString()} rows` : '';
+  if (type === 'COMPLETION_CARD') {
+    const rows = d?.affectedRowCount ?? d?.rowsAffected;
+    if (rows != null) return `${Number(rows).toLocaleString()} rows affected`;
   }
   return '';
 }
@@ -460,7 +497,8 @@ export function ResultsSidebar({
                     return nonConfirm.length > 0 ? (
                       <div className="chat-sidebar-artifact-cards">
                         {nonConfirm.map((env) => {
-                          const subtitle = envelopeSubtitle(env);
+                          const name = envelopeName(env);
+                          const stats = envelopeStats(env);
                           return (
                             <button
                               key={env.id}
@@ -472,9 +510,8 @@ export function ResultsSidebar({
                                 <span className="material-symbols-outlined">{artifactIcon(env.primaryArtifact.type, env.primaryArtifact.data)}</span>
                               </div>
                               <div className="chat-sidebar-artifact-card-body">
-                                <div className="chat-sidebar-artifact-card-type">{artifactTypeLabel(env.primaryArtifact.type, env.primaryArtifact.data)}</div>
-                                <div className="chat-sidebar-artifact-card-headline">{env.headline.text}</div>
-                                {subtitle && <div className="chat-sidebar-artifact-card-sub">{subtitle}</div>}
+                                <div className="chat-sidebar-artifact-card-name">{name}</div>
+                                {stats && <div className="chat-sidebar-artifact-card-stats">{stats}</div>}
                               </div>
                               <span className="material-symbols-outlined chat-sidebar-artifact-card-chevron">chevron_right</span>
                             </button>
