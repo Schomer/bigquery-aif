@@ -221,22 +221,108 @@ const S = {
 
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
     gap: 16,
   } as React.CSSProperties,
 
   card: (_isSpace: boolean) => ({
     background: 'var(--surface, white)',
     border: '1px solid var(--border, #dadce0)',
-    borderRadius: 12,
-    padding: '20px',
-    transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
+    borderRadius: 16,
+    overflow: 'hidden' as const,
+    transition: 'box-shadow 0.2s ease, transform 0.2s ease',
     cursor: 'default',
     position: 'relative' as const,
+    display: 'flex',
+    flexDirection: 'column' as const,
   } as React.CSSProperties),
 
   cardHover: {
-    boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+    transform: 'translateY(-2px)',
+  } as React.CSSProperties,
+
+  cardHeaderPad: {
+    padding: '16px 16px 12px',
+  } as React.CSSProperties,
+
+  cardIconAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: '50%',
+    background: '#f1f3f4',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  } as React.CSSProperties,
+
+  cardNameText: {
+    fontSize: 15,
+    fontWeight: 600,
+    color: 'var(--text, #1a1a1a)',
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+    cursor: 'pointer',
+    lineHeight: 1.3,
+  } as React.CSSProperties,
+
+  cardSubtype: {
+    fontSize: 12,
+    color: 'var(--text-dim, #80868b)',
+    marginTop: 1,
+  } as React.CSSProperties,
+
+  cardThumbnail: {
+    background: '#eef2fb',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '20px',
+    minHeight: 160,
+  } as React.CSSProperties,
+
+  cardBody: {
+    padding: '14px 16px 0',
+    flex: 1,
+  } as React.CSSProperties,
+
+  cardFooter: {
+    padding: '12px 16px 14px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  } as React.CSSProperties,
+
+  outlineBtn: {
+    padding: '6px 16px',
+    fontSize: 13,
+    fontWeight: 500,
+    border: '1px solid var(--border, #dadce0)',
+    borderRadius: 20,
+    background: 'white',
+    color: 'var(--text, #1a1a1a)',
+    cursor: 'pointer',
+    fontFamily: "'Google Sans', sans-serif",
+    transition: 'background 0.15s',
+  } as React.CSSProperties,
+
+  deleteIconBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 32,
+    height: 32,
+    border: 'none',
+    background: 'none',
+    cursor: 'pointer',
+    color: 'var(--text-dim, #80868b)',
+    borderRadius: 6,
+    marginLeft: 'auto' as const,
+    transition: 'color 0.15s',
+    fontSize: 20,
   } as React.CSSProperties,
 
   dragOver: {
@@ -250,9 +336,10 @@ const S = {
 
   cardHeader: {
     display: 'flex',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    gap: 10,
+    marginBottom: 0,
   } as React.CSSProperties,
 
   cardTitleRow: {
@@ -973,13 +1060,167 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
 
   // ── Render: item card ──────────────────────────────────────────────────
 
+  // ── Render: artifact thumbnail ────────────────────────────────────────────
+
+  function renderThumbnail(item: SavedArtifact) {
+    const vizType = item.steps?.[0]?.visualizationType || '';
+    const isChart = /LINE_CHART|BAR_CHART|AREA_CHART|COLUMN_CHART|SCATTER|HISTOGRAM|SPARKLINE/.test(vizType);
+    const isPie = /PIE_CHART|DONUT_CHART/.test(vizType);
+    const isTable = vizType === 'TABLE' || item.type === 'query';
+    const isWorkflow = item.type === 'workflow';
+    const isPipeline = item.type === 'pipeline';
+
+    // Color palette for thumbnails
+    const colors = {
+      primary: '#4f7af8',
+      light: '#c7d9ff',
+      muted: '#a8c0f8',
+      bg: '#eef2fb',
+    };
+
+    if (isWorkflow) {
+      // Workflow: connected node diagram
+      return (
+        <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 160 }}>
+          {/* Nodes */}
+          {[40, 130, 220].map((cx, i) => (
+            <g key={i}>
+              <rect x={cx - 28} y={60} width={56} height={40} rx={8} fill={i === 1 ? colors.primary : colors.muted} opacity={i === 1 ? 1 : 0.7} />
+              <rect x={cx - 18} y={70} width={36} height={6} rx={3} fill="white" opacity={0.7} />
+              <rect x={cx - 18} y={82} width={24} height={5} rx={2.5} fill="white" opacity={0.5} />
+            </g>
+          ))}
+          {/* Arrows */}
+          {[[68, 102], [158, 192]].map(([x1, x2], i) => (
+            <g key={i}>
+              <line x1={x1} y1={80} x2={x2} y2={80} stroke={colors.light} strokeWidth={2.5} />
+              <polygon points={`${x2},76 ${x2 + 8},80 ${x2},84`} fill={colors.light} />
+            </g>
+          ))}
+          {/* Decorative circles */}
+          <circle cx={130} cy={30} r={10} fill={colors.light} opacity={0.5} />
+          <circle cx={40} cy={130} r={6} fill={colors.light} opacity={0.4} />
+          <circle cx={220} cy={130} r={6} fill={colors.light} opacity={0.4} />
+        </svg>
+      );
+    }
+
+    if (isPipeline) {
+      // Pipeline: stacked horizontal bars like a schedule/gantt
+      const bars = [
+        { x: 30, w: 100, y: 40 },
+        { x: 80, w: 130, y: 65 },
+        { x: 30, w: 70, y: 90 },
+        { x: 110, w: 120, y: 115 },
+      ];
+      return (
+        <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 160 }}>
+          {/* Grid lines */}
+          {[40, 80, 120, 160, 200, 240].map((x) => (
+            <line key={x} x1={x} y1={30} x2={x} y2={135} stroke={colors.light} strokeWidth={1} opacity={0.5} />
+          ))}
+          {bars.map((b, i) => (
+            <rect key={i} x={b.x} y={b.y} width={b.w} height={18} rx={4}
+              fill={i % 2 === 0 ? colors.primary : colors.muted} opacity={0.85} />
+          ))}
+        </svg>
+      );
+    }
+
+    if (isPie) {
+      // Donut chart
+      const segments = [
+        { pct: 0.42, color: colors.primary },
+        { pct: 0.28, color: colors.muted },
+        { pct: 0.2, color: colors.light },
+        { pct: 0.1, color: '#cfe0ff' },
+      ];
+      let angle = -Math.PI / 2;
+      const cx = 130, cy = 80, r = 52, ir = 30;
+      const paths = segments.map((seg) => {
+        const start = angle;
+        const end = angle + seg.pct * 2 * Math.PI;
+        angle = end;
+        const x1 = cx + r * Math.cos(start), y1 = cy + r * Math.sin(start);
+        const x2 = cx + r * Math.cos(end), y2 = cy + r * Math.sin(end);
+        const xi1 = cx + ir * Math.cos(start), yi1 = cy + ir * Math.sin(start);
+        const xi2 = cx + ir * Math.cos(end), yi2 = cy + ir * Math.sin(end);
+        const large = seg.pct > 0.5 ? 1 : 0;
+        return { d: `M${xi1},${yi1} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} L${xi2},${yi2} A${ir},${ir} 0 ${large},0 ${xi1},${yi1} Z`, color: seg.color };
+      });
+      return (
+        <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 160 }}>
+          {paths.map((p, i) => <path key={i} d={p.d} fill={p.color} />)}
+        </svg>
+      );
+    }
+
+    if (isChart) {
+      // Bar chart
+      const vals = isChart && /LINE_CHART|AREA_CHART|SPARKLINE/.test(vizType)
+        ? null // use line below
+        : [55, 80, 45, 95, 70, 60, 85];
+      const isLine = /LINE_CHART|AREA_CHART|SPARKLINE/.test(vizType);
+      if (isLine) {
+        const pts = [[20, 120], [60, 85], [100, 100], [140, 60], [180, 75], [220, 45], [250, 65]];
+        const polyline = pts.map((p) => p.join(',')).join(' ');
+        const areaPath = `M${pts[0][0]},140 ` + pts.map((p) => `L${p[0]},${p[1]}`).join(' ') + ` L${pts[pts.length-1][0]},140 Z`;
+        return (
+          <svg viewBox="0 0 270 150" width="100%" height="100%" style={{ display: 'block', maxHeight: 160 }}>
+            <path d={areaPath} fill={colors.light} opacity={0.5} />
+            <polyline points={polyline} fill="none" stroke={colors.primary} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+            {pts.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={4} fill={colors.primary} />)}
+          </svg>
+        );
+      }
+      if (vals) {
+        const barW = 24, gap = 12, baseY = 130;
+        return (
+          <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 160 }}>
+            {vals.map((v, i) => (
+              <rect key={i} x={20 + i * (barW + gap)} y={baseY - v} width={barW} height={v} rx={4}
+                fill={i % 3 === 0 ? colors.primary : i % 3 === 1 ? colors.muted : colors.light} />
+            ))}
+            <line x1={16} y1={baseY} x2={244} y2={baseY} stroke={colors.light} strokeWidth={1.5} />
+          </svg>
+        );
+      }
+    }
+
+    // Default: table thumbnail
+    const rowCount = 4;
+    return (
+      <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 160 }}>
+        {/* Header row */}
+        <rect x={20} y={25} width={220} height={22} rx={4} fill={colors.primary} opacity={0.85} />
+        <rect x={30} y={31} width={50} height={9} rx={3} fill="white" opacity={0.6} />
+        <rect x={100} y={31} width={40} height={9} rx={3} fill="white" opacity={0.6} />
+        <rect x={160} y={31} width={60} height={9} rx={3} fill="white" opacity={0.6} />
+        {/* Data rows */}
+        {Array.from({ length: rowCount }).map((_, i) => (
+          <g key={i}>
+            <rect x={20} y={53 + i * 24} width={220} height={20} rx={3}
+              fill={i % 2 === 0 ? '#f4f7ff' : 'white'} />
+            <rect x={30} y={59 + i * 24} width={40 + (i % 3) * 10} height={7} rx={2} fill={colors.light} opacity={0.7} />
+            <rect x={100} y={59 + i * 24} width={30 + (i % 2) * 8} height={7} rx={2} fill={colors.muted} opacity={0.5} />
+            <rect x={160} y={59 + i * 24} width={45 + (i % 2) * 12} height={7} rx={2} fill={colors.light} opacity={0.6} />
+          </g>
+        ))}
+        {/* Border */}
+        <rect x={20} y={25} width={220} height={149} rx={4} fill="none" stroke={colors.light} strokeWidth={1} />
+      </svg>
+    );
+  }
+
+  // ── Render: item card ──────────────────────────────────────────────────
+
   function renderItemCard(item: SavedArtifact) {
     const isHovered = hoveredCard === item.id;
     const isDragging = draggingId === item.id;
-    const firstSql = item.steps?.[0]?.cachedSql;
-    const stepCount = item.steps?.length || 0;
-    const paramCount = item.parameters?.length || 0;
-    const showTypeCorner = activeTab === 'all';
+    const vizType = item.steps?.[0]?.visualizationType || '';
+    const subLabel = vizType
+      ? vizType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+      : TYPE_LABELS[item.type] || item.type;
 
     return (
       <div
@@ -988,7 +1229,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
           ...S.card(false),
           ...(isHovered ? S.cardHover : {}),
           ...(isDragging ? S.dragging : {}),
-          position: 'relative',
         }}
         onMouseEnter={() => setHoveredCard(item.id)}
         onMouseLeave={() => setHoveredCard(null)}
@@ -996,41 +1236,21 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
         onDragStart={(e) => handleDragStart(e, item.id)}
         onDragEnd={handleDragEnd}
       >
-        {/* Type badge in top-right corner (All view only) */}
-        {showTypeCorner && (
-          <div style={{
-            position: 'absolute',
-            top: 14,
-            right: 14,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            background: 'var(--surface-2, #f1f3f4)',
-            borderRadius: 6,
-            padding: '3px 7px',
-            fontSize: 11,
-            fontWeight: 500,
-            color: 'var(--text-muted, #5f6368)',
-            fontFamily: "'Google Sans', sans-serif",
-          }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 13 }}>
-              {TYPE_ICONS[item.type] || 'description'}
-            </span>
-            {TYPE_LABELS[item.type] || item.type}
-          </div>
-        )}
-
-        <div style={S.cardHeader}>
+        {/* Card header: avatar + name/subtype */}
+        <div style={{ ...S.cardHeaderPad, ...S.cardHeader }}>
           <div style={S.cardTitleRow}>
-            {!showTypeCorner && (
-              <span className="material-symbols-outlined" style={S.typeIcon}>
+            <div style={S.cardIconAvatar}>
+              <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--accent, #1967d2)' }}>
                 {TYPE_ICONS[item.type] || 'description'}
               </span>
-            )}
-            {renderName(item.id, item.name, 'item')}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              {renderName(item.id, item.name, 'item')}
+              <div style={S.cardSubtype}>{subLabel}</div>
+            </div>
           </div>
           <button
-            style={{ ...S.moreBtn, ...(showTypeCorner ? { marginRight: 72 } : {}) }}
+            style={S.moreBtn}
             onClick={(e) => {
               e.stopPropagation();
               setMenuOpenId(menuOpenId === item.id ? null : item.id);
@@ -1041,32 +1261,45 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
           </button>
         </div>
 
-        {item.description && (
-          <div style={S.cardDesc}>{item.description}</div>
-        )}
-
-        {firstSql && (
-          <div style={S.sqlPreview} title={firstSql}>{firstSql}</div>
-        )}
-
-        <div style={S.metaRow}>
-          {stepCount > 1 && <span>{stepCount} steps</span>}
-          {paramCount > 0 && <span>{paramCount} params</span>}
-          {item.runCount > 0 && <span>Run {item.runCount}x</span>}
-          {item.project && <span>{item.project}</span>}
-          {item.updatedAt && <span>{relativeTime(item.updatedAt)}</span>}
+        {/* Thumbnail */}
+        <div style={S.cardThumbnail}>
+          {renderThumbnail(item)}
         </div>
 
-        {item.tags && item.tags.length > 0 && (
-          <div style={S.tagsRow}>
-            {item.tags.map((tag) => (
-              <span key={tag} style={S.tag}>{tag}</span>
-            ))}
-          </div>
-        )}
+        {/* Description / meta */}
+        <div style={S.cardBody}>
+          {item.description ? (
+            <div style={S.cardDesc}>{item.description}</div>
+          ) : (
+            <div style={{ ...S.cardDesc, color: 'var(--text-dim, #80868b)', fontStyle: 'italic' }}>
+              {item.updatedAt ? `Updated ${relativeTime(item.updatedAt)}` : 'No description'}
+            </div>
+          )}
+        </div>
 
-        <div style={S.actions}>
-          <button style={S.runBtn} onClick={() => onRun(item)}>Run</button>
+        {/* Footer: action buttons + delete */}
+        <div style={S.cardFooter}>
+          <button style={S.outlineBtn} onClick={() => onRun(item)}>Open</button>
+          <button
+            style={S.outlineBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpenId(menuOpenId === item.id ? null : item.id);
+              setMoveSubMenuOpen(false);
+            }}
+          >
+            More
+          </button>
+          <button
+            style={S.deleteIconBtn}
+            title="Delete"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteItem(item.id);
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>delete</span>
+          </button>
         </div>
 
         {renderContextMenu(item.id, 'item', item.name)}
