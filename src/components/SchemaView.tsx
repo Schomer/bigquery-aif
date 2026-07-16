@@ -679,7 +679,7 @@ function SampleTab({
     height: 28,
     fontSize: 12,
     padding: '0 8px',
-    background: 'var(--surface-2)',
+    background: '#fff',
     border: '1px solid var(--border)',
     borderRadius: 5,
     color: 'var(--text)',
