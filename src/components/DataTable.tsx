@@ -353,8 +353,9 @@ export function DataTable({ result, emphasis, onSendMessage }: Props) {
             <button
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={currentPage === 0}
+              title="Previous page"
               style={{
-                padding: '3px 10px',
+                padding: '3px 7px',
                 fontSize: 11,
                 fontFamily: 'inherit',
                 border: '1px solid var(--border)',
@@ -363,9 +364,11 @@ export function DataTable({ result, emphasis, onSendMessage }: Props) {
                 color: currentPage === 0 ? 'var(--text-dim)' : 'var(--text)',
                 cursor: currentPage === 0 ? 'default' : 'pointer',
                 opacity: currentPage === 0 ? 0.4 : 1,
+                display: 'flex',
+                alignItems: 'center',
               }}
             >
-              Prev
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 12, height: 12 }}><polyline points="10,3 5,8 10,13" /></svg>
             </button>
             <span style={{ padding: '0 6px', fontSize: 11 }}>
               {currentPage + 1} / {totalPages}
@@ -373,8 +376,9 @@ export function DataTable({ result, emphasis, onSendMessage }: Props) {
             <button
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={currentPage === totalPages - 1}
+              title="Next page"
               style={{
-                padding: '3px 10px',
+                padding: '3px 7px',
                 fontSize: 11,
                 fontFamily: 'inherit',
                 border: '1px solid var(--border)',
@@ -383,9 +387,11 @@ export function DataTable({ result, emphasis, onSendMessage }: Props) {
                 color: currentPage === totalPages - 1 ? 'var(--text-dim)' : 'var(--text)',
                 cursor: currentPage === totalPages - 1 ? 'default' : 'pointer',
                 opacity: currentPage === totalPages - 1 ? 0.4 : 1,
+                display: 'flex',
+                alignItems: 'center',
               }}
             >
-              Next
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 12, height: 12 }}><polyline points="6,3 11,8 6,13" /></svg>
             </button>
             <button
               onClick={() => setPage(totalPages - 1)}
