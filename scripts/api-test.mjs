@@ -19,7 +19,7 @@ for (const line of envLines) {
   if (k && !k.startsWith('#') && k.trim()) env[k.trim()] = v.join('=').trim();
 }
 
-const GEMINI_KEY = env.NEXT_PUBLIC_GEMINI_API_KEY || '';
+const GEMINI_KEY = env.GEMINI_API_KEY || '';
 const PROJECT = 'malloy-data';
 
 if (!GEMINI_KEY) {

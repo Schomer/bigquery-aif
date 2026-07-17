@@ -42,7 +42,7 @@ if (existsSync(envPath)) {
     const [k, ...v] = line.split('=');
     if (k && !k.startsWith('#') && k.trim()) env[k.trim()] = v.join('=').trim();
   }
-  GEMINI_KEY = env.NEXT_PUBLIC_GEMINI_API_KEY || env.GOOGLE_GENERATIVE_AI_API_KEY || env.GOOGLE_AI_API_KEY || '';
+  GEMINI_KEY = env.GEMINI_API_KEY || env.GOOGLE_GENERATIVE_AI_API_KEY || env.GOOGLE_AI_API_KEY || '';
 }
 
 // ---- Test Catalog -----------------------------------------------------------
@@ -847,7 +847,7 @@ async function main() {
   // Validate API key for evaluation
   if (!captureOnly && !GEMINI_KEY) {
     console.warn('[eval] WARNING: No Gemini API key found in .env.local');
-    console.warn('[eval] Set GOOGLE_GENERATIVE_AI_API_KEY or NEXT_PUBLIC_GEMINI_API_KEY');
+    console.warn('[eval] Set GOOGLE_GENERATIVE_AI_API_KEY or GEMINI_API_KEY');
     console.warn('[eval] Running in capture-only mode\n');
     captureOnly = true;
   }

@@ -20,7 +20,7 @@ for (const line of envLines) {
 }
 
 const PROJECT = env.GOOGLE_PROJECT_ID || 'malloy-data';
-const GEMINI_KEY = env.NEXT_PUBLIC_GEMINI_API_KEY || env.GOOGLE_GENERATIVE_AI_API_KEY || '';
+const GEMINI_KEY = env.GEMINI_API_KEY || env.GOOGLE_GENERATIVE_AI_API_KEY || '';
 
 // Get access token for BigQuery calls
 async function getAccessToken() {

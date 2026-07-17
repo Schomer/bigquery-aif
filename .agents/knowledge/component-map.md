@@ -12,9 +12,6 @@ Last updated: 2026-07-16
 User Message
     |
     v
-API Route (src/app/api/chat/route.ts)
-    |
-    v
 Router (src/lib/router.ts)
   - Keyword scoring: classifyIntent()
   - Reference resolution: resolveReferences()
@@ -32,8 +29,8 @@ Skill Handlers (src/lib/skills/handle-*.ts)
   - Barrel file: src/lib/skills/index.ts
     |
     v
-Infrastructure (src/lib/{gemini-client,orchestrator-utils,self-review}.ts)
-  - Gemini API client, dataset resolution, self-review pass
+Infrastructure (src/lib/{gemini-client,orchestrator-utils,self-review,regex-utils}.ts)
+  - Gemini API client (via /gemini-proxy Cloud Function), dataset resolution, self-review pass, regex escaping
     |
     v
 Composer (src/lib/composer.ts)

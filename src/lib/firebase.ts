@@ -14,6 +14,9 @@ const firebaseConfig = {
 };
 
 // Prevent re-initialization in Next.js hot-reload
+if (!firebaseConfig.apiKey && typeof window !== 'undefined') {
+  throw new Error('Missing NEXT_PUBLIC_FIREBASE_API_KEY. Set it in .env.local or your environment.');
+}
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);

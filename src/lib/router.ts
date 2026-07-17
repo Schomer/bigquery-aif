@@ -9,6 +9,7 @@
 
 import type { SkillName, HandoffEnvelope } from './types';
 import { SKILL_MANIFESTS } from './skills';
+import { escapeRegExp } from './regex-utils';
 
 // ─── Skill selection signals ──────────────────────────────────────────────────
 
@@ -41,7 +42,7 @@ const MUTATING_VERBS = [
 // Pre-compiled word-boundary patterns for mutating verbs.
 // Prevents table names like "sales_deduped" from false-matching "dedupe".
 const MUTATING_VERB_PATTERNS = MUTATING_VERBS.map((verb) => {
-  const escaped = verb.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escaped = escapeRegExp(verb);
   // 'normaliz' is an intentional prefix to match normalize/normalizing/etc.
   const suffix = verb === 'normaliz' ? '' : '\\b';
   return new RegExp(`\\b${escaped}${suffix}`, 'i');
@@ -77,7 +78,7 @@ function scoreSignals(lower: string, signals: SignalList): number {
   for (const { phrase, weight } of signals) {
     // Use word-boundary matching to avoid substring false positives
     // (e.g., "performance_metrics" table name matching "performance")
-    const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escaped = escapeRegExp(phrase);
     const re = new RegExp(`\\b${escaped}\\b`, 'i');
     if (re.test(lower)) {
       score += weight;

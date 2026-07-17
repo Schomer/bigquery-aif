@@ -1,6 +1,42 @@
 # Operations Ledger
 
-## 2026-07-16: Query progress panel + BQ async job polling
+## 2026-07-16: Security and consistency overhaul
+
+**Context**: Code review identified 8 issues: hardcoded secrets, client-side API key, contradictory deployment config, dead refresh-token code, regex escaping bug, no unit tests, hardcoded paths, stale README.
+
+**Key decisions**:
+- Gemini API key moved server-side via Cloud Function proxy (not Vertex AI or Firebase AI Logic SDK). Client sends Firebase ID token to `/gemini-proxy`; function verifies and forwards with API key.
+- OAuth scopes narrowed from `cloud-platform` to `bigquery` + `spreadsheets` + `devstorage.read_write`. Users see one-time re-consent.
+- Refresh token scheme (setRefreshToken/getRefreshToken/refreshAccessTokenSilently) was all dead code; `/api/auth/refresh` never ran in production due to static export. Removed entirely.
+- `src/app/api/` directory was dead code under `output: 'export'`. Deleted.
+- Docker/Cloud Run files moved to `deploy-alternatives/cloud-run/` for reference.
+
+**Rules derived**:
+- Always check if `output: 'export'` is set before adding API routes -- they silently get excluded from the build.
+- The `AuthState` interface should not carry vestigial properties (bqRefreshToken, setBqTokenState) as no-ops. If a feature is removed, clean the interface.
+- Column names in RegExp constructors must be escaped via `escapeRegExp()` from `regex-utils.ts`.
+
+---
+
+## 2026-07-16: Fix raw JSON dump on Regenerate (INTERACTIVE_WIDGET leak)
+
+**Symptom**: Clicking Regenerate on a "show population over time with a country filter" query displayed raw JSON (`{"skill":"query","sql":"...","columns":[...],"rows":[...]}`) instead of a chart or table.
+
+**Root cause**: Two-part:
+1. The query handler LLM can return `suggestedVisualization: 'INTERACTIVE_WIDGET'` in a non-widget context (when the user asks for a filter but the query is too coarse for a widget). `inferVisualizationType()` in `composer.ts` trusted any non-TABLE `suggestedVisualization` value from the LLM, including `INTERACTIVE_WIDGET`. This caused `composeQuery()` to set `primaryArtifact.type = 'INTERACTIVE_WIDGET'` without also setting `presentation: 'custom'` (that only happens in the early-return widget path that checks for `widgetData`). The resulting envelope hit the `default` case in the `Artifact` switch in `ArtifactCard.tsx`, which `JSON.stringify`'d the `QueryResult` data.
+2. The `default` case in `Artifact`'s switch was a raw JSON dump — fully visible to users.
+
+**Fix**:
+- `composer.ts` `inferVisualizationType()`: Added `NON_CHART_VIZ_TYPES = Set(['TABLE', 'INTERACTIVE_WIDGET', 'KPI_CARD', 'STAT_ROW'])` and skipped the LLM hint for values in that set, falling through to heuristics instead.
+- `ArtifactCard.tsx` `Artifact` default case: Replaced JSON dump with a DataTable fallback (when data has rows/columns) and a `console.warn`. Zero user-visible raw JSON even if a future unknown type slips through.
+
+**Why it happened on Regenerate specifically**: The initial run likely returned a different `suggestedVisualization` (or the self-review produced a good viz). On Regenerate, without conversation context, the LLM returned `INTERACTIVE_WIDGET` as a hint.
+
+**Rule**: `inferVisualizationType()` must never trust `INTERACTIVE_WIDGET`, `KPI_CARD`, or `STAT_ROW` from the LLM hint path -- these require the full query path heuristics or special-case early returns with `widgetData`. The `Artifact` switch `default` case must never produce raw JSON.
+
+---
+
+
 
 **What changed**: Replaced the single-line spinner + status text with a `QueryProgressPanel` that shows (A) elapsed time, (B) a breadcrumb log of prior steps, and (D) live BigQuery job state during `run_query`.
 

@@ -7,13 +7,15 @@
     "build": "next build",
     "start": "next start --port ${PORT:-5800}",
     "lint": "eslint",
-    "watch:build": "/Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/watch-build.mjs",
-    "test:auth": "/Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/auth-setup.mjs",
-    "test:setup": "/Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/setup-reference-dataset.mjs",
-    "test:run": "/Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/test-loop.mjs",
-    "test:screenshots": "/Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/capture-screenshots.mjs",
-    "test:report": "/Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/generate-report.mjs",
-    "test:all": "/Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/test-loop.mjs && /Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/capture-screenshots.mjs && /Users/schomer/.nvm/versions/node/v24.16.0/bin/node scripts/generate-report.mjs"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "watch:build": "node scripts/watch-build.mjs",
+    "test:auth": "node scripts/auth-setup.mjs",
+    "test:setup": "node scripts/setup-reference-dataset.mjs",
+    "test:run": "node scripts/test-loop.mjs",
+    "test:screenshots": "node scripts/capture-screenshots.mjs",
+    "test:report": "node scripts/generate-report.mjs",
+    "test:all": "node scripts/test-loop.mjs && node scripts/capture-screenshots.mjs && node scripts/generate-report.mjs"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.5",
@@ -37,6 +39,8 @@
     "eslint-config-next": "16.2.9",
     "playwright": "^1.61.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "tsx": "^4.23.1",
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }

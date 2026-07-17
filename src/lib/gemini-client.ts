@@ -3,8 +3,19 @@
 // Extracted from chat-orchestrator.ts for shared use by all skill handlers.
 
 import { getAccessToken } from './gis-auth';
+import { auth } from './firebase';
 import { SKILL_NAMES } from './skills';
 import type { StatusCallback } from './types';
+
+// ── Auth helper for Gemini proxy ──────────────────────────────────────────────
+
+async function getFirebaseIdToken(): Promise<string> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('Sign in required to use the AI assistant.');
+  }
+  return user.getIdToken();
+}
 
 // ─── System instructions ──────────────────────────────────────────────────────
 
@@ -42,7 +53,8 @@ export async function loadSkillDoc(skillName: string): Promise<string> {
     }
     _skillDocCache.set(skillName, text);
     return text;
-  } catch {
+  } catch (err) {
+    console.warn(`[gemini-client] Failed to load skill doc "${skillName}":`, err instanceof Error ? err.message : err);
     const fallback = `You are the ${skillName} skill. Help the user with their data request.`;
     _skillDocCache.set(skillName, fallback);
     return fallback;
@@ -67,8 +79,8 @@ export async function callGemini({
   project,
 }: CallGeminiArgs): Promise<any> {
   const projectId = project || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'malloy-data';
-  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+  const endpoint = '/gemini-proxy';
+  const idToken = await getFirebaseIdToken();
 
   const contents = [];
   if (messages) {
@@ -111,6 +123,7 @@ export async function callGemini({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
         },
         body: JSON.stringify(requestBody),
       });
@@ -237,8 +250,8 @@ export async function callGeminiWithTools({
   maxIterations = 8,
   terminateAfter,
 }: CallGeminiWithToolsArgs): Promise<ToolCallResult> {
-  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+  const endpoint = '/gemini-proxy';
+  const idToken = await getFirebaseIdToken();
 
   const finalSystemInstruction = `${DATA_ASSISTANT_INSTRUCTIONS}\n\n${systemInstruction}`;
 
@@ -262,7 +275,10 @@ export async function callGeminiWithTools({
 
     const res = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`,
+      },
       body: JSON.stringify(requestBody),
     });
 

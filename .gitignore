@@ -63,3 +63,7 @@ next-env.d.ts
 # Test artifacts
 test-screenshots/
 node_modules/.cache/puppeteer/
+
+# Cloud Functions build output
+functions/lib/
+functions/node_modules/

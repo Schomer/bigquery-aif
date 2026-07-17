@@ -19,13 +19,18 @@ These principles govern all design decisions. They are not suggestions -- they a
 
 ## Global
 
-- **Model**: Always `gemini-3.5-flash`. Never change to any other model variant. Verify: `grep -rn "gemini-" src/ scripts/`
+- **Model**: Always `gemini-3.5-flash`. Never change to any other model variant. Verify: `grep -rn "gemini-" src/ functions/ scripts/`
 - **No emojis**: Not in code, comments, UI text, log messages, commit messages, or any output.
 - **Backtick-wrap table refs**: All fully qualified BigQuery table references must be wrapped in literal backticks: `` `project.dataset.table` ``. Project names often contain hyphens which break unquoted SQL.
 - **INFORMATION_SCHEMA outside backticks**: INFORMATION_SCHEMA views must be OUTSIDE the backtick-quoted identifier. Correct: `` `project.dataset`.INFORMATION_SCHEMA.VIEW_NAME ``. Wrong: `` `project.dataset.INFORMATION_SCHEMA.VIEW_NAME` ``. The wrong form causes BigQuery to interpret `dataset.INFORMATION_SCHEMA` as a dataset name. Verify: `grep -rn 'INFORMATION_SCHEMA' src/lib/skills/` and check that no INFORMATION_SCHEMA reference is inside a backtick pair.
-- **Build before deploy**: Run `npm run build` after every source change. This project uses SSR, not static export.
-- **Deploy after build**: `git add -A && git commit && git push` then `node scripts/deploy.mjs`. User tests on deployed app, not localhost.
+- **Build before deploy**: Run `npm run build` after every source change. This project uses static export (`output: 'export'`).
+- **Deploy after build**: `git add -A && git commit && git push` then `npx -y firebase-tools@latest deploy --only hosting,functions --project malloy-data`. User tests on deployed app, not localhost.
+- **Gemini API key lives server-side only**: The Gemini API key is stored as a Firebase Cloud Functions secret (`GEMINI_API_KEY`), never in a `NEXT_PUBLIC_*` env var. The client calls `/gemini-proxy` with a Firebase Auth ID token. The proxy verifies the token and forwards to Gemini with the key.
+- **No API routes under static export**: `output: 'export'` silently excludes `src/app/api/` routes from the build. Do not add API routes -- they will compile but never run in production. Use Cloud Functions for server-side logic.
+- **Escape column names in regex**: When using column names from BigQuery schema in `new RegExp()`, always pass them through `escapeRegExp()` from `src/lib/regex-utils.ts`. Column names can contain `$`, `(`, `)`, `.`, etc.
 - **String-coerce all dynamic values in JSX**: Never render LLM-sourced or BigQuery-sourced values directly in JSX. Always wrap with `String(val)` or guard with `typeof val === 'string' ? val : String(val ?? '')`. Gemini structured output can return objects/numbers for STRING-typed fields; BigQuery RECORD/STRUCT fields return nested objects. Rendering these as React children causes error #310.
+- **`INTERACTIVE_WIDGET` must never come from `inferVisualizationType()`**: The LLM query handler can return `suggestedVisualization: 'INTERACTIVE_WIDGET'` as a hint, but `inferVisualizationType()` must reject it (and `KPI_CARD`, `STAT_ROW`) from the LLM hint trust path. These types require either the full heuristics path or the special early-return in `composeQuery` that checks for `widgetData`. Trusting `INTERACTIVE_WIDGET` without widgetData produces an envelope with `type: 'INTERACTIVE_WIDGET'` but no `presentation: 'custom'`, which hits the `default` case in `Artifact`'s switch and dumps raw JSON.
+- **`Artifact` switch default must not dump raw JSON**: The `default` case in the `Artifact` component (ArtifactCard.tsx) must degrade gracefully -- show a DataTable if the data has rows/columns, or return null. Never use `JSON.stringify(data)` as the fallback output; raw JSON is always a bug surface, not a valid fallback UX.
 
 ---
 

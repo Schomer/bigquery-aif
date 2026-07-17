@@ -2,6 +2,8 @@
 // Lightweight pre-execution guard: checks WHERE clause literal types
 // against known column types and auto-corrects common mismatches.
 
+import { escapeRegExp } from './regex-utils';
+
 export interface TypeMismatch {
   column: string;
   expectedType: string;
@@ -19,7 +21,7 @@ export function checkAndFixTypes(
     // INT64/FLOAT64/NUMERIC column compared with string literal: WHERE year = '2023'
     if (['INT64', 'INTEGER', 'FLOAT64', 'NUMERIC', 'BIGNUMERIC'].includes(col.type)) {
       const pattern = new RegExp(
-        `\\b${col.name}\\b\\s*=\\s*'(\\d+\\.?\\d*)'`, 'gi'
+        `\\b${escapeRegExp(col.name)}\\b\\s*=\\s*'(\\d+\\.?\\d*)'`, 'gi'
       );
       let match: RegExpExecArray | null;
       while ((match = pattern.exec(fixedSql)) !== null) {
@@ -31,7 +33,7 @@ export function checkAndFixTypes(
     // BOOL column compared with string: WHERE active = 'TRUE'
     if (col.type === 'BOOL' || col.type === 'BOOLEAN') {
       const pattern = new RegExp(
-        `\\b${col.name}\\b\\s*=\\s*'(TRUE|FALSE)'`, 'gi'
+        `\\b${escapeRegExp(col.name)}\\b\\s*=\\s*'(TRUE|FALSE)'`, 'gi'
       );
       let match: RegExpExecArray | null;
       while ((match = pattern.exec(fixedSql)) !== null) {

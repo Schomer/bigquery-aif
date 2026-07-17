@@ -9,20 +9,17 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 **This project uses `gemini-3.5-flash` everywhere. Do NOT change this — ever.**
 
-The model string in `src/app/api/chat/route.ts` must always be:
-```ts
-model: google('gemini-3.5-flash')
-```
+The model string in `src/lib/gemini-client.ts` (client-side proxy request) must always reference `gemini-3.5-flash`.
 
-The model string in `scripts/test-loop.mjs` must always be:
+The model path in `functions/src/index.ts` (server-side proxy) must always be:
 ```
-gemini-3.5-flash:generateContent
+models/gemini-3.5-flash:generateContent
 ```
 
 Do NOT change to pro-preview, flash-lite, 2.5-pro, or any other model variant.
 If `gemini-3.5-flash` returns an error, fix the error — do not change the model.
 
-Verify with: `grep -rn "gemini-" src/ scripts/` — all results must show `gemini-3.5-flash`.
+Verify with: `grep -rn "gemini-" src/ functions/ scripts/` — all results must show `gemini-3.5-flash`.
 <!-- END:model-requirement -->
 
 <!-- BEGIN:no-emojis -->
@@ -34,16 +31,16 @@ Do NOT use emojis anywhere — not in code, comments, UI text, log messages, com
 <!-- BEGIN:auto-build -->
 # REQUIRED: Automatically build on file changes
 
-This project uses server-side rendering (no static export). To validate that edits compile correctly, always run the build command after making changes to the source files before ending your turn:
+This project uses static export (`output: 'export'` in `next.config.ts`) deployed to Firebase Hosting from `out/`, plus Cloud Functions for the Gemini proxy. To validate that edits compile correctly, always run the build command after making changes to the source files before ending your turn:
 1. `npm run build`
 <!-- END:auto-build -->
 
 <!-- BEGIN:auto-deploy -->
 # REQUIRED: Always deploy after changes
 
-After a successful build, always commit and push to deploy via Firebase App Hosting:
+After a successful build, always commit and push, then deploy hosting and functions:
 1. `git add -A && git commit -m "<descriptive message>" && git push`
-2. `node scripts/deploy.mjs`
+2. `npx -y firebase-tools@latest deploy --only hosting,functions --project malloy-data`
 
 The user tests on the deployed app, not locally. Skipping this step means they cannot see changes.
 
@@ -90,13 +87,18 @@ Examples:
 <!-- END:commit-convention -->
 
 <!-- BEGIN:test-gate -->
-# RECOMMENDED: Snapshot Test Gate
+# RECOMMENDED: Test Gate
 
-After making changes to the router, orchestrator, or skill handlers, consider running:
+After making changes to the router, orchestrator, or skill handlers, run:
+```
+npm test
+```
+This runs vitest unit tests covering the router, sql-guard, format utilities, and composer. The router tests include all canonical scenarios from `.agents/knowledge/test-cases.md`.
+
+For the legacy standalone snapshot test, you can also run:
 ```
 node scripts/snapshot-test.mjs
 ```
-This tests the canonical scenarios from `.agents/knowledge/test-cases.md` against the router's `classifyIntent()` function to catch routing regressions before deploying.
 <!-- END:test-gate -->
 
 <!-- BEGIN:browser-testing -->

@@ -2,6 +2,28 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-16: Security and consistency overhaul (8 tasks)
+
+**Task 1 -- Purge secrets**: Removed hardcoded `GOOGLE_CLIENT_SECRET` from `scripts/deploy.mjs`; now reads from `process.env.GOOGLE_CLIENT_SECRET`. Added env var guard. Untracked `orchestrator-chunks.json` from git.
+
+**Task 2 -- Gemini proxy**: Created `functions/src/index.ts` -- a Firebase Cloud Function (`geminiProxy`) that verifies a Firebase Auth ID token, then forwards the request to the Gemini API with a server-side `GEMINI_API_KEY` secret. Updated `gemini-client.ts` to call `/gemini-proxy` with `Authorization: Bearer <idToken>` instead of using `NEXT_PUBLIC_GEMINI_API_KEY` directly. Updated `firebase.json` with the hosting rewrite and functions config. Renamed all `NEXT_PUBLIC_GEMINI_API_KEY` references in scripts to `GEMINI_API_KEY`.
+
+**Task 3 -- Deployment split-brain**: Deleted `src/app/api/` (dead code under static export). Moved `Dockerfile`, `apphosting.yaml`, `.dockerignore`, `iam-policy.json` to `deploy-alternatives/cloud-run/`. Corrected AGENTS.md: SSR claim -> static export, deploy.mjs -> firebase deploy.
+
+**Task 4 -- Remove refresh token scheme**: Rewrote `gis-auth.ts` to remove `setRefreshToken`, `getRefreshToken`, `refreshAccessTokenSilently` (all dead code since `/api/auth/refresh` never existed in production). Added one-time cleanup to purge `bqaif_refresh_token` from localStorage. Rewrote `auth-context.tsx` to use popup-only refresh. Narrowed OAuth scopes from `cloud-platform` to `bigquery` + `spreadsheets` + `devstorage.read_write`.
+
+**Task 5 -- SQL guard regex fix**: Created `src/lib/regex-utils.ts` with shared `escapeRegExp()`. Updated `sql-guard.ts` to escape column names in regex patterns. Updated `router.ts` to use shared utility instead of inline escape.
+
+**Task 6 -- Unit tests**: Added vitest + tsx as dev deps. Created `vitest.config.ts`. Added test files: `router.test.ts`, `sql-guard.test.ts`, `format-value.test.ts`, `format.test.ts`. Updated package.json with `test` and `test:watch` scripts. Updated AGENTS.md test-gate.
+
+**Task 7 -- Portable scripts**: Replaced 7 hardcoded nvm paths in `package.json` with `node`. Added missing-API-key runtime guard in `firebase.ts`. Added warning log in `gemini-client.ts` `loadSkillDoc` catch block.
+
+**Task 8 -- README and repo hygiene**: Rewrote `README.md` from Next.js boilerplate to actual project docs. Renamed `docs from claude/` to `docs/claude-design-notes/`. Moved `orchestrator-chunks.json` to `docs/`. Added `functions/` gitignore entries.
+
+**User-facing impact**: One-time Google consent popup on next sign-in (scope change). Otherwise no visible changes.
+
+---
+
 ## 2026-07-16: View switcher icon and style update
 
 **Summary**: Replaced Material Symbols icons in the top-bar layout segmented control with custom SVG files from `public/icons/`. Restyled the control to match a new reference design.
