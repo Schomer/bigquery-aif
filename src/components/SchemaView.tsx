@@ -760,22 +760,6 @@ function SampleTab({
           )}
         </div>
 
-        {/* Spacer */}
-        <div style={{ flex: '1 0 0' }} />
-
-        {/* Rows per page */}
-        <span style={{ fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>Rows per page</span>
-        <select
-          value={pageSize}
-          onChange={(e) => {
-            setPageSize(Number(e.target.value));
-            setPage(0);
-            setPageData(null);
-          }}
-          style={controlStyle}
-        >
-          {PAGE_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
       </div>
 
       {/* Table */}
@@ -857,15 +841,32 @@ function SampleTab({
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'flex-end',
+        justifyContent: 'space-between',
         gap: 4,
         padding: '8px 0 0',
       }}>
-        {appliedFilter && (
-          <span style={{ fontSize: 11, color: 'var(--text-dim)', marginRight: 'auto' }}>
-            Filtered by "{appliedFilter}"
-          </span>
-        )}
+        {/* Left: rows-per-page */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>Rows per page</span>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(0);
+              setPageData(null);
+            }}
+            style={controlStyle}
+          >
+            {PAGE_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          {appliedFilter && (
+            <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 4 }}>
+              Filtered by "{appliedFilter}"
+            </span>
+          )}
+        </div>
+        {/* Right: page nav */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         <button
           disabled={page === 0 || pageLoading}
           onClick={() => setPage(0)}
@@ -901,6 +902,7 @@ function SampleTab({
         >
           <span className="material-symbols-outlined" style={{ fontSize: 16 }}>last_page</span>
         </button>
+        </div>
       </div>
     </div>
   );

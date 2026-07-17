@@ -156,34 +156,6 @@ export function DataTable({ result, emphasis, onSendMessage }: Props) {
           )}
         </div>
 
-        {/* Rows per page + count */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{ fontSize: 11, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
-            {filter
-              ? `${sorted.length.toLocaleString()} of ${rows.length.toLocaleString()} rows`
-              : `${rows.length.toLocaleString()} rows`}
-          </span>
-          <select
-            value={pageSize}
-            onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-            style={{
-              fontSize: 11,
-              fontFamily: 'inherit',
-              border: '1px solid var(--border)',
-              borderRadius: 5,
-              background: 'var(--surface)',
-              color: 'var(--text-muted)',
-              padding: '3px 6px',
-              cursor: 'pointer',
-              outline: 'none',
-            }}
-            title="Rows per page"
-          >
-            {PAGE_SIZE_OPTIONS.map((n) => (
-              <option key={n} value={n}>{n} / page</option>
-            ))}
-          </select>
-        </div>
       </div>
 
       {/* Table wrapper */}
@@ -315,22 +287,51 @@ export function DataTable({ result, emphasis, onSendMessage }: Props) {
         </div>
       </div>
 
-      {/* Pagination footer — shown whenever there are multiple pages */}
-      {totalPages > 1 && (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '6px 12px',
-          border: '1px solid var(--border)',
-          borderTop: '1px solid var(--border-subtle)',
-          borderRadius: '0 0 8px 8px',
-          background: 'var(--surface-2)',
-          fontSize: 11,
-          color: 'var(--text-muted)',
-          gap: 8,
-        }}>
-          <span>{rangeStart}–{rangeEnd} of {sorted.length.toLocaleString()}</span>
+      {/* Pagination footer — always shown for rows-per-page; nav only when multi-page */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '6px 12px',
+        border: '1px solid var(--border)',
+        borderTop: '1px solid var(--border-subtle)',
+        borderRadius: '0 0 8px 8px',
+        background: 'var(--surface-2)',
+        fontSize: 11,
+        color: 'var(--text-muted)',
+        gap: 8,
+      }}>
+        {/* Left: rows-per-page select + row count */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ whiteSpace: 'nowrap', color: 'var(--text-dim)' }}>Rows per page</span>
+          <select
+            value={pageSize}
+            onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+            style={{
+              fontSize: 11,
+              fontFamily: 'inherit',
+              border: '1px solid var(--border)',
+              borderRadius: 5,
+              background: 'var(--surface)',
+              color: 'var(--text-muted)',
+              padding: '3px 6px',
+              cursor: 'pointer',
+              outline: 'none',
+            }}
+            title="Rows per page"
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+          <span style={{ whiteSpace: 'nowrap', color: 'var(--text-dim)' }}>
+            {filter
+              ? `${sorted.length.toLocaleString()} of ${rows.length.toLocaleString()} rows`
+              : `${rows.length.toLocaleString()} rows`}
+          </span>
+        </div>
+        {/* Right: page navigation (only when multi-page) */}
+        {totalPages > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <button
               onClick={() => setPage(0)}
@@ -404,8 +405,8 @@ export function DataTable({ result, emphasis, onSendMessage }: Props) {
               »
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

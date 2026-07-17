@@ -2,7 +2,32 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-16: View switcher icon and style update
+
+**Summary**: Replaced Material Symbols icons in the top-bar layout segmented control with custom SVG files from `public/icons/`. Restyled the control to match a new reference design.
+
+**Icon files added** (`public/icons/`):
+- `sidebar_left.svg` -- left-panel layout icon
+- `sidebar_unified.svg` -- stacked/unified layout icon
+- `sidebar_right.svg` -- right-panel layout icon
+
+**TopBar.tsx** (`src/components/shell/TopBar.tsx`):
+- `LAYOUT_OPTIONS` now references SVG paths (`/icons/sidebar_*.svg`) in left/unified/right order
+- Buttons render `<img class="layout-seg-btn-icon">` instead of `<span class="material-symbols-outlined">`
+- Removed the `flip` workaround (separate right-panel SVG is used directly)
+
+**globals.css** (`src/app/globals.css`):
+- Container: `background: #e8ecf8`, `border: 1.5px solid #c5cae9`, `border-radius: 100px`, height 40px
+- Buttons: 34x30px, `border-radius: 7px` (rectangular, not circular), `border: 1.5px solid transparent`
+- Inactive hover: semi-transparent white background + border tint
+- Active: `background: var(--btn-active-bg)` + subtle box-shadow; icon turned white via `filter: brightness(0) invert(1)`
+- Dark mode: deep navy container, dimmed icons via `filter: brightness(0) invert(0.6)`, brighter blue active
+
+---
+
 ## 2026-07-16: Public/private sharing for saved items
+
+
 
 **Summary**: Added a lightweight sharing feature so coworkers can discover and run each other's saved artifacts (queries, workflows, etc.) without any admin setup. All sharing is Firestore-based; no external links.
 
