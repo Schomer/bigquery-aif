@@ -773,14 +773,18 @@ function Artifact({
       return <TaskWorkflowView envelope={envelope} onSendMessage={onSendMessage} />;
     case 'GOVERNANCE_VIEW':
       // Governance uses presentation: 'custom' and routes through CustomArtifact.
-      // This case should not be reached; fallback to raw JSON if it somehow is.
-      return <pre style={{ fontSize: 11, color: 'var(--text-muted)', overflowX: 'auto' }}>{JSON.stringify(data, null, 2)}</pre>;
+      // This case should not be reached; fall back to DataTable if data has rows.
+      if (data && typeof data === 'object' && 'rows' in data) {
+        return <DataTable result={data as import('@/lib/types').QueryResult} onSendMessage={onSendMessage} />;
+      }
+      return null;
     default:
-      return (
-        <pre style={{ fontSize: 11, color: 'var(--text-muted)', overflowX: 'auto' }}>
-          {JSON.stringify(data, null, 2)}
-        </pre>
-      );
+      // Unknown artifact type -- log and degrade gracefully instead of dumping raw JSON.
+      console.warn('[ArtifactCard] Unknown artifact type:', type, '-- falling back to DataTable');
+      if (data && typeof data === 'object' && 'rows' in data) {
+        return <DataTable result={data as import('@/lib/types').QueryResult} onSendMessage={onSendMessage} />;
+      }
+      return null;
   }
 }
 

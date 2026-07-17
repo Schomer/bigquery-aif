@@ -1269,8 +1269,13 @@ function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType |
   if (!columns || columns.length === 0 || !rows || rows.length === 0) return 'TABLE';
 
   // Step 0b — LLM visualization hint (trusted over heuristics, but below user intent)
-  // Only trust specific chart types, not TABLE (which is the default/fallback).
-  if (result.suggestedVisualization && result.suggestedVisualization !== 'TABLE') {
+  // Only trust renderable chart types returned by the LLM. Exclude TABLE (the
+  // default/fallback value) and INTERACTIVE_WIDGET (only valid when widgetData is
+  // present and presentation:'custom' is set by the early-return block above --
+  // trusting it here produces an envelope that hits the default JSON-dump case in
+  // the Artifact switch).
+  const NON_CHART_VIZ_TYPES = new Set(['TABLE', 'INTERACTIVE_WIDGET', 'KPI_CARD', 'STAT_ROW']);
+  if (result.suggestedVisualization && !NON_CHART_VIZ_TYPES.has(result.suggestedVisualization)) {
     return result.suggestedVisualization as ArtifactType;
   }
 
