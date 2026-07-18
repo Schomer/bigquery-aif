@@ -2,6 +2,10 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-18: Layout switcher outer-edge rounding
+
+Added `:first-child` / `:last-child` border-radius rules to `.layout-seg-btn` so the left button has a large left radius (matching the pill container) and the right button has a large right radius. Middle button keeps the default `7px` all around.
+
 ## 2026-07-16: Security and consistency overhaul (8 tasks)
 
 **Task 1 -- Purge secrets**: Removed hardcoded `GOOGLE_CLIENT_SECRET` from `scripts/deploy.mjs`; now reads from `process.env.GOOGLE_CLIENT_SECRET`. Added env var guard. Untracked `orchestrator-chunks.json` from git.
