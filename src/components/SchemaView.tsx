@@ -378,19 +378,21 @@ function TableSchemaView({ result, onSendMessage }: { result: SchemaResult; onSe
               />
             </>
           )}
-          {result.usageSignals?.lastQueriedAt && (
-            <>
-              <div style={{ width: 1, alignSelf: 'stretch', background: '#e2e4e7', margin: '2px 0' }} />
-              <StatCard
-                label="Last Queried"
-                value={(() => {
-                  const h = (Date.now() - new Date(result.usageSignals!.lastQueriedAt!).getTime()) / 3_600_000;
-                  return h < 1 ? 'just now' : h < 24 ? `${Math.round(h)}h ago` : `${Math.floor(h / 24)}d ago`;
-                })()}
-                mono
-              />
-            </>
-          )}
+          {result.usageSignals?.lastQueriedAt && (() => {
+            const ts = new Date(result.usageSignals!.lastQueriedAt!).getTime();
+            if (Number.isNaN(ts)) return null;
+            const h = (Date.now() - ts) / 3_600_000;
+            return (
+              <>
+                <div style={{ width: 1, alignSelf: 'stretch', background: '#e2e4e7', margin: '2px 0' }} />
+                <StatCard
+                  label="Last Queried"
+                  value={h < 1 ? 'just now' : h < 24 ? `${Math.round(h)}h ago` : `${Math.floor(h / 24)}d ago`}
+                  mono
+                />
+              </>
+            );
+          })()}
         </div>
       )}
 

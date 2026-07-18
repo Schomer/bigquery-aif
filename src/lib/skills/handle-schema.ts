@@ -384,7 +384,7 @@ Rules:
 
   onStatus?.(table
     ? stepWithLink(
-        `Fetching schema for table ${resolvedDataset ? `${resolvedDataset}.` : ''}${table}...`,
+        `Fetching details for table ${resolvedDataset ? `${resolvedDataset}.` : ''}${table}...`,
         { project, dataset: resolvedDataset, table },
         'Open table in BigQuery'
       )
@@ -536,7 +536,7 @@ Rules:
 
 export const manifest: SkillManifest = {
   skill: 'schema',
-  label: 'schema lookup',
+  label: 'table info',
   signals: [
     { phrase: 'schema', weight: 3 },
     { phrase: 'describe', weight: 3 },

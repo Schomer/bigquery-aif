@@ -14,7 +14,7 @@ vi.mock('../skills', () => {
   const manifests = [
     {
       skill: 'schema',
-      label: 'schema lookup',
+      label: 'table info',
       signals: [
         { phrase: 'schema', weight: 3 },
         { phrase: 'describe', weight: 3 },
