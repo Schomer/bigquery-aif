@@ -574,7 +574,7 @@ export function ResultsSidebar({
                           <>
                             {thinkingSteps[i].map((step, si) => {
                               const info: StepInfo = typeof step === 'string' ? { text: step } : step;
-                              const isCompleted = !!info.link || /^(Matched skill:|Tool call:|Fetched|Loaded|Created|Saved|Built|Generated)/i.test(info.text);
+                              const isCompleted = !!info.link || /^(Tool call:|Fetched|Loaded|Created|Saved|Built|Generated)/i.test(info.text);
                               return (
                                 <div key={si} className="thinking-step">
                                   {isCompleted ? (

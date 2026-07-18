@@ -2,6 +2,17 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-18: Rename "schema lookup" to "table info", fix NaN in Last Queried
+
+**Problem**: When a user asked to see a table, the status bar said "Fetching schema for table..." and "Matched skill: schema lookup" -- but the view shows full table details (row count, size, usage, columns), not just schema. Also, the "Last Queried" stat card displayed "NaNd ago" when BigQuery returned a timestamp format that `new Date()` couldn't parse.
+
+**Changes**:
+- `src/lib/skills/handle-schema.ts` -- manifest label changed from `'schema lookup'` to `'table info'`; status message changed from `'Fetching schema for table...'` to `'Fetching details for table...'`
+- `src/components/SchemaView.tsx` -- added `Number.isNaN()` guard on `lastQueriedAt` timestamp parsing; if unparseable, the stat card is hidden instead of showing NaN
+- `src/lib/__tests__/router.test.ts` -- updated mock manifest label to match
+
+---
+
 ## 2026-07-18: Fix missing INTERACTIVE_WIDGET in run_query tool enum
 
 **Problem**: Prompts like "show the top countries by population with a filter for year" produced a plain bar chart with no year filter control. The interactive widget system was dead -- the LLM could never set `visualizationHint: "INTERACTIVE_WIDGET"` because the value was missing from the tool's enum.

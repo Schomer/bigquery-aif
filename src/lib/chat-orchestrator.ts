@@ -20,7 +20,7 @@ import { selfReviewEnvelope } from './self-review';
 import { extractVisualizationIntent, isVizMutationOnly } from './viz-intent';
 
 // Skill handlers -- dispatched via manifest registry
-import { SKILL_MAP, SKILL_LABELS } from './skills';
+import { SKILL_MAP } from './skills';
 import { executeConfirmedOperation } from './skills/handle-data-management';
 import { handleQuery } from './skills/handle-query';
 
@@ -282,7 +282,7 @@ The user's new message is a continuation of this conversation. Treat it as a fol
       }
     }
 
-    onStatus?.(`Matched skill: ${SKILL_LABELS[skill] || skill}`);
+
 
     // -- Dispatch to skill --
     let envelopes: CompositionEnvelope[] = [];

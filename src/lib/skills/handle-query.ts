@@ -375,9 +375,12 @@ After running the query, provide a brief one-line summary of what the results sh
   };
 
   // -- Interactive widget mode: parse widgetSpec from LLM text response --
+  // If the AI produced a WIDGET_SPEC block, trust it. The subsequent JSON
+  // parse + field validation (parameterizedSql, baseSql, controls) are the
+  // real safety checks -- not a fragile enum match on visualizationHint.
   const textResponse = agentResult.textResponse || '';
   const widgetSpecMatch = textResponse.match(/WIDGET_SPEC_START\s*([\s\S]*?)\s*WIDGET_SPEC_END/);
-  if (widgetSpecMatch && captured.visualizationHint === 'INTERACTIVE_WIDGET') {
+  if (widgetSpecMatch) {
     let widgetSpec: {
       controlType?: string;
       parameterizedSql?: string;

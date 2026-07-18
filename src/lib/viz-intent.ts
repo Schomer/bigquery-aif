@@ -175,7 +175,6 @@ const EXPLICIT_INTENT_MAP: Array<{ patterns: RegExp[]; type: ArtifactType }> = [
     patterns: [
       /\busa? map\b/i,
       /\bstate map\b/i,
-      /\bby state\b/i,
       /\bmap (?:by|of) (?:states?|usa?)\b/i,
       /\bchoropleth (?:by |of )?(?:state|us|usa)\b/i,
     ],
@@ -186,10 +185,8 @@ const EXPLICIT_INTENT_MAP: Array<{ patterns: RegExp[]; type: ArtifactType }> = [
     patterns: [
       /\bworld map\b/i,
       /\bglobal map\b/i,
-      /\bby country\b/i,
       /\bmap (?:by|of) (?:country|countries|the world|region)\b/i,
       /\bchoropleth\b/i,
-      /\beach country\b/i,
       /\b(?:on|as|in)\s+a\s+map\b/i,
       /\bmap\s+(?:this|it|them|the|that)\b/i,
       /\bshow\s+(?:me\s+)?(?:a\s+)?map\b/i,

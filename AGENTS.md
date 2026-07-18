@@ -121,3 +121,33 @@ For the full automated 20-test suite, use the Puppeteer script: `node scripts/vi
 Read `.agents/skills/browser-testing/SKILL.md` for detailed usage examples.
 <!-- END:browser-testing -->
 
+<!-- BEGIN:ai-first-architecture -->
+# REQUIRED: AI interprets every prompt -- never use keywords for intent classification
+
+This app uses AI (Gemini) to understand what the user wants and decide what to do. The AI reads the full prompt, understands the intent, and produces the best result -- the best answer, the best data visualization, the best options for the task.
+
+## What this means in practice
+
+- The AI decides what kind of result to produce (chart, table, filter controls, KPI, map, etc.) based on understanding the prompt and the data. There are no separate "modes" the user needs to trigger with magic words.
+- If the user asks for "top countries by population with a filter for year", the AI should understand that means: show a ranking AND provide a year filter control. It should not need the user to say specific keywords.
+- If a prompt is misunderstood, fix the AI's system prompt, structured output schema, or tool declarations. Never add keywords, regex patterns, or signal arrays.
+
+## Anti-patterns -- never do these
+
+1. **Adding words/phrases to signal arrays or keyword lists to fix a routing/classification problem.** Keywords can never cover every way a user might express the same intent.
+2. **Adding regex patterns to detect specific user intentions.** Regex is brittle and misses paraphrases.
+3. **Creating if/else branches based on keyword presence in the user's message.** The AI should handle this.
+4. **Gating features on specific enum values or text markers from the AI.** If the AI produced a structured result (like a widget spec), trust it. Don't require a second signal to "confirm" the AI really meant it.
+5. **Writing rules in skill docs that create rigid either/or categories** (e.g., "top-N queries NEVER get filter controls"). The AI should handle nuance -- "top countries" and "top countries with a filter for year" are different intents.
+
+## When the AI gets it wrong
+
+If the AI misinterprets a prompt:
+1. Fix the system prompt to give better instructions
+2. Fix the structured output schema to give the AI better ways to express its decision
+3. Fix the tool declarations to give the AI the right options
+4. Add examples to the skill doc showing the correct behavior
+
+Never fall back to keyword matching. Keywords have failed repeatedly in this project and always will.
+<!-- END:ai-first-architecture -->
+
