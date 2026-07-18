@@ -987,3 +987,19 @@ Every entry should answer: What changed? What worked? What broke? Why? What's th
 - Pulse dot in Profile tab header only shows while profile is actively generating.
 
 **Derived rule:** Never fire expensive full-table-scan queries eagerly on schema view load. Always gate them behind user intent.
+
+---
+
+## 2026-07-18: Fix "Unexpected token '<'" error on Gemini proxy calls
+
+**Symptom**: After a successful first query (e.g., "Show me population.population_data"), the follow-up query ("show the top countries by population with a year filter") returned: `Unexpected token '<', "<html><hea"... is not valid JSON`.
+
+**Root cause**: The Cloud Function `geminiProxy` in `functions/src/index.ts` was deployed with `invoker: "private"`. For Cloud Functions v2 (which run on Cloud Run), `invoker: "private"` means Google Cloud requires IAM-level OIDC authentication before the function code even executes. Firebase Hosting rewrites do not inject IAM credentials -- they just forward the HTTP request. So Google Cloud returned an HTML 403 page, which the client tried to parse as JSON.
+
+The first query may have worked because the function was already warm or had residual public IAM bindings from a prior deployment. Subsequent deploys with `invoker: "private"` removed those bindings.
+
+**Fix**:
+1. Changed `invoker: "private"` to `invoker: "public"` in `functions/src/index.ts`. The function's own code already validates Firebase Auth ID tokens (lines 35-47), so unauthenticated users still cannot access Gemini.
+2. Added defensive JSON parsing in `gemini-client.ts` -- both `callGemini()` and `callGeminiWithTools()` now use `res.text()` + `JSON.parse()` with a try/catch, producing a clear error message instead of "Unexpected token" if the proxy ever returns non-JSON.
+
+**Derived rule**: Cloud Functions v2 behind Firebase Hosting rewrites must use `invoker: "public"`. Firebase Hosting cannot pass IAM credentials. Application-level auth (Firebase ID token verification) is the correct security layer for these functions.
