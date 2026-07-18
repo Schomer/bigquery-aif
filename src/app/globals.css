@@ -1849,6 +1849,14 @@ details>summary::marker {
   box-shadow: 0 1px 3px rgba(73, 108, 195, 0.25);
 }
 
+/* Outer-edge rounding: match the pill container curve on the exposed side */
+.layout-seg-btn:first-child {
+  border-radius: 100px 7px 7px 100px;
+}
+.layout-seg-btn:last-child {
+  border-radius: 7px 100px 100px 7px;
+}
+
 /* Turn icon white when button is active */
 .layout-seg-btn--active .layout-seg-btn-icon {
   filter: brightness(0) invert(1);
