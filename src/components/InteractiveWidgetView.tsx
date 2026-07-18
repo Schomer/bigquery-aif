@@ -4,13 +4,15 @@
 // Renders an INTERACTIVE_WIDGET: filter controls (DATE_RANGE, DROPDOWN, MULTI_SELECT)
 // + chart/table switcher. Filters apply immediately on change.
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import type { CustomViewProps, InteractiveWidgetData, VisualizationType } from '@/lib/types';
 import { executeQuery } from '@/lib/bigquery-client';
 import { ChartView } from './ChartView';
 import { DataTable } from './DataTable';
+import { classifyColumns } from '@/lib/column-classifier';
+import { detectChoroplethType } from './charts/map-charts';
 
-type ViewMode = 'chart' | 'table';
+type ViewMode = 'chart' | 'map' | 'table';
 
 // ─── Multi-select dropdown ────────────────────────────────────────────────────
 
@@ -240,6 +242,26 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
   }>(widgetData.initialResult);
 
   const isChartable = !['TABLE', 'KPI_CARD', 'STAT_ROW', 'INTERACTIVE_WIDGET'].includes(widgetData.visualization);
+
+  // Detect geographic columns for the Map toggle
+  const geoMapType = useMemo(() => {
+    if (!currentResult.rows?.length || !currentResult.columns?.length) return null;
+    const roles = classifyColumns(currentResult.columns, currentResult.rows as unknown[][], currentResult.columnTypes);
+    const hasGeo = roles.some(r => r === 'geo-state' || r === 'geo-country');
+    if (!hasGeo) return null;
+    const fakeResult = { columns: currentResult.columns, rows: currentResult.rows, rowCount: currentResult.rowCount } as import('@/lib/types').QueryResult;
+    return detectChoroplethType(fakeResult);
+  }, [currentResult]);
+
+  const viewOptions: ViewMode[] = isChartable
+    ? (geoMapType ? ['chart', 'map', 'table'] : ['chart', 'table'])
+    : ['table'];
+
+  const viewLabel = (v: ViewMode) => {
+    if (v === 'chart') return '\u25B2 Chart';
+    if (v === 'map') return '\u25CB Map';
+    return '\u229E Table';
+  };
 
   const runQuery = useCallback(async (opts: {
     startDate: string;
@@ -558,7 +580,7 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
         {isChartable && (
           <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
             <div style={{ display: 'inline-flex', background: 'transparent', border: '1px solid #B7C3E0', borderRadius: 20, padding: 2, gap: 2 }}>
-              {(['chart', 'table'] as const).map((v) => (
+              {viewOptions.map((v) => (
                 <button
                   key={v}
                   onClick={() => setViewMode(v)}
@@ -574,7 +596,7 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
                     color: viewMode === v ? '#ffffff' : '#314F9B',
                   }}
                 >
-                  {v === 'chart' ? '\u25B2 Chart' : '\u229E Table'}
+                  {viewLabel(v)}
                 </button>
               ))}
             </div>
@@ -592,6 +614,8 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
       {/* Content */}
       {isChartable && viewMode === 'chart' ? (
         <ChartView result={queryResult} chartType={chartType} onSendMessage={onSendMessage ?? (() => {})} />
+      ) : isChartable && viewMode === 'map' && geoMapType ? (
+        <ChartView result={queryResult} chartType={geoMapType} onSendMessage={onSendMessage ?? (() => {})} />
       ) : (
         <div style={{ maxHeight: 420, overflowY: 'auto', borderRadius: 8, border: '1px solid var(--border, #e8edf5)' }}>
           <DataTable result={queryResult} onSendMessage={onSendMessage ?? (() => {})} />

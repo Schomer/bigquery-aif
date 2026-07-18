@@ -2,6 +2,17 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-18: Geographic data defaults to bar/column, map available via toggle
+
+**Problem**: "show the population by country with a filter for year" produced a choropleth map with no year filter. The pattern `/\bby country\b/i` in viz-intent.ts forced WORLD_MAP, and the composer's geo auto-detection also forced maps for country/state data.
+
+**Changes**:
+- `viz-intent.ts` -- removed ambiguous patterns (`by country`, `each country`, `by state`) from explicit map intent. Explicit map phrases still work.
+- `composer.ts` -- disabled geographic auto-detection in `inferVisualizationType()`. Country/state data is now treated as categorical.
+- `ArtifactCard.tsx` + `InteractiveWidgetView.tsx` -- added "Map" as a third option in the Chart/Table segmented control. Appears only when geographic columns are detected.
+
+**Impact**: Queries with geographic data default to bar/column chart. Users can switch to map view with one click. The year filter now appears because `userIntent` is no longer forced to WORLD_MAP, allowing the INTERACTIVE_WIDGET flow to proceed.
+
 ## 2026-07-18: Remove widget double-gate, add AI-first architecture guardrails
 
 **Problem**: Widget parsing required BOTH a text-marker match AND `visualizationHint === 'INTERACTIVE_WIDGET'` on the tool call. This double-condition gate silently dropped filter controls whenever either signal failed. More broadly, the codebase had accumulated keyword routing and rigid skill doc rules that prevented the AI from interpreting prompts correctly.

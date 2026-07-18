@@ -1,6 +1,20 @@
 # Operations Ledger
 
-## 2026-07-18: Remove widget double-gate, add AI-first architecture guardrails
+## 2026-07-18: Geographic data defaults to bar/column chart, map via toggle
+
+**Context**: User prompted "show the population by country with a filter for year" and got a choropleth map with no year filter. Two root causes: (1) `viz-intent.ts` had `/\bby country\b/i` as an explicit WORLD_MAP pattern, which hijacked the intent before the LLM could produce a widget spec with a year dropdown. (2) The composer's `inferVisualizationType()` auto-detected country/state columns and forced map types.
+
+**What broke**: "by country" is an ambiguous phrase -- it can mean categorical grouping (like "by month") or geographic mapping. Treating it as an explicit map request prevented the interactive widget flow from activating, which is why the year filter was missing.
+
+**Changes**:
+- `viz-intent.ts`: Removed `by country`, `each country`, `by state` from explicit map intent patterns. Explicit map-requesting phrases ("world map", "show map", "choropleth") still work.
+- `composer.ts`: Disabled Step 3 (geographic auto-detection) in `inferVisualizationType()`. Geographic data now falls through to categorical chart selection.
+- `ArtifactCard.tsx`, `InteractiveWidgetView.tsx`: Added a third "Map" option to the Chart/Table segmented control. Appears only when `classifyColumns()` detects `geo-state` or `geo-country` roles. Uses `detectChoroplethType()` to pick USA_MAP vs WORLD_MAP.
+
+**Derived rule**: Ambiguous phrases like "by X" where X is a geographic entity should be treated as categorical grouping, not map requests. The map should be available via UI toggle, not forced by default. Only phrases that explicitly name a map visualization ("world map", "show on a map") should trigger map intent.
+
+---
+
 
 **Context**: Follow-up to the INTERACTIVE_WIDGET enum fix. The broader problem: the widget parsing had a double-condition gate (`widgetSpecMatch && captured.visualizationHint === 'INTERACTIVE_WIDGET'`) that silently dropped filter controls whenever either condition failed. This is a pattern of not trusting AI output -- requiring redundant confirmation signals.
 
