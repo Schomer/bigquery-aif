@@ -2,6 +2,20 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-18: Replace Cloud Function proxy with Firebase AI Logic SDK
+
+**Problem**: The `geminiProxy` Cloud Function returned 403 Forbidden on every request. Root cause: org-level IAM policy blocks `allUsers` and `allAuthenticatedUsers` invoker bindings on Cloud Run services. Firebase CLI v13+ forcefully deploys all Cloud Functions as 2nd Gen (Cloud Run), making the proxy unreachable.
+
+**Solution**: Migrated `gemini-client.ts` to use Firebase AI Logic (`firebase/ai`) SDK. Calls `getGenerativeModel()` + `generateContent()` directly from the client, using the Firebase API key for authorization through Firebase's infrastructure. No proxy needed.
+
+**Files changed**:
+- `src/lib/gemini-client.ts` -- rewrote `callGemini()` and `callGeminiWithTools()` to use SDK instead of `fetch('/gemini-proxy')`
+- `src/lib/firebase.ts` -- exported `app` for AI Logic initialization
+- `.env.local` -- added `NEXT_PUBLIC_FIREBASE_APP_ID` and `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+- `firebase.json` -- removed `/gemini-proxy` rewrite
+- Deleted deployed Cloud Function
+- Updated invariants and AGENTS.md deploy rules
+
 ## 2026-07-18: Layout switcher outer-edge rounding
 
 Added `:first-child` / `:last-child` border-radius rules to `.layout-seg-btn` so the left button has a large left radius (matching the pill container) and the right button has a large right radius. Middle button keeps the default `7px` all around.

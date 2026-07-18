@@ -31,16 +31,16 @@ Do NOT use emojis anywhere — not in code, comments, UI text, log messages, com
 <!-- BEGIN:auto-build -->
 # REQUIRED: Automatically build on file changes
 
-This project uses static export (`output: 'export'` in `next.config.ts`) deployed to Firebase Hosting from `out/`, plus Cloud Functions for the Gemini proxy. To validate that edits compile correctly, always run the build command after making changes to the source files before ending your turn:
+This project uses static export (`output: 'export'` in `next.config.ts`) deployed to Firebase Hosting from `out/`. Gemini calls go through Firebase AI Logic SDK (no Cloud Functions). To validate that edits compile correctly, always run the build command after making changes to the source files before ending your turn:
 1. `npm run build`
 <!-- END:auto-build -->
 
 <!-- BEGIN:auto-deploy -->
 # REQUIRED: Always deploy after changes
 
-After a successful build, always commit and push, then deploy hosting and functions:
+After a successful build, always commit and push, then deploy hosting:
 1. `git add -A && git commit -m "<descriptive message>" && git push`
-2. `npx -y firebase-tools@latest deploy --only hosting,functions --project malloy-data`
+2. `npx -y firebase-tools@latest deploy --only hosting --project malloy-data`
 
 The user tests on the deployed app, not locally. Skipping this step means they cannot see changes.
 

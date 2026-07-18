@@ -1,5 +1,25 @@
 # Operations Ledger
 
+## 2026-07-18: Cloud Function proxy replaced with Firebase AI Logic SDK
+
+**Context**: The `geminiProxy` Cloud Function consistently returned 403 Forbidden because the org-level IAM policy blocks `allUsers` invoker bindings on Cloud Run services. Firebase CLI v13+ forcefully deploys all Cloud Functions as 2nd Gen (Cloud Run), making the proxy permanently unreachable through Firebase Hosting rewrites. Downgrading to CLI v12 / SDK v5 failed due to Node 22 runtime and peer dependency conflicts.
+
+**What worked**: Migrated to Firebase AI Logic (`firebase/ai`) SDK. The client calls `getGenerativeModel()` + `generateContent()` directly, using the Firebase API key for authorization. No custom proxy, no Cloud Run, no IAM issue.
+
+**Changes**:
+- `src/lib/gemini-client.ts`: Replaced all `fetch('/gemini-proxy')` calls with `firebase/ai` SDK calls. Removed `getFirebaseIdToken()`. Added lazy Firebase AI initialization via `getAI(app, { backend: new GoogleAIBackend() })`.
+- `src/lib/firebase.ts`: Exported `app` for use by AI Logic SDK.
+- `.env.local`: Added `NEXT_PUBLIC_FIREBASE_APP_ID` and `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`.
+- `firebase.json`: Removed `/gemini-proxy` rewrite.
+- Deleted the deployed `geminiProxy` Cloud Function via `firebase functions:delete`.
+
+**Rules derived**:
+- Firebase AI Logic SDK bypasses all Cloud Function IAM issues. Use it instead of custom proxies when the org policy blocks public Cloud Run access.
+- The `functions/` directory still exists but is not deployed. If Cloud Functions are needed in the future, the org IAM policy must be addressed first.
+- Deploy command is now `--only hosting` (no functions).
+
+---
+
 ## 2026-07-16: Security and consistency overhaul
 
 **Context**: Code review identified 8 issues: hardcoded secrets, client-side API key, contradictory deployment config, dead refresh-token code, regex escaping bug, no unit tests, hardcoded paths, stale README.
