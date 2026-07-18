@@ -58,8 +58,7 @@ const AuthContext = createContext<AuthState | null>(null);
 // scopes are granted.
 const consentProvider = new GoogleAuthProvider();
 consentProvider.addScope('https://www.googleapis.com/auth/bigquery');
-consentProvider.addScope('https://www.googleapis.com/auth/spreadsheets');
-consentProvider.addScope('https://www.googleapis.com/auth/devstorage.read_write');
+consentProvider.addScope('https://www.googleapis.com/auth/cloud-platform');
 consentProvider.setCustomParameters({
   prompt: 'consent',
   include_granted_scopes: 'true',
@@ -69,8 +68,7 @@ consentProvider.setCustomParameters({
 // No consent prompt -- auto-completes almost instantly.
 const refreshProvider = new GoogleAuthProvider();
 refreshProvider.addScope('https://www.googleapis.com/auth/bigquery');
-refreshProvider.addScope('https://www.googleapis.com/auth/spreadsheets');
-refreshProvider.addScope('https://www.googleapis.com/auth/devstorage.read_write');
+refreshProvider.addScope('https://www.googleapis.com/auth/cloud-platform');
 refreshProvider.setCustomParameters({
   include_granted_scopes: 'true',
 });
