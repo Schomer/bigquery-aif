@@ -67,3 +67,4 @@ node_modules/.cache/puppeteer/
 # Cloud Functions build output
 functions/lib/
 functions/node_modules/
+firebase-debug.log

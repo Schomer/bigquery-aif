@@ -20,6 +20,7 @@ export const geminiProxy = onRequest(
     region: "us-central1",
     cors: true,
     secrets: [geminiApiKey],
+    invoker: "private",
     // Allow larger payloads (schemas can be big)
     timeoutSeconds: 120,
   },
