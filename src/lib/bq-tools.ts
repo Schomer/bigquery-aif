@@ -49,7 +49,7 @@ const runQueryTool: BqTool = {
             'LINE_CHART', 'BAR_CHART', 'COLUMN_CHART', 'AREA_CHART', 'SCATTER',
             'PIE_CHART', 'DONUT_CHART', 'HISTOGRAM', 'TREEMAP', 'FUNNEL', 'HEATMAP',
             'COMPOSED_CHART', 'GAUGE', 'BOXPLOT', 'CANDLESTICK', 'SANKEY',
-            'GEO_POINT_MAP', 'USA_MAP', 'WORLD_MAP', 'TABLE',
+            'GEO_POINT_MAP', 'USA_MAP', 'WORLD_MAP', 'TABLE', 'INTERACTIVE_WIDGET',
           ],
         },
       },

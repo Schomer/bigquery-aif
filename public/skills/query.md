@@ -217,12 +217,12 @@ When the user asks for a **filter control**, **date range picker**, **date filte
 
 You must generate an **interactive widget** instead of a plain query result. Widgets support two control types:
 
-**CRITICAL — Do NOT use interactive widget mode for these requests:**
-- "top N [entities]" or "top 10 countries" or "top 15 by population" — write a direct aggregated query with `ORDER BY ... DESC LIMIT N`. Use `COLUMN_CHART` or `BAR_CHART`.
-- "show me the biggest/smallest/most/least" — these are ranking queries, not filter requests.
-- "which [entities] have the highest/lowest [metric]" — direct aggregate query, no widget.
+**CRITICAL — Do NOT use interactive widget mode for these requests UNLESS the user also explicitly asks for a filter** (e.g., "with a filter", "filter by", "add a filter", "let me filter"):
+- "top N [entities]" or "top 10 countries" or "top 15 by population" — if no filter requested, write a direct aggregated query with `ORDER BY ... DESC LIMIT N`. Use `COLUMN_CHART` or `BAR_CHART`.
+- "show me the biggest/smallest/most/least" — these are ranking queries, not filter requests (unless the user adds "with a filter for X").
+- "which [entities] have the highest/lowest [metric]" — direct aggregate query, no widget (unless filter requested).
 
-Interactive widgets are for **exploration** (user wants to slice the data themselves). Ranking queries have a **fixed answer** — just compute and return it.
+When both "top N" and an explicit filter request appear (e.g., "show the top countries by population with a filter for year"), USE interactive widget mode. The baseSql should contain the top-N ranking logic, and the parameterized SQL should add the filter clause. For integer year columns, use DROPDOWN (not DATE_RANGE).
 
 ### Control type A — Date Range Picker
 
