@@ -128,7 +128,16 @@ export async function callGemini({
         body: JSON.stringify(requestBody),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(
+          `The AI proxy returned an unexpected response (HTTP ${res.status}). ` +
+          'This usually means the Cloud Function is unreachable. Try again in a moment.'
+        );
+      }
 
       if (res.status === 401 || res.status === 403) {
         throw new Error('Not authenticated. Please sign in again.');
@@ -282,7 +291,16 @@ export async function callGeminiWithTools({
       body: JSON.stringify(requestBody),
     });
 
-    const data = await res.json();
+    const rawText = await res.text();
+    let data: any;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      throw new Error(
+        `The AI proxy returned an unexpected response (HTTP ${res.status}). ` +
+        'This usually means the Cloud Function is unreachable. Try again in a moment.'
+      );
+    }
 
     // Handle HTTP / API errors
     if (res.status === 401 || res.status === 403) {
