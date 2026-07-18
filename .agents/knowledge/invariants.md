@@ -53,7 +53,6 @@ The keyword router in `router.ts` exists as a latency optimization. It is NOT th
 - **Destructive DML is intercepted in the conversation handler**: The conversation agent's `execute_dml` tool intercepts DELETE/TRUNCATE/DROP and adds safety gates. This works with any phrasing because the AI wrote the SQL, not keyword matching.
 - **Conversation handler is a tool-calling agent**: `handleConversation()` uses `callGeminiWithTools()` with 6 tools. It can both converse AND execute operations.
 - **Final fallback is conversation, not keyword result**: When both keyword router and LLM classifier fail, the orchestrator defaults to conversation.
-ult.
 - **Dispatch uses manifest-driven lookup, not switch-case**: `SKILL_MAP.get(skill)` retrieves the handler function. Unknown skills fall back to `handleQuery()`. Do not re-introduce a switch-case.
 - **All handler signatures are (message, history, context, onStatus)**: The 4-arg pattern enables uniform dispatch through the manifest. Do not add or remove parameters.
 - **Data-management safety net (high confidence only)**: `handleDataManagement()` re-checks the message against the keyword router before proceeding. If the router disagrees **at high confidence**, it redirects to `handleQuery()`. Medium/low confidence disagreements do not redirect -- the LLM classifier already decided this is data-management intent.

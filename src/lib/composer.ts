@@ -1324,19 +1324,10 @@ function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType |
     return 'STAT_ROW';
   }
 
-  // Step 3 — Geographic detection
-  // Skip geo charts for ranked / TOP-N queries: a result with ORDER BY + LIMIT
-  // is a sorted list, not an exhaustive geographic distribution.
-  const isRankedQuery = sql != null && /\bORDER\s+BY\b/i.test(sql) && /\bLIMIT\b/i.test(sql);
-  if (!isRankedQuery) {
-    for (let i = 0; i < columns.length; i++) {
-      if (colTypes[i] === 'categorical') {
-        const sampleValues = rows.slice(0, 10).map(r => (r as unknown[])[i]);
-        if (numericCols.length >= 1 && isStateColumn(columns[i], sampleValues)) return 'USA_MAP';
-        if (numericCols.length >= 1 && isCountryColumn(columns[i], sampleValues)) return 'WORLD_MAP';
-      }
-    }
-  }
+  // Step 3 — Geographic detection (disabled: maps available via UI toggle)
+  // Country/state data is treated as categorical and gets a bar/column chart
+  // by default. The segmented control offers a Map option when geo columns
+  // are detected, so the user can switch to a map view on demand.
 
   // Step 4 — Structural specialty matches
   // Candlestick: has open/high/low/close columns + 1 date
