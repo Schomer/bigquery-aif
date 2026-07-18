@@ -7,7 +7,7 @@
 // Firebase Hosting rewrites from reaching 2nd gen functions in orgs
 // that block allUsers/allAuthenticatedUsers invoker bindings.
 
-import * as functions from "firebase-functions/v1";
+import * as functions from "firebase-functions";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 
