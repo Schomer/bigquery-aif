@@ -1,5 +1,23 @@
 # Operations Ledger
 
+## 2026-07-18: Remove widget double-gate, add AI-first architecture guardrails
+
+**Context**: Follow-up to the INTERACTIVE_WIDGET enum fix. The broader problem: the widget parsing had a double-condition gate (`widgetSpecMatch && captured.visualizationHint === 'INTERACTIVE_WIDGET'`) that silently dropped filter controls whenever either condition failed. This is a pattern of not trusting AI output -- requiring redundant confirmation signals.
+
+**Root pattern**: The codebase has accumulated keyword-based routing, regex intent detection, and double-gating patterns that undermine the AI's ability to interpret user prompts. These have failed repeatedly: every keyword fix breaks other cases, every rigid skill doc rule creates false dichotomies.
+
+**Changes**:
+- `src/lib/skills/handle-query.ts`: Removed the `captured.visualizationHint === 'INTERACTIVE_WIDGET'` condition from the widget parsing gate. If the AI produced a WIDGET_SPEC block, that's sufficient -- the JSON parse and field validation that follow are the real safety checks.
+- `AGENTS.md`: Added `ai-first-architecture` rule section that explicitly bans keyword-based intent classification and documents the correct patterns for fixing misinterpretation.
+- `.agents/knowledge/invariants.md`: Replaced the keyword router invariants with AI-first architecture invariants. Added "Trust AI output without double-gating" and "NEVER write rigid either/or rules in skill docs" as hard rules.
+
+**Rules derived**:
+- If the AI produced a structured result, trust it. Don't require a second signal to confirm.
+- Never add keywords, regex patterns, or signal arrays to fix a routing problem. Fix the AI's prompt/schema/tools instead.
+- Never write rigid rules in skill docs that prevent the AI from handling nuance.
+
+---
+
 ## 2026-07-18: INTERACTIVE_WIDGET missing from run_query tool enum
 
 **Context**: User asked "show the top countries by population with a filter for year" and got a plain bar chart with no year filter control. The interactive widget mode never triggered.

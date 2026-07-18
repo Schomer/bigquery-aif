@@ -2,6 +2,17 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-18: Remove widget double-gate, add AI-first architecture guardrails
+
+**Problem**: Widget parsing required BOTH a text-marker match AND `visualizationHint === 'INTERACTIVE_WIDGET'` on the tool call. This double-condition gate silently dropped filter controls whenever either signal failed. More broadly, the codebase had accumulated keyword routing and rigid skill doc rules that prevented the AI from interpreting prompts correctly.
+
+**Changes**:
+- `src/lib/skills/handle-query.ts` -- removed the `visualizationHint === 'INTERACTIVE_WIDGET'` condition; if the AI produced a WIDGET_SPEC block, that's sufficient
+- `AGENTS.md` -- added `ai-first-architecture` rule: never use keywords for intent classification, trust AI output without double-gating
+- `.agents/knowledge/invariants.md` -- replaced keyword router invariants with AI-first architecture rules
+
+---
+
 ## 2026-07-18: Rename "schema lookup" to "table info", fix NaN in Last Queried
 
 **Problem**: When a user asked to see a table, the status bar said "Fetching schema for table..." and "Matched skill: schema lookup" -- but the view shows full table details (row count, size, usage, columns), not just schema. Also, the "Last Queried" stat card displayed "NaNd ago" when BigQuery returned a timestamp format that `new Date()` couldn't parse.

@@ -6,6 +6,8 @@ import { DataTable } from './DataTable';
 import { ConfirmationCard } from './ConfirmationCard';
 import { CompletionCard } from './CompletionCard';
 import { ChartView } from './ChartView';
+import { classifyColumns } from '@/lib/column-classifier';
+import { detectChoroplethType } from './charts/map-charts';
 import { KpiCard } from './KpiCard';
 import { StatRowCard } from './StatRowCard';
 import { CostConfirmCard } from './CostConfirmCard';
@@ -32,7 +34,7 @@ import { BriefingBlock } from './BriefingBlock';
 import { DashboardArtifactCard } from './DashboardArtifactCard';
 import { PlanCard } from './chat/PlanCard';
 import type { PlanCardData } from './chat/PlanCard';
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { usePreferences } from '@/lib/preferences-context';
 
 interface Props {
@@ -806,7 +808,26 @@ function ChartWithToggle({
   chartType: ChartToggleType;
   onSendMessage: (msg: string) => void;
 }) {
-  const [view, setView] = useState<'chart' | 'table'>('chart');
+  const [view, setView] = useState<'chart' | 'map' | 'table'>('chart');
+
+  // Detect whether the data has geographic columns (state or country)
+  const geoMapType = useMemo(() => {
+    if (!result.rows?.length || !result.columns?.length) return null;
+    const roles = classifyColumns(result.columns, result.rows as unknown[][], result.columnTypes);
+    const hasGeo = roles.some(r => r === 'geo-state' || r === 'geo-country');
+    if (!hasGeo) return null;
+    return detectChoroplethType(result);
+  }, [result]);
+
+  const viewOptions: Array<'chart' | 'map' | 'table'> = geoMapType
+    ? ['chart', 'map', 'table']
+    : ['chart', 'table'];
+
+  const viewLabel = (v: 'chart' | 'map' | 'table') => {
+    if (v === 'chart') return '\u25B2 Chart';
+    if (v === 'map') return '\u25CB Map';
+    return '\u229E Table';
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -822,7 +843,7 @@ function ChartWithToggle({
             gap: 2,
           }}
         >
-          {(['chart', 'table'] as const).map((v) => (
+          {viewOptions.map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
@@ -838,7 +859,7 @@ function ChartWithToggle({
                 color: view === v ? '#fff' : 'var(--text-muted)',
               }}
             >
-              {v === 'chart' ? '\u25B2 Chart' : '\u229E Table'}
+              {viewLabel(v)}
             </button>
           ))}
         </div>
@@ -847,6 +868,8 @@ function ChartWithToggle({
       {/* Content */}
       {view === 'chart' ? (
         <ChartView result={result} chartType={chartType} onSendMessage={onSendMessage} />
+      ) : view === 'map' && geoMapType ? (
+        <ChartView result={result} chartType={geoMapType} onSendMessage={onSendMessage} />
       ) : (
         <DataTable result={result} onSendMessage={onSendMessage} />
       )}
