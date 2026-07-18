@@ -1,21 +1,21 @@
 // src/lib/gemini-client.ts
-// Gemini API client, response schemas, and skill doc loader.
-// Extracted from chat-orchestrator.ts for shared use by all skill handlers.
+// Gemini API client using Firebase AI Logic SDK.
+// Calls Gemini through Firebase's infrastructure -- no custom proxy needed.
 
-import { getAccessToken } from './gis-auth';
-import { auth } from './firebase';
+import { getAI, getGenerativeModel, GoogleAIBackend, FunctionCallingMode } from 'firebase/ai';
+import { app } from './firebase';
 import { SKILL_NAMES } from './skills';
 import type { StatusCallback } from './types';
 
-// ── Auth helper for Gemini proxy ──────────────────────────────────────────────
+// ── Firebase AI Logic initialization ──────────────────────────────────────────
 
-async function getFirebaseIdToken(): Promise<string> {
-  const user = auth.currentUser;
-  if (!user) {
-    throw new Error('Sign in required to use the AI assistant.');
-  }
-  return user.getIdToken();
+let _ai: ReturnType<typeof getAI> | null = null;
+function getFirebaseAI() {
+  if (!_ai) _ai = getAI(app, { backend: new GoogleAIBackend() });
+  return _ai;
 }
+
+const GEMINI_MODEL = 'gemini-3.5-flash';
 
 // ─── System instructions ──────────────────────────────────────────────────────
 
@@ -76,113 +76,65 @@ export async function callGemini({
   prompt,
   messages,
   schema,
-  project,
 }: CallGeminiArgs): Promise<any> {
-  const projectId = project || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'malloy-data';
-  const endpoint = '/gemini-proxy';
-  const idToken = await getFirebaseIdToken();
+  const finalSystemInstruction = systemInstruction
+    ? `${DATA_ASSISTANT_INSTRUCTIONS}\n\n${systemInstruction}`
+    : DATA_ASSISTANT_INSTRUCTIONS;
 
-  const contents = [];
+  const model = getGenerativeModel(getFirebaseAI(), {
+    model: GEMINI_MODEL,
+    systemInstruction: finalSystemInstruction,
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: schema,
+      temperature: 0.1,
+    } as any,
+  });
+
+  const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
   if (messages) {
     for (const m of messages) {
       contents.push({
         role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }]
+        parts: [{ text: m.content }],
       });
     }
   }
   if (prompt) {
     contents.push({
       role: 'user',
-      parts: [{ text: prompt }]
+      parts: [{ text: prompt }],
     });
   }
-
-  const finalSystemInstruction = systemInstruction
-    ? `${DATA_ASSISTANT_INSTRUCTIONS}\n\n${systemInstruction}`
-    : DATA_ASSISTANT_INSTRUCTIONS;
-
-  const requestBody = {
-    systemInstruction: {
-      parts: [{ text: finalSystemInstruction }]
-    },
-    contents,
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: schema,
-      temperature: 0.1,
-    },
-  };
 
   const maxRetries = 3;
   let delay = 1000;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const text = await res.text();
-      let data: any;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(
-          `The AI proxy returned an unexpected response (HTTP ${res.status}). ` +
-          'This usually means the Cloud Function is unreachable. Try again in a moment.'
-        );
-      }
-
-      if (res.status === 401 || res.status === 403) {
-        throw new Error('Not authenticated. Please sign in again.');
-      }
-
-      if (res.ok && !data.error) {
-        // Vertex AI wraps the response in candidates[0].content.parts[0].text
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) {
-          return JSON.parse(text);
-        }
-        throw new Error('No content in Vertex AI response');
-      }
-
-      const errorMsg = data?.error?.message || data?.error || `HTTP ${res.status}`;
-
-      // Check for transient errors
+      const result = await model.generateContent({ contents } as any);
+      const text = result.response.text();
+      return JSON.parse(text);
+    } catch (err: any) {
+      const errorMsg = err?.message || String(err);
       const isTransient =
-        res.status === 429 ||
-        res.status >= 500 ||
-        (typeof errorMsg === 'string' && (
-          errorMsg.toLowerCase().includes('demand') ||
-          errorMsg.toLowerCase().includes('temporary') ||
-          errorMsg.toLowerCase().includes('limit') ||
-          errorMsg.toLowerCase().includes('quota') ||
-          errorMsg.toLowerCase().includes('resource')
-        ));
+        errorMsg.toLowerCase().includes('demand') ||
+        errorMsg.toLowerCase().includes('temporary') ||
+        errorMsg.toLowerCase().includes('limit') ||
+        errorMsg.toLowerCase().includes('quota') ||
+        errorMsg.toLowerCase().includes('resource') ||
+        errorMsg.toLowerCase().includes('429') ||
+        errorMsg.toLowerCase().includes('500') ||
+        errorMsg.toLowerCase().includes('503') ||
+        errorMsg.toLowerCase().includes('overloaded') ||
+        errorMsg.toLowerCase().includes('fetch') ||
+        errorMsg.toLowerCase().includes('network');
 
       if (isTransient && attempt < maxRetries - 1) {
         const jitter = Math.random() * delay * 0.3;
         await new Promise((resolve) => setTimeout(resolve, delay + jitter));
         delay *= 2;
         continue;
-      }
-
-      throw new Error(`Gemini API failed: ${errorMsg}`);
-
-    } catch (err: any) {
-      if (err.message?.includes('fetch') || err.message?.includes('network') || err.message?.includes('Failed to fetch')) {
-        if (attempt < maxRetries - 1) {
-          const jitter = Math.random() * delay * 0.3;
-          await new Promise((resolve) => setTimeout(resolve, delay + jitter));
-          delay *= 2;
-          continue;
-        }
       }
       throw err;
     }
@@ -232,7 +184,7 @@ export interface CallGeminiWithToolsArgs {
   /**
    * When set, the loop exits immediately after any of the named tools executes
    * successfully (no error thrown). The tool result is still fed back to the
-   * LLM as a functionResponse, but then we break — the LLM does not get
+   * LLM as a functionResponse, but then we break -- the LLM does not get
    * another round to call more tools.
    *
    * Use this in the query handler to guarantee we stop after run_query, not
@@ -254,15 +206,19 @@ export async function callGeminiWithTools({
   messages,
   toolDeclarations,
   toolExecutor,
-  project,
   onStatus,
   maxIterations = 8,
   terminateAfter,
 }: CallGeminiWithToolsArgs): Promise<ToolCallResult> {
-  const endpoint = '/gemini-proxy';
-  const idToken = await getFirebaseIdToken();
-
   const finalSystemInstruction = `${DATA_ASSISTANT_INSTRUCTIONS}\n\n${systemInstruction}`;
+
+  const model = getGenerativeModel(getFirebaseAI(), {
+    model: GEMINI_MODEL,
+    systemInstruction: finalSystemInstruction,
+    tools: [{ functionDeclarations: toolDeclarations }] as any,
+    toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
+    generationConfig: { temperature: 0.1 },
+  });
 
   // Build initial contents from conversation history
   const contents: Array<Record<string, unknown>> = messages.map((m) => ({
@@ -274,59 +230,20 @@ export async function callGeminiWithTools({
   const callCache = new Map<string, unknown>();
 
   for (let i = 0; i < maxIterations; i++) {
-    const requestBody = {
-      systemInstruction: { parts: [{ text: finalSystemInstruction }] },
-      contents,
-      tools: [{ functionDeclarations: toolDeclarations }],
-      toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
-      generationConfig: { temperature: 0.1 },
-    };
+    const result = await model.generateContent({ contents } as any);
+    const response = result.response;
 
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${idToken}`,
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    const rawText = await res.text();
-    let data: any;
-    try {
-      data = JSON.parse(rawText);
-    } catch {
-      throw new Error(
-        `The AI proxy returned an unexpected response (HTTP ${res.status}). ` +
-        'This usually means the Cloud Function is unreachable. Try again in a moment.'
-      );
-    }
-
-    // Handle HTTP / API errors
-    if (res.status === 401 || res.status === 403) {
-      throw new Error('Not authenticated. Please sign in again.');
-    }
-    if (!res.ok || data.error) {
-      const msg = data?.error?.message || data?.error || `HTTP ${res.status}`;
-      throw new Error(`Gemini API failed: ${msg}`);
-    }
-
-    const candidate = data.candidates?.[0];
-    if (!candidate?.content?.parts) {
-      throw new Error('No content in Gemini response');
-    }
-
-    const parts = candidate.content.parts as Array<Record<string, any>>;
-    const functionCalls = parts.filter((p) => p.functionCall);
-
-    if (functionCalls.length === 0) {
-      // LLM is done calling tools -- return its text response
-      const textPart = parts.find((p) => p.text);
-      return { textResponse: textPart?.text || '', toolCalls: allToolCalls };
+    // Check for function calls
+    const functionCalls = response.functionCalls();
+    if (!functionCalls || functionCalls.length === 0) {
+      return { textResponse: response.text() || '', toolCalls: allToolCalls };
     }
 
     // Append the model's function-call turn to contents
-    contents.push({ role: 'model', parts });
+    const candidate = (response as any).candidates?.[0];
+    if (candidate?.content?.parts) {
+      contents.push({ role: 'model', parts: candidate.content.parts });
+    }
 
     // Execute each requested function call and collect responses
     // Build a context-aware status message from tool name + arguments
@@ -358,8 +275,9 @@ export async function callGeminiWithTools({
     }
     const responseParts: Array<Record<string, unknown>> = [];
     for (const fc of functionCalls) {
-      const { name, args } = fc.functionCall;
-      onStatus?.(getToolStatus(name, args ?? {}));
+      const name = fc.name;
+      const args = (fc.args ?? {}) as Record<string, unknown>;
+      onStatus?.(getToolStatus(name, args));
       try {
         // Deduplication: skip re-execution of identical tool calls
         const callKey = `${name}:${JSON.stringify(args ?? {})}`;
@@ -369,10 +287,10 @@ export async function callGeminiWithTools({
           responseParts.push({ functionResponse: { name, response: { result: cached } } });
           continue;
         }
-        const result = await toolExecutor(name, args ?? {}, onStatus);
-        callCache.set(callKey, result);
-        allToolCalls.push({ name, args: args ?? {}, result });
-        responseParts.push({ functionResponse: { name, response: { result } } });
+        const execResult = await toolExecutor(name, args ?? {}, onStatus);
+        callCache.set(callKey, execResult);
+        allToolCalls.push({ name, args: args ?? {}, result: execResult });
+        responseParts.push({ functionResponse: { name, response: { result: execResult } } });
       } catch (err: unknown) {
         const errMsg = err instanceof Error ? err.message : String(err);
         allToolCalls.push({ name, args: args ?? {}, result: { error: errMsg } });
@@ -391,11 +309,7 @@ export async function callGeminiWithTools({
         .filter((tc) => !(tc.result as Record<string, unknown>)?.error)
         .map((tc) => tc.name);
       if (successfulNames.some((n) => terminateAfter.includes(n))) {
-        // Return whatever text the model produced before the function call,
-        // or an empty string (the code path that reads capture.value will
-        // handle the actual result).
-        const preCallTextPart = parts.find((p: Record<string, unknown>) => p.text);
-        return { textResponse: (preCallTextPart?.text as string) || '', toolCalls: allToolCalls };
+        return { textResponse: '', toolCalls: allToolCalls };
       }
     }
   }

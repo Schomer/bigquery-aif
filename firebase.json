@@ -10,7 +10,7 @@
     {
       "source": "functions",
       "codebase": "default",
-      "runtime": "nodejs22"
+      "runtime": "nodejs20"
     }
   ],
   "hosting": {
@@ -22,13 +22,6 @@
       "**/node_modules/**"
     ],
     "rewrites": [
-      {
-        "source": "/gemini-proxy",
-        "function": {
-          "functionId": "geminiProxy",
-          "region": "us-central1"
-        }
-      },
       {
         "source": "**",
         "destination": "/index.html"
@@ -47,4 +40,3 @@
     ]
   }
 }
-
