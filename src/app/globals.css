@@ -1812,7 +1812,7 @@ details>summary::marker {
   background: #e8ecf8;
   border: 1.5px solid #c5cae9;
   border-radius: 100px;
-  padding: 4px;
+  padding: 4px 5px;
   margin-right: 4px;
   height: 40px;
 }
@@ -1849,12 +1849,15 @@ details>summary::marker {
   box-shadow: 0 1px 3px rgba(73, 108, 195, 0.25);
 }
 
-/* Outer-edge rounding: match the pill container curve on the exposed side */
+/* Outer-edge rounding: match the pill container curve on the exposed side.
+   Extra padding on the outer side keeps the icon optically centered. */
 .layout-seg-btn:first-child {
   border-radius: 100px 7px 7px 100px;
+  padding-left: 4px;
 }
 .layout-seg-btn:last-child {
   border-radius: 7px 100px 100px 7px;
+  padding-right: 4px;
 }
 
 /* Turn icon white when button is active */
