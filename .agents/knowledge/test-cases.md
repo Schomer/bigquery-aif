@@ -333,10 +333,15 @@ These cover features built after the original test-cases were written. They have
 - **Expected**: INTERACTIVE_WIDGET artifact with date pickers (start/end empty by default), Apply/Clear buttons, chart rendered below
 - **Failure looks like**: Plain query result with no filter controls.
 
-### NF4: Interactive widget -- NOT triggered for ranking queries
+### NF4: Interactive widget -- NOT triggered for ranking queries (no filter requested)
 - **Input**: "show me the top 15 countries by population in 2023"
 - **Expected**: BAR_CHART or COLUMN_CHART with 15 rows. No widget controls.
 - **Failure looks like**: Widget with a MULTI_SELECT for country (17,000+ rows).
+
+### NF4b: Interactive widget -- triggered for ranking + explicit filter request
+- **Input**: "show the top countries by population with a filter for year"
+- **Expected**: INTERACTIVE_WIDGET with a DROPDOWN for year. Chart shows top countries by population. Selecting a year re-runs the query with `WHERE year = N`.
+- **Failure looks like**: Plain bar chart with no year filter control.
 
 ### NF5: Multi-series line chart pivots long-format data
 - **Input**: "show me population of China and USA over time"

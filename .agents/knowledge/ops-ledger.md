@@ -1,5 +1,23 @@
 # Operations Ledger
 
+## 2026-07-18: INTERACTIVE_WIDGET missing from run_query tool enum
+
+**Context**: User asked "show the top countries by population with a filter for year" and got a plain bar chart with no year filter control. The interactive widget mode never triggered.
+
+**Root cause**: Two issues:
+1. The `run_query` tool declaration in `bq-tools.ts` defined `visualizationHint` as an enum that did NOT include `INTERACTIVE_WIDGET`. The Gemini function-calling API enforces enum constraints, so the LLM could never set `visualizationHint: "INTERACTIVE_WIDGET"` even though the skill doc instructed it to. The widget spec parsing code in `handle-query.ts:380` requires `captured.visualizationHint === 'INTERACTIVE_WIDGET'`, which could never be true.
+2. The skill doc (`query.md`) had an anti-widget guard that blocked widget mode for "top N" queries unconditionally, even when the user explicitly asked for a filter control.
+3. The router's `hasFilterPhrase` regex did not include `for` in its alternatives, so "filter for year" didn't match the fast-path filter pattern (though it still routed correctly via scored signals).
+
+**Fix**:
+- `src/lib/bq-tools.ts`: Added `'INTERACTIVE_WIDGET'` to the `visualizationHint` enum.
+- `public/skills/query.md`: Relaxed the anti-widget guard to allow widget mode when the user explicitly asks for a filter alongside "top N".
+- `src/lib/router.ts`: Added `for` to the `hasFilterPhrase` regex alternatives.
+
+**Rule derived**: When adding a new value that the LLM must be able to set on a tool parameter, the value must be added to the tool declaration's enum. Prompt-level instructions alone are insufficient when the API enforces enum constraints.
+
+---
+
 ## 2026-07-18: Cloud Function proxy replaced with Firebase AI Logic SDK
 
 **Context**: The `geminiProxy` Cloud Function consistently returned 403 Forbidden because the org-level IAM policy blocks `allUsers` invoker bindings on Cloud Run services. Firebase CLI v13+ forcefully deploys all Cloud Functions as 2nd Gen (Cloud Run), making the proxy permanently unreachable through Firebase Hosting rewrites. Downgrading to CLI v12 / SDK v5 failed due to Node 22 runtime and peer dependency conflicts.

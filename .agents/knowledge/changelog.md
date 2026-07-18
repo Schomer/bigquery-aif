@@ -2,6 +2,22 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-18: Fix missing INTERACTIVE_WIDGET in run_query tool enum
+
+**Problem**: Prompts like "show the top countries by population with a filter for year" produced a plain bar chart with no year filter control. The interactive widget system was dead -- the LLM could never set `visualizationHint: "INTERACTIVE_WIDGET"` because the value was missing from the tool's enum.
+
+**Root causes**:
+1. `bq-tools.ts` `run_query` tool declaration enum omitted `INTERACTIVE_WIDGET`
+2. `query.md` skill doc blocked widget mode for "top N" queries even when user explicitly asked for a filter
+3. `router.ts` `hasFilterPhrase` regex didn't include `for`, so "filter for year" missed the fast-path
+
+**Files changed**:
+- `src/lib/bq-tools.ts` -- added `'INTERACTIVE_WIDGET'` to visualizationHint enum
+- `public/skills/query.md` -- relaxed anti-widget guard to allow widgets when filter explicitly requested alongside top-N
+- `src/lib/router.ts` -- added `for` to hasFilterPhrase regex
+
+---
+
 ## 2026-07-18: Replace Cloud Function proxy with Firebase AI Logic SDK
 
 **Problem**: The `geminiProxy` Cloud Function returned 403 Forbidden on every request. Root cause: org-level IAM policy blocks `allUsers` and `allAuthenticatedUsers` invoker bindings on Cloud Run services. Firebase CLI v13+ forcefully deploys all Cloud Functions as 2nd Gen (Cloud Run), making the proxy unreachable.
