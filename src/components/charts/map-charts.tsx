@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { COLORS, buildChartData, resolveAxes, drillDownMessage } from './chart-utils';
 import type { QueryResult } from '@/lib/types';
 import { BarChartRenderer } from './recharts-charts';
@@ -498,7 +499,7 @@ interface TooltipState { name: string; value: string; x: number; y: number }
 
 function ChoroplethTooltip({ tooltip, valueKey }: { tooltip: TooltipState | null; valueKey: string }) {
   if (!tooltip) return null;
-  return (
+  return createPortal(
     <div style={{
       position: 'fixed', left: tooltip.x + 10, top: tooltip.y - 40,
       background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6,
@@ -508,7 +509,8 @@ function ChoroplethTooltip({ tooltip, valueKey }: { tooltip: TooltipState | null
     }}>
       <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: 2 }}>{tooltip.name}</div>
       <div style={{ color: '#64748b' }}>{valueKey}: <strong>{tooltip.value}</strong></div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

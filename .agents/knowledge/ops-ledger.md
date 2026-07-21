@@ -1,5 +1,25 @@
 # Operations Ledger
 
+## 2026-07-21: Fix map tooltip, missing year filter, and invented region data
+
+**Context**: User prompted "show population by country in a bar chart with a year filter" and saw three bugs: (1) map tooltip appeared in the bottom-left corner instead of following the mouse, (2) chart view had no year filter dropdown despite "with a year filter" in the prompt, (3) results showed invented aggregate categories ("World", "Asia", "Upper-middle-income countries") that don't exist in the table data.
+
+**Root causes**:
+1. **Tooltip**: `ChoroplethTooltip` uses `position: fixed` with `e.clientX/clientY` but is rendered inside a container with `overflow: hidden`. If any ancestor has a CSS `transform` (e.g., from animation `forwards` fill), it creates a new containing block for `position: fixed`, causing the tooltip to be positioned relative to the ancestor rather than the viewport.
+2. **Missing filter**: The LLM sometimes fails to produce the required `WIDGET_SPEC_START...WIDGET_SPEC_END` block when the user asks for a filter, falling back to a plain chart. The prompt had the rule but lacked a concrete example for the most common case (integer year dropdown on population data).
+3. **Invented regions**: The LLM fabricated aggregate categories ("World", "Asia", etc.) that weren't in the source data. The prompt had no rule forbidding this.
+
+**Changes**:
+- `src/components/charts/map-charts.tsx`: Render `ChoroplethTooltip` via `createPortal(... , document.body)` so it escapes all ancestor positioning/overflow constraints.
+- `public/skills/query.md`: Added concrete WIDGET_SPEC example for "population by country with a year filter" (DROPDOWN, INT64 year, BAR_CHART). Added rule: "NEVER fabricate or invent aggregate categories the data does not contain."
+
+**Rules derived**:
+- Tooltips using `position: fixed` must be rendered via React Portal when they live inside scrollable/clipped/animated containers.
+- The LLM prompt must explicitly forbid fabricating data. "Query real columns and return real values" is now an explicit rule.
+- Concrete examples in skill docs significantly improve LLM compliance with complex output formats (WIDGET_SPEC).
+
+---
+
 ## 2026-07-18: Geographic data defaults to bar/column chart, map via toggle
 
 **Context**: User prompted "show the population by country with a filter for year" and got a choropleth map with no year filter. Two root causes: (1) `viz-intent.ts` had `/\bby country\b/i` as an explicit WORLD_MAP pattern, which hijacked the intent before the LLM could produce a widget spec with a year dropdown. (2) The composer's `inferVisualizationType()` auto-detected country/state columns and forced map types.

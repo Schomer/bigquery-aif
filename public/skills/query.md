@@ -52,6 +52,7 @@ If both `TABLESAMPLE` and `APPROX_*` functions are in play, say so explicitly --
 - **Match literal types to column types in WHERE clauses.** If a column is INTEGER/INT64/FLOAT/NUMERIC, use an unquoted numeric literal: `WHERE Year = 2023`, NOT `WHERE Year = '2023'`. Quoting a number produces an INT64 = STRING type error in BigQuery. Only use quoted string literals for STRING/VARCHAR columns. For BOOL/BOOLEAN columns, use unquoted `TRUE` or `FALSE` — never `'TRUE'` or `1`. Check the schema's column type before writing any filter.
 - **Do NOT apply implicit year or date filters based on today's date.** Today's date is provided for context only (e.g., to compute relative date ranges when the user says "last 30 days"). Do NOT add `WHERE year = <current_year>` or `WHERE date >= <today>` unless the user explicitly asked for recent or current data. Many datasets (e.g., population, historical records, scientific data) have a Year column with integer values that may not include the current calendar year at all. Applying an implicit recency filter on such tables returns 0 rows. When the user asks for population, rankings, or aggregates without specifying a year, either omit the year filter entirely or use `WHERE year = (SELECT MAX(year) FROM ...)` to find the latest available year.
 - **When the user names multiple specific entities (countries, cities, products, statuses), always filter with `IN (...)` and never omit the filter.** For string columns use case-insensitive matching: `WHERE LOWER(country) IN ('china', 'united states')`. Add common name variants when unsure of exact stored values (e.g., 'usa', 'us', 'united states', 'united states of america'). Example: "show population of China and USA" → `WHERE LOWER(country) IN ('china', 'united states', 'united states of america', 'usa')`. Never return data for all entities when the user named specific ones.
+- **NEVER fabricate or invent aggregate categories the data does not contain.** When the user asks "by country", return only the actual country values stored in the table. Do NOT introduce invented groupings like "World", "Asia", "Europe", "Upper-middle-income countries", "High-income countries", or any other aggregate/regional categories unless those exact values exist in the data AND the user asked for them. Your SQL must query real columns and return real values -- never synthesize rows, categories, or aggregations that aren't in the source data. If the table does contain aggregate rows mixed with country rows (common in World Bank/UN datasets), filter them out when the user asks "by country": use `WHERE country_code NOT IN ('WLD', 'EAS', 'ECS', 'LCN', 'MEA', 'NAC', 'SAS', 'SSF', 'UMC', 'LMC', 'HIC', 'LIC')` or equivalent exclusion based on the table's schema.
 
 ### CRITICAL: Aggregation patterns (read this before writing ANY query)
 
@@ -223,6 +224,32 @@ You must generate an **interactive widget** instead of a plain query result. Wid
 - "which [entities] have the highest/lowest [metric]" — direct aggregate query, no widget (unless filter requested).
 
 When both "top N" and an explicit filter request appear (e.g., "show the top countries by population with a filter for year"), USE interactive widget mode. The baseSql should contain the top-N ranking logic, and the parameterized SQL should add the filter clause. For integer year columns, use DROPDOWN (not DATE_RANGE).
+
+**Concrete example — "show population by country in a bar chart with a year filter"**:
+- Call `run_query` with `visualizationHint: "INTERACTIVE_WIDGET"` using baseSql:
+  ```sql
+  SELECT country_name, SUM(value) AS Total_Population
+  FROM `project.dataset.indicators`
+  WHERE indicator_code = 'SP.POP.TOTL'
+  GROUP BY country_name ORDER BY Total_Population DESC LIMIT 20
+  ```
+- Include this in your text response:
+  ```
+  WIDGET_SPEC_START
+  {
+    "controlType": "DROPDOWN",
+    "chartTitle": "Population by Country",
+    "visualization": "BAR_CHART",
+    "baseSql": "SELECT country_name, SUM(value) AS Total_Population FROM `project.dataset.indicators` WHERE indicator_code = 'SP.POP.TOTL' GROUP BY country_name ORDER BY Total_Population DESC LIMIT 20",
+    "parameterizedSql": "SELECT country_name, SUM(value) AS Total_Population FROM `project.dataset.indicators` WHERE indicator_code = 'SP.POP.TOTL' AND year = {{year}} GROUP BY country_name ORDER BY Total_Population DESC LIMIT 20",
+    "filterColumn": "year",
+    "filterParam": "{{year}}",
+    "optionsSql": "SELECT DISTINCT year FROM `project.dataset.indicators` WHERE indicator_code = 'SP.POP.TOTL' ORDER BY year DESC LIMIT 100",
+    "defaultValue": null
+  }
+  WIDGET_SPEC_END
+  ```
+- Note: `year` is INT64, so `{{year}}` is unquoted in parameterizedSql. The `visualization` is `BAR_CHART` because the user asked for a bar chart.
 
 ### Control type A — Date Range Picker
 

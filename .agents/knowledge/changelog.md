@@ -2,6 +2,27 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-21: Fix map tooltip, missing filter, invented regions
+
+**Problem**: "show population by country in a bar chart with a year filter" had three bugs: (1) map tooltip showed at bottom-left instead of following the mouse, (2) chart view had no year filter despite user asking for one, (3) results contained fabricated aggregate categories ("World", "Asia", etc.).
+
+**Changes**:
+- `src/components/charts/map-charts.tsx` -- render `ChoroplethTooltip` via `createPortal` to `document.body` to escape ancestor `overflow: hidden` and `transform` containing blocks.
+- `public/skills/query.md` -- added concrete WIDGET_SPEC example for "population by country with a year filter" (DROPDOWN on INT64 year column, BAR_CHART visualization). Added SQL rule: "NEVER fabricate or invent aggregate categories the data does not contain."
+
+**Impact**: Map tooltips follow the cursor. The year filter prompt compliance should improve with the concrete example. The LLM is now explicitly told not to invent data categories.
+
+---
+
+## 2026-07-21: Add Project Status tracker to kebab menu
+
+**Changes**:
+- `src/components/shell/TopBar.tsx` -- added "Project status" link item to the kebab/more menu with `open_in_new` icon. Opens `/project-status.html` in a new browser tab.
+- `src/app/globals.css` -- added `.gc-kebab-menu-divider` style for visual separation between menu sections.
+- `public/project-status.html` -- new self-contained feature backlog tracker page (1200 lines). Dark/light theme, search, priority/epic filtering, expandable accordion sections, 25 realistic backlog items across 6 epics.
+
+---
+
 ## 2026-07-18: Geographic data defaults to bar/column, map available via toggle
 
 **Problem**: "show the population by country with a filter for year" produced a choropleth map with no year filter. The pattern `/\bby country\b/i` in viz-intent.ts forced WORLD_MAP, and the composer's geo auto-detection also forced maps for country/state data.

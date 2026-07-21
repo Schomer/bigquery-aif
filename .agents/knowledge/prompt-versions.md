@@ -2,7 +2,14 @@
 
 The app's behavior is heavily driven by the prompts sent to Gemini. This file tracks the key prompts, where they live, and when/why they changed. Prompt changes are high-impact and should be tested against the canonical test cases before deploying.
 
-Last updated: 2026-07-16
+Last updated: 2026-07-21
+
+## Recent Changes
+
+### 2026-07-21: query.md -- anti-fabrication rule + WIDGET_SPEC concrete example
+- **File**: `public/skills/query.md`
+- **Added**: SQL rule "NEVER fabricate or invent aggregate categories the data does not contain" -- prevents the LLM from inventing values like "World", "Asia", "Europe" when the user asks "by country" and the source table has no such aggregates.
+- **Added**: Concrete WIDGET_SPEC example for "show population by country in a bar chart with a year filter" -- demonstrates DROPDOWN control type on an INT64 year column with BAR_CHART visualization. Improves compliance with the WIDGET_SPEC output format for the most common filter use case.
 
 ---
 
