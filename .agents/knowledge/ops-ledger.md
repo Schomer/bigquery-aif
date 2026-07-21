@@ -12,11 +12,13 @@
 **Changes**:
 - `src/components/charts/map-charts.tsx`: Render `ChoroplethTooltip` via `createPortal(... , document.body)` so it escapes all ancestor positioning/overflow constraints.
 - `public/skills/query.md`: Added concrete WIDGET_SPEC example for "population by country with a year filter" (DROPDOWN, INT64 year, BAR_CHART). Added rule: "NEVER fabricate or invent aggregate categories the data does not contain."
+- `src/lib/skills/handle-query.ts`: Added `tryAutoConstructWidget()` fallback. When the user asks for a filter (detected via phrase matching) but the LLM doesn't produce a WIDGET_SPEC block, the code auto-constructs a DROPDOWN widget by: detecting the filter column from the user's message + table schema, extracting the table reference from the executed SQL, building parameterized SQL with the filter WHERE clause, fetching distinct values via optionsSql, and returning a full InteractiveWidgetData envelope.
 
 **Rules derived**:
 - Tooltips using `position: fixed` must be rendered via React Portal when they live inside scrollable/clipped/animated containers.
 - The LLM prompt must explicitly forbid fabricating data. "Query real columns and return real values" is now an explicit rule.
-- Concrete examples in skill docs significantly improve LLM compliance with complex output formats (WIDGET_SPEC).
+- Concrete examples in skill docs improve LLM compliance but are not sufficient alone. Critical output formats (like WIDGET_SPEC) need code-level fallbacks.
+- When the LLM fails to produce a structured format, the code should detect intent and auto-construct the expected output from available data (SQL, schema, captured results).
 
 ---
 

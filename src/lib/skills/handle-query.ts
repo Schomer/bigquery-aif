@@ -536,7 +536,203 @@ After running the query, provide a brief one-line summary of what the results sh
     }
   }
 
+  // -- Fallback: auto-construct widget when user asked for a filter but LLM didn't produce WIDGET_SPEC --
+  if (captured && !widgetSpecMatch) {
+    const autoWidget = await tryAutoConstructWidget(
+      message, captured, lastTableSchema, project,
+      context?.userIntent ?? null, qualityFlags, onStatus,
+    );
+    if (autoWidget) return autoWidget;
+  }
+
   return [compose('query', result, qualityFlags, context?.userIntent ?? null)];
+}
+
+
+// ─── Fallback widget auto-construction ───────────────────────────────────────
+// When the user asked for a filter but the LLM didn't produce a WIDGET_SPEC,
+// this function attempts to auto-construct a DROPDOWN interactive widget from
+// the captured query execution and available schema.
+
+const FILTER_PHRASES = [
+  'with a filter', 'add a filter', 'filter by', 'filter for',
+  'let me filter', 'filter control', 'year filter', 'add a picker',
+  'with filters', 'filter for choosing', 'choose the year',
+  'choosing the year', 'pick a year', 'select a year',
+  'add a dropdown', 'with a dropdown',
+];
+
+function detectFilterColumnHint(message: string): string | null {
+  const lower = message.toLowerCase();
+  if (!FILTER_PHRASES.some(p => lower.includes(p))) return null;
+
+  // "filter for [choosing] [the] year" -> "year"
+  const m = lower.match(/filter\s+(?:for|by|on)\s+(?:choosing\s+)?(?:the\s+)?(\w+)/);
+  if (m) return m[1];
+  // "choose/pick/select [a/the] year"
+  const alt = lower.match(/(?:choose|choosing|pick|select)\s+(?:a\s+|the\s+)?(\w+)/);
+  if (alt) return alt[1];
+  return ''; // filter intent detected but no specific column
+}
+
+function extractTableRef(sql: string): string | null {
+  // Match backtick-quoted: FROM `project.dataset.table`
+  const backtick = sql.match(/FROM\s+`([^`]+)`/i);
+  if (backtick) return '`' + backtick[1] + '`';
+  // Match unquoted: FROM project.dataset.table
+  const unquoted = sql.match(/FROM\s+([\w.-]+\.[\w.-]+\.[\w.-]+)/i);
+  if (unquoted) return '`' + unquoted[1] + '`';
+  return null;
+}
+
+async function tryAutoConstructWidget(
+  message: string,
+  captured: {
+    sql: string;
+    columns: string[];
+    columnTypes: string[];
+    rows: unknown[][];
+    rowCount: number;
+    jobId: string;
+    visualizationHint?: string;
+  },
+  tableSchema: { name: string; type: string; description?: string }[],
+  project: string,
+  userIntent: ArtifactType | null,
+  qualityFlags: ReturnType<typeof analyzeResultQuality>,
+  onStatus?: StatusCallback,
+): Promise<CompositionEnvelope[] | null> {
+  const columnHint = detectFilterColumnHint(message);
+  if (columnHint === null) return null; // no filter intent
+
+  // Build a schema-aware column list: prefer table schema (has types for
+  // columns not in SELECT), fall back to captured result columns.
+  const schemaColumns = tableSchema.length > 0
+    ? tableSchema
+    : captured.columns.map((name, i) => ({
+        name,
+        type: captured.columnTypes[i] || 'STRING',
+      }));
+
+  // Find the filter column
+  let filterCol: { name: string; type: string } | null = null;
+  if (columnHint) {
+    const hintLower = columnHint.toLowerCase();
+    filterCol = schemaColumns.find(c => c.name.toLowerCase() === hintLower)
+      ?? schemaColumns.find(c => c.name.toLowerCase().includes(hintLower))
+      ?? null;
+  }
+  // If no hint or no match, try common heuristics: look for a "year" column
+  if (!filterCol) {
+    filterCol = schemaColumns.find(c => /^year$/i.test(c.name)) ?? null;
+  }
+  if (!filterCol) return null;
+
+  const isNumeric = /INT|FLOAT|NUMERIC|DECIMAL/i.test(filterCol.type);
+  const paramName = `{{${filterCol.name.toLowerCase()}}}`;
+  const tableRef = extractTableRef(captured.sql);
+  if (!tableRef) return null;
+
+  // Build parameterized SQL by injecting a WHERE condition
+  const baseSql = captured.sql;
+  let parameterizedSql: string;
+  const filterClause = isNumeric
+    ? `${filterCol.name} = ${paramName}`
+    : `${filterCol.name} = '${paramName}'`;
+
+  // Check if baseSql already has a WHERE clause
+  const whereMatch = baseSql.match(/\bWHERE\b/i);
+  if (whereMatch) {
+    // Insert AND after the existing WHERE clause conditions, before GROUP BY / ORDER BY / LIMIT
+    const afterWhere = baseSql.match(/\b(WHERE\b[\s\S]+?)(\bGROUP\s+BY\b|\bORDER\s+BY\b|\bLIMIT\b|\bHAVING\b|$)/i);
+    if (afterWhere) {
+      parameterizedSql = baseSql.slice(0, afterWhere.index! + afterWhere[1].length)
+        + ` AND ${filterClause} `
+        + baseSql.slice(afterWhere.index! + afterWhere[1].length);
+    } else {
+      parameterizedSql = baseSql + ` AND ${filterClause}`;
+    }
+  } else {
+    // No WHERE clause -- insert before GROUP BY / ORDER BY / LIMIT
+    const insertPoint = baseSql.match(/\b(GROUP\s+BY|ORDER\s+BY|LIMIT)\b/i);
+    if (insertPoint) {
+      parameterizedSql = baseSql.slice(0, insertPoint.index!)
+        + `WHERE ${filterClause} `
+        + baseSql.slice(insertPoint.index!);
+    } else {
+      parameterizedSql = baseSql + ` WHERE ${filterClause}`;
+    }
+  }
+
+  // Build optionsSql
+  const optionsSql = `SELECT DISTINCT ${filterCol.name} FROM ${tableRef} ORDER BY ${filterCol.name} DESC LIMIT 200`;
+
+  // Fetch options
+  let options: string[] = [];
+  try {
+    onStatus?.(`Loading ${filterCol.name} options...`);
+    const optResult = await executeQuery(optionsSql, project);
+    options = optResult.rows.map((r) => String((r as unknown[])[0] ?? '')).filter(Boolean);
+  } catch {
+    // Non-fatal -- widget still works, just no dropdown options
+  }
+
+  if (options.length === 0) return null;
+
+  const controls: InteractiveWidgetData['controls'] = [{
+    type: 'DROPDOWN',
+    label: filterCol.name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+    param: paramName,
+    column: filterCol.name,
+    options,
+    defaultValue: null,
+  }];
+
+  // Pick visualization: respect explicit user intent
+  const viz = (userIntent && userIntent !== 'INTERACTIVE_WIDGET'
+    ? userIntent
+    : (captured.visualizationHint as VisualizationType | undefined) ?? 'COLUMN_CHART'
+  ) as VisualizationType;
+
+  const widgetData: InteractiveWidgetData = {
+    baseSql,
+    parameterizedSql,
+    controls,
+    visualization: viz,
+    xAxis: captured.columns[0] ?? null,
+    yAxis: captured.columns.slice(1),
+    chartTitle: null,
+    initialResult: {
+      columns: captured.columns,
+      columnTypes: captured.columnTypes,
+      rows: captured.rows,
+      rowCount: captured.rowCount,
+      jobId: captured.jobId || undefined,
+    },
+    defaultStart: null,
+    defaultEnd: null,
+    project,
+  };
+
+  const widgetResult: QueryResult = {
+    skill: 'query',
+    sql: baseSql,
+    requiresConfirmation: false,
+    costConfirm: null,
+    columns: captured.columns,
+    columnTypes: captured.columnTypes,
+    rows: captured.rows,
+    rowCount: captured.rowCount,
+    jobId: captured.jobId || undefined,
+    totalBytesProcessed: 0,
+    costTier: 0,
+    suggestedVisualization: 'INTERACTIVE_WIDGET' as VisualizationType,
+    notableFindings: null,
+    resultSummary: null,
+    widgetData,
+  } as QueryResult & { widgetData: InteractiveWidgetData };
+
+  return [compose('query', widgetResult, qualityFlags, 'INTERACTIVE_WIDGET')];
 }
 
 
