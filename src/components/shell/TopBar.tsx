@@ -435,6 +435,19 @@ export function TopBar({ onNavToggle }: TopBarProps) {
                   <span className="gc-toggle-switch-knob" />
                 </button>
               </label>
+              <div className="gc-kebab-menu-divider" />
+              <a
+                className="gc-kebab-menu-toggle"
+                role="menuitem"
+                href="/project-status.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setKebabMenuOpen(false)}
+                style={{ textDecoration: 'none', color: 'inherit' }}
+              >
+                <span className="gc-kebab-menu-toggle-label">Project status</span>
+                <span className="material-symbols-outlined" style={{ fontSize: 18, opacity: 0.5 }}>open_in_new</span>
+              </a>
             </div>
           )}
         </div>

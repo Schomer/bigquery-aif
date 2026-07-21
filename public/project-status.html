@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BigQuery AIF -- Project Status</title>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+    
+    <style>
+        :root[data-theme="dark"] {
+            --bg-color: #0f1117;
+            --surface-color: #1a1d2e;
+            --card-color: #252a3a;
+            --card-hover: #2d3346;
+            --text-primary: #ffffff;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+            --accent-color: #3b82f6;
+            --header-gradient: linear-gradient(135deg, #1e293b 0%, #0f1117 100%);
+            --glass-bg: rgba(26, 29, 46, 0.7);
+        }
+
+        :root[data-theme="light"] {
+            --bg-color: #f8fafc;
+            --surface-color: #ffffff;
+            --card-color: #f1f5f9;
+            --card-hover: #e2e8f0;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --border-color: #cbd5e1;
+            --accent-color: #2563eb;
+            --header-gradient: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+            --glass-bg: rgba(255, 255, 255, 0.8);
+        }
+
+        :root {
+            --p0-color: #ff4444;
+            --p0-bg: color-mix(in srgb, var(--p0-color) 15%, transparent);
+            --p1-color: #ff9500;
+            --p1-bg: color-mix(in srgb, var(--p1-color) 15%, transparent);
+            --p2-color: #4a9eff;
+            --p2-bg: color-mix(in srgb, var(--p2-color) 15%, transparent);
+            --p3-color: #6b7280;
+            --p3-bg: color-mix(in srgb, var(--p3-color) 15%, transparent);
+
+            --s-size-color: #10b981;
+            --m-size-color: #f59e0b;
+            --l-size-color: #f97316;
+            --xl-size-color: #ef4444;
+            
+            --transition-speed: 0.3s;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Google Sans', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            transition: background-color var(--transition-speed), color var(--transition-speed);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+
+        header {
+            background: var(--header-gradient);
+            border-bottom: 1px solid var(--border-color);
+            padding: 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .title-area h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .title-area h2 {
+            font-size: 1.2rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .title-area p {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .icon-btn {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .icon-btn:hover {
+            background: var(--card-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .metrics-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .metric-card {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem;
+            text-align: center;
+            transition: transform 0.2s ease;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .metric-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .p0-metric .metric-value { color: var(--p0-color); }
+        .p1-metric .metric-value { color: var(--p1-color); }
+        .p2-metric .metric-value { color: var(--p2-color); }
+        .p3-metric .metric-value { color: var(--p3-color); }
+
+        .controls-section {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem 1.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .search-bar {
+            display: flex;
+            align-items: center;
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            flex-grow: 1;
+            max-width: 400px;
+            transition: border-color 0.2s ease;
+        }
+
+        .search-bar:focus-within {
+            border-color: var(--accent-color);
+        }
+
+        .search-bar input {
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-size: 1rem;
+            margin-left: 0.5rem;
+            outline: none;
+            width: 100%;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filter-btn:hover {
+            background: var(--card-hover);
+        }
+
+        .filter-btn.active {
+            background: var(--text-primary);
+            color: var(--bg-color);
+            border-color: var(--text-primary);
+        }
+        
+        select.filter-select {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.5rem 2rem 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            appearance: none;
+            outline: none;
+            cursor: pointer;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>');
+            background-repeat: no-repeat;
+            background-position: right 0.5rem center;
+            background-size: 1.2em;
+        }
+
+        .action-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .action-btn:hover {
+            background: var(--surface-color);
+        }
+
+        main {
+            flex-grow: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+            padding: 0 2rem 4rem;
+        }
+
+        .epic-section {
+            margin-bottom: 2rem;
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: box-shadow 0.3s ease;
+        }
+        
+        .epic-section:hover {
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+        }
+
+        .epic-header {
+            padding: 1.25rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            background: var(--card-color);
+            user-select: none;
+            border-bottom: 1px solid transparent;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .epic-header:hover {
+            background: var(--card-hover);
+        }
+
+        .epic-section.expanded .epic-header {
+            border-bottom-color: var(--border-color);
+        }
+
+        .epic-title {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        .epic-badge {
+            background: var(--bg-color);
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        .epic-stats {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .priority-bar {
+            display: flex;
+            height: 6px;
+            width: 100px;
+            border-radius: 3px;
+            overflow: hidden;
+            background: var(--border-color);
+        }
+
+        .priority-segment {
+            height: 100%;
+        }
+        .priority-segment.p0 { background: var(--p0-color); }
+        .priority-segment.p1 { background: var(--p1-color); }
+        .priority-segment.p2 { background: var(--p2-color); }
+        .priority-segment.p3 { background: var(--p3-color); }
+
+        .expand-icon {
+            transition: transform 0.3s ease;
+            color: var(--text-secondary);
+        }
+
+        .epic-section.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+
+        .epic-content {
+            display: none;
+            padding: 0.5rem;
+            background: var(--surface-color);
+        }
+
+        .epic-section.expanded .epic-content {
+            display: block;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .feature-card {
+            background: var(--card-color);
+            border: 1px solid transparent;
+            border-radius: 8px;
+            margin: 0.5rem;
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+        
+        .feature-card:hover {
+            border-color: var(--border-color);
+        }
+
+        .feature-header {
+            padding: 1rem 1.25rem;
+            display: grid;
+            grid-template-columns: 100px 1fr auto auto 40px;
+            gap: 1rem;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .feature-id {
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .feature-title {
+            font-weight: 500;
+            font-size: 1rem;
+        }
+
+        .badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            letter-spacing: 0.05em;
+        }
+
+        .badge.p0 { background: var(--p0-bg); color: var(--p0-color); border: 1px solid var(--p0-color); }
+        .badge.p1 { background: var(--p1-bg); color: var(--p1-color); border: 1px solid var(--p1-color); }
+        .badge.p2 { background: var(--p2-bg); color: var(--p2-color); border: 1px solid var(--p2-color); }
+        .badge.p3 { background: var(--p3-bg); color: var(--p3-color); border: 1px solid var(--p3-color); }
+
+        .size-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+        }
+
+        .size-bar {
+            height: 4px;
+            border-radius: 2px;
+        }
+
+        .size-s .size-bar { width: 12px; background: var(--s-size-color); }
+        .size-m .size-bar { width: 20px; background: var(--m-size-color); }
+        .size-l .size-bar { width: 28px; background: var(--l-size-color); }
+        .size-xl .size-bar { width: 36px; background: var(--xl-size-color); }
+
+        .feature-card.expanded .feature-header {
+            background: var(--card-hover);
+        }
+        
+        .feature-card.expanded .feature-expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .feature-expand-icon {
+            transition: transform 0.3s ease;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .feature-body {
+            display: none;
+            padding: 1.5rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--surface-color);
+        }
+
+        .feature-card.expanded .feature-body {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .detail-section {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .detail-label {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .detail-content {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: var(--text-primary);
+            background: var(--bg-color);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .detail-content ul {
+            padding-left: 1.5rem;
+            margin: 0;
+        }
+
+        .detail-content li {
+            margin-bottom: 0.25rem;
+        }
+        
+        .detail-content li:last-child {
+            margin-bottom: 0;
+        }
+
+        .dependencies-list {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .dependency-chip {
+            background: var(--card-hover);
+            border: 1px solid var(--border-color);
+            padding: 0.25rem 0.75rem;
+            border-radius: 16px;
+            font-size: 0.8rem;
+            font-family: monospace;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        footer {
+            background: var(--surface-color);
+            border-top: 1px solid var(--border-color);
+            padding: 2rem;
+            margin-top: auto;
+        }
+
+        .legend-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+        }
+
+        .legend-section h3 {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .legend-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 0.75rem 1rem;
+            align-items: center;
+        }
+
+        .legend-item-desc {
+            font-size: 0.9rem;
+            color: var(--text-primary);
+        }
+        
+        .instructions {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        .instructions p {
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-secondary);
+            background: var(--surface-color);
+            border-radius: 12px;
+            border: 1px dashed var(--border-color);
+        }
+        
+        .empty-state .material-symbols-outlined {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        @media (max-width: 768px) {
+            .feature-header {
+                grid-template-columns: 1fr auto auto 40px;
+            }
+            .feature-id {
+                display: none;
+            }
+            .controls-section {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .search-bar {
+                max-width: none;
+            }
+            .epic-stats {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-content">
+            <div class="title-area">
+                <h1>
+                    <span class="material-symbols-outlined" style="font-size: 2.5rem; color: var(--accent-color);">auto_awesome</span>
+                    BigQuery AIF -- Feature Backlog
+                </h1>
+                <h2>AI-first approach to BigQuery data tasks</h2>
+                <p>Transition from prototype to production-ready platform. This backlog tracks all features, enhancements, and technical debt items across the product.</p>
+            </div>
+            <div class="header-actions">
+                <a href="#" class="icon-btn" title="Return to App" onclick="window.close();">
+                    <span class="material-symbols-outlined">close</span>
+                </a>
+                <button class="icon-btn" id="themeToggle" title="Toggle Theme">
+                    <span class="material-symbols-outlined" id="themeIcon">light_mode</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div class="metrics-container" id="metricsContainer">
+        <!-- Rendered by JS -->
+    </div>
+
+    <div class="controls-section">
+        <div class="search-bar">
+            <span class="material-symbols-outlined">search</span>
+            <input type="text" id="searchInput" placeholder="Search title, story, or criteria...">
+        </div>
+        
+        <div class="filter-group" id="priorityFilters">
+            <button class="filter-btn active" data-filter="All">All</button>
+            <button class="filter-btn" data-filter="P0">P0</button>
+            <button class="filter-btn" data-filter="P1">P1</button>
+            <button class="filter-btn" data-filter="P2">P2</button>
+            <button class="filter-btn" data-filter="P3">P3</button>
+        </div>
+
+        <select class="filter-select" id="epicSelect">
+            <option value="All">All Epics</option>
+            <!-- Populated by JS -->
+        </select>
+
+        <button class="action-btn" id="toggleAllBtn">
+            <span class="material-symbols-outlined">unfold_more</span>
+            Expand All
+        </button>
+    </div>
+
+    <main id="backlogContainer">
+        <!-- Rendered by JS -->
+    </main>
+
+    <footer>
+        <div class="legend-container">
+            <div class="legend-section">
+                <h3>Priorities</h3>
+                <div class="legend-grid">
+                    <span class="badge p0">P0</span> <span class="legend-item-desc">Blocker</span>
+                    <span class="badge p1">P1</span> <span class="legend-item-desc">Core</span>
+                    <span class="badge p2">P2</span> <span class="legend-item-desc">Secondary</span>
+                    <span class="badge p3">P3</span> <span class="legend-item-desc">Nice-to-have</span>
+                </div>
+            </div>
+            <div class="legend-section">
+                <h3>Estimates</h3>
+                <div class="legend-grid">
+                    <div class="size-indicator size-s">S <div class="size-bar"></div></div> <span class="legend-item-desc">Days</span>
+                    <div class="size-indicator size-m">M <div class="size-bar"></div></div> <span class="legend-item-desc">~1-2 wks</span>
+                    <div class="size-indicator size-l">L <div class="size-bar"></div></div> <span class="legend-item-desc">Multi-week</span>
+                    <div class="size-indicator size-xl">XL <div class="size-bar"></div></div> <span class="legend-item-desc">Epic</span>
+                </div>
+            </div>
+            <div class="legend-section">
+                <h3>Instructions</h3>
+                <div class="instructions">
+                    <p><span class="material-symbols-outlined" style="font-size: 1.2rem;">touch_app</span> Click any Epic header to collapse/expand its features.</p>
+                    <p><span class="material-symbols-outlined" style="font-size: 1.2rem;">ads_click</span> Click a Feature row to view full details.</p>
+                    <p><span class="material-symbols-outlined" style="font-size: 1.2rem;">search</span> Search looks through titles, stories, and criteria.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        const backlogData = [
+            {
+                epic: "Epic 1: Query Intelligence",
+                id: "BQAIF-001", title: "Multi-turn Query Refinement", priority: "P1", size: "M",
+                story: "As a data analyst, I can refine my query results through follow-up prompts so that I iteratively drill into data without starting over.",
+                current: "Basic conversation state tracks last table/dataset. Follow-up prompts sometimes lose context.",
+                engineering: "Implement sliding-window context compression, add query dependency graph tracking, persist conversation state across page reloads.",
+                dependencies: ["BQAIF-010"],
+                criteria: ["Follow-up prompts correctly reference prior results", "Context maintained across 10+ turns", "Page reload preserves last 5 turns"]
+            },
+            {
+                epic: "Epic 1: Query Intelligence",
+                id: "BQAIF-002", title: "Query Cost Prediction & Budgeting", priority: "P2", size: "M",
+                story: "As a data analyst, I can see estimated query costs before execution and set a session budget so that I avoid surprise billing.",
+                current: "Dry-run returns byte estimates. No budget tracking.",
+                engineering: "Add session cost accumulator, warn at configurable thresholds, integrate with billing export API for historical context.",
+                dependencies: [],
+                criteria: ["Cost shown before every query execution", "Cumulative session cost displayed", "Budget warning at 80% and 100%"]
+            },
+            {
+                epic: "Epic 1: Query Intelligence",
+                id: "BQAIF-003", title: "SQL Explanation & Learning Mode", priority: "P2", size: "L",
+                story: "As a data analyst learning SQL, I can request an explanation of any generated query so that I understand what the AI built.",
+                current: "SQL shown in provenance panel. No explanation capability.",
+                engineering: "Add explainer prompt chain, annotate SQL with inline comments, build step-by-step execution plan viewer.",
+                dependencies: [],
+                criteria: ["Every query has an \"Explain\" button", "Explanation includes plain-English walkthrough and annotated SQL"]
+            },
+            {
+                epic: "Epic 1: Query Intelligence",
+                id: "BQAIF-004", title: "Query Performance Advisor", priority: "P3", size: "L",
+                story: "As a data analyst, I receive recommendations to optimize slow queries so that my jobs run faster and cost less.",
+                current: "Query plan sub-type exists in monitoring. No advisory feedback on user queries.",
+                engineering: "Parse QUERY_PLAN output, detect common anti-patterns (no partition filter, excessive shuffling, Cartesian joins), suggest alternatives.",
+                dependencies: ["BQAIF-001"],
+                criteria: ["Slow queries (>30s) trigger advisory", "At least 5 anti-pattern detectors", "Fix suggestions are actionable"]
+            },
+            {
+                epic: "Epic 2: Visualization & Dashboards",
+                id: "BQAIF-005", title: "Dashboard Sharing & Collaboration", priority: "P1", size: "L",
+                story: "As a data analyst, I can share my AI-generated dashboards with teammates via a link so that they can view and interact with the same data.",
+                current: "Dashboard builder saves to Firestore under user's account. No sharing.",
+                engineering: "Add public/private sharing toggle, generate shareable URLs with read-only tokens, add viewer auth flow, implement real-time collaborative cursors.",
+                dependencies: ["BQAIF-012"],
+                criteria: ["Share link works without sign-in for view-only", "Owner can revoke access", "Shared dashboards show real-time data"]
+            },
+            {
+                epic: "Epic 2: Visualization & Dashboards",
+                id: "BQAIF-006", title: "Chart Annotation & Commentary", priority: "P2", size: "M",
+                story: "As a data analyst, I can add annotations and notes to chart data points so that I can document insights for my team.",
+                current: "Charts render from query results. No annotation layer.",
+                engineering: "Add click-to-annotate on chart points, Firestore persistence for annotations, annotation timeline sidebar.",
+                dependencies: ["BQAIF-005"],
+                criteria: ["Click any data point to add a note", "Annotations persist across sessions", "Viewable by shared users"]
+            },
+            {
+                epic: "Epic 2: Visualization & Dashboards",
+                id: "BQAIF-007", title: "Interactive Date Range Picker for All Queries", priority: "P1", size: "S",
+                story: "As a data analyst, I can apply a date range filter to any time-series query result so that I can explore different time windows without re-prompting.",
+                current: "InteractiveWidgetView exists but only appears when the AI decides to include it.",
+                engineering: "Auto-detect date columns in results, add universal date picker overlay, re-execute parameterized SQL client-side.",
+                dependencies: [],
+                criteria: ["Date picker appears on any result with date columns", "Changing range re-runs query", "Picker supports relative ranges (last 7d, 30d, YTD)"]
+            },
+            {
+                epic: "Epic 2: Visualization & Dashboards",
+                id: "BQAIF-008", title: "Custom Chart Theming", priority: "P3", size: "S",
+                story: "As a data analyst, I can customize chart colors, fonts, and styles to match my company brand so that reports look professional.",
+                current: "Charts use default Recharts palette.",
+                engineering: "Add theme editor UI, persist theme to user preferences, apply theme to all chart types.",
+                dependencies: [],
+                criteria: ["User can change color palette, font, and background", "Theme persists across sessions", "Export charts with custom theme"]
+            },
+            {
+                epic: "Epic 3: Data Management & Quality",
+                id: "BQAIF-009", title: "Automated Data Quality Scheduling", priority: "P1", size: "L",
+                story: "As a data analyst, I can schedule recurring data quality checks on my tables so that I am alerted when data degrades.",
+                current: "8 DQ check types run on-demand. Monitoring history saves snapshots. No scheduling.",
+                engineering: "Integrate with Cloud Scheduler, build alert notification system (email + in-app), add DQ score trending dashboard.",
+                dependencies: ["BQAIF-014"],
+                criteria: ["User can schedule any DQ check hourly/daily/weekly", "Alerts fire on threshold breach", "Trend dashboard shows history"]
+            },
+            {
+                epic: "Epic 3: Data Management & Quality",
+                id: "BQAIF-010", title: "Cross-session Conversation Memory", priority: "P0", size: "L",
+                story: "As a data analyst, I need my conversation context to persist across browser sessions so that I do not lose my work when I close my tab.",
+                current: "Conversation state is in-memory only. Lost on refresh.",
+                engineering: "Serialize ConversationState to Firestore, implement hydration on load, add conversation resume UX.",
+                dependencies: [],
+                criteria: ["Closing and reopening the app resumes last conversation", "Context items (table, dataset, filters) are restored", "At least last 5 conversations are recoverable"]
+            },
+            {
+                epic: "Epic 3: Data Management & Quality",
+                id: "BQAIF-011", title: "Bulk Data Operations", priority: "P2", size: "M",
+                story: "As a data analyst, I can perform bulk INSERT, UPDATE, and DELETE operations with preview and rollback so that I can manage data safely at scale.",
+                current: "DML operations work one statement at a time with confirmation.",
+                engineering: "Add multi-statement transaction support, implement preview diff view, add undo/rollback via snapshot tables.",
+                dependencies: [],
+                criteria: ["Batch DML shows row-level diff preview", "Transactions are atomic", "Rollback available for 24 hours"]
+            },
+            {
+                epic: "Epic 3: Data Management & Quality",
+                id: "BQAIF-012", title: "Role-Based Access Control", priority: "P0", size: "XL",
+                story: "As a team admin, I can control which team members can execute queries, modify data, or view sensitive tables so that data access is governed.",
+                current: "Governance skill audits IAM policies. No in-app RBAC.",
+                engineering: "Build user roles system (viewer, analyst, admin), integrate with BigQuery IAM policies, add audit log, implement permission gates in UI.",
+                dependencies: [],
+                criteria: ["Three roles with distinct permissions", "Admin can assign roles", "All actions are audit-logged", "Sensitive tables are hidden from unauthorized users"]
+            },
+            {
+                epic: "Epic 4: Schema & Discovery",
+                id: "BQAIF-013", title: "Schema Change Detection & Alerts", priority: "P1", size: "M",
+                story: "As a data analyst, I am notified when table schemas change so that my saved queries and dashboards do not silently break.",
+                current: "Schema drift is one of the DQ check types. No proactive notifications.",
+                engineering: "Build schema snapshot comparator, integrate with Cloud Pub/Sub for real-time detection, add migration suggestion engine.",
+                dependencies: ["BQAIF-009"],
+                criteria: ["Schema changes detected within 1 hour", "Notification includes diff", "Affected saved queries are flagged"]
+            },
+            {
+                epic: "Epic 4: Schema & Discovery",
+                id: "BQAIF-014", title: "Data Catalog Integration", priority: "P2", size: "L",
+                story: "As a data analyst, I can browse and search a unified data catalog that combines BigQuery metadata with business descriptions so that I can find the right data faster.",
+                current: "Discovery skill searches across datasets. No business metadata layer.",
+                engineering: "Integrate with Data Catalog API, add business glossary CRUD, implement tag-based search, surface catalog info in schema views.",
+                dependencies: [],
+                criteria: ["Data Catalog tags visible in schema view", "Search returns business-described results", "Glossary entries editable in-app"]
+            },
+            {
+                epic: "Epic 4: Schema & Discovery",
+                id: "BQAIF-015", title: "Enhanced ER Diagram Editor", priority: "P3", size: "M",
+                story: "As a data analyst, I can edit and annotate ER diagrams generated from my schema so that I can document relationships not captured in metadata.",
+                current: "ER diagrams auto-generated from FK/naming conventions. Read-only.",
+                engineering: "Add drag-to-reposition, manual relationship drawing, annotation support, export to PNG/SVG.",
+                dependencies: [],
+                criteria: ["Nodes are draggable", "Manual relationships can be added", "Diagrams export as PNG or SVG", "Annotations persist"]
+            },
+            {
+                epic: "Epic 5: Pipeline & Automation",
+                id: "BQAIF-016", title: "Visual Pipeline Builder", priority: "P1", size: "XL",
+                story: "As a data analyst, I can build multi-step data pipelines visually using a drag-and-drop interface so that I can automate complex workflows without writing code.",
+                current: "Pipeline skill manages single scheduled queries via Data Transfer API.",
+                engineering: "Build DAG editor UI, implement step orchestration engine, add conditional branching, integrate with Cloud Workflows.",
+                dependencies: ["BQAIF-009", "BQAIF-012"],
+                criteria: ["Drag-and-drop pipeline builder", "Supports 5+ step types", "Conditional branching works", "Pipelines execute on schedule"]
+            },
+            {
+                epic: "Epic 5: Pipeline & Automation",
+                id: "BQAIF-017", title: "Data Source Connectors", priority: "P2", size: "XL",
+                story: "As a data analyst, I can import data from external sources (Google Sheets, Cloud Storage, APIs) directly through the chat interface so that I can consolidate data in BigQuery.",
+                current: "CSV upload and Google Sheets export exist. No import from external APIs.",
+                engineering: "Build connector framework, add Google Sheets import, implement API ingestion with schema inference, add Cloud Storage file browser.",
+                dependencies: [],
+                criteria: ["At least 3 data sources connectable", "Schema auto-detected", "Import progress shown in real-time"]
+            },
+            {
+                epic: "Epic 5: Pipeline & Automation",
+                id: "BQAIF-018", title: "Export Templates", priority: "P3", size: "S",
+                story: "As a data analyst, I can save and reuse export configurations so that recurring reports are generated with one click.",
+                current: "Export to CSV and Sheets works. No saved templates.",
+                engineering: "Add export template CRUD, support scheduled exports, add email delivery option.",
+                dependencies: [],
+                criteria: ["Export templates saved and listed", "One-click re-export", "Scheduled export with email delivery"]
+            },
+            {
+                epic: "Epic 6: User Experience & Platform",
+                id: "BQAIF-019", title: "Keyboard Navigation & Accessibility", priority: "P1", size: "M",
+                story: "As a data analyst using assistive technology, I can navigate and operate all features using keyboard alone so that the app meets WCAG 2.1 AA standards.",
+                current: "Basic keyboard support. Some interactive elements lack focus indicators.",
+                engineering: "Audit all components for ARIA attributes, add skip navigation, implement focus management, add screen reader announcements for dynamic content.",
+                dependencies: [],
+                criteria: ["All interactive elements reachable via Tab", "ARIA labels on all controls", "Skip-to-content link present", "Screen reader announces result updates"]
+            },
+            {
+                epic: "Epic 6: User Experience & Platform",
+                id: "BQAIF-020", title: "Mobile Responsive Layout", priority: "P2", size: "L",
+                story: "As a data analyst on the go, I can use the app on tablet and mobile devices so that I can check data while away from my desk.",
+                current: "Layout is desktop-only. Three layout modes (unified, chat-left, chat-right) all assume wide viewport.",
+                engineering: "Add responsive breakpoints, implement touch-friendly interactions, optimize chart rendering for small screens, add bottom navigation for mobile.",
+                dependencies: [],
+                criteria: ["Usable on 768px+ tablets", "Charts scale to viewport", "Touch gestures for expand/collapse", "Bottom nav on <768px"]
+            },
+            {
+                epic: "Epic 6: User Experience & Platform",
+                id: "BQAIF-021", title: "Onboarding & Guided Tour", priority: "P2", size: "M",
+                story: "As a new user, I am guided through the app features with an interactive tour so that I can start using the tool productively within minutes.",
+                current: "Welcome animation on empty state. No guided tour.",
+                engineering: "Build step-by-step tour overlay, add contextual help tooltips, create sample project with preloaded data for sandbox exploration.",
+                dependencies: [],
+                criteria: ["Tour activates on first sign-in", "Covers 5+ key features", "Can be replayed from settings", "Sample project available"]
+            },
+            {
+                epic: "Epic 6: User Experience & Platform",
+                id: "BQAIF-022", title: "Offline Query Cache", priority: "P3", size: "M",
+                story: "As a data analyst, I can view my recent query results even when offline so that I can reference data during presentations without internet.",
+                current: "Results exist only in conversation memory (in-memory).",
+                engineering: "Implement IndexedDB result cache, add cache eviction policy, build offline indicator UI, sync on reconnect.",
+                dependencies: ["BQAIF-010"],
+                criteria: ["Last 20 query results cached locally", "Viewable offline with full chart rendering", "Cache auto-evicts after 7 days"]
+            },
+            {
+                epic: "Epic 6: User Experience & Platform",
+                id: "BQAIF-023", title: "Multi-project Support", priority: "P0", size: "L",
+                story: "As a data analyst working across multiple GCP projects, I can switch between projects seamlessly and maintain separate conversation contexts so that I can work across organizational boundaries.",
+                current: "Single project picker in TopBar. Switching projects resets context.",
+                engineering: "Add project workspace tabs, persist per-project conversation history, implement cross-project query federation.",
+                dependencies: ["BQAIF-010", "BQAIF-012"],
+                criteria: ["Quick-switch between 3+ projects", "Conversation history isolated per project", "Cross-project queries supported"]
+            },
+            {
+                epic: "Epic 6: User Experience & Platform",
+                id: "BQAIF-024", title: "Performance Optimization - Large Result Sets", priority: "P1", size: "M",
+                story: "As a data analyst querying large tables, I need results to render smoothly even with 10,000+ rows so that I am not blocked by UI lag.",
+                current: "DataTable renders all rows. Performance degrades above ~1000 rows.",
+                engineering: "Implement virtual scrolling, add progressive loading, optimize Recharts rendering for large datasets, add server-side pagination.",
+                dependencies: [],
+                criteria: ["10,000 rows render in <2 seconds", "Scrolling stays at 60fps", "Charts downsample intelligently for large datasets"]
+            },
+            {
+                epic: "Epic 6: User Experience & Platform",
+                id: "BQAIF-025", title: "Prompt Templates Library", priority: "P2", size: "S",
+                story: "As a data analyst, I can browse and use pre-built prompt templates for common data tasks so that I can get started faster.",
+                current: "PromptsLibrary component exists with some quick actions.",
+                engineering: "Expand template catalog, add user-contributed templates, implement template parameters, add search and categorization.",
+                dependencies: [],
+                criteria: ["20+ built-in templates across all skill areas", "Templates accept parameters", "Users can save custom templates"]
+            }
+        ];
+
+        // State
+        let currentFilter = 'All';
+        let currentSearch = '';
+        let currentEpic = 'All';
+        let allExpanded = false;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            renderMetrics();
+            populateEpicsDropdown();
+            renderBacklog();
+            setupEventListeners();
+        });
+
+        // Theme Toggle
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        
+        themeToggle.addEventListener('click', () => {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            themeIcon.textContent = newTheme === 'dark' ? 'light_mode' : 'dark_mode';
+        });
+
+        function getEpicGroups(data) {
+            const groups = {};
+            data.forEach(item => {
+                if (!groups[item.epic]) {
+                    groups[item.epic] = [];
+                }
+                groups[item.epic].push(item);
+            });
+            return groups;
+        }
+
+        function renderMetrics() {
+            const total = backlogData.length;
+            const epicsCount = Object.keys(getEpicGroups(backlogData)).length;
+            const p0Count = backlogData.filter(i => i.priority === 'P0').length;
+            const p1Count = backlogData.filter(i => i.priority === 'P1').length;
+            const p2Count = backlogData.filter(i => i.priority === 'P2').length;
+            const p3Count = backlogData.filter(i => i.priority === 'P3').length;
+
+            const container = document.getElementById('metricsContainer');
+            container.innerHTML = `
+                <div class="metric-card">
+                    <div class="metric-value">${total}</div>
+                    <div class="metric-label">Total Items</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${epicsCount}</div>
+                    <div class="metric-label">Total Epics</div>
+                </div>
+                <div class="metric-card p0-metric">
+                    <div class="metric-value">${p0Count}</div>
+                    <div class="metric-label">P0 Blockers</div>
+                </div>
+                <div class="metric-card p1-metric">
+                    <div class="metric-value">${p1Count}</div>
+                    <div class="metric-label">P1 Core</div>
+                </div>
+                <div class="metric-card p2-metric">
+                    <div class="metric-value">${p2Count}</div>
+                    <div class="metric-label">P2 Secondary</div>
+                </div>
+                <div class="metric-card p3-metric">
+                    <div class="metric-value">${p3Count}</div>
+                    <div class="metric-label">P3 Nice-to-have</div>
+                </div>
+            `;
+        }
+
+        function populateEpicsDropdown() {
+            const select = document.getElementById('epicSelect');
+            const epics = Object.keys(getEpicGroups(backlogData));
+            
+            epics.forEach(epic => {
+                const option = document.createElement('option');
+                option.value = epic;
+                option.textContent = epic.replace('Epic ', '');
+                select.appendChild(option);
+            });
+        }
+
+        function filterData() {
+            return backlogData.filter(item => {
+                const matchPriority = currentFilter === 'All' || item.priority === currentFilter;
+                const matchEpic = currentEpic === 'All' || item.epic === currentEpic;
+                
+                const searchLower = currentSearch.toLowerCase();
+                const matchSearch = currentSearch === '' || 
+                                   item.title.toLowerCase().includes(searchLower) || 
+                                   item.story.toLowerCase().includes(searchLower) || 
+                                   item.engineering.toLowerCase().includes(searchLower) ||
+                                   item.id.toLowerCase().includes(searchLower) ||
+                                   item.criteria.some(c => c.toLowerCase().includes(searchLower));
+                
+                return matchPriority && matchEpic && matchSearch;
+            });
+        }
+
+        function renderBacklog() {
+            const container = document.getElementById('backlogContainer');
+            const filteredData = filterData();
+            
+            if (filteredData.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <span class="material-symbols-outlined">search_off</span>
+                        <h2>No features match your criteria</h2>
+                        <p>Try adjusting your search or filters.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const groups = getEpicGroups(filteredData);
+            let html = '';
+
+            for (const [epicName, items] of Object.entries(groups)) {
+                // Calculate priority distribution for the bar
+                const total = items.length;
+                const p0Pct = (items.filter(i => i.priority === 'P0').length / total) * 100;
+                const p1Pct = (items.filter(i => i.priority === 'P1').length / total) * 100;
+                const p2Pct = (items.filter(i => i.priority === 'P2').length / total) * 100;
+                const p3Pct = (items.filter(i => i.priority === 'P3').length / total) * 100;
+
+                const isExpanded = allExpanded || currentSearch !== '' || currentFilter !== 'All';
+                
+                html += `
+                    <div class="epic-section ${isExpanded ? 'expanded' : ''}">
+                        <div class="epic-header" onclick="this.parentElement.classList.toggle('expanded')">
+                            <div class="epic-title">
+                                ${epicName}
+                                <span class="epic-badge">${items.length} items</span>
+                            </div>
+                            <div class="epic-stats">
+                                <div class="priority-bar">
+                                    <div class="priority-segment p0" style="width: ${p0Pct}%"></div>
+                                    <div class="priority-segment p1" style="width: ${p1Pct}%"></div>
+                                    <div class="priority-segment p2" style="width: ${p2Pct}%"></div>
+                                    <div class="priority-segment p3" style="width: ${p3Pct}%"></div>
+                                </div>
+                                <span class="material-symbols-outlined expand-icon">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="epic-content">
+                `;
+
+                items.forEach(item => {
+                    html += `
+                        <div class="feature-card ${allExpanded ? 'expanded' : ''}">
+                            <div class="feature-header" onclick="this.parentElement.classList.toggle('expanded')">
+                                <span class="feature-id">${item.id}</span>
+                                <span class="feature-title">${item.title}</span>
+                                <span class="badge ${item.priority.toLowerCase()}">${item.priority}</span>
+                                <div class="size-indicator size-${item.size.toLowerCase()}">${item.size} <div class="size-bar"></div></div>
+                                <span class="feature-expand-icon">
+                                    <span class="material-symbols-outlined">expand_more</span>
+                                </span>
+                            </div>
+                            <div class="feature-body">
+                                <div class="detail-section">
+                                    <span class="detail-label"><span class="material-symbols-outlined">person</span> User Story</span>
+                                    <div class="detail-content">${item.story}</div>
+                                </div>
+                                
+                                <div class="detail-section">
+                                    <span class="detail-label"><span class="material-symbols-outlined">build</span> Engineering Work</span>
+                                    <div class="detail-content">
+                                        <p><strong>Current State:</strong> ${item.current}</p>
+                                        <p style="margin-top: 0.5rem;"><strong>Work required:</strong> ${item.engineering}</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="detail-section">
+                                    <span class="detail-label"><span class="material-symbols-outlined">fact_check</span> Acceptance Criteria</span>
+                                    <div class="detail-content">
+                                        <ul>
+                                            ${item.criteria.map(c => `<li>${c}</li>`).join('')}
+                                        </ul>
+                                    </div>
+                                </div>
+                                
+                                ${item.dependencies.length > 0 ? `
+                                <div class="detail-section">
+                                    <span class="detail-label"><span class="material-symbols-outlined">link</span> Dependencies</span>
+                                    <div class="dependencies-list">
+                                        ${item.dependencies.map(d => `<span class="dependency-chip"><span class="material-symbols-outlined" style="font-size: 14px;">tag</span>${d}</span>`).join('')}
+                                    </div>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function setupEventListeners() {
+            // Priority filters
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    currentFilter = e.target.getAttribute('data-filter');
+                    renderBacklog();
+                });
+            });
+
+            // Epic filter
+            document.getElementById('epicSelect').addEventListener('change', (e) => {
+                currentEpic = e.target.value;
+                renderBacklog();
+            });
+
+            // Search
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                currentSearch = e.target.value;
+                renderBacklog();
+            });
+
+            // Expand All
+            document.getElementById('toggleAllBtn').addEventListener('click', (e) => {
+                allExpanded = !allExpanded;
+                const btn = e.currentTarget;
+                if (allExpanded) {
+                    btn.innerHTML = '<span class="material-symbols-outlined">unfold_less</span> Collapse All';
+                    document.querySelectorAll('.epic-section').forEach(el => el.classList.add('expanded'));
+                    document.querySelectorAll('.feature-card').forEach(el => el.classList.add('expanded'));
+                } else {
+                    btn.innerHTML = '<span class="material-symbols-outlined">unfold_more</span> Expand All';
+                    document.querySelectorAll('.epic-section').forEach(el => el.classList.remove('expanded'));
+                    document.querySelectorAll('.feature-card').forEach(el => el.classList.remove('expanded'));
+                }
+            });
+        }
+    </script>
+</body>
+</html>

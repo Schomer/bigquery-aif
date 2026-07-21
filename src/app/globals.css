@@ -935,6 +935,12 @@ details>summary::marker {
   user-select: none;
 }
 
+.gc-kebab-menu-divider {
+  height: 1px;
+  background: var(--gc-border);
+  margin: 4px 0;
+}
+
 /* Toggle switch */
 .gc-toggle-switch {
   position: relative;
