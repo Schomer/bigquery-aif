@@ -707,7 +707,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
 
   // Context menu
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
-  const [moveSubMenuOpen, setMoveSubMenuOpen] = useState(false);
+
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Drag and drop
@@ -765,7 +765,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
     function handleClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpenId(null);
-        setMoveSubMenuOpen(false);
       }
     }
     if (menuOpenId) {
@@ -821,7 +820,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
     setRenameValue(currentName);
     setRenameType(type);
     setMenuOpenId(null);
-    setMoveSubMenuOpen(false);
   }
 
   async function commitRename() {
@@ -898,7 +896,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
   // Move to space
   async function handleMoveToSpace(artifactId: string, spaceId: string | undefined) {
     setMenuOpenId(null);
-    setMoveSubMenuOpen(false);
     try {
       await moveToSpace(userId, artifactId, spaceId);
       setItems((prev) => prev.map((i) => i.id === artifactId ? { ...i, spaceId } : i));
@@ -1035,7 +1032,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
         <div ref={menuRef} style={S.contextMenu} onClick={(e) => e.stopPropagation()}>
           <button
             style={S.menuItem}
-            onMouseEnter={() => setMoveSubMenuOpen(false)}
             onClick={() => startRename(id, itemName, 'space')}
           >
             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>edit</span>
@@ -1057,7 +1053,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
       <div ref={menuRef} style={S.contextMenu} onClick={(e) => e.stopPropagation()}>
         <button
           style={S.menuItem}
-          onMouseEnter={() => setMoveSubMenuOpen(false)}
           onClick={() => startRename(id, itemName, 'item')}
         >
           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>edit</span>
@@ -1065,43 +1060,12 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
         </button>
         <button
           style={S.menuItem}
-          onMouseEnter={() => setMoveSubMenuOpen(false)}
           onClick={() => handleDuplicate(id)}
         >
           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>content_copy</span>
           Duplicate
         </button>
-        <div style={{ position: 'relative' as const }}>
-          <button
-            style={S.menuItem}
-            onMouseEnter={() => setMoveSubMenuOpen(true)}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>drive_file_move</span>
-            Move to Space
-            <span className="material-symbols-outlined" style={{ fontSize: 14, marginLeft: 'auto' }}>chevron_right</span>
-          </button>
-          {moveSubMenuOpen && (
-            <div style={S.subMenu}>
-              <button
-                style={S.menuItem}
-                onClick={() => handleMoveToSpace(id, undefined)}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>home</span>
-                Root (no space)
-              </button>
-              {spaces.map((sp) => (
-                <button
-                  key={sp.id}
-                  style={S.menuItem}
-                  onClick={() => handleMoveToSpace(id, sp.id)}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>folder</span>
-                  {sp.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+
         {/* Visibility toggle -- only for items the current user owns */}
         {(() => {
           const item = items.find((i) => i.id === id);
@@ -1111,7 +1075,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
               <div style={S.menuDivider} />
               <button
                 style={S.menuItem}
-                onMouseEnter={() => setMoveSubMenuOpen(false)}
                 onClick={() => handleTogglePublic(item)}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
@@ -1125,7 +1088,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
         <div style={S.menuDivider} />
         <button
           style={{ ...S.menuItem, ...S.menuItemDanger }}
-          onMouseEnter={() => setMoveSubMenuOpen(false)}
           onClick={() => handleDeleteItem(id)}
         >
           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>
@@ -1167,7 +1129,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
             onClick={(e) => {
               e.stopPropagation();
               setMenuOpenId(menuOpenId === space.id ? null : space.id);
-              setMoveSubMenuOpen(false);
             }}
           >
             <span className="material-symbols-outlined">more_vert</span>
@@ -1389,7 +1350,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
                 onClick={(e) => {
                   e.stopPropagation();
                   setMenuOpenId(menuOpenId === item.id ? null : item.id);
-                  setMoveSubMenuOpen(false);
                 }}
               >
                 <span className="material-symbols-outlined">more_vert</span>
@@ -1423,7 +1383,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
               onClick={(e) => {
                 e.stopPropagation();
                 setMenuOpenId(menuOpenId === item.id ? null : item.id);
-                setMoveSubMenuOpen(false);
               }}
             >
               More
@@ -1482,7 +1441,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
             onClick={(e) => {
               e.stopPropagation();
               setMenuOpenId(menuOpenId === space.id ? null : space.id);
-              setMoveSubMenuOpen(false);
             }}
           >
             <span className="material-symbols-outlined">more_vert</span>
@@ -1545,7 +1503,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
                 onClick={(e) => {
                   e.stopPropagation();
                   setMenuOpenId(menuOpenId === item.id ? null : item.id);
-                  setMoveSubMenuOpen(false);
                 }}
               >
                 <span className="material-symbols-outlined">more_vert</span>
