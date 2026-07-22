@@ -236,6 +236,7 @@ The keyword router in `router.ts` exists as a latency optimization. It is NOT th
 - **Parameter extraction happens at query-generation time, not at save time**: The `QueryResponseSchema` includes a `parameters` field that Gemini populates alongside SQL. This avoids a second LLM call when saving.
 - **Old `SavedItem` format is migrated on read**: `saved-work.ts` checks `isNewFormat()` (presence of `steps` array) and calls `migrateItem()` for legacy records. Both old and new formats coexist in the same `savedWork.{id}` Firestore location.
 - **Firestore rules must cover both `users/{uid}` and `users/{uid}/{document=**}`**: The `savedWork` map is stored on the root `/users/{uid}` document. The recursive wildcard `{document=**}` matches one or more path segments (subcollections), NOT the root document itself. Both rules are required in `firestore.rules`.
+- **All Firestore `setDoc`/`updateDoc` calls must use `stripUndefined()`**: Firebase SDK v9+ throws on `undefined` field values (unless `ignoreUndefinedProperties` is configured, which it is NOT in this project). The `stripUndefined()` helper in `saved-work.ts` recursively removes `undefined` keys. Always use it before writing to Firestore.
 - **The page key for saved items is `'spaces'`** (renamed from `'saved'`): Updated in SideNav, page.tsx, page-context.tsx, and all hide-list conditions. The component export is `SpacesPage` from `SavedPage.tsx`.
 - **Spaces are stored in `users/{uid}/spaces/{id}`**: Each space is a `{ id, name, createdAt, updatedAt }` object. Deleting a space moves its items back to root (spaceId = undefined), not deleted.
 - **`SavedArtifact.spaceId` is optional**: Items not in a space have `spaceId` as undefined. Items in a space store the space's ID.
@@ -270,3 +271,12 @@ The keyword router in `router.ts` exists as a latency optimization. It is NOT th
 - **viz-intent.ts EXPLICIT_INTENT_MAP is first-match-wins**: The array is ordered so that explicit named chart types (BAR_CHART, COLUMN_CHART, etc.) appear before geographic patterns (WORLD_MAP, USA_MAP). A prompt like "show population for each country as a bar chart" matches COLUMN_CHART first and returns before reaching WORLD_MAP. Do NOT reorder the EXPLICIT_INTENT_MAP entries.
 - **Ambiguous geographic phrases are NOT explicit map requests**: Phrases like "by country", "by state", "each country" indicate categorical grouping (like "by month" or "by year"), not a map visualization. They must NOT appear in EXPLICIT_INTENT_MAP for USA_MAP/WORLD_MAP. Only phrases that explicitly name a map ("world map", "show on a map", "choropleth") should trigger map intent. Geographic data gets a bar/column chart by default; the map is available via the UI toggle.
 - **Map toggle appears when geographic columns are detected**: The Chart/Table segmented control in both ArtifactCard and InteractiveWidgetView shows a third "Map" option when `classifyColumns()` detects `geo-state` or `geo-country` roles. The map type (USA_MAP vs WORLD_MAP) is determined by `detectChoroplethType()`.
+
+---
+
+## Widget Auto-Construction (`tryAutoConstructWidget`)
+
+- **Schema-driven, not keyword-driven**: The fallback widget builder in `handle-query.ts` uses only query structure (presence of a WHERE clause) and column types (DATE/TIMESTAMP/numeric) to decide whether to auto-add a filter dropdown. It does NOT use keyword matching, phrase lists, or regex against the user's message. This is a hard rule -- do not add keyword or phrase detection.
+- **Fires only when no WHERE clause exists**: If the LLM's SQL already has a WHERE clause, auto-construction is skipped. A query that already filters on something doesn't need an additional filter injected.
+- **Column type priority**: DATE/TIMESTAMP columns are preferred over numeric columns as filter candidates. This matches the most common exploration pattern (filtering by time period).
+- **Tooltips in map views use React Portal**: `ChoroplethTooltip` renders via `createPortal(... , document.body)`. Inline rendering breaks when ancestor elements have CSS `transform` or `overflow: hidden`.

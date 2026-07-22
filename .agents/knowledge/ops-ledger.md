@@ -4,20 +4,28 @@
 
 **Context**: User reported clicking the save button on an artifact in the output, filling in the SaveModal, and clicking Save, but the item not appearing in the content library (Content > All or Content > Queries).
 
-**Root cause**: Firestore security rules. The rule `match /users/{uid}/{document=**}` uses a recursive wildcard that matches **one or more** path segments after `/users/{uid}/`. This covers subcollections like `/users/{uid}/spaces/{id}` but does NOT match the root `/users/{uid}` document itself. The `saveArtifact` function writes to `doc(db, 'users', userId)` (the root document), so every write was silently denied by Firestore. The error was caught in a `catch(err)` block that only called `console.error` -- invisible to the user.
+**Root cause**: Firestore SDK v9+ throws `FirebaseError: Function setDoc() called with invalid data. Unsupported field value: undefined` when any field in the written object has an `undefined` value. The `handleSaveConfirm` function passed several potentially-undefined fields:
+- `project: activeProject || undefined` (explicitly undefined)
+- `cachedSql: env.provenance?.sql` (undefined when no SQL)
+- `visualizationType: env.primaryArtifact?.type` (undefined when missing)
+- `parameters: env.extractedParameters` (undefined when no params on step)
 
-**Secondary issue**: `handleSaveConfirm` used `saveModalState` (a React state variable) inside a `useCallback` closure. While the ref-based fix was applied to avoid potential stale closure issues, the diagnostic `window.alert` confirmed the closure was actually working correctly (user=true, modal=true, envelope=true). The real failure was the Firestore write itself.
+The Firestore `setDoc` call threw on these undefined values. The error was caught by `catch(err)` which only called `console.error` -- invisible to the user. The modal closed, giving the false impression the save succeeded.
+
+**Additional fix**: Firestore security rules used `match /users/{uid}/{document=**}` which did not cover the root `/users/{uid}` document. Split into `match /users/{uid}` + nested `match /{document=**}`.
 
 **Fix applied**:
-1. `firestore.rules`: Split the rule into `match /users/{uid}` (covers root document) and nested `match /{document=**}` (covers subcollections). Both require `auth.uid == uid`.
-2. `handleSaveConfirm`: Uses `saveModalRef` for reliable state access. Shows chat error messages on failure instead of silent `console.error`.
+1. `saved-work.ts`: Added `stripUndefined()` helper that recursively removes keys with `undefined` values from objects/arrays. Applied to `saveArtifact`, `updateArtifact`, and `publishArtifact` before any `setDoc` call.
+2. `firestore.rules`: Split rule to cover both root document and subcollections.
+3. `handleSaveConfirm`: Uses `saveModalRef` for reliable state access. Shows chat error messages on failure.
 
 **Rules derived**:
-- Firestore's `{document=**}` wildcard matches **one or more** segments, not zero. `match /collection/{id}/{document=**}` does NOT match `/collection/{id}` itself. Always add a separate rule for the root document if data is stored there.
-- Never catch Firestore write errors silently. User-facing operations must surface errors visibly.
-- When debugging "nothing happens" bugs, add a visible diagnostic (e.g., `window.alert`) early to narrow the failure point before theorizing.
+- **Always strip undefined values before Firestore writes.** The `stripUndefined()` helper in `saved-work.ts` must be used on any object passed to `setDoc()` or `updateDoc()`. Firebase SDK v9+ does not have `ignoreUndefinedProperties` enabled by default.
+- Firestore's `{document=**}` wildcard matches one or more segments, not zero. Always add a separate rule for the root document.
+- Never catch Firestore write errors silently. User-facing operations must surface errors.
 
 ---
+
 
 
 
@@ -33,13 +41,13 @@
 **Changes**:
 - `src/components/charts/map-charts.tsx`: Render `ChoroplethTooltip` via `createPortal(... , document.body)` so it escapes all ancestor positioning/overflow constraints.
 - `public/skills/query.md`: Added concrete WIDGET_SPEC example for "population by country with a year filter" (DROPDOWN, INT64 year, BAR_CHART). Added rule: "NEVER fabricate or invent aggregate categories the data does not contain."
-- `src/lib/skills/handle-query.ts`: Added `tryAutoConstructWidget()` fallback. When the user asks for a filter (detected via phrase matching) but the LLM doesn't produce a WIDGET_SPEC block, the code auto-constructs a DROPDOWN widget by: detecting the filter column from the user's message + table schema, extracting the table reference from the executed SQL, building parameterized SQL with the filter WHERE clause, fetching distinct values via optionsSql, and returning a full InteractiveWidgetData envelope.
+- `src/lib/skills/handle-query.ts`: Added `tryAutoConstructWidget()` fallback using schema-driven heuristics. When the LLM produces a query with no WHERE clause and the table schema contains a DATE/TIMESTAMP or numeric column, the code auto-constructs a DROPDOWN widget -- no keyword or phrase matching involved. It extracts the table reference from the executed SQL, builds parameterized SQL with a WHERE clause, fetches distinct values via optionsSql, and returns a full InteractiveWidgetData envelope.
 
 **Rules derived**:
 - Tooltips using `position: fixed` must be rendered via React Portal when they live inside scrollable/clipped/animated containers.
 - The LLM prompt must explicitly forbid fabricating data. "Query real columns and return real values" is now an explicit rule.
 - Concrete examples in skill docs improve LLM compliance but are not sufficient alone. Critical output formats (like WIDGET_SPEC) need code-level fallbacks.
-- When the LLM fails to produce a structured format, the code should detect intent and auto-construct the expected output from available data (SQL, schema, captured results).
+- Never use keyword or phrase matching to detect user intent for features. Schema-driven heuristics (checking query structure + column types) are deterministic and work regardless of how the user phrases their request.
 
 ---
 
