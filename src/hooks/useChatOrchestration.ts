@@ -1290,10 +1290,9 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
   }, []);
 
   const handleSaveConfirm = useCallback(async (name: string, description: string, tags: string[]) => {
-    // Read from ref to avoid stale closure -- saveModalState captured in the
-    // useCallback dependency array can lag behind the actual React state when
-    // the SaveModal renders before React flushes the updated callback to it.
+    // DEBUG: temporary alert to diagnose save flow
     const modal = saveModalRef.current;
+    window.alert(`handleSaveConfirm called.\nname=${name}\nuser=${!!user}\nmodal=${!!modal}\nenvelope=${!!modal?.envelope}`);
     if (!user || !modal?.envelope) {
       console.error('Save aborted: user or envelope missing', { user: !!user, envelope: !!modal?.envelope });
       return;

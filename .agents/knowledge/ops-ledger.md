@@ -2,23 +2,28 @@
 
 ## 2026-07-22: Save button on artifact output not persisting to content library
 
-**Context**: User reported clicking the save button on an artifact in the output, filling in the SaveModal, and clicking Save, but the item not appearing in the content library.
+**Context**: User reported clicking the save button on an artifact in the output, filling in the SaveModal, and clicking Save, but the item not appearing in the content library. No confirmation or error message appeared in chat after saving.
 
-**Investigation**:
-- The save flow is: save icon click -> `saveEnvelopeAsArtifact` opens SaveModal -> user fills form -> `handleSaveConfirm` calls `saveArtifact` -> Firestore write to `users/{uid}/savedWork.{id}`.
-- `handleSaveConfirm` had a `catch(err)` block that only called `console.error`. The modal was closed unconditionally (`setSaveModalState(null)` outside try/catch), so the user never saw whether the save succeeded or failed.
-- The early return guard `if (!user || !saveModalState?.envelope) return;` was also completely silent.
+**Root cause**: Stale closure. `handleSaveConfirm` was a `useCallback` with `saveModalState` in its dependency array. The sequence was:
+1. User clicks save icon -> `saveEnvelopeAsArtifact` calls `setSaveModalState({...envelope...})`
+2. React schedules re-render
+3. SaveModal renders and captures `onSave={chat.handleSaveConfirm}`
+4. But the `handleSaveConfirm` captured by the SaveModal still had the **pre-update** `saveModalState` (null) in its closure
+5. User clicks Save in modal -> `handleSaveConfirm` runs -> `saveModalState?.envelope` is null -> early return
+
+Additionally, `handleSaveConfirm` had silent error handling: the `catch(err)` block only called `console.error`, and the early return guard had no user feedback at all.
 
 **Fix applied**:
-- `handleSaveConfirm` now shows a "Failed to save" chat message on error (with the actual error text).
-- The early return guard now logs the failure condition.
-- Modal close (`setSaveModalState(null)`) moved inside the try/catch branches so it always closes but the user gets feedback.
+1. Added `saveModalRef = useRef(saveModalState)` that syncs on every render (`saveModalRef.current = saveModalState`). `handleSaveConfirm` now reads from `saveModalRef.current` instead of the closure-captured `saveModalState`. Removed `saveModalState` from the `useCallback` dependency array.
+2. Error handling now shows a chat message on failure ("Failed to save 'X': [error]").
+3. The early return guard now logs which condition failed.
 
 **Rules derived**:
-- Never catch errors silently in user-facing operations. If a Firestore write can fail, the user must see an error message, not a silently-closing modal.
-- Early returns on guard conditions should at minimum log a diagnostic message.
+- When a `useCallback` needs to read state that changes between the callback's creation and its invocation (e.g., state set by one function, read by a callback passed to the same modal), use a ref to avoid stale closures. This is the standard React pattern for callbacks that need "latest state."
+- Never catch errors silently in user-facing operations. If a Firestore write fails, the user must see an error message.
 
 ---
+
 
 ## 2026-07-21: Fix map tooltip, missing year filter, and invented region data
 
