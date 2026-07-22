@@ -91,8 +91,6 @@ function sortItems(items: SavedArtifact[], mode: SortMode): SavedArtifact[] {
 const S = {
   container: {
     width: '100%',
-    maxWidth: 1200,
-    margin: '0 auto',
     padding: '32px 24px',
     fontFamily: "'Google Sans', sans-serif",
   } as React.CSSProperties,
@@ -287,8 +285,8 @@ const S = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: '20px',
-    minHeight: 160,
+    padding: '12px',
+    minHeight: 110,
   } as React.CSSProperties,
 
   cardBody: {
@@ -1164,7 +1162,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
             width: '100%',
             height: '100%',
             objectFit: 'cover',
-            maxHeight: 160,
+            maxHeight: 110,
           }}
         />
       );
@@ -1188,7 +1186,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
     if (isWorkflow) {
       // Workflow: connected node diagram
       return (
-        <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 160 }}>
+        <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 110 }}>
           {/* Nodes */}
           {[40, 130, 220].map((cx, i) => (
             <g key={i}>
@@ -1221,7 +1219,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
         { x: 110, w: 120, y: 115 },
       ];
       return (
-        <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 160 }}>
+        <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 110 }}>
           {/* Grid lines */}
           {[40, 80, 120, 160, 200, 240].map((x) => (
             <line key={x} x1={x} y1={30} x2={x} y2={135} stroke={colors.light} strokeWidth={1} opacity={0.5} />
@@ -1256,7 +1254,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
         return { d: `M${xi1},${yi1} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} L${xi2},${yi2} A${ir},${ir} 0 ${large},0 ${xi1},${yi1} Z`, color: seg.color };
       });
       return (
-        <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 160 }}>
+        <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 110 }}>
           {paths.map((p, i) => <path key={i} d={p.d} fill={p.color} />)}
         </svg>
       );
@@ -1273,7 +1271,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
         const polyline = pts.map((p) => p.join(',')).join(' ');
         const areaPath = `M${pts[0][0]},140 ` + pts.map((p) => `L${p[0]},${p[1]}`).join(' ') + ` L${pts[pts.length-1][0]},140 Z`;
         return (
-          <svg viewBox="0 0 270 150" width="100%" height="100%" style={{ display: 'block', maxHeight: 160 }}>
+          <svg viewBox="0 0 270 150" width="100%" height="100%" style={{ display: 'block', maxHeight: 110 }}>
             <path d={areaPath} fill={colors.light} opacity={0.5} />
             <polyline points={polyline} fill="none" stroke={colors.primary} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
             {pts.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={4} fill={colors.primary} />)}
@@ -1283,7 +1281,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
       if (vals) {
         const barW = 24, gap = 12, baseY = 130;
         return (
-          <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 160 }}>
+          <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 110 }}>
             {vals.map((v, i) => (
               <rect key={i} x={20 + i * (barW + gap)} y={baseY - v} width={barW} height={v} rx={4}
                 fill={i % 3 === 0 ? colors.primary : i % 3 === 1 ? colors.muted : colors.light} />
@@ -1297,7 +1295,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
     // Default: table thumbnail
     const rowCount = 4;
     return (
-      <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 160 }}>
+      <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 110 }}>
         {/* Header row */}
         <rect x={20} y={25} width={220} height={22} rx={4} fill={colors.primary} opacity={0.85} />
         <rect x={30} y={31} width={50} height={9} rx={3} fill="white" opacity={0.6} />
@@ -1492,9 +1490,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
         onDragStart={(e) => handleDragStart(e, item.id)}
         onDragEnd={handleDragEnd}
       >
-        <td style={{ ...S.listCell, width: 32 }}>
-          <span className="material-symbols-outlined" style={S.dragHandle}>drag_indicator</span>
-        </td>
         <td style={{ ...S.listCell, width: 32 }}>
           <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--accent, #1967d2)' }}>
             {TYPE_ICONS[item.type] || 'description'}
