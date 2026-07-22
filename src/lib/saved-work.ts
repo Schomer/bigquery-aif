@@ -128,6 +128,23 @@ function toArtifact(id: string, record: Record<string, unknown>): SavedArtifact 
 
 // ── New CRUD Operations ──────────────────────────────────────────────────────
 
+/**
+ * Recursively strip keys with `undefined` values from an object.
+ * Firestore SDK v9+ throws on undefined fields unless
+ * `ignoreUndefinedProperties` is enabled (which is NOT set in this project).
+ */
+function stripUndefined<T>(obj: T): T {
+  if (obj === null || obj === undefined || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(stripUndefined) as unknown as T;
+  const clean: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    if (v !== undefined) {
+      clean[k] = typeof v === 'object' && v !== null ? stripUndefined(v) : v;
+    }
+  }
+  return clean as T;
+}
+
 export async function saveArtifact(
   userId: string,
   artifact: Omit<SavedArtifact, 'id' | 'createdAt' | 'updatedAt' | 'runCount'>
@@ -141,8 +158,9 @@ export async function saveArtifact(
     updatedAt: now,
     runCount: 0,
   };
+  const sanitized = stripUndefined(saved);
   await setDoc(userDoc(userId), {
-    savedWork: { [id]: saved },
+    savedWork: { [id]: sanitized },
   }, { merge: true });
   return id;
 }
@@ -188,8 +206,9 @@ export async function updateArtifact(
     id: artifactId,
     updatedAt: nowISO(),
   };
+  const sanitized = stripUndefined(updated);
   await setDoc(userDoc(userId), {
-    savedWork: { [artifactId]: updated },
+    savedWork: { [artifactId]: sanitized },
   }, { merge: true });
 }
 
@@ -261,7 +280,7 @@ export async function publishArtifact(
     sharedAt: nowISO(),
   };
   // Write the shared copy first, then update the owner's record
-  await setDoc(sharedDoc(artifactId), sharedCopy);
+  await setDoc(sharedDoc(artifactId), stripUndefined(sharedCopy));
   await updateArtifact(userId, artifactId, { isPublic: true, ownerEmail });
 }
 
