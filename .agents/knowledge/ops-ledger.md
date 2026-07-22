@@ -1,5 +1,25 @@
 # Operations Ledger
 
+## 2026-07-22: Save button on artifact output not persisting to content library
+
+**Context**: User reported clicking the save button on an artifact in the output, filling in the SaveModal, and clicking Save, but the item not appearing in the content library.
+
+**Investigation**:
+- The save flow is: save icon click -> `saveEnvelopeAsArtifact` opens SaveModal -> user fills form -> `handleSaveConfirm` calls `saveArtifact` -> Firestore write to `users/{uid}/savedWork.{id}`.
+- `handleSaveConfirm` had a `catch(err)` block that only called `console.error`. The modal was closed unconditionally (`setSaveModalState(null)` outside try/catch), so the user never saw whether the save succeeded or failed.
+- The early return guard `if (!user || !saveModalState?.envelope) return;` was also completely silent.
+
+**Fix applied**:
+- `handleSaveConfirm` now shows a "Failed to save" chat message on error (with the actual error text).
+- The early return guard now logs the failure condition.
+- Modal close (`setSaveModalState(null)`) moved inside the try/catch branches so it always closes but the user gets feedback.
+
+**Rules derived**:
+- Never catch errors silently in user-facing operations. If a Firestore write can fail, the user must see an error message, not a silently-closing modal.
+- Early returns on guard conditions should at minimum log a diagnostic message.
+
+---
+
 ## 2026-07-21: Fix map tooltip, missing year filter, and invented region data
 
 **Context**: User prompted "show population by country in a bar chart with a year filter" and saw three bugs: (1) map tooltip appeared in the bottom-left corner instead of following the mouse, (2) chart view had no year filter dropdown despite "with a year filter" in the prompt, (3) results showed invented aggregate categories ("World", "Asia", "Upper-middle-income countries") that don't exist in the table data.

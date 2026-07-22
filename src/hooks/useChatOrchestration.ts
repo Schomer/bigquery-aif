@@ -153,6 +153,8 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     defaultName: string;
     defaultDescription: string;
   } | null>(null);
+  const saveModalRef = useRef(saveModalState);
+  saveModalRef.current = saveModalState;
   const [saveCount, setSaveCount] = useState(0);
 
   // Refs
@@ -1288,11 +1290,15 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
   }, []);
 
   const handleSaveConfirm = useCallback(async (name: string, description: string, tags: string[]) => {
-    if (!user || !saveModalState?.envelope) {
-      console.error('Save aborted: user or envelope missing', { user: !!user, envelope: !!saveModalState?.envelope });
+    // Read from ref to avoid stale closure -- saveModalState captured in the
+    // useCallback dependency array can lag behind the actual React state when
+    // the SaveModal renders before React flushes the updated callback to it.
+    const modal = saveModalRef.current;
+    if (!user || !modal?.envelope) {
+      console.error('Save aborted: user or envelope missing', { user: !!user, envelope: !!modal?.envelope });
       return;
     }
-    const env = saveModalState.envelope;
+    const env = modal.envelope;
     const step: ArtifactStep = {
       id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36),
       order: 0,
@@ -1305,7 +1311,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     try {
       await saveArtifact(user.uid, {
         userId: user.uid,
-        type: saveModalState.type,
+        type: modal.type,
         name,
         description,
         steps: [step],
@@ -1332,7 +1338,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       ]);
       setSaveModalState(null);
     }
-  }, [user, saveModalState, activeProject]);
+  }, [user, activeProject]);
 
   const saveChatAsWorkflow = useCallback(async (name: string, description: string, tags: string[]) => {
     if (!user) return;
