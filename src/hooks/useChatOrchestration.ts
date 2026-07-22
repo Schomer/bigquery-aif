@@ -1288,7 +1288,10 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
   }, []);
 
   const handleSaveConfirm = useCallback(async (name: string, description: string, tags: string[]) => {
-    if (!user || !saveModalState?.envelope) return;
+    if (!user || !saveModalState?.envelope) {
+      console.error('Save aborted: user or envelope missing', { user: !!user, envelope: !!saveModalState?.envelope });
+      return;
+    }
     const env = saveModalState.envelope;
     const step: ArtifactStep = {
       id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36),
@@ -1318,10 +1321,17 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
         ...prev,
         { role: 'assistant', content: `Saved "${name}" to your library.`, timestamp: now, envelopes: [] },
       ]);
+      setSaveModalState(null);
     } catch (err) {
       console.error('Failed to save artifact:', err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const now = new Date().toISOString();
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: `Failed to save "${name}": ${errMsg}`, timestamp: now, envelopes: [] },
+      ]);
+      setSaveModalState(null);
     }
-    setSaveModalState(null);
   }, [user, saveModalState, activeProject]);
 
   const saveChatAsWorkflow = useCallback(async (name: string, description: string, tags: string[]) => {
