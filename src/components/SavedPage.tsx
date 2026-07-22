@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { SavedArtifact, SavedArtifactType, Space } from '@/lib/types';
+import { ThreadReplayView } from '@/components/ThreadReplayView';
 import {
   getArtifacts,
   deleteArtifact,
@@ -89,6 +90,7 @@ function sortItems(items: SavedArtifact[], mode: SortMode): SavedArtifact[] {
 
 const S = {
   container: {
+    width: '100%',
     maxWidth: 1200,
     margin: '0 auto',
     padding: '32px 24px',
@@ -691,6 +693,9 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
   const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilter>('all');
 
+  // Thread replay view
+  const [replayArtifact, setReplayArtifact] = useState<SavedArtifact | null>(null);
+
   // Space navigation
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
 
@@ -1148,6 +1153,23 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
   // ── Render: artifact thumbnail ────────────────────────────────────────────
 
   function renderThumbnail(item: SavedArtifact) {
+    // Prefer captured screenshot thumbnail over procedural SVG
+    if (item.thumbnailUrl) {
+      return (
+        <img
+          src={item.thumbnailUrl}
+          alt=""
+          style={{
+            display: 'block',
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            maxHeight: 160,
+          }}
+        />
+      );
+    }
+
     const vizType = item.steps?.[0]?.visualizationType || '';
     const isChart = /LINE_CHART|BAR_CHART|AREA_CHART|COLUMN_CHART|SCATTER|HISTOGRAM|SPARKLINE/.test(vizType);
     const isPie = /PIE_CHART|DONUT_CHART/.test(vizType);
@@ -1376,7 +1398,13 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
 
         {/* Footer: action buttons + delete */}
         <div style={S.cardFooter}>
-          <button style={S.outlineBtn} onClick={() => onRun(item)}>Open</button>
+          <button style={S.outlineBtn} onClick={() => {
+            if (item.chatMessages && item.chatMessages.length > 0) {
+              setReplayArtifact(item);
+            } else {
+              onRun(item);
+            }
+          }}>Open</button>
           {item.userId === userId && (
             <button
               style={S.outlineBtn}
@@ -1646,6 +1674,19 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
     pipeline: 'Pipelines',
     app: 'Apps',
   };
+
+  // If viewing a thread replay, show that instead of the catalog
+  if (replayArtifact && replayArtifact.chatMessages) {
+    return (
+      <div style={S.container}>
+        <ThreadReplayView
+          name={replayArtifact.name}
+          messages={replayArtifact.chatMessages}
+          onBack={() => setReplayArtifact(null)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div style={S.container}>

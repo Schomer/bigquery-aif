@@ -27,6 +27,7 @@ import {
   nowISO,
 } from '@/lib/firestore-service';
 import { saveArtifact, recordRun } from '@/lib/saved-work';
+import html2canvas from 'html2canvas';
 
 // ---- Types ----------------------------------------------------------------
 
@@ -152,6 +153,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     type: SavedArtifactType;
     defaultName: string;
     defaultDescription: string;
+    thumbnailUrl?: string;
   } | null>(null);
   const saveModalRef = useRef(saveModalState);
   saveModalRef.current = saveModalState;
@@ -1280,6 +1282,8 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     }
     const defaultName = envelope.headline?.text?.slice(0, 80) || 'Untitled';
     const defaultDescription = envelope.insight || '';
+
+    // Open modal immediately, then capture thumbnail in the background
     setSaveModalState({
       open: true,
       envelope,
@@ -1287,6 +1291,22 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       defaultName,
       defaultDescription,
     });
+
+    // Capture screenshot of the artifact card DOM element
+    const el = document.querySelector(`[data-envelope-id="${envelope.id}"]`) as HTMLElement | null;
+    if (el) {
+      html2canvas(el, {
+        scale: 0.5,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+      }).then(canvas => {
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+        setSaveModalState(prev => prev ? { ...prev, thumbnailUrl: dataUrl } : prev);
+      }).catch(() => {
+        // Silently fail -- fallback SVG thumbnail will be used
+      });
+    }
   }, []);
 
   const handleSaveConfirm = useCallback(async (name: string, description: string, tags: string[]) => {
@@ -1317,6 +1337,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
         project: activeProject || undefined,
         tags,
         pinned: false,
+        thumbnailUrl: modal.thumbnailUrl,
       });
       setSaveCount(n => n + 1);
       // Confirm in chat
@@ -1387,7 +1408,9 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
         project: activeProject || undefined,
         tags,
         pinned: false,
+        chatMessages: messages,
       });
+      setSaveCount(n => n + 1);
       const now = new Date().toISOString();
       setMessages(prev => [
         ...prev,
@@ -1395,6 +1418,12 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       ]);
     } catch (err) {
       console.error('Failed to save workflow:', err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const now = new Date().toISOString();
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: `Failed to save workflow "${name}": ${errMsg}`, timestamp: now, envelopes: [] },
+      ]);
     }
   }, [user, messages, activeProject]);
 

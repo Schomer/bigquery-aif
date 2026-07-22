@@ -2,6 +2,22 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-22: Grid layout fix + screenshot thumbnails for saved items
+
+**Problem**: Saved items page (All, Queries, etc.) displayed cards in a single column despite having a CSS grid definition. Also, card thumbnails were procedural SVGs that didn't reflect the actual saved content.
+
+**Changes**:
+- `src/app/page.tsx` -- added `overflow: 'auto'` to the spaces page wrapper div so content scrolls and stretches properly.
+- `src/components/SavedPage.tsx` -- added `width: '100%'` to container style. Modified `renderThumbnail()` to display a stored `thumbnailUrl` image when available, falling back to the existing SVG.
+- `src/lib/types.ts` -- added optional `thumbnailUrl?: string` field to `SavedArtifact` interface.
+- `src/components/ArtifactCard.tsx` -- added `data-envelope-id` attribute to both custom and default rendering paths for DOM lookup.
+- `src/hooks/useChatOrchestration.ts` -- imported `html2canvas`. `saveEnvelopeAsArtifact()` now captures a screenshot of the artifact card element at 0.5 scale as JPEG (quality 0.6). `handleSaveConfirm()` threads `thumbnailUrl` into the persisted artifact.
+- Installed `html2canvas` npm package.
+
+**Impact**: Cards now display in a responsive multi-column grid. Newly saved items get a real screenshot of the artifact content as their thumbnail.
+
+---
+
 ## 2026-07-21: Fix map tooltip, missing filter, invented regions
 
 **Problem**: "show population by country in a bar chart with a year filter" had three bugs: (1) map tooltip showed at bottom-left instead of following the mouse, (2) chart view had no year filter despite user asking for one, (3) results contained fabricated aggregate categories ("World", "Asia", etc.).

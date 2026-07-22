@@ -189,7 +189,7 @@ export default function Home() {
 
       {/* -- Spaces page -- always mounted so sidebar nav clicks don't cause full reloads -- */}
       {user && (
-        <div style={{ display: (activePage === 'spaces' || activePage.startsWith('spaces:')) ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
+        <div style={{ display: (activePage === 'spaces' || activePage.startsWith('spaces:')) ? 'flex' : 'none', height: '100%', flexDirection: 'column', overflow: 'auto' }}>
           <SpacesPage
             userId={user.uid}
             initialTab={activePage.startsWith('spaces:') ? (activePage.slice('spaces:'.length) as import('@/lib/types').SavedArtifactType | 'all') : 'all'}

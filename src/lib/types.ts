@@ -534,6 +534,10 @@ export interface SavedArtifact {
   isPublic?: boolean;
   /** Display email of the owning user, stored so the shared gallery can render it without a user lookup. */
   ownerEmail?: string;
+  /** Base64 JPEG data URL captured from the artifact DOM at save time, used as the card thumbnail. */
+  thumbnailUrl?: string;
+  /** Full chat thread when saved via "Save as Workflow" -- preserves all messages, envelopes, charts, etc. */
+  chatMessages?: ChatMessage[];
 }
 
 /**
