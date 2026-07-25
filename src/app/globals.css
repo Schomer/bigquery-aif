@@ -901,7 +901,7 @@ details>summary::marker {
   box-shadow: 0 4px 20px rgba(0, 0, 0, .14);
   min-width: 260px;
   z-index: 200;
-  overflow: hidden;
+  overflow: auto;
   font-family: 'Google Sans', sans-serif;
   padding: 4px 0;
 }
