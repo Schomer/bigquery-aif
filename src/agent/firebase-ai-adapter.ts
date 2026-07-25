@@ -1,18 +1,24 @@
 // src/agent/firebase-ai-adapter.ts
-// ModelAdapter implementation using Firebase AI Logic SDK.
-// Wraps the existing getGenerativeModel + generateContent pattern
-// from gemini-client.ts into the adapter interface.
+// ModelAdapter implementation using direct REST calls to the Firebase Vertex AI endpoint.
+// Uses raw fetch() instead of the Firebase AI Logic SDK to preserve thought signatures
+// and other opaque fields that the SDK strips during deserialization.
 
-import { getAI, getGenerativeModel, GoogleAIBackend, FunctionCallingMode } from 'firebase/ai';
 import { app } from '../lib/firebase';
 import type { ModelAdapter, LoopContext, ToolDef, AdapterResponse, ToolCall } from './model-adapter';
 
-// ── Firebase AI singleton ─────────────────────────────────────────────────────
+// ── REST endpoint ─────────────────────────────────────────────────────────────
 
-let _ai: ReturnType<typeof getAI> | null = null;
-function getFirebaseAI() {
-  if (!_ai) _ai = getAI(app, { backend: new GoogleAIBackend() });
-  return _ai;
+function getEndpoint(): { url: string; apiKey: string } {
+  const config = app.options;
+  const apiKey = config.apiKey;
+  const projectId = config.projectId;
+  if (!apiKey || !projectId) {
+    throw new Error('Firebase config missing apiKey or projectId');
+  }
+  return {
+    url: `https://firebasevertexai.googleapis.com/v1beta/projects/${projectId}/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
+    apiKey,
+  };
 }
 
 // ── Adapter implementation ────────────────────────────────────────────────────
@@ -25,42 +31,71 @@ export class FirebaseAiLogicAdapter implements ModelAdapter {
   }
 
   async call(ctx: LoopContext, tools: ToolDef[]): Promise<AdapterResponse> {
-    const model = getGenerativeModel(getFirebaseAI(), {
-      model: this.name,
-      systemInstruction: ctx.systemPrompt,
-      tools: tools.length > 0
-        ? [{ functionDeclarations: tools }] as any
-        : undefined,
-      toolConfig: tools.length > 0
-        ? { functionCallingConfig: { mode: FunctionCallingMode.AUTO } }
-        : undefined,
+    const { url } = getEndpoint();
+
+    const body: Record<string, unknown> = {
+      contents: ctx.contents,
+      systemInstruction: { parts: [{ text: ctx.systemPrompt }] },
       generationConfig: { temperature: 0.1 },
+    };
+
+    if (tools.length > 0) {
+      body.tools = [{ functionDeclarations: tools }];
+      body.toolConfig = { functionCallingConfig: { mode: 'AUTO' } };
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     });
 
-    const result = await model.generateContent({ contents: ctx.contents } as any);
-    const response = result.response;
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `Error fetching from ${url.replace(/key=[^&]+/, 'key=***')}: ` +
+        `[${response.status}] ${errorText}`
+      );
+    }
 
-    // Check for function calls
-    const functionCalls = response.functionCalls();
-    if (!functionCalls || functionCalls.length === 0) {
-      // Final text response
+    const data = await response.json();
+
+    // Validate response structure
+    const candidate = data?.candidates?.[0];
+    if (!candidate?.content?.parts) {
+      const blockReason = data?.promptFeedback?.blockReason;
+      if (blockReason) {
+        throw new Error(`Request blocked by safety filter: ${blockReason}`);
+      }
+      throw new Error('No valid candidate in model response');
+    }
+
+    const parts: Array<Record<string, unknown>> = candidate.content.parts;
+
+    // Extract function calls from raw parts
+    const functionCallParts = parts.filter(
+      (p) => p.functionCall != null
+    );
+
+    if (functionCallParts.length === 0) {
+      // Final text response -- concatenate all text parts
+      const textParts = parts
+        .filter((p) => typeof p.text === 'string')
+        .map((p) => p.text as string);
       return {
         kind: 'final',
-        text: response.text() || '',
+        text: textParts.join(''),
       };
     }
 
-    // Build tool calls array
-    const calls: ToolCall[] = functionCalls.map(fc => ({
-      name: fc.name,
-      args: (fc.args ?? {}) as Record<string, unknown>,
-    }));
-
-    // Extract raw parts from the candidate to preserve thoughtSignature
-    // and any other opaque fields the API attaches to functionCall parts.
-    const candidate = (response as any).candidates?.[0];
-    const rawModelParts: Record<string, unknown>[] | undefined =
-      candidate?.content?.parts ?? undefined;
+    // Build tool calls array from raw parts
+    const calls: ToolCall[] = functionCallParts.map((p) => {
+      const fc = p.functionCall as { name: string; args?: Record<string, unknown> };
+      return {
+        name: fc.name,
+        args: (fc.args ?? {}) as Record<string, unknown>,
+      };
+    });
 
     // Generate a human-readable status label from the first tool call
     const statusLabel = generateStatusLabel(calls[0]);
@@ -69,21 +104,11 @@ export class FirebaseAiLogicAdapter implements ModelAdapter {
       kind: 'tool_calls',
       calls,
       statusLabel,
-      rawModelParts,
+      // Pass the ENTIRE raw parts array verbatim -- this preserves
+      // thoughtSignature, thought text, and any other opaque fields.
+      rawModelParts: parts,
     };
   }
-}
-
-// ── Adapter for raw contents extraction ───────────────────────────────────────
-
-/**
- * Extract the raw `parts` from a model response for appending to the
- * conversation contents array. This is needed because the Firebase SDK
- * response object has the parts nested in candidates.
- */
-export function extractModelParts(response: any): Record<string, unknown>[] | null {
-  const candidate = response?.candidates?.[0];
-  return candidate?.content?.parts ?? null;
 }
 
 // ── Status label generation ───────────────────────────────────────────────────
