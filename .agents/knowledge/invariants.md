@@ -202,6 +202,15 @@ The keyword router in `router.ts` exists as a latency optimization. It is NOT th
 
 ---
 
+## Agent v2 Loop (`src/agent/index.ts`)
+
+- **Every tool in the Phase 0 belt must have a corresponding envelope builder in `processWithAgentLoop()`**: Adding a tool without wiring its results to a rich envelope causes the result to fall through to `buildTextEnvelope()`, which discards all structured data. When you add a tool, add a result-to-envelope mapping.
+- **Envelope construction priority order**: confirmation (destructive SQL) > query results > schema results > text. This order matters because schema fetches are often precursors to queries -- only build a SCHEMA_VIEW when schema was the terminal action (no query was executed).
+- **Schema tool results use `fetchSchema()` for full data**: The `get_schema` and `list_resources` tools return simplified data to the LLM context. For UI composition, call `fetchSchema()` which returns the full `SchemaResult` with column schemas, usage signals, constraints, etc. The call is free because the tool already populated the internal schema cache during the loop.
+- **CONVERSATION text must render through ConversationRenderer**: Even pure conversational responses (no tools used) should use `ConversationRenderer` instead of raw text. Entity names in backticks become clickable chips. Lists of identifiers become clickable card rows.
+
+---
+
 ## Timeout & Rate Handling
 
 - **Any BigQuery query that does not return within 30 seconds must be cancelled and the user informed.** No silent hanging.

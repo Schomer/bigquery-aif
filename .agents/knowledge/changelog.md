@@ -2,6 +2,19 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-25: Reconnect schema tools to SchemaView, add ConversationRenderer
+
+**Problem**: The v2 agent loop (`src/agent/index.ts`) produced plain text CONVERSATION envelopes for all non-query responses. When the agent called `get_schema` or `list_resources` tools, the structured data was consumed by the LLM and only its prose summary reached the user. The rich SchemaView component (with ClickableRow, IconBadge, staggered animations, metadata pills, Start Here section) was unreachable through the agent path.
+
+**Root cause**: `processWithAgentLoop()` had a 3-way priority chain: confirmation → query → plain text. The "plain text" catch-all bypassed the entire composition layer for schema results.
+
+**Changes**:
+- `src/agent/index.ts` -- added schema event detection after the query check. When `get_schema` or `list_resources` tools were used (and no query was run), extracts tool args, calls `fetchSchema()` (which hits the warm cache), and routes through `compose('schema', schemaResult)` to produce a SCHEMA_VIEW envelope. Priority chain is now: confirmation → query → schema → text.
+- `src/components/chat/ConversationRenderer.tsx` -- new component that replaces raw text rendering for CONVERSATION envelopes. Parses text into paragraphs, bullet lists, backtick-wrapped entities, and bold text. Entity names in backticks render as clickable chips (pill-shaped, matching .chip design tokens). Lists of entity names render as clickable card rows (matching ClickableRow from SchemaView with icon badges and staggered animation).
+- `src/components/chat/ChatThread.tsx` -- replaced the plain text div for CONVERSATION envelopes with ConversationRenderer, passing `onInlineClick` as the send-message callback.
+
+**Impact**: "list my datasets" now produces interactive SchemaView with clickable dataset rows. "show tables in X" produces SchemaView with table rows, column counts, semantic badges. All conversational text now renders entity names as clickable chips.
+
 ## 2026-07-25: Fix recent dataset/table chips not appearing in new chat empty state
 
 **Problem**: Recent dataset/table chips stopped showing in the main area when starting a new conversation. The `getRecentDatasets()` function was reading ALL conversations from a single Firestore document on each page load, which failed silently as the document grew large.

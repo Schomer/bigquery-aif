@@ -1,5 +1,20 @@
 # Operations Ledger
 
+## 2026-07-25: Agent v2 loop producing plain text for schema operations
+
+**Context**: The v2 agent loop (`processWithAgentLoop` in `src/agent/index.ts`) produced `CONVERSATION` (plain text) envelopes for all non-query tool results. Schema operations ("list my datasets", "show tables in X") rendered as raw text bullets instead of the rich interactive SchemaView.
+
+**Root cause**: The post-loop envelope construction in `processWithAgentLoop()` only had wiring for `run_query` results (routed through `compose('query', ...)`) and destructive SQL (CONFIRMATION_CARD). Everything else fell through to `buildTextEnvelope()` which wrapped the LLM's prose summary in a bare CONVERSATION envelope. The structured data from `get_schema` and `list_resources` tool calls was consumed by the LLM during the loop but discarded for UI composition.
+
+**Fix applied**: Added a 4th priority tier in the envelope construction chain. After checking for queries (which take priority because schema fetches are often context-gathering for queries), scan events for successful `get_schema`/`list_resources` calls. Extract the tool args, call `fetchSchema()` (cache-warm from the loop), and route through `compose('schema', schemaResult)` to produce a SCHEMA_VIEW envelope. Also created `ConversationRenderer.tsx` to make remaining text responses interactive (clickable entity chips, styled entity card lists).
+
+**Derived rules**:
+- **Every new agent tool must have a corresponding envelope builder**: When adding a tool to the Phase 0 belt, also add a result-to-envelope mapping in `processWithAgentLoop()`. Defaulting to `buildTextEnvelope()` discards structured data.
+- **Query results take priority over schema results**: Schema fetches are often precursors to queries. Only build a SCHEMA_VIEW when schema was the terminal action.
+- **CONVERSATION text should never be raw**: Even pure conversational responses should render entity references as interactive elements via ConversationRenderer.
+
+---
+
 ## 2026-07-25: Recent dataset/table chips not showing in empty state
 
 **Context**: User reported that recent dataset/table chips no longer appear in the main chat area when starting a new conversation. The chips are rendered in the empty state when `activeProject && recentItems.length > 0`.

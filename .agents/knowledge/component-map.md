@@ -415,14 +415,24 @@ UI Components (src/components/)
 
 ## UI Components (`src/components/`)
 
-### `src/components/chat/ChatThread.tsx` (449 lines)
+### `src/components/chat/ChatThread.tsx` (~630 lines)
 **Responsibility**: Message rendering loop for the unified (single-pane) layout.
 - Renders user message bubbles with edit mode
 - Renders assistant envelopes via ArtifactCard
+- CONVERSATION envelopes rendered via ConversationRenderer (not raw text)
 - CrystalBallThinking indicator (rotating phrases)
 - ErrorCard for error display with retry
 - RegenerateButton for re-running prompts
 - Auto-scroll to latest message
+
+### `src/components/chat/ConversationRenderer.tsx` (~310 lines)
+**Responsibility**: Rich rendering of CONVERSATION text envelopes.
+- Parses text into segments: paragraphs, bullet lists, inline code, bold
+- EntityChip: clickable pill for backtick-wrapped entity names (datasets, tables)
+- EntityCardList: grid of clickable rows for entity lists (matching SchemaView ClickableRow style)
+- StyledList: bordered list items for non-entity bullet points
+- isEntityName: heuristic distinguishing BQ identifiers from SQL keywords and code snippets
+- Sends follow-up messages via onSendMessage when entities are clicked
 
 ### `src/components/chat/ChatInput.tsx` (191 lines)
 **Responsibility**: Reusable input component with context chips.
