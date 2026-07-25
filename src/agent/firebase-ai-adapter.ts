@@ -72,6 +72,16 @@ export class FirebaseAiLogicAdapter implements ModelAdapter {
 
     const parts: Array<Record<string, unknown>> = candidate.content.parts;
 
+    // Diagnostic: log thought signature presence on each part
+    console.log('[adapter] Raw parts from API:', parts.map((p, idx) => ({
+      idx,
+      keys: Object.keys(p),
+      hasThoughtSignature: 'thoughtSignature' in p,
+      hasThought_signature: 'thought_signature' in p,
+      hasFunctionCall: 'functionCall' in p,
+      hasText: 'text' in p,
+    })));
+
     // Extract function calls from raw parts
     const functionCallParts = parts.filter(
       (p) => p.functionCall != null
