@@ -1,5 +1,22 @@
 # Operations Ledger
 
+## 2026-07-25: Recent dataset/table chips not showing in empty state
+
+**Context**: User reported that recent dataset/table chips no longer appear in the main chat area when starting a new conversation. The chips are rendered in the empty state when `activeProject && recentItems.length > 0`.
+
+**Root cause**: `getRecentDatasets()` reads ALL conversations from a single Firestore document (`users/{uid}`) by calling `getConversations()`. As conversations accumulated (with full envelope data including query results, chart data, etc.), the document likely approached or exceeded Firestore's 1MB document size limit. The read either failed silently (swallowed by `.catch(() => {})`) or returned successfully but took too long for the user to see the chips before interacting. Additionally, the recents were only fetched once on component mount (`[user]` dependency), never refreshed after new conversations produced new envelopes.
+
+**Fix applied**:
+1. `firestore-service.ts`: Added localStorage-based cache (`hdn_recent_items`) for recent items. New functions: `getRecentItemsFromCache()` (sync read), `updateRecentItemsFromEnvelopes()` (merge new envelope data into cache). `getRecentDatasets()` now reads localStorage first (instant), falls back to Firestore mining only when localStorage is empty (one-time backfill).
+2. `page.tsx`: Initialize `recentItems` state from localStorage synchronously via `useState(() => getRecentItemsFromCache())` so chips appear immediately. Firestore backfill only runs if cache is empty. Added effect on `chat.messages` to update the cache whenever new envelopes arrive.
+
+**Derived rules**:
+- **Recent items must use localStorage, not Firestore mining**: The single-document storage model cannot support reading all conversations on every page load. localStorage gives instant access with zero network cost.
+- **Never use `.catch(() => {})` on data-loading promises**: Silent error swallowing makes bugs invisible. Always log at minimum.
+- **Single Firestore document is a scaling risk**: Everything stored in `users/{uid}` (conversations, preferences, favorites, saved work) will eventually hit the 1MB limit. Future work should migrate conversations to subcollections.
+
+---
+
 ## 2026-07-24: Gemini 3.5 Flash thought_signature 400 error
 
 **Context**: All function-calling requests started returning 400 errors: "Function call is missing a thought_signature in functionCall parts."

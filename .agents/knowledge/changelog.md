@@ -2,6 +2,16 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-25: Fix recent dataset/table chips not appearing in new chat empty state
+
+**Problem**: Recent dataset/table chips stopped showing in the main area when starting a new conversation. The `getRecentDatasets()` function was reading ALL conversations from a single Firestore document on each page load, which failed silently as the document grew large.
+
+**Changes**:
+- `src/lib/firestore-service.ts` -- added localStorage-based cache (`hdn_recent_items`) with sync read (`getRecentItemsFromCache`), incremental update (`updateRecentItemsFromEnvelopes`), and Firestore backfill fallback in `getRecentDatasets`
+- `src/app/page.tsx` -- initialize `recentItems` from localStorage synchronously; backfill from Firestore only if empty; update cache on every new assistant message with envelopes
+
+**Impact**: Recent items chips now appear instantly on page load (no Firestore round-trip). Cache updates as new queries/schemas are executed, so chips stay fresh across sessions.
+
 ## 2026-07-24: Fix thought_signature 400 error for Gemini 3.5 Flash function calling
 
 **Problem**: Gemini 3.5 Flash started requiring `thoughtSignature` on function call parts. Both adapter-based code paths (agent loop and legacy callGeminiWithTools) were synthetically reconstructing model parts from `{ name, args }`, discarding the signature.
