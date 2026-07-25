@@ -448,6 +448,10 @@ export function TopBar({ onNavToggle }: TopBarProps) {
                 <span className="gc-kebab-menu-toggle-label">Project status</span>
                 <span className="material-symbols-outlined" style={{ fontSize: 18, opacity: 0.5 }}>open_in_new</span>
               </a>
+              <div className="gc-kebab-menu-divider" />
+              <div style={{ padding: '6px 16px', fontSize: 10, opacity: 0.4, fontFamily: 'monospace' }}>
+                v2-agent-loop / build 2026-07-25T00:37
+              </div>
             </div>
           )}
         </div>
