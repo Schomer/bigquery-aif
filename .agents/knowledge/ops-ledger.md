@@ -1,5 +1,23 @@
 # Operations Ledger
 
+## 2026-07-24: Gemini 3.5 Flash thought_signature 400 error
+
+**Context**: All function-calling requests started returning 400 errors: "Function call is missing a thought_signature in functionCall parts."
+
+**Root cause**: Gemini 3.5 Flash now attaches a `thoughtSignature` field to each `functionCall` part in model responses. This signature must be echoed back in the conversation contents for the next turn. Both code paths (legacy `callGeminiWithTools` adapter path and v2 agent `loop.ts`) were synthetically reconstructing the model's function-call turn from just `{ name, args }`, discarding `thoughtSignature`.
+
+The direct SDK path in `callGeminiWithTools` (lines 284-286) already preserved raw `candidate.content.parts`, so it was unaffected. Only the adapter-based paths were broken.
+
+**Fix applied**:
+1. `model-adapter.ts`: Added optional `rawModelParts` to `AdapterResponse` `tool_calls` variant.
+2. `firebase-ai-adapter.ts`: Extract `candidate.content.parts` after `generateContent` and return as `rawModelParts`.
+3. `loop.ts`: Use `response.rawModelParts` when available instead of synthetic reconstruction.
+4. `gemini-client.ts`: Same change in the adapter path of `callGeminiWithTools`.
+
+**Derived rule**: When appending model function-call turns to the `contents` array, always use the raw parts from the API response rather than reconstructing from extracted fields. Raw parts contain opaque fields (`thoughtSignature`, etc.) that the API requires on subsequent turns. Added to invariants.
+
+---
+
 ## 2026-07-22: Save button on artifact output not persisting to content library
 
 **Context**: User reported clicking the save button on an artifact in the output, filling in the SaveModal, and clicking Save, but the item not appearing in the content library (Content > All or Content > Queries).

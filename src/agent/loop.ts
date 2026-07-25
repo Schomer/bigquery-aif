@@ -198,13 +198,19 @@ export async function runLoop(
     }
     prevCallSignature = currentSignature;
 
-    // Append model's function-call turn to contents
-    contents.push({
-      role: 'model',
-      parts: calls.map(c => ({
-        functionCall: { name: c.name, args: c.args },
-      })),
-    });
+    // Append model's function-call turn to contents.
+    // Use raw parts from the adapter (preserves thoughtSignature) when available,
+    // fall back to synthetic reconstruction for backward compatibility.
+    if (response.rawModelParts) {
+      contents.push({ role: 'model', parts: response.rawModelParts });
+    } else {
+      contents.push({
+        role: 'model',
+        parts: calls.map(c => ({
+          functionCall: { name: c.name, args: c.args },
+        })),
+      });
+    }
 
     // Determine if any calls can run in parallel (all must be read-class)
     const allRead = calls.every(c => {

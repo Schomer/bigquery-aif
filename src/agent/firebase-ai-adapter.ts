@@ -56,6 +56,12 @@ export class FirebaseAiLogicAdapter implements ModelAdapter {
       args: (fc.args ?? {}) as Record<string, unknown>,
     }));
 
+    // Extract raw parts from the candidate to preserve thoughtSignature
+    // and any other opaque fields the API attaches to functionCall parts.
+    const candidate = (response as any).candidates?.[0];
+    const rawModelParts: Record<string, unknown>[] | undefined =
+      candidate?.content?.parts ?? undefined;
+
     // Generate a human-readable status label from the first tool call
     const statusLabel = generateStatusLabel(calls[0]);
 
@@ -63,6 +69,7 @@ export class FirebaseAiLogicAdapter implements ModelAdapter {
       kind: 'tool_calls',
       calls,
       statusLabel,
+      rawModelParts,
     };
   }
 }

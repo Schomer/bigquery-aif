@@ -2,6 +2,20 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-24: Fix thought_signature 400 error for Gemini 3.5 Flash function calling
+
+**Problem**: Gemini 3.5 Flash started requiring `thoughtSignature` on function call parts. Both adapter-based code paths (agent loop and legacy callGeminiWithTools) were synthetically reconstructing model parts from `{ name, args }`, discarding the signature.
+
+**Changes**:
+- `src/agent/model-adapter.ts` -- added optional `rawModelParts` to `AdapterResponse` `tool_calls` variant
+- `src/agent/firebase-ai-adapter.ts` -- extract `candidate.content.parts` from API response and return as `rawModelParts`
+- `src/agent/loop.ts` -- use `rawModelParts` for model turn in contents instead of synthetic reconstruction
+- `src/lib/gemini-client.ts` -- same change in the adapter path of `callGeminiWithTools`
+
+**Impact**: Function calling works again with Gemini 3.5 Flash. Forward-compatible with any future opaque fields the API adds to response parts.
+
+---
+
 ## 2026-07-22: Grid layout fix + screenshot thumbnails for saved items
 
 **Problem**: Saved items page (All, Queries, etc.) displayed cards in a single column despite having a CSS grid definition. Also, card thumbnails were procedural SVGs that didn't reflect the actual saved content.

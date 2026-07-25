@@ -262,13 +262,19 @@ export async function callGeminiWithTools({
       }
       // Convert adapter tool_calls to the format expected below
       functionCalls = adapterResult.calls;
-      // Append model's function-call turn to contents (synthetic)
-      contents.push({
-        role: 'model',
-        parts: functionCalls.map(fc => ({
-          functionCall: { name: fc.name, args: fc.args ?? {} },
-        })),
-      });
+      // Append model's function-call turn to contents.
+      // Use raw parts from the adapter (preserves thoughtSignature) when available,
+      // fall back to synthetic reconstruction for backward compatibility.
+      if (adapterResult.rawModelParts) {
+        contents.push({ role: 'model', parts: adapterResult.rawModelParts });
+      } else {
+        contents.push({
+          role: 'model',
+          parts: functionCalls.map(fc => ({
+            functionCall: { name: fc.name, args: fc.args ?? {} },
+          })),
+        });
+      }
     } else {
       // Direct SDK path (original behavior)
       const result = await model!.generateContent({ contents } as any);

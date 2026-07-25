@@ -32,7 +32,7 @@ export interface LoopContext {
 // ── Adapter response discriminated union ──────────────────────────────────────
 
 export type AdapterResponse =
-  | { kind: 'tool_calls'; calls: ToolCall[]; statusLabel: string }
+  | { kind: 'tool_calls'; calls: ToolCall[]; statusLabel: string; rawModelParts?: Array<Record<string, unknown>> }
   | { kind: 'final'; text: string };
 
 // ── The adapter interface ─────────────────────────────────────────────────────
