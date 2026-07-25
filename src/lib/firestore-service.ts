@@ -218,73 +218,168 @@ export interface RecentItem {
   lastUsed: string;       // ISO timestamp
 }
 
+const RECENT_ITEMS_KEY = 'hdn_recent_items';
+const RECENT_ITEMS_LIMIT = 12;
+
+/** Read the localStorage recent-items cache. */
+export function getRecentItemsFromCache(): RecentItem[] {
+  try {
+    const raw = localStorage.getItem(RECENT_ITEMS_KEY);
+    if (raw) return JSON.parse(raw) as RecentItem[];
+  } catch { /* ignore */ }
+  return [];
+}
+
+/** Write the localStorage recent-items cache. */
+function setRecentItemsCache(items: RecentItem[]): void {
+  try {
+    localStorage.setItem(RECENT_ITEMS_KEY, JSON.stringify(items.slice(0, RECENT_ITEMS_LIMIT)));
+  } catch { /* ignore */ }
+}
+
 /**
- * Mine recent dataset/table references from saved conversations.
- * Walks each conversation's assistant envelopes to extract dataset and
- * table names from primaryArtifact.data and provenance.sql.
- * Returns up to `limit` deduplicated items, most-recently-used first.
+ * Extract dataset/table references from a set of envelopes and merge
+ * them into the localStorage cache. Returns the updated list.
+ */
+export function updateRecentItemsFromEnvelopes(
+  envelopes: import('./types').CompositionEnvelope[],
+): RecentItem[] {
+  const now = new Date().toISOString();
+  const newItems: RecentItem[] = [];
+
+  for (const env of envelopes) {
+    const data = env.primaryArtifact?.data as Record<string, unknown> | null;
+
+    // Extract dataset from artifact data
+    if (data?.dataset && typeof data.dataset === 'string') {
+      newItems.push({ type: 'dataset', name: data.dataset, lastUsed: now });
+    }
+
+    // Extract table from artifact data
+    if (data?.table && typeof data.table === 'string') {
+      const raw = (data.table as string).replace(/`/g, '');
+      const parts = raw.split('.');
+      const tableName = parts[parts.length - 1];
+      const parentDataset = parts.length >= 2 ? parts[parts.length - 2] : (data.dataset as string | undefined);
+      newItems.push({ type: 'table', name: tableName, dataset: parentDataset, lastUsed: now });
+    }
+
+    // Extract from SQL FROM clauses
+    const sql = env.provenance?.sql || (data?.sql as string | undefined);
+    if (sql && typeof sql === 'string') {
+      const fromRe = /\bFROM\s+`?([A-Za-z0-9_.-]+)`?/gi;
+      let match: RegExpExecArray | null;
+      while ((match = fromRe.exec(sql)) !== null) {
+        const parts = match[1].split('.');
+        if (parts.length >= 2) {
+          const tableName = parts[parts.length - 1];
+          const parentDs = parts[parts.length - 2];
+          // Skip INFORMATION_SCHEMA references
+          if (parentDs === 'INFORMATION_SCHEMA' || tableName === 'INFORMATION_SCHEMA') continue;
+          newItems.push({ type: 'table', name: tableName, dataset: parentDs, lastUsed: now });
+        }
+      }
+    }
+  }
+
+  if (newItems.length === 0) return getRecentItemsFromCache();
+
+  // Merge with existing cache: new items go to front, dedup by key
+  const existing = getRecentItemsFromCache();
+  const seen = new Set<string>();
+  const merged: RecentItem[] = [];
+
+  for (const item of [...newItems, ...existing]) {
+    const key = item.type === 'table'
+      ? `table:${item.dataset || ''}:${item.name}`
+      : `dataset:${item.name}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(item);
+    }
+  }
+
+  // Tables before datasets at equal priority, limit
+  const sorted = merged.slice(0, RECENT_ITEMS_LIMIT);
+  setRecentItemsCache(sorted);
+  return sorted;
+}
+
+/**
+ * Get recent dataset/table items. Reads from localStorage first (instant).
+ * Falls back to mining Firestore conversations if localStorage is empty.
  */
 export async function getRecentDatasets(uid: string, limit = 8): Promise<RecentItem[]> {
-  const convs = await getConversations(uid);
-  // Map key -> RecentItem (key deduplicates)
-  const seen = new Map<string, RecentItem>();
+  // Fast path: localStorage cache
+  const cached = getRecentItemsFromCache();
+  if (cached.length > 0) return cached.slice(0, limit);
 
-  for (const conv of convs) {
-    const ts = conv.updatedAt || conv.createdAt;
-    for (const msg of conv.messages) {
-      if (msg.role !== 'assistant' || !msg.envelopes) continue;
-      for (const env of msg.envelopes) {
-        const data = env.primaryArtifact?.data as Record<string, unknown> | null;
+  // Slow path: mine from Firestore (one-time backfill)
+  try {
+    const convs = await getConversations(uid);
+    const seen = new Map<string, RecentItem>();
 
-        // Extract dataset from artifact data
-        if (data?.dataset && typeof data.dataset === 'string') {
-          const key = `dataset:${data.dataset}`;
-          if (!seen.has(key)) {
-            seen.set(key, { type: 'dataset', name: data.dataset, lastUsed: ts });
+    for (const conv of convs) {
+      const ts = conv.updatedAt || conv.createdAt;
+      for (const msg of conv.messages) {
+        if (msg.role !== 'assistant' || !msg.envelopes) continue;
+        for (const env of msg.envelopes) {
+          const data = env.primaryArtifact?.data as Record<string, unknown> | null;
+
+          if (data?.dataset && typeof data.dataset === 'string') {
+            const key = `dataset:${data.dataset}`;
+            if (!seen.has(key)) {
+              seen.set(key, { type: 'dataset', name: data.dataset, lastUsed: ts });
+            }
           }
-        }
 
-        // Extract table from artifact data
-        if (data?.table && typeof data.table === 'string') {
-          const raw = (data.table as string).replace(/`/g, '');
-          const parts = raw.split('.');
-          const tableName = parts[parts.length - 1];
-          const parentDataset = parts.length >= 2 ? parts[parts.length - 2] : (data.dataset as string | undefined);
-          const key = `table:${parentDataset || ''}:${tableName}`;
-          if (!seen.has(key)) {
-            seen.set(key, { type: 'table', name: tableName, dataset: parentDataset, lastUsed: ts });
+          if (data?.table && typeof data.table === 'string') {
+            const raw = (data.table as string).replace(/`/g, '');
+            const parts = raw.split('.');
+            const tableName = parts[parts.length - 1];
+            const parentDataset = parts.length >= 2 ? parts[parts.length - 2] : (data.dataset as string | undefined);
+            const key = `table:${parentDataset || ''}:${tableName}`;
+            if (!seen.has(key)) {
+              seen.set(key, { type: 'table', name: tableName, dataset: parentDataset, lastUsed: ts });
+            }
           }
-        }
 
-        // Extract from SQL FROM clauses
-        const sql = env.provenance?.sql || (data?.sql as string | undefined);
-        if (sql && typeof sql === 'string') {
-          const fromRe = /\bFROM\s+`?([A-Za-z0-9_.-]+)`?/gi;
-          let match: RegExpExecArray | null;
-          while ((match = fromRe.exec(sql)) !== null) {
-            const parts = match[1].split('.');
-            if (parts.length >= 2) {
-              const tableName = parts[parts.length - 1];
-              const parentDs = parts[parts.length - 2];
-              const key = `table:${parentDs}:${tableName}`;
-              if (!seen.has(key)) {
-                seen.set(key, { type: 'table', name: tableName, dataset: parentDs, lastUsed: ts });
+          const sql = env.provenance?.sql || (data?.sql as string | undefined);
+          if (sql && typeof sql === 'string') {
+            const fromRe = /\bFROM\s+`?([A-Za-z0-9_.-]+)`?/gi;
+            let match: RegExpExecArray | null;
+            while ((match = fromRe.exec(sql)) !== null) {
+              const parts = match[1].split('.');
+              if (parts.length >= 2) {
+                const tableName = parts[parts.length - 1];
+                const parentDs = parts[parts.length - 2];
+                if (parentDs === 'INFORMATION_SCHEMA' || tableName === 'INFORMATION_SCHEMA') continue;
+                const key = `table:${parentDs}:${tableName}`;
+                if (!seen.has(key)) {
+                  seen.set(key, { type: 'table', name: tableName, dataset: parentDs, lastUsed: ts });
+                }
               }
             }
           }
         }
       }
     }
-  }
 
-  // Sort by lastUsed descending, tables before datasets at equal time, limit
-  return Array.from(seen.values())
-    .sort((a, b) => {
-      const cmp = b.lastUsed.localeCompare(a.lastUsed);
-      if (cmp !== 0) return cmp;
-      return a.type === 'table' ? -1 : 1;
-    })
-    .slice(0, limit);
+    const items = Array.from(seen.values())
+      .sort((a, b) => {
+        const cmp = b.lastUsed.localeCompare(a.lastUsed);
+        if (cmp !== 0) return cmp;
+        return a.type === 'table' ? -1 : 1;
+      })
+      .slice(0, RECENT_ITEMS_LIMIT);
+
+    // Seed localStorage for future fast reads
+    setRecentItemsCache(items);
+    return items.slice(0, limit);
+  } catch (err) {
+    console.warn('[getRecentDatasets] Firestore backfill failed:', err);
+    return [];
+  }
 }
 
 // ── Schema Baselines (for schema drift detection) ──────────────────────────

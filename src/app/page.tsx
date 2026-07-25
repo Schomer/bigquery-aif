@@ -22,6 +22,8 @@ import type { SavedArtifact } from '@/lib/types';
 import {
   getConversations,
   getRecentDatasets,
+  getRecentItemsFromCache,
+  updateRecentItemsFromEnvelopes,
   getFavoriteProjects,
 } from '@/lib/firestore-service';
 import type { RecentItem } from '@/lib/firestore-service';
@@ -80,11 +82,26 @@ export default function Home() {
   }, [activeProject]);
 
   // ---- Recent datasets/tables ----
-  const [recentItems, setRecentItems] = useState<RecentItem[]>([]);
+  // Read from localStorage synchronously so chips appear instantly on new chats.
+  // Backfill from Firestore only if localStorage is empty (first visit).
+  const [recentItems, setRecentItems] = useState<RecentItem[]>(() => getRecentItemsFromCache());
   useEffect(() => {
     if (!user) return;
-    getRecentDatasets(user.uid).then(setRecentItems).catch(() => {});
-  }, [user]);
+    if (recentItems.length > 0) return; // already have cached items
+    getRecentDatasets(user.uid).then((items) => {
+      if (items.length > 0) setRecentItems(items);
+    }).catch((err) => console.warn('[recents] Firestore backfill failed:', err));
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Update recent items cache whenever new envelopes arrive in messages
+  useEffect(() => {
+    if (chat.messages.length === 0) return;
+    const lastMsg = chat.messages[chat.messages.length - 1];
+    if (lastMsg.role === 'assistant' && lastMsg.envelopes && lastMsg.envelopes.length > 0) {
+      const updated = updateRecentItemsFromEnvelopes(lastMsg.envelopes);
+      setRecentItems(updated);
+    }
+  }, [chat.messages]);
 
   // ---- Sidebar width (split layout) ----
   const [sidebarWidth, setSidebarWidth] = useState(() => {
