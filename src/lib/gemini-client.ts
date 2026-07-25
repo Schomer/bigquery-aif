@@ -7,6 +7,15 @@ import { app } from './firebase';
 import { SKILL_NAMES } from './skills';
 import type { StatusCallback } from './types';
 import type { ModelAdapter } from '../agent/model-adapter';
+import { createAdapter } from '../agent/firebase-ai-adapter';
+
+// Lazy singleton adapter for the old pipeline (callGeminiWithTools without explicit adapter).
+// Uses the same raw-REST adapter to preserve thoughtSignature on functionCall parts.
+let _defaultAdapter: ModelAdapter | null = null;
+function createAdapterForLoop(): ModelAdapter {
+  if (!_defaultAdapter) _defaultAdapter = createAdapter();
+  return _defaultAdapter;
+}
 
 // ── Firebase AI Logic initialization ──────────────────────────────────────────
 
@@ -221,16 +230,10 @@ export async function callGeminiWithTools({
 }: CallGeminiWithToolsArgs): Promise<ToolCallResult> {
   const finalSystemInstruction = `${DATA_ASSISTANT_INSTRUCTIONS}\n\n${systemInstruction}`;
 
-  // When no adapter is provided, use the direct SDK path (original behavior).
-  // When an adapter is provided, we skip model creation here and delegate
-  // the generateContent call to the adapter in the loop body.
-  const model = adapter ? null : getGenerativeModel(getFirebaseAI(), {
-    model: GEMINI_MODEL,
-    systemInstruction: finalSystemInstruction,
-    tools: [{ functionDeclarations: toolDeclarations }] as any,
-    toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
-    generationConfig: { temperature: 0.1 },
-  });
+  // Always use the adapter for model calls. The adapter uses raw REST which
+  // preserves thoughtSignature on functionCall parts. The Firebase AI Logic SDK
+  // strips these during deserialization, causing API rejections on subsequent calls.
+  const effectiveAdapter = adapter ?? createAdapterForLoop();
 
   // Build initial contents from conversation history
   const contents: Array<Record<string, unknown>> = messages.map((m) => ({
@@ -244,54 +247,36 @@ export async function callGeminiWithTools({
   for (let i = 0; i < maxIterations; i++) {
     let functionCalls: Array<{ name: string; args?: Record<string, unknown> }> | null = null;
 
-    if (adapter) {
-      // Use the adapter for the model call
-      const adapterCtx = {
-        systemPrompt: finalSystemInstruction,
-        contents,
-        turnId: `turn_${i}`,
-      };
-      const adapterTools = toolDeclarations.map(td => ({
-        name: td.name,
-        description: td.description,
-        parameters: td.parameters as { type: string; properties: Record<string, unknown>; required: string[] },
-      }));
-      const adapterResult = await adapter.call(adapterCtx, adapterTools);
-      if (adapterResult.kind === 'final') {
-        return { textResponse: adapterResult.text, toolCalls: allToolCalls };
-      }
-      // Convert adapter tool_calls to the format expected below
-      functionCalls = adapterResult.calls;
-      // Append model's function-call turn to contents.
-      // Use raw parts from the adapter (preserves thoughtSignature) when available,
-      // fall back to synthetic reconstruction for backward compatibility.
-      if (adapterResult.rawModelParts) {
-        contents.push({ role: 'model', parts: adapterResult.rawModelParts });
-      } else {
-        contents.push({
-          role: 'model',
-          parts: functionCalls.map(fc => ({
-            functionCall: { name: fc.name, args: fc.args ?? {} },
-          })),
-        });
-      }
-    } else {
-      // Direct SDK path (original behavior)
-      const result = await model!.generateContent({ contents } as any);
-      const response = result.response;
-
-      const rawCalls = response.functionCalls();
-      if (!rawCalls || rawCalls.length === 0) {
-        return { textResponse: response.text() || '', toolCalls: allToolCalls };
-      }
-      functionCalls = rawCalls as unknown as Array<{ name: string; args?: Record<string, unknown> }>;
-
-      // Append the model's function-call turn to contents
-      const candidate = (response as any).candidates?.[0];
-      if (candidate?.content?.parts) {
-        contents.push({ role: 'model', parts: candidate.content.parts });
-      }
+    // Use the adapter for the model call
+    const adapterCtx = {
+      systemPrompt: finalSystemInstruction,
+      contents,
+      turnId: `turn_${i}`,
+    };
+    const adapterTools = toolDeclarations.map(td => ({
+      name: td.name,
+      description: td.description,
+      parameters: td.parameters as { type: string; properties: Record<string, unknown>; required: string[] },
+    }));
+    const adapterResult = await effectiveAdapter.call(adapterCtx, adapterTools);
+    if (adapterResult.kind === 'final') {
+      return { textResponse: adapterResult.text, toolCalls: allToolCalls };
     }
+    // Convert adapter tool_calls to the format expected below
+    functionCalls = adapterResult.calls;
+    // Append model's function-call turn to contents.
+    // Use raw parts from the adapter (preserves thoughtSignature).
+    if (adapterResult.rawModelParts) {
+      contents.push({ role: 'model', parts: adapterResult.rawModelParts });
+    } else {
+      contents.push({
+        role: 'model',
+        parts: functionCalls.map(fc => ({
+          functionCall: { name: fc.name, args: fc.args ?? {} },
+        })),
+      });
+    }
+
 
     // Execute each requested function call and collect responses
     // Build a context-aware status message from tool name + arguments
