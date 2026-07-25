@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useLayout, type ChatLayout } from '@/lib/layout-context';
 import { usePreferences } from '@/lib/preferences-context';
 import { getFavoriteProjects, saveFavoriteProjects } from '@/lib/firestore-service';
+import { isAgentV2Enabled, setAgentV2Enabled } from '@/agent';
 
 interface TopBarProps {
   onNavToggle: () => void;
@@ -448,6 +449,22 @@ export function TopBar({ onNavToggle }: TopBarProps) {
                 <span className="gc-kebab-menu-toggle-label">Project status</span>
                 <span className="material-symbols-outlined" style={{ fontSize: 18, opacity: 0.5 }}>open_in_new</span>
               </a>
+              <div className="gc-kebab-menu-divider" />
+              <div className="gc-kebab-menu-header">Experimental</div>
+              <label className="gc-kebab-menu-toggle" role="menuitemcheckbox" aria-checked={isAgentV2Enabled()}>
+                <span className="gc-kebab-menu-toggle-label">v2 Agent Loop</span>
+                <button
+                  className={`gc-toggle-switch${isAgentV2Enabled() ? ' gc-toggle-switch--on' : ''}`}
+                  onClick={() => {
+                    setAgentV2Enabled(!isAgentV2Enabled());
+                    setKebabMenuOpen(false);
+                    window.location.reload();
+                  }}
+                  aria-label={isAgentV2Enabled() ? 'Disable v2 agent loop' : 'Enable v2 agent loop'}
+                >
+                  <span className="gc-toggle-switch-knob" />
+                </button>
+              </label>
             </div>
           )}
         </div>
