@@ -560,3 +560,27 @@ New subsystem for autonomously resolving and executing Google Cloud data tasks.
 - 7 shortcuts: create-dataset, create-table-from-query, export-to-gcs, schedule-query, copy-table, delete-table, grant-access
 - Each shortcut builds a ResolvedPlan directly with no LLM call
 
+---
+
+## Agent v2 (src/agent/)
+
+New architecture components, behind feature flag `bqaif_agent_v2`.
+
+| File | Lines (approx) | Purpose |
+|------|----------------|--------|
+| model-adapter.ts | 50 | ModelAdapter interface (model-agnostic LLM calls) |
+| firebase-ai-adapter.ts | 120 | FirebaseAiLogicAdapter (wraps Firebase AI Logic SDK) |
+| prompts/flash.ts | 80 | Flash-optimized system prompt with injection defense |
+| step-events.ts | 150 | StepEvent protocol + emitter + StatusCallback bridge |
+| trace-recorder.ts | 165 | Trace recording for golden set evaluation |
+| context.ts | 170 | LoopContext assembly, history truncation, result summarization |
+| loop.ts | 300 | The agent loop (stall detection, interruption, gates, parallel reads) |
+| action-classes.ts | 185 | Action-class taxonomy (read/reversible/destructive) |
+| result-cache.ts | 160 | IndexedDB result store (200MB LRU) |
+| index.ts | 200 | Entry point, feature flag, processWithAgentLoop() |
+| tools/types.ts | 45 | ToolDef, ToolCall, ToolResult |
+| tools/run-query.ts | 115 | run_query tool (execute + dry_run + cache) |
+| tools/get-schema.ts | 180 | get_schema tool (project/dataset/table scope + fuzzy match) |
+| tools/list-resources.ts | 85 | list_resources tool (datasets/tables) |
+
+

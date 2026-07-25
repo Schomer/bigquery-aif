@@ -1124,3 +1124,23 @@ The first query may have worked because the function was already warm or had res
 2. Added defensive JSON parsing in `gemini-client.ts` -- both `callGemini()` and `callGeminiWithTools()` now use `res.text()` + `JSON.parse()` with a try/catch, producing a clear error message instead of "Unexpected token" if the proxy ever returns non-JSON.
 
 **Derived rule**: Cloud Functions v2 behind Firebase Hosting rewrites must use `invoker: "public"`. Firebase Hosting cannot pass IAM credentials. Application-level auth (Firebase ID token verification) is the correct security layer for these functions.
+
+---
+
+## 2026-07-24: Agent Core v2 -- Phase -1 and Phase 0 implementation
+
+**What**: Implemented the new agent-loop architecture (Phase -1 and Phase 0 from the Agent Core Design v2 spec). Created the `src/agent/` directory with ModelAdapter, FirebaseAiLogicAdapter, StepEvent protocol, trace recorder, agent loop, Phase 0 tool belt (run_query, get_schema, list_resources), action-class taxonomy, IndexedDB result cache, and feature flag integration. Also created golden set infrastructure in `eval/` (20 cases, fixture setup, runner).
+
+**What worked**: Build passes, all 96 existing tests green, adapter wired into handle-conversation.ts without disrupting existing code. Feature flag cleanly gates between old pipeline and new loop.
+
+**Build issues fixed during implementation**:
+- `guardSql` import in run-query.ts -- function doesn't exist in sql-guard.ts. Removed; destructive SQL gating happens in the loop via action-classes.ts.
+- `StepInfo.label` -- property is `text` not `label`.
+- `SchemaResult.tableName` -- property is `table` not `tableName`; `numRows`/`numBytes` -> `rowCount`/`sizeBytes`.
+- `QueryExecuteResult.totalBytesProcessed` -- doesn't exist on this type.
+- `FunctionCall.args` type `object` not assignable to `Record<string, unknown>` -- required cast through `unknown`.
+
+**Derived rules**:
+- When wrapping existing APIs in new abstractions, always check the actual type definitions before assuming property names.
+- The `callGeminiWithTools` adapter parameter is optional and backward-compatible; when absent, the original direct-SDK path runs unchanged.
+

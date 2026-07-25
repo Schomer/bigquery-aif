@@ -1777,3 +1777,36 @@ Copy this when adding a new entry:
 **Lesson learned** (if applicable):
 - [What to remember for next time]
 ```
+
+---
+
+## 2026-07-24 Session: Agent Core v2 Phase -1 and Phase 0
+
+### Phase -1: Instrumentation
+- Created `src/agent/model-adapter.ts` -- ModelAdapter interface abstracting LLM calls
+- Created `src/agent/firebase-ai-adapter.ts` -- FirebaseAiLogicAdapter wrapping Firebase AI Logic SDK
+- Created `src/agent/prompts/flash.ts` -- flash-optimized system prompt with injection defense
+- Created `src/agent/step-events.ts` -- StepEvent protocol with StatusCallback bridge
+- Created `src/agent/trace-recorder.ts` -- trace accumulator for golden set evaluation
+- Wired adapter into `handle-conversation.ts` via optional `adapter` parameter on `callGeminiWithTools`
+- Created golden set infrastructure: `eval/types.ts`, 20 case JSONs, `eval/setup-fixtures.mjs`, `eval/run.mjs`
+
+### Phase 0: The Loop
+- Created `src/agent/loop.ts` -- the agent loop with stall detection, interruption, confirmation gates, parallel read execution, context summarization, soft cap 15 / hard cap 25
+- Created `src/agent/tools/types.ts` -- ToolDef, ToolCall, ToolResult
+- Created `src/agent/tools/run-query.ts` -- SQL execution with dry-run cost estimation and IndexedDB caching
+- Created `src/agent/tools/get-schema.ts` -- unified schema access at project/dataset/table scope
+- Created `src/agent/tools/list-resources.ts` -- unified resource listing
+- Created `src/agent/action-classes.ts` -- read/reversible/destructive taxonomy for confirmation gating
+- Created `src/agent/context.ts` -- context assembly with history truncation and result summarization
+- Created `src/agent/result-cache.ts` -- IndexedDB result store with 200MB LRU eviction
+- Created `src/agent/index.ts` -- entry point, feature flag, processWithAgentLoop()
+- Added feature flag check in `chat-orchestrator.ts` (isAgentV2Enabled)
+- Added Experimental toggle in `SettingsPage.tsx`
+
+### Files modified:
+- `src/lib/gemini-client.ts` -- added optional `adapter` parameter to CallGeminiWithToolsArgs
+- `src/lib/skills/handle-conversation.ts` -- passes FirebaseAiLogicAdapter to callGeminiWithTools
+- `src/lib/chat-orchestrator.ts` -- feature flag check at top of processMessage
+- `src/components/SettingsPage.tsx` -- Experimental section with v2 toggle
+
