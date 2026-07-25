@@ -1,0 +1,12 @@
+{
+  "id": "16-latency-floor",
+  "prompt": "how many rows in golden_fixtures.orders?",
+  "setup": {
+    "requires_tables": [
+      "orders"
+    ]
+  },
+  "assert": {
+    "latency_budget_ms": 2000
+  }
+}

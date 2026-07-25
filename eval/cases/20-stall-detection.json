@@ -1,0 +1,12 @@
+{
+  "id": "20-stall-detection",
+  "prompt": "get me the metadata for table golden_fixtures.non_existent_table",
+  "setup": {
+    "induce_error": "repeated tool call"
+  },
+  "assert": {
+    "retries": {
+      "max": 3
+    }
+  }
+}

@@ -34,6 +34,9 @@ import type {
   StatusCallback,
 } from './types';
 
+// Agent v2 loop (behind feature flag)
+import { isAgentV2Enabled, processWithAgentLoop } from '../agent';
+
 // ---- Orchestrator client class ----
 
 export interface ProcessMessageArgs {
@@ -80,6 +83,31 @@ export class ChatOrchestrator {
       const project = context?.project || '';
       const envelopes = await executeConfirmedOperation(confirmed, project);
       return { envelopes };
+    }
+
+    // -- Agent v2 feature flag --
+    if (isAgentV2Enabled()) {
+      const result = await processWithAgentLoop({
+        message,
+        history,
+        context: {
+          project: context?.project,
+          dataset: context?.dataset,
+          resolvedDataset: context?.resolvedDataset,
+          availableDatasets: context?.availableDatasets,
+          lastTable: context?.lastTable,
+          lastTableSchema: context?.lastTableSchema,
+          lastSkill: context?.lastSkill,
+          lastDatasetTables: context?.lastDatasetTables,
+          uid: context?.uid,
+        },
+        onStatus,
+      });
+      return {
+        envelopes: result.envelopes,
+        skill: result.skill,
+        resolvedContext: result.resolvedContext,
+      };
     }
 
     const project = context?.project || '';

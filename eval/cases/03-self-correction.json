@@ -1,0 +1,21 @@
+{
+  "id": "03-self-correction",
+  "prompt": "select customer_name from golden_fixtures.orders",
+  "setup": {
+    "requires_tables": [
+      "orders"
+    ]
+  },
+  "assert": {
+    "retries": {
+      "max": 2
+    },
+    "tool_order": [
+      [
+        "execute_query",
+        "get_schema",
+        "execute_query"
+      ]
+    ]
+  }
+}

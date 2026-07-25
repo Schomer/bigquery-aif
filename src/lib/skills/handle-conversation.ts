@@ -11,6 +11,7 @@ import type {
   SkillName, StatusCallback, QueryResult, VisualizationType, CostTier,
 } from '../types';
 import { compose } from '../composer';
+import { createAdapter } from '../../agent/firebase-ai-adapter';
 
 // ─── Skill doc knowledge cache ───────────────────────────────────────────────
 
@@ -236,6 +237,7 @@ export async function handleConversation(
   };
 
   // Run the agent loop
+  const adapter = createAdapter();
   const agentResult = await callGeminiWithTools({
     systemInstruction: systemPrompt,
     messages,
@@ -248,6 +250,7 @@ export async function handleConversation(
     // cache in callGeminiWithTools is the real runaway guard -- identical
     // calls are never re-executed, so a high cap is safe.
     terminateAfter: ['execute_dml', 'create_dataset'],
+    adapter,
   });
 
   // Handle iteration cap gracefully -- convert to a user-friendly message

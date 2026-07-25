@@ -1,0 +1,19 @@
+{
+  "id": "01-simple-lookup",
+  "prompt": "how many rows in golden_fixtures.orders?",
+  "setup": {
+    "requires_tables": [
+      "orders"
+    ]
+  },
+  "assert": {
+    "tools_called": [
+      {
+        "name": "execute_query",
+        "max": 2
+      }
+    ],
+    "latency_budget_ms": 3000,
+    "asked_user": false
+  }
+}

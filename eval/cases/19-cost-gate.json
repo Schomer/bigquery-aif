@@ -1,0 +1,7 @@
+{
+  "id": "19-cost-gate",
+  "prompt": "select * from `bigquery-public-data.wikipedia.pageviews_2023`",
+  "assert": {
+    "gate_fired": "cost_threshold"
+  }
+}

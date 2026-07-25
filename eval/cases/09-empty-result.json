@@ -1,0 +1,17 @@
+{
+  "id": "09-empty-result",
+  "prompt": "show me orders from region 'Mars' in golden_fixtures.orders",
+  "setup": {
+    "requires_tables": [
+      "orders"
+    ]
+  },
+  "assert": {
+    "tools_called": [
+      {
+        "name": "execute_query",
+        "max": 2
+      }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "id": "10-geography-handling",
+  "prompt": "profile golden_fixtures.orders_with_geo",
+  "setup": {
+    "requires_tables": [
+      "orders_with_geo"
+    ]
+  },
+  "assert": {}
+}

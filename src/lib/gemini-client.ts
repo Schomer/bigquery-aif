@@ -6,6 +6,7 @@ import { getAI, getGenerativeModel, GoogleAIBackend, FunctionCallingMode } from 
 import { app } from './firebase';
 import { SKILL_NAMES } from './skills';
 import type { StatusCallback } from './types';
+import type { ModelAdapter } from '../agent/model-adapter';
 
 // ── Firebase AI Logic initialization ──────────────────────────────────────────
 
@@ -191,6 +192,13 @@ export interface CallGeminiWithToolsArgs {
    * after the LLM optionally decides to stop.
    */
   terminateAfter?: string[];
+  /**
+   * Optional ModelAdapter. When provided, the adapter handles the model call
+   * instead of the direct Firebase AI SDK. All loop mechanics (dedup cache,
+   * terminateAfter, contents accumulation) remain here.
+   * Used to prove the adapter interface in production (Phase -1).
+   */
+  adapter?: ModelAdapter;
 }
 
 /**
@@ -209,10 +217,14 @@ export async function callGeminiWithTools({
   onStatus,
   maxIterations = 8,
   terminateAfter,
+  adapter,
 }: CallGeminiWithToolsArgs): Promise<ToolCallResult> {
   const finalSystemInstruction = `${DATA_ASSISTANT_INSTRUCTIONS}\n\n${systemInstruction}`;
 
-  const model = getGenerativeModel(getFirebaseAI(), {
+  // When no adapter is provided, use the direct SDK path (original behavior).
+  // When an adapter is provided, we skip model creation here and delegate
+  // the generateContent call to the adapter in the loop body.
+  const model = adapter ? null : getGenerativeModel(getFirebaseAI(), {
     model: GEMINI_MODEL,
     systemInstruction: finalSystemInstruction,
     tools: [{ functionDeclarations: toolDeclarations }] as any,
@@ -230,19 +242,49 @@ export async function callGeminiWithTools({
   const callCache = new Map<string, unknown>();
 
   for (let i = 0; i < maxIterations; i++) {
-    const result = await model.generateContent({ contents } as any);
-    const response = result.response;
+    let functionCalls: Array<{ name: string; args?: Record<string, unknown> }> | null = null;
 
-    // Check for function calls
-    const functionCalls = response.functionCalls();
-    if (!functionCalls || functionCalls.length === 0) {
-      return { textResponse: response.text() || '', toolCalls: allToolCalls };
-    }
+    if (adapter) {
+      // Use the adapter for the model call
+      const adapterCtx = {
+        systemPrompt: finalSystemInstruction,
+        contents,
+        turnId: `turn_${i}`,
+      };
+      const adapterTools = toolDeclarations.map(td => ({
+        name: td.name,
+        description: td.description,
+        parameters: td.parameters as { type: string; properties: Record<string, unknown>; required: string[] },
+      }));
+      const adapterResult = await adapter.call(adapterCtx, adapterTools);
+      if (adapterResult.kind === 'final') {
+        return { textResponse: adapterResult.text, toolCalls: allToolCalls };
+      }
+      // Convert adapter tool_calls to the format expected below
+      functionCalls = adapterResult.calls;
+      // Append model's function-call turn to contents (synthetic)
+      contents.push({
+        role: 'model',
+        parts: functionCalls.map(fc => ({
+          functionCall: { name: fc.name, args: fc.args ?? {} },
+        })),
+      });
+    } else {
+      // Direct SDK path (original behavior)
+      const result = await model!.generateContent({ contents } as any);
+      const response = result.response;
 
-    // Append the model's function-call turn to contents
-    const candidate = (response as any).candidates?.[0];
-    if (candidate?.content?.parts) {
-      contents.push({ role: 'model', parts: candidate.content.parts });
+      const rawCalls = response.functionCalls();
+      if (!rawCalls || rawCalls.length === 0) {
+        return { textResponse: response.text() || '', toolCalls: allToolCalls };
+      }
+      functionCalls = rawCalls as unknown as Array<{ name: string; args?: Record<string, unknown> }>;
+
+      // Append the model's function-call turn to contents
+      const candidate = (response as any).candidates?.[0];
+      if (candidate?.content?.parts) {
+        contents.push({ role: 'model', parts: candidate.content.parts });
+      }
     }
 
     // Execute each requested function call and collect responses

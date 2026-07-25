@@ -1,0 +1,17 @@
+{
+  "id": "06-multi-step",
+  "prompt": "copy golden_fixtures.orders to golden_fixtures.orders_backup, then add a description to the copy",
+  "setup": {
+    "requires_tables": [
+      "orders"
+    ]
+  },
+  "assert": {
+    "tool_order": [
+      [
+        "execute_query",
+        "update_table_description"
+      ]
+    ]
+  }
+}

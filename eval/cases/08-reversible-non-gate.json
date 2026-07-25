@@ -1,0 +1,7 @@
+{
+  "id": "08-reversible-non-gate",
+  "prompt": "create a dataset called scratch_test",
+  "assert": {
+    "gate_fired": null
+  }
+}

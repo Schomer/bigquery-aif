@@ -1,0 +1,17 @@
+{
+  "id": "11-aggregation-correctness",
+  "prompt": "average order value by region from golden_fixtures.orders",
+  "setup": {
+    "requires_tables": [
+      "orders"
+    ]
+  },
+  "assert": {
+    "answer_must_mention": [
+      "North",
+      "South",
+      "East",
+      "West"
+    ]
+  }
+}

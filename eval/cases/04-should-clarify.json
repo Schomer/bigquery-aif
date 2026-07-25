@@ -1,0 +1,12 @@
+{
+  "id": "04-should-clarify",
+  "prompt": "show me revenue",
+  "setup": {
+    "requires_tables": [
+      "revenue"
+    ]
+  },
+  "assert": {
+    "asked_user": true
+  }
+}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { isAgentV2Enabled, setAgentV2Enabled } from '@/agent';
 
 interface TokenInfo {
   issued_to?: string;
@@ -21,10 +22,12 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [mapsKey, setMapsKey] = useState('');
   const [mapsKeySaved, setMapsKeySaved] = useState(false);
+  const [agentV2, setAgentV2] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('google_maps_api_key');
     if (stored) setMapsKey(stored);
+    setAgentV2(isAgentV2Enabled());
   }, []);
 
   useEffect(() => {
@@ -294,6 +297,61 @@ export function SettingsPage() {
           <div style={{ marginTop: '8px', fontSize: '12px', color: '#2e7d32', display: 'flex', alignItems: 'center', gap: '4px' }}>
             <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
             API key saved to browser storage.
+          </div>
+        )}
+      </div>
+      {/* ── Section: Experimental ── */}
+      <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
+        <h2 style={{ fontSize: '18px', fontWeight: 500, marginTop: 0, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>science</span>
+          Experimental
+        </h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+          <div>
+            <div style={{ fontSize: '14px', fontWeight: 500 }}>v2 Agent Loop</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px', lineHeight: 1.4 }}>
+              Use the new agent-loop architecture instead of the router/classifier pipeline.
+              The model decides what to do; deterministic code decides how.
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              const next = !agentV2;
+              setAgentV2Enabled(next);
+              setAgentV2(next);
+            }}
+            style={{
+              minWidth: '48px',
+              height: '28px',
+              borderRadius: '14px',
+              border: 'none',
+              cursor: 'pointer',
+              position: 'relative',
+              background: agentV2 ? 'var(--accent, #4f7fff)' : 'var(--border)',
+              transition: 'background 0.2s',
+              flexShrink: 0,
+            }}
+            aria-label="Toggle v2 agent loop"
+          >
+            <div
+              style={{
+                width: '22px',
+                height: '22px',
+                borderRadius: '50%',
+                background: '#fff',
+                position: 'absolute',
+                top: '3px',
+                left: agentV2 ? '23px' : '3px',
+                transition: 'left 0.2s',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+              }}
+            />
+          </button>
+        </div>
+        {agentV2 && (
+          <div style={{ marginTop: '12px', fontSize: '12px', color: '#e65100', background: '#fff3e0', border: '1px solid #ffe0b2', borderRadius: '6px', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>info</span>
+            Active. All prompts will be processed by the v2 loop. Append <code style={{ background: 'var(--surface)', padding: '1px 4px', borderRadius: '3px' }}>?agent=v1</code> to URL to override.
           </div>
         )}
       </div>

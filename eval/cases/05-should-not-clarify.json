@@ -1,0 +1,12 @@
+{
+  "id": "05-should-not-clarify",
+  "prompt": "revenue trend this year",
+  "setup": {
+    "requires_tables": [
+      "revenue_single"
+    ]
+  },
+  "assert": {
+    "asked_user": false
+  }
+}

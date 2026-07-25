@@ -1,0 +1,16 @@
+{
+  "id": "12-chart-intent",
+  "phase": 2,
+  "prompt": "revenue by month as a chart from golden_fixtures.revenue",
+  "setup": {
+    "requires_tables": [
+      "revenue"
+    ]
+  },
+  "assert": {
+    "answer_must_mention": [
+      "chart",
+      "ViewSpec"
+    ]
+  }
+}
