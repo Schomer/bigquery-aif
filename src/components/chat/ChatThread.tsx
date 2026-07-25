@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { SparkSpinner } from '@/components/SparkSpinner';
 import { ArtifactCard } from '@/components/ArtifactCard';
 import { InlineCostConfirm, InlineDmlConfirm } from './InlineConfirmation';
+import { ConversationRenderer } from './ConversationRenderer';
 
 import type {
   ChatMessage,
@@ -548,16 +549,10 @@ export function ChatThread({
                   const convData = env.primaryArtifact.data as { text: string };
                   return (
                     <div key={env.id} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      <div style={{
-                        fontSize: 15,
-                        lineHeight: 1.7,
-                        color: 'var(--text)',
-                        fontFamily: "'Google Sans', sans-serif",
-                        whiteSpace: 'pre-line',
-                        maxWidth: 640,
-                      }}>
-                        {typeof convData.text === 'string' ? convData.text : String(convData.text ?? '')}
-                      </div>
+                      <ConversationRenderer
+                        text={typeof convData.text === 'string' ? convData.text : String(convData.text ?? '')}
+                        onSendMessage={onInlineClick}
+                      />
                       {env.nextActions && env.nextActions.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
                           {env.nextActions.map((chip, ci) => (

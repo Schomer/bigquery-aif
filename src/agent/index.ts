@@ -14,6 +14,7 @@ import type { ToolDef } from './tools/types';
 import type { StatusCallback, CompositionEnvelope, SkillName, ChatMessage } from '../lib/types';
 import { compose } from '../lib/composer';
 import { resultCache } from './result-cache';
+import { fetchSchema } from '../lib/skills/schema';
 
 // ── Feature flag ──────────────────────────────────────────────────────────────
 
@@ -236,8 +237,57 @@ export async function processWithAgentLoop({
         envelopes.push(buildTextEnvelope(result.text));
       }
     } else {
-      // Pure text response
-      envelopes.push(buildTextEnvelope(result.text));
+      // No query was executed. Check if schema tools were used.
+      // If so, build a rich SCHEMA_VIEW envelope instead of plain text.
+      const schemaEvents = result.events.filter(
+        e => e.kind === 'tool_result' &&
+        (e.tool_name === 'get_schema' || e.tool_name === 'list_resources') &&
+        e.status === 'ok'
+      );
+
+      if (schemaEvents.length > 0) {
+        // Use the last schema tool call to determine what to display
+        const lastSchemaEvent = schemaEvents[schemaEvents.length - 1];
+        const args = lastSchemaEvent.tool_args ?? {};
+
+        let schemaDataset: string | undefined;
+        let schemaTable: string | undefined;
+
+        if (lastSchemaEvent.tool_name === 'get_schema') {
+          schemaDataset = args.dataset as string | undefined;
+          schemaTable = args.table as string | undefined;
+        } else if (lastSchemaEvent.tool_name === 'list_resources') {
+          const scope = args.scope as string;
+          if (scope === 'tables') {
+            schemaDataset = args.dataset as string | undefined;
+          }
+          // scope === 'datasets' -> project scope (no dataset/table)
+        }
+
+        let schemaEnvelopeBuilt = false;
+        try {
+          const schemaResult = await fetchSchema(
+            schemaDataset ?? undefined,
+            schemaTable ?? undefined,
+            project,
+          );
+          const composed = compose('schema', schemaResult);
+          // Use the LLM's text as the headline
+          composed.headline.text = result.text.split('\n')[0].slice(0, 200);
+          composed.skipSelfReview = true;
+          envelopes.push(composed);
+          schemaEnvelopeBuilt = true;
+        } catch {
+          // Non-fatal -- fall back to text envelope
+        }
+
+        if (!schemaEnvelopeBuilt) {
+          envelopes.push(buildTextEnvelope(result.text));
+        }
+      } else {
+        // Pure text response -- no tools produced structured data
+        envelopes.push(buildTextEnvelope(result.text));
+      }
     }
   } else if (result.interrupted) {
     envelopes.push(buildTextEnvelope(
