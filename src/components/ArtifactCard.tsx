@@ -27,6 +27,7 @@ import { AccessPatternView } from './AccessPatternView';
 import { CostAnalysisView } from './CostAnalysisView';
 import { FreshnessView } from './FreshnessView';
 import { PipelineView } from './PipelineView';
+import { PresentationView } from './PresentationView';
 import TaskWorkflowView from './TaskWorkflowView';
 import { GovernanceView } from './GovernanceView';
 import { InteractiveWidgetView } from './InteractiveWidgetView';
@@ -734,6 +735,8 @@ function Artifact({
       return <ConfirmationCard result={data as import('@/lib/types').DataManagementConfirmResult} onConfirm={onConfirm} onCancel={onCancel} />;
     case 'COMPLETION_CARD':
       return <CompletionCard result={data as import('@/lib/types').DataManagementCompleteResult} />;
+    case 'PRESENTATION':
+      return <PresentationView data={data as import('./PresentationView').PresentationData} onSendMessage={onSendMessage} />;
     case 'CONVERSATION':
       return null;
     case 'COST_CONFIRM_CARD':

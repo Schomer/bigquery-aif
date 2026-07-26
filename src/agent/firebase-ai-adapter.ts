@@ -175,6 +175,7 @@ function generateStatusLabel(call: ToolCall): string {
   const LABELS: Record<string, string> = {
     ask_user: 'Asking for clarification...',
     create_dataset: 'Creating the dataset...',
+    present_result: 'Preparing results...',
   };
 
   return LABELS[name] ?? `Running ${name.replace(/_/g, ' ')}...`;
