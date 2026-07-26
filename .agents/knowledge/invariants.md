@@ -290,3 +290,12 @@ The keyword router in `router.ts` exists as a latency optimization. It is NOT th
 - **Fires only when no WHERE clause exists**: If the LLM's SQL already has a WHERE clause, auto-construction is skipped. A query that already filters on something doesn't need an additional filter injected.
 - **Column type priority**: DATE/TIMESTAMP columns are preferred over numeric columns as filter candidates. This matches the most common exploration pattern (filtering by time period).
 - **Tooltips in map views use React Portal**: `ChoroplethTooltip` renders via `createPortal(... , document.body)`. Inline rendering breaks when ancestor elements have CSS `transform` or `overflow: hidden`.
+
+---
+
+## Agent intent metadata contract
+- The LLM provides `task_intent`, `visualization_hint`, `result_title`, and `suggested_follow_ups` as optional tool call arguments on `run_query` and `execute_dml`.
+- These values are stored in `event.tool_args` by the loop and extracted in `index.ts` via `extractIntentMeta()`.
+- The `visualization_hint` from the agent overrides the composer's `inferVisualizationType()` heuristic.
+- Intent-driven headlines and chips come from the agent, not hardcoded composer strategies.
+- `secondaryArtifacts` on CompositionEnvelope renders as CollapsibleSection components in ArtifactCard, positioned after companionArtifact and before nextActions chips.

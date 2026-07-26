@@ -1861,3 +1861,17 @@ Copy this when adding a new entry:
 - Updated `src/agent/prompts/flash.ts` -- added TOOL SELECTION section
 - Updated `src/agent/firebase-ai-adapter.ts` -- context-aware status labels for new tools
 
+---
+
+## 2026-07-26 -- Session: Richer Agent-to-Composer Contract, Phases 1+2+3
+
+### Changes
+- Added `TaskIntent` type to `src/lib/types.ts` (22-value taxonomy covering analytics, data management, data ops, exploration)
+- Added `secondaryArtifacts` field to `CompositionEnvelope` in `src/lib/types.ts`
+- Added intent metadata params (`task_intent`, `visualization_hint`, `result_title`, `suggested_follow_ups`) to `src/agent/tools/run-query.ts` and `src/agent/tools/execute-dml.ts`
+- Updated `src/agent/prompts/flash.ts` with INTENT METADATA section including visualization selection rules
+- Updated `src/agent/index.ts` to propagate intent metadata into envelopes (headlines, viz types, follow-up chips)
+- Created `src/components/CollapsibleSection.tsx` -- collapsible section with chevron toggle
+- Updated `src/components/ArtifactCard.tsx` to render secondaryArtifacts
+- Updated `src/lib/composer.ts` to generate secondary TABLE artifacts for chart views
+

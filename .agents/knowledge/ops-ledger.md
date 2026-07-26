@@ -1204,3 +1204,17 @@ The first query may have worked because the function was already warm or had res
 
 **Derived rule**: Before deleting any file, grep ALL of `src/` (not just `src/agent/`) to confirm zero imports. Legacy skill handlers in `src/lib/skills/` share types with the agent layer.
 
+---
+
+## 2026-07-26 -- Phase 1: Enriched tool contract with intent metadata
+
+**What**: Added `TaskIntent` type to `types.ts`. Added `task_intent`, `visualization_hint`, `result_title`, and `suggested_follow_ups` parameters to `run_query` and `execute_dml` tool declarations. Updated `flash.ts` system prompt with INTENT METADATA guidance including visualization selection rules. Updated `index.ts` to extract intent metadata from tool call events and propagate into envelope headlines, visualization types, and follow-up chips.
+
+**Derived rule**: Intent metadata flows through tool ARGUMENTS (set by the LLM), not tool RESULTS. The loop already stores `call.args` in `event.tool_args`, so new tool params are automatically available downstream.
+
+## 2026-07-26 -- Phases 2+3: Multi-layered output and intent-aware storytelling
+
+**What**: Added `secondaryArtifacts` array to `CompositionEnvelope` in `types.ts`. Created `CollapsibleSection.tsx` component (chevron toggle, vanilla CSS). Added rendering of secondaryArtifacts in `ArtifactCard.tsx` between companion artifact and next-action chips. Updated `composeQuery()` in `composer.ts` to generate a collapsed TABLE secondary artifact whenever the primary artifact is a chart type.
+
+**Key design**: Intent-driven headlines and next-action chips are handled by the agent (via `result_title` and `suggested_follow_ups` tool params) rather than by hardcoded strategies in the composer. This follows the project's AI-first architecture invariant.
+
