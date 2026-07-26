@@ -1847,3 +1847,17 @@ Copy this when adding a new entry:
 - `src/lib/chat-orchestrator.ts` -- feature flag check at top of processMessage
 - `src/components/SettingsPage.tsx` -- Experimental section with v2 toggle
 
+---
+
+## 2026-07-26 -- Session: Richer Agent-to-Composer Contract, Phase 0
+
+### Changes
+- Created `src/agent/tools/execute-dml.ts` -- DML/DDL execution tool
+- Created `src/agent/tools/manage-pipeline.ts` -- Data Transfer API scheduled query management tool
+- Created `src/agent/tools/export-data.ts` -- CSV/Sheets export tool
+- Deleted `src/lib/viz-intent.ts` (dead code, zero imports)
+- Updated `src/agent/index.ts` -- registered 3 new tools, added envelope-building for DML/pipeline/export results
+- Updated `src/agent/loop.ts` -- extended confirmation gate to also check `execute_dml` tool calls
+- Updated `src/agent/prompts/flash.ts` -- added TOOL SELECTION section
+- Updated `src/agent/firebase-ai-adapter.ts` -- context-aware status labels for new tools
+

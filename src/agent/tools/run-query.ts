@@ -33,6 +33,34 @@ export const runQueryTool: ToolDef = {
             'If true, estimate cost without executing. Returns bytes that would be scanned. ' +
             'Use this when you suspect a query might be expensive (large tables, no partition filter).',
         },
+        task_intent: {
+          type: 'STRING',
+          description:
+            'What analytical task this query serves. Drives visualization and storytelling downstream. ' +
+            'Values: TREND_ANALYSIS, COMPARISON, DISTRIBUTION, COMPOSITION, RELATIONSHIP, ' +
+            'RANKING, ANOMALY_DETECTION, AGGREGATION, SINGLE_VALUE_LOOKUP, DATA_PROFILING, GENERAL.',
+        },
+        visualization_hint: {
+          type: 'STRING',
+          description:
+            'Suggested chart type based on the data shape and task intent. ' +
+            'Values: TABLE, LINE_CHART, BAR_CHART, AREA_CHART, SCATTER, PIE_CHART, ' +
+            'DONUT_CHART, COLUMN_CHART, HISTOGRAM, SPARKLINE, HEATMAP, KPI_CARD, STAT_ROW, ' +
+            'GEO_POINT_MAP, USA_MAP, WORLD_MAP, TREEMAP, FUNNEL, GAUGE.',
+        },
+        result_title: {
+          type: 'STRING',
+          description:
+            'A concise, user-facing headline for the result (e.g. "Top 10 Products by Revenue"). ' +
+            'Should describe what the data shows, not how it was queried.',
+        },
+        suggested_follow_ups: {
+          type: 'ARRAY',
+          description:
+            'Up to 3 natural-language follow-up questions the user might want to explore next. ' +
+            'Should be specific to the data returned, not generic.',
+          items: { type: 'STRING' },
+        },
       },
       required: ['sql'],
     },

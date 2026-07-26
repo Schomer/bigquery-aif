@@ -58,7 +58,36 @@ export interface CostEstimate {
   requiresConfirmation: boolean; // tier >= 3
 }
 
+// ── Task intent taxonomy (agent-to-composer metadata) ────────────────────────
+
+export type TaskIntent =
+  // Analytics / visualization
+  | 'TREND_ANALYSIS'      // time-series patterns
+  | 'COMPARISON'          // side-by-side or group-by ranking
+  | 'DISTRIBUTION'        // histograms, percentiles, spread
+  | 'COMPOSITION'         // part-to-whole (pie, treemap, stacked)
+  | 'RELATIONSHIP'        // correlation, scatter, regression
+  | 'RANKING'             // top-N / bottom-N
+  | 'ANOMALY_DETECTION'   // outlier or deviation identification
+  | 'AGGREGATION'         // summary stats (sum, avg, count)
+  | 'SINGLE_VALUE_LOOKUP' // fetch one specific value
+  // Data management
+  | 'DATA_MODIFICATION'   // INSERT, UPDATE, MERGE
+  | 'DATA_DELETION'       // DELETE, TRUNCATE
+  | 'SCHEMA_CHANGE'       // CREATE TABLE, ALTER, DROP
+  // Data ops
+  | 'PIPELINE_MANAGEMENT' // scheduled query CRUD
+  | 'DATA_EXPORT'         // CSV / Sheets export
+  | 'DATA_IMPORT'         // CSV upload, load job
+  // Exploration
+  | 'SCHEMA_EXPLORATION'  // browsing tables, columns
+  | 'DATA_PROFILING'      // value counts, nulls, distinct
+  | 'DATA_QUALITY'        // validation rules, freshness
+  // General
+  | 'GENERAL';            // fallback for unclassified tasks
+
 // ─── Saved Artifact types (parameter + type primitives) ──────────────────────
+
 
 export type SavedArtifactType = 'query' | 'workflow' | 'pipeline' | 'app';
 

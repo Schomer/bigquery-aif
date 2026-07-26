@@ -1194,3 +1194,13 @@ The first query may have worked because the function was already warm or had res
 - When wrapping existing APIs in new abstractions, always check the actual type definitions before assuming property names.
 - The `callGeminiWithTools` adapter parameter is optional and backward-compatible; when absent, the original direct-SDK path runs unchanged.
 
+---
+
+## 2026-07-26 -- Phase 0: Expanded v2 tool belt
+
+**What**: Added `execute_dml`, `manage_pipeline`, `export_data` tools to the v2 agent loop. Deleted `viz-intent.ts` (dead code). Kept `bq-tools.ts` (legacy handlers still import it). Extended confirmation gate in loop.ts to also intercept `execute_dml` calls. Added tool selection guidance to flash.ts system prompt. Added envelope-building branches in index.ts for DML, pipeline, and export results.
+
+**Deviation from plan**: `bq-tools.ts` could not be deleted because `handle-query.ts` and `handle-conversation.ts` (legacy skill handlers) still import `BQ_TOOLS` and `BQ_TOOL_MAP` from it. These legacy handlers run when the v2 feature flag is off.
+
+**Derived rule**: Before deleting any file, grep ALL of `src/` (not just `src/agent/`) to confirm zero imports. Legacy skill handlers in `src/lib/skills/` share types with the agent layer.
+

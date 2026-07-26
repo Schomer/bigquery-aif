@@ -23,6 +23,24 @@ export const executeDmlTool: ToolDef = {
           type: 'STRING',
           description: 'The DML or DDL statement to execute.',
         },
+        task_intent: {
+          type: 'STRING',
+          description:
+            'What task this operation performs. ' +
+            'Values: DATA_MODIFICATION, DATA_DELETION, SCHEMA_CHANGE.',
+        },
+        result_title: {
+          type: 'STRING',
+          description:
+            'A concise, user-facing headline for the operation result ' +
+            '(e.g. "Created reporting_summary table", "Deleted 47 duplicate rows").',
+        },
+        suggested_follow_ups: {
+          type: 'ARRAY',
+          description:
+            'Up to 3 natural-language follow-up actions the user might want next.',
+          items: { type: 'STRING' },
+        },
       },
       required: ['sql'],
     },

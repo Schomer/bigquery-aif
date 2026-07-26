@@ -14,7 +14,7 @@ import { executeDmlTool } from './tools/execute-dml';
 import { managePipelineTool } from './tools/manage-pipeline';
 import { exportDataTool } from './tools/export-data';
 import type { ToolDef } from './tools/types';
-import type { StatusCallback, CompositionEnvelope, SkillName, ChatMessage } from '../lib/types';
+import type { StatusCallback, CompositionEnvelope, HandoffEnvelope, SkillName, ChatMessage, TaskIntent, VisualizationType } from '../lib/types';
 import { compose } from '../lib/composer';
 import { resultCache } from './result-cache';
 import { fetchSchema } from '../lib/skills/schema';
@@ -189,6 +189,36 @@ export async function processWithAgentLoop({
     };
     envelopes.push(envelope);
   } else if (result.text) {
+    // ── Extract intent metadata from tool call args ──────────────────────────
+    // The LLM provides task_intent, visualization_hint, result_title, and
+    // suggested_follow_ups as tool call arguments. These are stored in
+    // event.tool_args by the loop.
+    type IntentMeta = {
+      taskIntent?: TaskIntent;
+      vizHint?: VisualizationType;
+      resultTitle?: string;
+      followUps?: string[];
+    };
+    function extractIntentMeta(events: typeof result.events, toolName: string): IntentMeta {
+      const toolEvents = events.filter(e => e.tool_name === toolName);
+      const last = toolEvents[toolEvents.length - 1];
+      if (!last?.tool_args) return {};
+      return {
+        taskIntent: last.tool_args.task_intent as TaskIntent | undefined,
+        vizHint: last.tool_args.visualization_hint as VisualizationType | undefined,
+        resultTitle: last.tool_args.result_title as string | undefined,
+        followUps: last.tool_args.suggested_follow_ups as string[] | undefined,
+      };
+    }
+    function buildFollowUpChips(followUps: string[] | undefined): HandoffEnvelope[] {
+      if (!followUps?.length) return [];
+      return followUps.slice(0, 3).map(q => ({
+        targetSkill: 'query' as SkillName,
+        label: q,
+        context: { prefill: q },
+        sourceSkill: 'query' as SkillName,
+      }));
+    }
     // Check for DML/DDL completion events
     const dmlEvents = result.events.filter(
       e => e.kind === 'tool_result' && e.tool_name === 'execute_dml' && e.status === 'ok'
@@ -219,11 +249,14 @@ export async function processWithAgentLoop({
         }
       } catch { /* non-fatal */ }
 
+      const meta = extractIntentMeta(result.events, 'execute_dml');
+      const headline = meta.resultTitle || result.text.split('\n')[0].slice(0, 200);
+
       const envelope: CompositionEnvelope = {
         id: 'dml_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
         skill: 'data-management' as SkillName,
         headline: {
-          text: result.text.split('\n')[0].slice(0, 200),
+          text: headline,
           tone: 'POSITIVE',
           basis: 'STATUS',
         },
@@ -236,7 +269,7 @@ export async function processWithAgentLoop({
         },
         provenance: { visibility: 'COLLAPSED' },
         skipSelfReview: true,
-        nextActions: [],
+        nextActions: buildFollowUpChips(meta.followUps),
       };
       envelopes.push(envelope);
     } else if (pipelineEvents.length > 0 && queryEvents.length === 0) {
@@ -314,6 +347,9 @@ export async function processWithAgentLoop({
 
       if (resultData && resultData.columns && resultData.rows) {
         // Build a query result envelope via compose
+        const meta = extractIntentMeta(result.events, 'run_query');
+        const vizHint = (meta.vizHint || 'TABLE') as VisualizationType;
+
         const queryResult = {
           skill: 'query' as const,
           sql: '',
@@ -325,12 +361,20 @@ export async function processWithAgentLoop({
           rowCount: resultData.rows.length,
           totalBytesProcessed: result.totalBytesBilled,
           costTier: 0 as const,
-          suggestedVisualization: 'TABLE' as const,
+          suggestedVisualization: vizHint,
           resultSummary: result.text,
         };
         const composed = compose('query', queryResult);
-        composed.headline.text = result.text.split('\n')[0].slice(0, 200);
+        // Use agent-provided title or fall back to LLM text
+        composed.headline.text = meta.resultTitle || result.text.split('\n')[0].slice(0, 200);
         composed.skipSelfReview = true;
+        // Wire follow-up chips from agent metadata
+        if (meta.followUps?.length) {
+          composed.nextActions = [
+            ...composed.nextActions,
+            ...buildFollowUpChips(meta.followUps),
+          ];
+        }
         envelopes.push(composed);
       } else {
         // Text response with data mentioned
