@@ -1218,3 +1218,11 @@ The first query may have worked because the function was already warm or had res
 
 **Key design**: Intent-driven headlines and next-action chips are handled by the agent (via `result_title` and `suggested_follow_ups` tool params) rather than by hardcoded strategies in the composer. This follows the project's AI-first architecture invariant.
 
+## 2026-07-26 -- Schema exploration priority fix
+
+**What**: Fixed two bugs where exploring a dataset produced wrong output. (1) Dataset click in SchemaView sent "Tell me more about X" which the agent misinterpreted as an analytics question, running queries and producing KPI cards. Changed to "List the tables in X". (2) Envelope builder prioritized query events over schema events, so even when the agent used get_schema, any supplementary queries it also ran would cause the schema view to be skipped in favor of a query result or text wall. Reordered the if/else chain so schema events take priority over query events.
+
+**Root cause**: The message phrasing was ambiguous to the LLM, AND the envelope builder's priority chain was wrong. Both had to be fixed.
+
+**Derived rule**: Schema events must always produce a SCHEMA_VIEW envelope, even when the agent also ran supplementary queries. The envelope builder priority should be: DML > pipeline > export > **schema** > query > text. Also, click messages in SchemaView must use explicit action language ("List the tables in X") not vague exploratory language ("Tell me more about X").
+
