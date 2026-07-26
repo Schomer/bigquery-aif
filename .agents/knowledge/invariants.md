@@ -300,3 +300,4 @@ The keyword router in `router.ts` exists as a latency optimization. It is NOT th
 - The `visualization_hint` from the agent overrides the composer's `inferVisualizationType()` heuristic.
 - Intent-driven headlines and chips come from the agent, not hardcoded composer strategies.
 - `secondaryArtifacts` on CompositionEnvelope renders as CollapsibleSection components in ArtifactCard, positioned after companionArtifact and before nextActions chips.
+- The `present_result` tool lets the agent structure ANY text response for rich rendering. Envelope builder extracts data from `tool_args` (not tool result) and creates a PRESENTATION artifact. Priority: DML > pipeline > export > **present_result** > schema > query > text. The PresentationView component renders 5 formats: entity_list (clickable rows), key_values (grid), summary (narrative + findings), steps (numbered), info (text + pills).
