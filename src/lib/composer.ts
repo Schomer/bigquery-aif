@@ -527,45 +527,63 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[], userInt
     }
   } catch { /* non-fatal */ }
 
-  return {
-    id,
-    skill: 'query',
-    headline: { text: headlineText, tone, basis },
-    primaryArtifact: {
-      type: artifactType,
-      data: result,
-      emphasis: result.notableFindings
-        ? { highlight: [], deemphasize: [] }
-        : undefined,
-    },
-    provenance: {
-      visibility: result.costTier >= 1 ? 'VISIBLE' : 'COLLAPSED',
-      sql: result.sql,
-      cost: {
-        totalBytesProcessed: result.totalBytesProcessed,
-        tier: result.costTier,
-        requiresConfirmation: false,
+    // ── Secondary artifacts (multi-layered output) ──────────────────────────────
+    // When the primary is a chart, offer the underlying data as a collapsed table.
+    const secondaryArtifacts: CompositionEnvelope['secondaryArtifacts'] = [];
+
+    const isChart = artifactType !== 'TABLE' && artifactType !== 'KPI_CARD'
+      && artifactType !== 'STAT_ROW' && artifactType !== 'SCHEMA_VIEW'
+      && artifactType !== 'INTERACTIVE_WIDGET';
+
+    if (isChart && result.rowCount > 0) {
+      secondaryArtifacts.push({
+        type: 'TABLE',
+        label: `Underlying data (${result.rowCount} row${result.rowCount !== 1 ? 's' : ''})`,
+        data: result,
+        defaultOpen: false,
+      });
+    }
+
+    return {
+      id,
+      skill: 'query',
+      headline: { text: headlineText, tone, basis },
+      primaryArtifact: {
+        type: artifactType,
+        data: result,
+        emphasis: result.notableFindings
+          ? { highlight: [], deemphasize: [] }
+          : undefined,
       },
-      jobId: result.jobId,
-      project: extractProjectFromSql(result.sql),
-    },
-    nextActions,
-    insight: statInsights.length > 0
-      ? statInsights[0].message
-      : (result.notableFindings || null),
-    qualityFlags: qualityFlags && qualityFlags.length > 0 ? qualityFlags : undefined,
-    extractedParameters: result.extractedParameters,
-    briefing: {
-      ...queryBriefing,
-      findings: [
-        ...(queryBriefing.findings || []),
-        ...statInsights
-          .filter(i => i.severity !== 'low')
-          .map(i => ({ label: i.type, value: i.message })),
-      ],
-    },
-    companionArtifact,
-  };
+      provenance: {
+        visibility: result.costTier >= 1 ? 'VISIBLE' : 'COLLAPSED',
+        sql: result.sql,
+        cost: {
+          totalBytesProcessed: result.totalBytesProcessed,
+          tier: result.costTier,
+          requiresConfirmation: false,
+        },
+        jobId: result.jobId,
+        project: extractProjectFromSql(result.sql),
+      },
+      nextActions,
+      insight: statInsights.length > 0
+        ? statInsights[0].message
+        : (result.notableFindings || null),
+      qualityFlags: qualityFlags && qualityFlags.length > 0 ? qualityFlags : undefined,
+      extractedParameters: result.extractedParameters,
+      briefing: {
+        ...queryBriefing,
+        findings: [
+          ...(queryBriefing.findings || []),
+          ...statInsights
+            .filter(i => i.severity !== 'low')
+            .map(i => ({ label: i.type, value: i.message })),
+        ],
+      },
+      companionArtifact,
+      ...(secondaryArtifacts.length > 0 ? { secondaryArtifacts } : {}),
+    };
 }
 
 // ─── Data Management composition ──────────────────────────────────────────────

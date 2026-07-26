@@ -210,6 +210,13 @@ export interface CompositionEnvelope {
     data: unknown;
     label: string;
   };
+  /** Secondary artifacts rendered as collapsible sections below the primary. */
+  secondaryArtifacts?: Array<{
+    type: ArtifactType;
+    data: unknown;
+    label: string;
+    defaultOpen?: boolean;
+  }>;
 }
 
 /** Props passed to view components that use presentation: 'custom'.
