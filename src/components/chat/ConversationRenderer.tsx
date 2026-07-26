@@ -54,12 +54,13 @@ function isEntityList(items: string[]): boolean {
 
 /** Extracts the short name from an entity for the click message. */
 function entityClickMessage(name: string): string {
-  // For dotted paths like project.dataset.table, use last two segments
+  // For dotted paths like project.dataset.table, include "table" context
   const parts = name.split('.');
   if (parts.length >= 2) {
-    return `Show me the schema for ${parts.slice(-2).join('.')}`;
+    return `Tell me more about the ${parts.slice(-2).join('.')} table`;
   }
-  return `List the tables in ${name}`;
+  // Single name is likely a dataset
+  return `Tell me more about the ${name} dataset`;
 }
 
 // ── Text Parsing ──────────────────────────────────────────────────────────────

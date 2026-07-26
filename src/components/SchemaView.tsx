@@ -28,7 +28,7 @@ export function SchemaView({ result, onSendMessage }: Props) {
         {result.columns.map((ds, i) => (
           <ClickableRow
             key={ds.name}
-            onClick={() => send(`List the tables in ${ds.name}`)}
+            onClick={() => send(`Tell me more about the ${ds.name} dataset`)}
             tooltip={`Click to list tables in ${ds.name}`}
             index={i}
           >
