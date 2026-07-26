@@ -139,6 +139,7 @@ This app uses AI (Gemini) to understand what the user wants and decide what to d
 3. **Creating if/else branches based on keyword presence in the user's message.** The AI should handle this.
 4. **Gating features on specific enum values or text markers from the AI.** If the AI produced a structured result (like a widget spec), trust it. Don't require a second signal to "confirm" the AI really meant it.
 5. **Writing rules in skill docs that create rigid either/or categories** (e.g., "top-N queries NEVER get filter controls"). The AI should handle nuance -- "top countries" and "top countries with a filter for year" are different intents.
+6. **Hardcoding UI click/chip messages to force a specific AI behavior.** If clicking a dataset row sends "List the tables in X" instead of natural language like "Tell me more about the X dataset", that is a hardcoded command disguised as a prompt. Click messages must be natural language with entity-type context ("dataset", "table", etc.) so the AI can decide what to do. The AI might list tables, show a summary, or do something else entirely depending on context.
 
 ## When the AI gets it wrong
 
@@ -147,6 +148,7 @@ If the AI misinterprets a prompt:
 2. Fix the structured output schema to give the AI better ways to express its decision
 3. Fix the tool declarations to give the AI the right options
 4. Add examples to the skill doc showing the correct behavior
+5. If the problem is a click/chip message, add entity-type context to the message (e.g., "the X dataset" not just "X") -- never replace the message with a hardcoded command
 
 Never fall back to keyword matching. Keywords have failed repeatedly in this project and always will.
 <!-- END:ai-first-architecture -->
