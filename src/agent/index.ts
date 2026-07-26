@@ -239,6 +239,13 @@ export async function processWithAgentLoop({
       e => e.kind === 'tool_result' && e.tool_name === 'run_query' && e.status === 'ok'
     );
 
+    // Check for schema exploration events
+    const schemaEvents = result.events.filter(
+      e => e.kind === 'tool_result' &&
+      (e.tool_name === 'get_schema' || e.tool_name === 'list_resources') &&
+      e.status === 'ok'
+    );
+
     if (dmlEvents.length > 0 && queryEvents.length === 0) {
       // DML/DDL completed -- build a completion envelope
       const lastDmlEvent = dmlEvents[dmlEvents.length - 1];
@@ -321,6 +328,45 @@ export async function processWithAgentLoop({
       composed.headline.text = result.text.split('\n')[0].slice(0, 200);
       composed.skipSelfReview = true;
       envelopes.push(composed);
+    } else if (schemaEvents.length > 0) {
+      // Schema exploration -- build SCHEMA_VIEW even if queries also ran.
+      // When a user explores a dataset, the agent may call get_schema AND
+      // run supplementary queries. The schema view is the primary result.
+      const lastSchemaEvent = schemaEvents[schemaEvents.length - 1];
+      const args = lastSchemaEvent.tool_args ?? {};
+
+      let schemaDataset: string | undefined;
+      let schemaTable: string | undefined;
+
+      if (lastSchemaEvent.tool_name === 'get_schema') {
+        schemaDataset = args.dataset as string | undefined;
+        schemaTable = args.table as string | undefined;
+      } else if (lastSchemaEvent.tool_name === 'list_resources') {
+        const scope = args.scope as string;
+        if (scope === 'tables') {
+          schemaDataset = args.dataset as string | undefined;
+        }
+      }
+
+      let schemaEnvelopeBuilt = false;
+      try {
+        const schemaResult = await fetchSchema(
+          schemaDataset ?? undefined,
+          schemaTable ?? undefined,
+          project,
+        );
+        const composed = compose('schema', schemaResult);
+        composed.headline.text = result.text.split('\n')[0].slice(0, 200);
+        composed.skipSelfReview = true;
+        envelopes.push(composed);
+        schemaEnvelopeBuilt = true;
+      } catch {
+        // Non-fatal -- fall back to text envelope
+      }
+
+      if (!schemaEnvelopeBuilt) {
+        envelopes.push(buildTextEnvelope(result.text));
+      }
     } else if (queryEvents.length > 0) {
       // Find the last successful query result_id
       const lastQueryEvent = queryEvents[queryEvents.length - 1];
@@ -381,57 +427,8 @@ export async function processWithAgentLoop({
         envelopes.push(buildTextEnvelope(result.text));
       }
     } else {
-      // No query was executed. Check if schema tools were used.
-      // If so, build a rich SCHEMA_VIEW envelope instead of plain text.
-      const schemaEvents = result.events.filter(
-        e => e.kind === 'tool_result' &&
-        (e.tool_name === 'get_schema' || e.tool_name === 'list_resources') &&
-        e.status === 'ok'
-      );
-
-      if (schemaEvents.length > 0) {
-        // Use the last schema tool call to determine what to display
-        const lastSchemaEvent = schemaEvents[schemaEvents.length - 1];
-        const args = lastSchemaEvent.tool_args ?? {};
-
-        let schemaDataset: string | undefined;
-        let schemaTable: string | undefined;
-
-        if (lastSchemaEvent.tool_name === 'get_schema') {
-          schemaDataset = args.dataset as string | undefined;
-          schemaTable = args.table as string | undefined;
-        } else if (lastSchemaEvent.tool_name === 'list_resources') {
-          const scope = args.scope as string;
-          if (scope === 'tables') {
-            schemaDataset = args.dataset as string | undefined;
-          }
-          // scope === 'datasets' -> project scope (no dataset/table)
-        }
-
-        let schemaEnvelopeBuilt = false;
-        try {
-          const schemaResult = await fetchSchema(
-            schemaDataset ?? undefined,
-            schemaTable ?? undefined,
-            project,
-          );
-          const composed = compose('schema', schemaResult);
-          // Use the LLM's text as the headline
-          composed.headline.text = result.text.split('\n')[0].slice(0, 200);
-          composed.skipSelfReview = true;
-          envelopes.push(composed);
-          schemaEnvelopeBuilt = true;
-        } catch {
-          // Non-fatal -- fall back to text envelope
-        }
-
-        if (!schemaEnvelopeBuilt) {
-          envelopes.push(buildTextEnvelope(result.text));
-        }
-      } else {
-        // Pure text response -- no tools produced structured data
-        envelopes.push(buildTextEnvelope(result.text));
-      }
+      // Pure text response -- no tools produced structured data
+      envelopes.push(buildTextEnvelope(result.text));
     }
   } else if (result.interrupted) {
     envelopes.push(buildTextEnvelope(
