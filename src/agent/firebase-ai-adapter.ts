@@ -147,9 +147,33 @@ function generateStatusLabel(call: ToolCall): string {
     return 'Looking up resources...';
   }
 
+  if (name === 'execute_dml') {
+    const sql = typeof args.sql === 'string' ? args.sql : '';
+    const verb = sql.trimStart().split(/\s+/)[0]?.toUpperCase() ?? 'DML';
+    const tableMatch = sql.match(/(?:INTO|FROM|TABLE|VIEW)\s+`?[\w.-]+\.[\w.-]+\.(\w+)`?/i);
+    return tableMatch
+      ? `${verb === 'CREATE' ? 'Creating' : verb === 'ALTER' ? 'Modifying' : verb === 'INSERT' ? 'Inserting into' : verb === 'UPDATE' ? 'Updating' : verb === 'MERGE' ? 'Merging into' : 'Running'} ${tableMatch[1]}...`
+      : 'Running the operation...';
+  }
+
+  if (name === 'manage_pipeline') {
+    const action = typeof args.action === 'string' ? args.action : '';
+    const actionLabels: Record<string, string> = {
+      list: 'Fetching scheduled queries...',
+      details: 'Loading schedule details...',
+      create: 'Creating scheduled query...',
+      delete: 'Deleting scheduled query...',
+    };
+    return actionLabels[action] ?? 'Managing pipelines...';
+  }
+
+  if (name === 'export_data') {
+    const format = typeof args.format === 'string' ? args.format : '';
+    return format === 'sheets' ? 'Exporting to Google Sheets...' : 'Exporting to CSV...';
+  }
+
   const LABELS: Record<string, string> = {
     ask_user: 'Asking for clarification...',
-    execute_dml: 'Running the operation...',
     create_dataset: 'Creating the dataset...',
   };
 

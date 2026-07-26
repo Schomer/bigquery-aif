@@ -10,6 +10,9 @@ import { assembleContext } from './context';
 import { runQueryTool } from './tools/run-query';
 import { getSchemaTool } from './tools/get-schema';
 import { listResourcesTool } from './tools/list-resources';
+import { executeDmlTool } from './tools/execute-dml';
+import { managePipelineTool } from './tools/manage-pipeline';
+import { exportDataTool } from './tools/export-data';
 import type { ToolDef } from './tools/types';
 import type { StatusCallback, CompositionEnvelope, SkillName, ChatMessage } from '../lib/types';
 import { compose } from '../lib/composer';
@@ -61,6 +64,9 @@ const PHASE_0_TOOLS: ToolDef[] = [
   runQueryTool,
   getSchemaTool,
   listResourcesTool,
+  executeDmlTool,
+  managePipelineTool,
+  exportDataTool,
 ];
 
 // ── Process message with the agent loop ───────────────────────────────────────
@@ -183,12 +189,106 @@ export async function processWithAgentLoop({
     };
     envelopes.push(envelope);
   } else if (result.text) {
-    // Check if we have any cached query results to display
+    // Check for DML/DDL completion events
+    const dmlEvents = result.events.filter(
+      e => e.kind === 'tool_result' && e.tool_name === 'execute_dml' && e.status === 'ok'
+    );
+
+    // Check for pipeline management events
+    const pipelineEvents = result.events.filter(
+      e => e.kind === 'tool_result' && e.tool_name === 'manage_pipeline' && e.status === 'ok'
+    );
+
+    // Check for export events
+    const exportEvents = result.events.filter(
+      e => e.kind === 'tool_result' && e.tool_name === 'export_data' && e.status === 'ok'
+    );
+
+    // Check for query result events
     const queryEvents = result.events.filter(
       e => e.kind === 'tool_result' && e.tool_name === 'run_query' && e.status === 'ok'
     );
 
-    if (queryEvents.length > 0) {
+    if (dmlEvents.length > 0 && queryEvents.length === 0) {
+      // DML/DDL completed -- build a completion envelope
+      const lastDmlEvent = dmlEvents[dmlEvents.length - 1];
+      let dmlData: { completed?: boolean; rows_affected?: number; job_id?: string } = {};
+      try {
+        if (lastDmlEvent.detail) {
+          dmlData = JSON.parse(lastDmlEvent.detail);
+        }
+      } catch { /* non-fatal */ }
+
+      const envelope: CompositionEnvelope = {
+        id: 'dml_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        skill: 'data-management' as SkillName,
+        headline: {
+          text: result.text.split('\n')[0].slice(0, 200),
+          tone: 'POSITIVE',
+          basis: 'STATUS',
+        },
+        primaryArtifact: {
+          type: 'CONVERSATION',
+          data: {
+            text: result.text,
+            rowsAffected: dmlData.rows_affected ?? 0,
+          },
+        },
+        provenance: { visibility: 'COLLAPSED' },
+        skipSelfReview: true,
+        nextActions: [],
+      };
+      envelopes.push(envelope);
+    } else if (pipelineEvents.length > 0 && queryEvents.length === 0) {
+      // Pipeline management result
+      const lastPipelineEvent = pipelineEvents[pipelineEvents.length - 1];
+      let pipelineData: Record<string, unknown> = {};
+      try {
+        if (lastPipelineEvent.detail) {
+          pipelineData = JSON.parse(lastPipelineEvent.detail);
+        }
+      } catch { /* non-fatal */ }
+
+      const actionToType: Record<string, string> = {
+        LIST: 'LIST_SCHEDULES',
+        DETAILS: 'SCHEDULE_DETAILS',
+        CREATE: 'CREATE_PIPELINE',
+        DELETE: 'DELETE_SCHEDULE',
+      };
+      const rawAction = String(pipelineData.action || 'list').toUpperCase();
+      const pipelineResult = {
+        skill: 'pipeline' as const,
+        pipelineType: (actionToType[rawAction] || 'LIST_SCHEDULES') as 'LIST_SCHEDULES',
+        schedules: (pipelineData.schedules as any[]) ?? [],
+      };
+      const composed = compose('pipeline', pipelineResult);
+      composed.headline.text = result.text.split('\n')[0].slice(0, 200);
+      composed.skipSelfReview = true;
+      envelopes.push(composed);
+    } else if (exportEvents.length > 0 && queryEvents.length === 0) {
+      // Export result
+      const lastExportEvent = exportEvents[exportEvents.length - 1];
+      let exportData: Record<string, unknown> = {};
+      try {
+        if (lastExportEvent.detail) {
+          exportData = JSON.parse(lastExportEvent.detail);
+        }
+      } catch { /* non-fatal */ }
+
+      const dataLoadingResult = {
+        skill: 'data-loading' as const,
+        operationType: (exportData.format === 'sheets' ? 'EXPORT_SHEETS' : 'EXPORT_CSV') as 'EXPORT_CSV',
+        message: result.text,
+        csvContent: exportData.csv_content as string | undefined,
+        sheetsUrl: exportData.sheets_url as string | undefined,
+        rowCount: exportData.row_count as number | undefined,
+        columnCount: exportData.column_count as number | undefined,
+      };
+      const composed = compose('data-loading', dataLoadingResult);
+      composed.headline.text = result.text.split('\n')[0].slice(0, 200);
+      composed.skipSelfReview = true;
+      envelopes.push(composed);
+    } else if (queryEvents.length > 0) {
       // Find the last successful query result_id
       const lastQueryEvent = queryEvents[queryEvents.length - 1];
       // Extract result_id from the event detail if possible

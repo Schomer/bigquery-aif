@@ -235,7 +235,7 @@ export async function runLoop(
         }
 
         // Confirmation gate check for SQL-bearing tools
-        if (call.name === 'run_query' && typeof call.args.sql === 'string') {
+        if ((call.name === 'run_query' || call.name === 'execute_dml') && typeof call.args.sql === 'string') {
           if (requiresConfirmation(call.args.sql)) {
             const actionClass = classifySql(call.args.sql);
             confirmationNeeded = true;
