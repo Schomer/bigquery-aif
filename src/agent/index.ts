@@ -335,35 +335,6 @@ export async function processWithAgentLoop({
       composed.headline.text = result.text.split('\n')[0].slice(0, 200);
       composed.skipSelfReview = true;
       envelopes.push(composed);
-    } else if (presentEvents.length > 0) {
-      // Agent explicitly structured its response via present_result.
-      // Extract the presentation data from tool_args (not tool result).
-      const lastPresentEvent = presentEvents[presentEvents.length - 1];
-      const pArgs = lastPresentEvent.tool_args ?? {};
-      const presentationData = {
-        format: (pArgs.format as string) || 'info',
-        title: pArgs.title as string | undefined,
-        text: pArgs.text as string | undefined,
-        items: (pArgs.items as Array<Record<string, unknown>>) || [],
-      };
-      const meta = extractIntentMeta(result.events, 'present_result');
-      const presentEnvelope: CompositionEnvelope = {
-        id: 'agent_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-        skill: 'conversation' as SkillName,
-        headline: {
-          text: presentationData.title || result.text.split('\n')[0].slice(0, 200),
-          tone: 'NEUTRAL',
-          basis: 'STATUS',
-        },
-        primaryArtifact: {
-          type: 'PRESENTATION',
-          data: presentationData,
-        },
-        provenance: { visibility: 'COLLAPSED' },
-        skipSelfReview: true,
-        nextActions: meta.followUps?.length ? buildFollowUpChips(meta.followUps) : [],
-      };
-      envelopes.push(presentEnvelope);
     } else if (schemaEvents.length > 0) {
       // Schema exploration -- build SCHEMA_VIEW even if queries also ran.
       // When a user explores a dataset, the agent may call get_schema AND
@@ -462,6 +433,37 @@ export async function processWithAgentLoop({
         // Text response with data mentioned
         envelopes.push(buildTextEnvelope(result.text));
       }
+    } else if (presentEvents.length > 0) {
+      // Agent structured its response via present_result.
+      // This only triggers when no other structured tool (schema, query, etc.)
+      // produced results. present_result is for enriching what would otherwise
+      // be plain text.
+      const lastPresentEvent = presentEvents[presentEvents.length - 1];
+      const pArgs = lastPresentEvent.tool_args ?? {};
+      const presentationData = {
+        format: (pArgs.format as string) || 'info',
+        title: pArgs.title as string | undefined,
+        text: pArgs.text as string | undefined,
+        items: (pArgs.items as Array<Record<string, unknown>>) || [],
+      };
+      const meta = extractIntentMeta(result.events, 'present_result');
+      const presentEnvelope: CompositionEnvelope = {
+        id: 'agent_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        skill: 'conversation' as SkillName,
+        headline: {
+          text: presentationData.title || result.text.split('\n')[0].slice(0, 200),
+          tone: 'NEUTRAL',
+          basis: 'STATUS',
+        },
+        primaryArtifact: {
+          type: 'PRESENTATION',
+          data: presentationData,
+        },
+        provenance: { visibility: 'COLLAPSED' },
+        skipSelfReview: true,
+        nextActions: meta.followUps?.length ? buildFollowUpChips(meta.followUps) : [],
+      };
+      envelopes.push(presentEnvelope);
     } else {
       // Pure text response -- no tools produced structured data
       envelopes.push(buildTextEnvelope(result.text));
