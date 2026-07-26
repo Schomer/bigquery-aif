@@ -57,9 +57,9 @@ function entityClickMessage(name: string): string {
   // For dotted paths like project.dataset.table, use last two segments
   const parts = name.split('.');
   if (parts.length >= 2) {
-    return `Show me more about ${parts.slice(-2).join('.')}`;
+    return `Show me the schema for ${parts.slice(-2).join('.')}`;
   }
-  return `Tell me more about ${name}`;
+  return `List the tables in ${name}`;
 }
 
 // ── Text Parsing ──────────────────────────────────────────────────────────────
