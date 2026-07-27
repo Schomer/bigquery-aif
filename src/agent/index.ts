@@ -374,11 +374,71 @@ export async function processWithAgentLoop({
       composed.headline.text = result.text.split('\n')[0].slice(0, 200);
       composed.skipSelfReview = true;
       envelopes.push(composed);
-    } else if (schemaEvents.length > 0) {
-      // Schema exploration -- build SCHEMA_VIEW even if queries also ran.
-      // When a user explores a dataset, the agent may call get_schema multiple
-      // times (list tables, then inspect one). Prefer the dataset-scope event
-      // so the user sees the table list they asked for.
+    } else if (queryEvents.length > 0) {
+      // Query results take priority over schema exploration.
+      // The agent often calls get_schema first to discover column names,
+      // then calls run_query. The query result is what the user wants to see.
+      const lastQueryEvent = queryEvents[queryEvents.length - 1];
+      let resultData: { columns?: string[]; rows?: unknown[][]; column_types?: string[] } | null = null;
+
+      try {
+        if (lastQueryEvent.detail) {
+          const parsed = JSON.parse(lastQueryEvent.detail);
+          if (parsed.result_id) {
+            const cached = await resultCache.get(parsed.result_id);
+            if (cached) {
+              resultData = {
+                columns: cached.schema.map(s => s.name),
+                column_types: cached.schema.map(s => s.type),
+                rows: cached.rows,
+              };
+            }
+          }
+        }
+      } catch {
+        // Non-fatal -- fall back to text response
+      }
+
+      if (resultData && resultData.columns && resultData.rows) {
+        // Build a query result envelope via compose
+        const meta = extractIntentMeta(result.events, 'run_query');
+        const vizHint = (meta.vizHint || 'TABLE') as VisualizationType;
+
+        const queryResult = {
+          skill: 'query' as const,
+          sql: '',
+          requiresConfirmation: false,
+          costConfirm: null,
+          columns: resultData.columns,
+          columnTypes: resultData.column_types ?? [],
+          rows: resultData.rows,
+          rowCount: resultData.rows.length,
+          totalBytesProcessed: result.totalBytesBilled,
+          costTier: 0 as const,
+          suggestedVisualization: vizHint,
+          resultSummary: result.text,
+        };
+        const composed = compose('query', queryResult);
+        composed.provenance.executionTrace = executionTrace;
+        // Use agent-provided title or fall back to LLM text
+        composed.headline.text = meta.resultTitle || result.text.split('\n')[0].slice(0, 200);
+        composed.skipSelfReview = true;
+        // Wire follow-up chips from agent metadata
+        if (meta.followUps?.length) {
+          composed.nextActions = [
+            ...composed.nextActions,
+            ...buildFollowUpChips(meta.followUps),
+          ];
+        }
+        envelopes.push(composed);
+      } else {
+        // Text response with data mentioned
+        envelopes.push(buildTextEnvelope(result.text, executionTrace));
+      }
+    } else if (schemaEvents.length > 0 && queryEvents.length === 0) {
+      // Schema exploration -- only when no query ran.
+      // When the agent fetches schema as a preparatory step for a query,
+      // the query result takes priority (handled above).
       let targetEvent = schemaEvents[schemaEvents.length - 1];
 
       // Prefer dataset-scope events over table-scope events.
@@ -434,66 +494,6 @@ export async function processWithAgentLoop({
       }
 
       if (!schemaEnvelopeBuilt) {
-        envelopes.push(buildTextEnvelope(result.text, executionTrace));
-      }
-    } else if (queryEvents.length > 0) {
-      // Find the last successful query result_id
-      const lastQueryEvent = queryEvents[queryEvents.length - 1];
-      // Extract result_id from the event detail if possible
-      let resultData: { columns?: string[]; rows?: unknown[][]; column_types?: string[] } | null = null;
-
-      try {
-        if (lastQueryEvent.detail) {
-          const parsed = JSON.parse(lastQueryEvent.detail);
-          if (parsed.result_id) {
-            const cached = await resultCache.get(parsed.result_id);
-            if (cached) {
-              resultData = {
-                columns: cached.schema.map(s => s.name),
-                column_types: cached.schema.map(s => s.type),
-                rows: cached.rows,
-              };
-            }
-          }
-        }
-      } catch {
-        // Non-fatal -- fall back to text response
-      }
-
-      if (resultData && resultData.columns && resultData.rows) {
-        // Build a query result envelope via compose
-        const meta = extractIntentMeta(result.events, 'run_query');
-        const vizHint = (meta.vizHint || 'TABLE') as VisualizationType;
-
-        const queryResult = {
-          skill: 'query' as const,
-          sql: '',
-          requiresConfirmation: false,
-          costConfirm: null,
-          columns: resultData.columns,
-          columnTypes: resultData.column_types ?? [],
-          rows: resultData.rows,
-          rowCount: resultData.rows.length,
-          totalBytesProcessed: result.totalBytesBilled,
-          costTier: 0 as const,
-          suggestedVisualization: vizHint,
-          resultSummary: result.text,
-        };
-        const composed = compose('query', queryResult);
-        composed.provenance.executionTrace = executionTrace;
-        // Use agent-provided title or fall back to LLM text
-        composed.headline.text = meta.resultTitle || result.text.split('\n')[0].slice(0, 200);
-        composed.skipSelfReview = true;
-        // Wire follow-up chips from agent metadata
-        if (meta.followUps?.length) {
-          composed.nextActions = [
-            ...composed.nextActions,
-            ...buildFollowUpChips(meta.followUps),
-          ];
-        }
-        envelopes.push(composed);
-      } else {
-        // Text response with data mentioned
         envelopes.push(buildTextEnvelope(result.text, executionTrace));
       }
     } else if (presentEvents.length > 0) {

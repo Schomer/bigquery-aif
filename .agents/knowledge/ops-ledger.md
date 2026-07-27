@@ -1,5 +1,20 @@
 # Operations Ledger
 
+## 2026-07-27: Three quick wins from CA skills analysis
+
+**Context**: After analyzing Google's internal Conversational Analytics skills system, identified three low-risk improvements: visualization row budget, SQL error rewrite recipes, and smarter follow-up chip suggestions.
+
+**Changes**:
+1. `flash.ts` -- Added VISUALIZATION BUDGET rule (1000-row cap for charts), specific SQL error fix recipes (column not found, ambiguous reference, resources exceeded, access denied), and biased follow-up instructions (forecast for time-series, root-cause for declines, map for geographic data).
+2. `result-quality.ts` -- Added `HIGH_ROW_COUNT` quality flag type and `checkHighRowCount()` function. Fires when query returns >1000 rows.
+
+**Derived rules**:
+- Prompt-only changes are the safest improvement vector -- they don't touch code paths, only influence model behavior.
+- Quality flags should be additive (new types), never modify existing flag logic.
+- Follow-up bias should guide the model toward analytical depth, not dictate specific suggestions.
+
+---
+
 ## 2026-07-26: Wordy headline from present_result
 
 **Context**: When the user asks "list my datasets", the headline shows the AI's chatty narration ("I have retrieved the list of datasets available in your malloy-data project. You have 13 datasets, including ecomm, faa, formula_1, imdb, iowa_liquor_sales, and several sandbox or test env") instead of a concise title like "13 datasets in project malloy-data".
