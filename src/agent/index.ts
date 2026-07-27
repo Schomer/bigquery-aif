@@ -510,11 +510,27 @@ export async function processWithAgentLoop({
         items: (pArgs.items as Array<Record<string, unknown>>) || [],
       };
       const meta = extractIntentMeta(result.events, 'present_result');
+
+      // Derive a concise headline from the structured data itself.
+      // The AI's result.text is chatty narration ("I have retrieved the list of
+      // datasets available in your project...") that restates the request --
+      // a headline anti-pattern. Instead, count items and use entity_type.
+      let presentHeadline = presentationData.title;
+      if (!presentHeadline && presentationData.format === 'entity_list' && presentationData.items.length > 0) {
+        const count = presentationData.items.length;
+        const firstType = (presentationData.items[0] as Record<string, unknown>)?.entity_type as string | undefined;
+        const label = firstType ? `${firstType}${count !== 1 ? 's' : ''}` : `item${count !== 1 ? 's' : ''}`;
+        presentHeadline = `${count} ${label}`;
+      }
+      if (!presentHeadline) {
+        presentHeadline = meta.resultTitle || presentationData.text?.split('\n')[0]?.slice(0, 120) || 'Results';
+      }
+
       const presentEnvelope: CompositionEnvelope = {
         id: 'agent_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
         skill: 'conversation' as SkillName,
         headline: {
-          text: presentationData.title || result.text.split('\n')[0].slice(0, 200),
+          text: presentHeadline,
           tone: 'NEUTRAL',
           basis: 'STATUS',
         },
