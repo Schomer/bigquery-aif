@@ -1,5 +1,15 @@
 # Operations Ledger
 
+## 2026-07-27: CREATE TABLE listed tables instead of creating one
+
+**What broke**: User said "create a table named holdings in the hey_data_data dataset". Instead of creating the table or asking for column definitions, the model called `list_resources` on the dataset and displayed a "Tables in hey_data_data" card.
+
+**Root cause**: Decision Rules 5 and 6 in `src/agent/prompts/flash.ts` conflicted. Rule 5 said to use `execute_dml` for CREATE TABLE. Rule 6 said to ALWAYS call `get_schema`/`list_resources` when datasets/tables are mentioned. The model saw "hey_data_data dataset" and triggered Rule 6 (list tables) instead of Rule 5 (create table). Since every tool result renders a card, the schema listing was displayed as the response.
+
+**Fix**: (1) Expanded Rule 5 to explicitly say: when CREATE TABLE has no columns specified, ask ONE question for column definitions -- do NOT list existing tables. If the user describes data conceptually, infer columns. (2) Added EXCEPTION to Rule 6: do NOT call schema tools as a preparatory step for mutating operations.
+
+**Rule**: Schema/list tools should never be called as preparation for DDL operations. The model should either execute the DDL directly or ask for missing info -- never inspect the dataset first, because every tool call produces a visible card.
+
 ## 2026-07-27: Transient Gemini 500s not retried in adapter path
 
 **What broke**: When Gemini returned a 500 "high demand" error during a tool-calling request (e.g., "create a table"), the raw error was surfaced immediately to the user as "Something Went Wrong" with the full API error text.

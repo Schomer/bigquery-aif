@@ -2,6 +2,13 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-27: Fix CREATE TABLE routing -- model listed tables instead of creating
+
+**Problem**: "Create a table named holdings in hey_data_data" listed existing tables instead of creating one. Decision Rule 6 (always call schema tools when datasets are mentioned) overrode Rule 5 (use execute_dml for CREATE TABLE).
+
+**Changes**:
+- `src/agent/prompts/flash.ts` -- Expanded Rule 5: when CREATE TABLE has no columns, ask for column definitions instead of inspecting the dataset. Added EXCEPTION to Rule 6: do not call schema tools as preparation for mutating operations.
+
 ## 2026-07-27: Add retry logic to REST adapter for transient Gemini errors
 
 **Problem**: Gemini 500 "high demand" errors during tool-calling requests surfaced immediately as "Something Went Wrong" with the raw API error. The REST adapter (`FirebaseAiLogicAdapter`) had no retry logic, unlike the SDK-based `callGemini()` path.
