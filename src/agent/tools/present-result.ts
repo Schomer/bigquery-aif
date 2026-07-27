@@ -33,7 +33,13 @@ export const presentResultTool: ToolDef = {
         },
         title: {
           type: 'STRING',
-          description: 'Headline for the presented content.',
+          description:
+            'A concise, user-facing headline summarizing what the output shows. ' +
+            'Include enough context to stand on its own (project, dataset, scope). ' +
+            'Examples: "13 datasets in project malloy-data", "Tables in ecomm", ' +
+            '"Top sales by category in the USA", "Schema for orders table". ' +
+            'Do NOT narrate the action ("I have retrieved...", "Here are..."). ' +
+            'Describe the content, not how you got it.',
         },
         text: {
           type: 'STRING',
@@ -79,7 +85,7 @@ export const presentResultTool: ToolDef = {
           items: { type: 'STRING' },
         },
       },
-      required: ['format', 'items'],
+      required: ['format', 'title', 'items'],
     },
   },
   tier: 'read',

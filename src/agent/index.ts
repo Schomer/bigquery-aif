@@ -511,20 +511,11 @@ export async function processWithAgentLoop({
       };
       const meta = extractIntentMeta(result.events, 'present_result');
 
-      // Derive a concise headline from the structured data itself.
-      // The AI's result.text is chatty narration ("I have retrieved the list of
-      // datasets available in your project...") that restates the request --
-      // a headline anti-pattern. Instead, count items and use entity_type.
-      let presentHeadline = presentationData.title;
-      if (!presentHeadline && presentationData.format === 'entity_list' && presentationData.items.length > 0) {
-        const count = presentationData.items.length;
-        const firstType = (presentationData.items[0] as Record<string, unknown>)?.entity_type as string | undefined;
-        const label = firstType ? `${firstType}${count !== 1 ? 's' : ''}` : `item${count !== 1 ? 's' : ''}`;
-        presentHeadline = `${count} ${label}`;
-      }
-      if (!presentHeadline) {
-        presentHeadline = meta.resultTitle || presentationData.text?.split('\n')[0]?.slice(0, 120) || 'Results';
-      }
+      // Title is required on present_result, so the AI should always provide it.
+      // Fallback chain for edge cases where it's missing.
+      const presentHeadline = presentationData.title
+        || meta.resultTitle
+        || 'Results';
 
       const presentEnvelope: CompositionEnvelope = {
         id: 'agent_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
