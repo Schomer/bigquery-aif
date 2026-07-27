@@ -1,5 +1,17 @@
 # Operations Ledger
 
+## 2026-07-27: Auth errors now propagate from agent loop instead of being swallowed
+
+**What broke**: When a BigQuery tool call returned a 401 inside the agent loop, the loop caught the error and fed it back to the LLM as a function response. The LLM composed a polite response about "authentication issue" with a "Credentials Expired" chip. The user saw this in the output area with no way to re-authenticate.
+
+**Root cause**: `loop.ts` catch block (line ~330) treated all tool errors the same -- catching them and feeding the error message back to the LLM. Auth errors need to propagate to the UI layer's `withAuthRetry` wrapper in `useChatOrchestration.ts`, which handles token refresh + retry, or shows the `ErrorCard` with a "Sign in and continue" button.
+
+**Fix**: Added `looksLikeAuthError()` function to `loop.ts` that matches the same patterns as `useChatOrchestration.ts`. Both the `result.error` path and the `catch` block now re-throw when an auth error is detected.
+
+**Derived rule**: Auth errors (401, expired credentials, unauthenticated) must never be handled by the LLM. They must propagate to the UI layer so the user can re-authenticate.
+
+---
+
 ## 2026-07-27: Removal of legacy keyword router and dead skill code
 
 **Context**: Cleaned up legacy dead code paths following the migration to the agent-loop architecture (`processWithAgentLoop`).

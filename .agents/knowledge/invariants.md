@@ -52,6 +52,7 @@ These rules exist because keyword-based intent classification has failed repeate
 - **Query auto-retry is implicit**: Errors from `run_query` tool calls feed back to the LLM as function responses. The LLM can fix its SQL and call `run_query` again within the iteration cap. Do not add explicit retry logic.
 - **Dataset name vs project name guard**: `fetchSchema()` in `src/lib/skills/schema.ts` checks if the requested dataset name equals the project name and ignores it if so. This prevents the confusing case where the project name is treated as a dataset.
 - **callGemini retries transient errors 3 times**: 429, 5xx, and errors containing 'demand', 'temporary', 'limit', 'quota', or 'resource' get exponential backoff with jitter. Auth errors (401/403) are never retried.
+- **Auth errors must propagate from the agent loop, never be fed to the LLM**: `loop.ts` re-throws auth errors (via `looksLikeAuthError()`) in both the `result.error` and `catch` paths. If the LLM sees the auth error, it composes a polite message about "authentication issue" that the user cannot act on. The error must reach `withAuthRetry` in `useChatOrchestration.ts` to trigger token refresh or the sign-in `ErrorCard`.
 
 ---
 

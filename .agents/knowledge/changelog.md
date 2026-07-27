@@ -2,6 +2,15 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-27: Auth errors propagate from agent loop to UI
+
+**Problem**: Auth errors (expired tokens, 401s) inside the agent loop were caught and fed to the LLM, which composed a polite "authentication issue" response in the output area. The user had no way to re-authenticate from there.
+
+**Changes**:
+- `src/agent/loop.ts` -- Added `looksLikeAuthError()` function. Both `result.error` and `catch` paths now re-throw auth errors instead of feeding them to the LLM. This lets the existing `withAuthRetry` wrapper handle token refresh, or show the `ErrorCard` with "Sign in and continue".
+
+**Impact**: Auth errors now trigger automatic token refresh (via `withAuthRetry`), and if that fails, show the `ErrorCard` with a sign-in button instead of a passive message in the output area.
+
 ## 2026-07-27: Remove dead code (keyword router, self-review, bq-tools, legacy skills)
 
 **Problem**: Legacy code paths (`router.ts`, `self-review.ts`, `bq-tools.ts`, 14 `handle-*.ts` skill files, unit tests, dead response schemas, and unused imports) remained in the codebase after migrating to the agent-loop architecture.

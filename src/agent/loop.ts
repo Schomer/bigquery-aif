@@ -13,6 +13,17 @@ import { classifySql, requiresConfirmation } from './action-classes';
 import { summarizeForContext } from './context';
 import type { StatusCallback } from '../lib/types';
 
+// ── Auth error detection ──────────────────────────────────────────────────────
+
+/** Returns true for error messages that indicate an expired/invalid OAuth token. */
+function looksLikeAuthError(msg: string): boolean {
+  const lower = msg.toLowerCase();
+  return lower.includes('access token') || lower.includes('credentials')
+    || lower.includes('access_denied') || lower.includes('unauthenticated')
+    || lower.includes('unauthorized') || lower.includes('sign in')
+    || lower.includes('invalid authentication') || lower.includes('oauth 2');
+}
+
 // ── Loop configuration ────────────────────────────────────────────────────────
 
 export interface LoopConfig {
@@ -290,6 +301,11 @@ export async function runLoop(
             : '');
 
           if (result.error) {
+            // Auth errors must propagate -- don't let the LLM handle them
+            if (looksLikeAuthError(result.error)) {
+              throw new Error(result.error);
+            }
+
             // Track error for retry policy
             const errorKey = `${call.name}:${result.error}`;
             const errorCount = (errorCounts.get(errorKey) ?? 0) + 1;
@@ -329,6 +345,14 @@ export async function runLoop(
           }
         } catch (err: unknown) {
           const errMsg = err instanceof Error ? err.message : String(err);
+
+          // Auth errors must propagate to the UI layer's withAuthRetry
+          // wrapper so it can refresh the token and retry (or prompt sign-in).
+          // Feeding them to the LLM would produce a polite message about
+          // "authentication issue" that doesn't let the user re-authenticate.
+          if (looksLikeAuthError(errMsg)) {
+            throw err;
+          }
 
           emitter.update(startEvent.id, {
             kind: 'tool_result',
