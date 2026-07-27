@@ -764,7 +764,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
         } else if (msg.includes('access token') || msg.includes('credentials') || msg.includes('access_denied') || msg.includes('UNAUTHENTICATED') || msg.includes('authorized') || msg.includes('access not authorized') || msg.includes('sign in')) {
           errorType = 'auth';
           errorText = 'Your session has expired. Sign in to continue where you left off.';
-        } else if (msg.includes('quota') || msg.includes('rate limit') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('429')) {
+        } else if (msg.includes('quota') || msg.includes('rate limit') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('429') || msg.includes('500') || msg.includes('503') || msg.includes('high demand') || msg.includes('temporary') || msg.includes('INTERNAL')) {
           errorType = 'rate_limit';
           errorText = 'The service is temporarily busy. Try again in a few seconds.';
         } else if (msg.includes('Syntax error') || msg.includes('query failed')) {

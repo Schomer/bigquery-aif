@@ -44,13 +44,27 @@ export class FirebaseAiLogicAdapter implements ModelAdapter {
       body.toolConfig = { functionCallingConfig: { mode: 'AUTO' } };
     }
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    const maxRetries = 3;
+    let retryDelay = 1000;
+    let response!: Response;
 
-    if (!response.ok) {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (response.ok) break;
+
+      const isTransientStatus = response.status === 429 || response.status === 500 || response.status === 503;
+      if (isTransientStatus && attempt < maxRetries - 1) {
+        const jitter = Math.random() * retryDelay * 0.3;
+        await new Promise((resolve) => setTimeout(resolve, retryDelay + jitter));
+        retryDelay *= 2;
+        continue;
+      }
+
       const errorText = await response.text();
       throw new Error(
         `Error fetching from ${url.replace(/key=[^&]+/, 'key=***')}: ` +
