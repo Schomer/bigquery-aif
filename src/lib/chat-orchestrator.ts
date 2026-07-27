@@ -15,9 +15,14 @@ import type {
   ChatMessage,
   CompositionEnvelope,
   DataManagementResult,
+  DataLoadingResult,
+  CsvUploadPreview,
   SkillName,
   StatusCallback,
 } from './types';
+
+import { compose } from './composer';
+import { loadCsvToTable } from './bigquery-client';
 
 // Agent v2 loop
 import { processWithAgentLoop } from '../agent';
@@ -84,6 +89,86 @@ export class ChatOrchestrator {
       const project = context?.project || '';
       const envelopes = await executeConfirmedOperation(confirmed, project);
       return { envelopes };
+    }
+
+    // -- Handle CSV upload operations --
+    // These come from sendMessageWithFile (UPLOAD_CSV) and CsvUploadView confirm (UPLOAD_CSV_EXECUTE).
+    // Both set forcedSkill + handoffContext which the agent loop does not support, so we handle them here.
+    const handoff = context?.handoffContext;
+    if (context?.forcedSkill === 'data-loading' && handoff) {
+      const opType = handoff.operationType as string;
+
+      // Phase 1: Parse CSV and show upload preview
+      if (opType === 'UPLOAD_CSV' && typeof handoff.csvContent === 'string') {
+        onStatus?.('Parsing CSV...');
+        const csvContent = handoff.csvContent as string;
+        const fileName = (handoff.csvFileName as string) || 'file.csv';
+        const fileSize = (handoff.csvFileSize as number) || csvContent.length;
+
+        // Parse CSV: extract columns from header, sample rows, and total row count
+        const lines = csvContent.split('\n').filter(l => l.trim());
+        const headerLine = lines[0] || '';
+        const columns = parseCsvLine(headerLine);
+        const dataLines = lines.slice(1);
+        const sampleRows = dataLines.slice(0, 10).map(l => parseCsvLine(l));
+
+        const preview: CsvUploadPreview = {
+          columns,
+          sampleRows,
+          totalRows: dataLines.length,
+          fileName,
+          fileSize,
+        };
+
+        // Derive a suggested table name from the file name
+        const suggestedTable = fileName
+          .replace(/\.csv$/i, '')
+          .replace(/[^a-zA-Z0-9_]/g, '_')
+          .replace(/^_+|_+$/g, '')
+          .toLowerCase()
+          || 'uploaded_data';
+
+        const result: DataLoadingResult = {
+          skill: 'data-loading',
+          operationType: 'UPLOAD_PREVIEW',
+          message: `${preview.totalRows.toLocaleString()} rows ready to upload`,
+          uploadPreview: preview,
+          csvContent,
+          targetTable: suggestedTable,
+          targetDataset: context?.dataset || '',
+          needsFile: false,
+        };
+
+        const envelope = compose('data-loading', result);
+        return { envelopes: [envelope], skill: 'data-loading' };
+      }
+
+      // Phase 2: Execute the actual BigQuery load job
+      if (opType === 'UPLOAD_CSV_EXECUTE' && typeof handoff.csvContent === 'string') {
+        const project = context?.project || '';
+        const dataset = handoff.dataset as string;
+        const tableName = handoff.tableName as string;
+        const writeDisposition = (handoff.writeDisposition as 'WRITE_APPEND' | 'WRITE_TRUNCATE') || 'WRITE_APPEND';
+
+        onStatus?.('Uploading to BigQuery...');
+        const loadResult = await loadCsvToTable(
+          project, dataset, tableName,
+          handoff.csvContent as string,
+          writeDisposition,
+        );
+
+        const result: DataLoadingResult = {
+          skill: 'data-loading',
+          operationType: 'UPLOAD_CSV',
+          message: `Uploaded ${loadResult.rowCount.toLocaleString()} rows to \`${dataset}.${tableName}\``,
+          rowCount: loadResult.rowCount,
+          targetTable: tableName,
+          targetDataset: dataset,
+        };
+
+        const envelope = compose('data-loading', result);
+        return { envelopes: [envelope], skill: 'data-loading' };
+      }
     }
 
     // -- Agent loop (v2) -- all prompts go through the tool-calling loop --
@@ -269,4 +354,34 @@ Be honest about uncertainty. If you don't know which table to use, say so in the
 
     return envelope;
   }
+}
+
+// ── CSV line parser (handles quoted fields with commas) ───────────────────────
+
+function parseCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        current += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ',') {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current.trim());
+  return result;
 }

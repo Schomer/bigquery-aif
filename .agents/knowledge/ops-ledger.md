@@ -1,5 +1,19 @@
 # Operations Ledger
 
+## 2026-07-27: CSV upload broken -- forcedSkill and handoffContext dropped
+
+**What broke**: Attaching a CSV file and clicking send caused the app to ask the user to paste CSV contents into chat instead of showing the upload preview card.
+
+**Root cause**: `ChatOrchestrator.processMessage()` cherry-picks context properties when forwarding to `processWithAgentLoop()` (lines 93-103). It passed `project`, `dataset`, `lastTable`, etc. but silently dropped `forcedSkill` and `handoffContext`. The `sendMessageWithFile` function in `useChatOrchestration.ts` sets both of these to route CSV data to the data-loading skill, but the orchestrator never saw them. The prompt went through normal AI routing, and the LLM -- having no CSV upload tool and no knowledge of the attached file -- fell back to asking the user to paste data.
+
+**Fix**: Added CSV upload interception in `processMessage()` before the agent loop, mirroring the existing pattern for `confirmedPayload`. Two operation types are handled:
+- `UPLOAD_CSV`: Parses the CSV content client-side (header extraction, sample rows), builds a `DataLoadingResult` with `operationType: 'UPLOAD_PREVIEW'`, and composes a `CSV_UPLOAD_VIEW` envelope.
+- `UPLOAD_CSV_EXECUTE`: Calls `loadCsvToTable()` (BigQuery Jobs API multipart upload), then composes a success envelope.
+
+**Derived rule**: Any context property that triggers a non-agent-loop code path must be intercepted in `processMessage()` before the `processWithAgentLoop()` call. The agent loop only receives the properties listed in `AgentProcessArgs.context` -- everything else is silently dropped.
+
+---
+
 ## 2026-07-27: Multi-envelope display and table overview
 
 **What changed**: Replaced the single-winner heuristic chain in `src/agent/index.ts` (lines 252-561) with a loop that builds an envelope for every successful tool result. Previously, if the AI called get_schema and then run_query, only the query result was shown. Now both produce visible cards.

@@ -2,6 +2,15 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-27: Fix CSV upload -- orchestrator was dropping file context
+
+**Problem**: Attaching a CSV file and sending produced an LLM response asking the user to paste data into chat. The `forcedSkill` and `handoffContext` from `sendMessageWithFile` were silently dropped by `processMessage()` when forwarding to the agent loop.
+
+**Changes**:
+- `src/lib/chat-orchestrator.ts` -- Added CSV upload interception before the agent loop. Two new code paths handle `UPLOAD_CSV` (parse CSV, return preview card) and `UPLOAD_CSV_EXECUTE` (call BigQuery load job API, return success card). Added `parseCsvLine()` helper for quoted-field-aware CSV parsing. Added imports for `compose`, `loadCsvToTable`, `DataLoadingResult`, `CsvUploadPreview`.
+
+**Impact**: CSV file attachment now works end-to-end: attach file -> preview card with schema/sample -> confirm upload -> BigQuery load job -> success card.
+
 ## 2026-07-27: Auth errors propagate from agent loop to UI
 
 **Problem**: Auth errors (expired tokens, 401s) inside the agent loop were caught and fed to the LLM, which composed a polite "authentication issue" response in the output area. The user had no way to re-authenticate from there.
