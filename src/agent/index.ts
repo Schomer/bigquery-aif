@@ -442,16 +442,14 @@ export async function processWithAgentLoop({
       // the query result takes priority (handled above).
       let targetEvent = schemaEvents[schemaEvents.length - 1];
 
-      // Prefer dataset-scope events over table-scope events.
-      // If the agent called get_schema(dataset=X) AND get_schema(dataset=X, table=Y),
-      // the user asked about the dataset -- show the table list.
-      const datasetScopeEvent = schemaEvents.find(
-        e => e.tool_name === 'get_schema' && e.tool_args?.dataset && !e.tool_args?.table
-      ) || schemaEvents.find(
-        e => e.tool_name === 'list_resources'
+      // Prefer the most specific scope: table > dataset > project.
+      // When the agent calls get_schema(dataset=X) as a precursor to
+      // get_schema(dataset=X, table=Y), the table result is the user's answer.
+      const tableScopeEvent = schemaEvents.find(
+        e => e.tool_name === 'get_schema' && e.tool_args?.dataset && e.tool_args?.table
       );
-      if (datasetScopeEvent) {
-        targetEvent = datasetScopeEvent;
+      if (tableScopeEvent) {
+        targetEvent = tableScopeEvent;
       }
 
       const args = targetEvent.tool_args ?? {};
