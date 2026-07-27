@@ -2,6 +2,13 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-27: Add multi-step operations phasing and card budget
+
+**Problem**: "Clean up the data" produced 22 separate cards (queries + DML operations). User expected an assessment, confirmation, then final result.
+
+**Changes**:
+- `src/agent/prompts/flash.ts` -- Added MULTI-STEP OPERATIONS section: broad data modification requests use a 3-phase approach (assess, stop for review, execute after confirmation). Added card budget (1-4 per response) to MULTI-RESULT DISPLAY. Removed "Do NOT hold back from calling multiple tools" language.
+
 ## 2026-07-27: Fix CREATE TABLE routing -- model listed tables instead of creating
 
 **Problem**: "Create a table named holdings in hey_data_data" listed existing tables instead of creating one. Decision Rule 6 (always call schema tools when datasets are mentioned) overrode Rule 5 (use execute_dml for CREATE TABLE).

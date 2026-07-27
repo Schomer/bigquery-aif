@@ -1,5 +1,15 @@
 # Operations Ledger
 
+## 2026-07-27: "Clean up the data" produced 22 cards instead of phased workflow
+
+**What broke**: User asked to "clean up the data" in a table. The agent ran 22 separate tool calls (queries + DML), each producing a visible card. User expected: (1) assessment of issues found, (2) confirmation prompt, (3) single final result.
+
+**Root cause**: Two prompt-level issues. (1) MULTI-RESULT DISPLAY said "Do NOT hold back from calling multiple tools when they would each add value" -- actively encouraged card floods. (2) No guidance existed for broad, multi-step data operations. The model treated "clean up" as a series of independent operations and executed them all in one loop run (soft cap 15, hard cap 25).
+
+**Fix**: (1) Added card budget (1-4 cards per response) to MULTI-RESULT DISPLAY. (2) Added MULTI-STEP OPERATIONS section to the system prompt with a 3-phase approach: Phase 1 (ASSESS with 1-2 queries, present findings), Phase 2 (STOP and let user review), Phase 3 (EXECUTE after confirmation). Applies to any request that would produce more than 2 data-modifying operations.
+
+**Rule**: Broad data modification requests must use assess-confirm-execute phasing. The model should never execute more than 2 DML operations without pausing for user review. Card budget is 1-4 per response.
+
 ## 2026-07-27: CREATE TABLE listed tables instead of creating one
 
 **What broke**: User said "create a table named holdings in the hey_data_data dataset". Instead of creating the table or asking for column definitions, the model called `list_resources` on the dataset and displayed a "Tables in hey_data_data" card.
