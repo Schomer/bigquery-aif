@@ -167,8 +167,7 @@ export async function processWithAgentLoop({
   const executionTrace = buildExecutionTrace(result.events);
 
   // ── Debug logging: capture actual agent behavior ──────────────────────────
-  // This is the primary diagnostic tool for understanding what the agent did.
-  // Read this in browser DevTools console when debugging issues.
+  // Visible in browser DevTools console AND in the app's thinking steps dropdown.
   const toolCalls = result.events
     .filter(e => e.kind === 'tool_result')
     .map(e => ({
@@ -182,6 +181,12 @@ export async function processWithAgentLoop({
   console.log('LLM text:', result.text?.slice(0, 300));
   console.log('Confirmation needed:', result.confirmationNeeded);
   console.groupEnd();
+
+  // Emit as a thinking step for in-app visibility
+  const toolSummary = toolCalls.map(tc =>
+    `${tc.tool}(${tc.args ? Object.entries(tc.args).map(([k,v]) => `${k}=${JSON.stringify(v)}`).join(', ') : ''}) -> ${tc.status}`
+  ).join(' | ');
+  onStatus?.({ text: `Tools: ${toolSummary || 'none'}`, type: 'debug' } as any);
 
   // Check if plan_analysis detected ambiguities that need user resolution
   const planEvents = result.events.filter(
