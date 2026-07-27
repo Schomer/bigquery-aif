@@ -1,5 +1,15 @@
 # Operations Ledger
 
+## 2026-07-27: Transient Gemini 500s not retried in adapter path
+
+**What broke**: When Gemini returned a 500 "high demand" error during a tool-calling request (e.g., "create a table"), the raw error was surfaced immediately to the user as "Something Went Wrong" with the full API error text.
+
+**Root cause**: Two issues. (1) `FirebaseAiLogicAdapter.call()` in `firebase-ai-adapter.ts` had no retry logic -- it threw on the first non-OK response. The other code path (`callGemini()` in `gemini-client.ts`) already had 3 retries with exponential backoff, but that path is only used for non-tool-calling structured output. (2) The error classification in `useChatOrchestration.ts` only matched `quota`, `rate limit`, `RESOURCE_EXHAUSTED`, and `429` for the "Temporarily Busy" banner. The 500 error message containing "high demand", "temporary", and "INTERNAL" fell through to the generic "Something Went Wrong" type.
+
+**Fix**: (1) Added retry loop to `FirebaseAiLogicAdapter.call()` -- retries up to 3 times with exponential backoff and jitter for HTTP 429, 500, 503. (2) Expanded the rate_limit error classification to also match `500`, `503`, `high demand`, `temporary`, and `INTERNAL`.
+
+**Rule**: Both model call paths (SDK and REST adapter) must have retry logic for transient errors. Error classification must cover all transient error patterns, not just quota/rate-limit ones.
+
 ## 2026-07-27: CSV upload broken -- forcedSkill and handoffContext dropped
 
 **What broke**: Attaching a CSV file and clicking send caused the app to ask the user to paste CSV contents into chat instead of showing the upload preview card.

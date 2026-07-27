@@ -2,6 +2,14 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-27: Add retry logic to REST adapter for transient Gemini errors
+
+**Problem**: Gemini 500 "high demand" errors during tool-calling requests surfaced immediately as "Something Went Wrong" with the raw API error. The REST adapter (`FirebaseAiLogicAdapter`) had no retry logic, unlike the SDK-based `callGemini()` path.
+
+**Changes**:
+- `src/agent/firebase-ai-adapter.ts` -- Added retry loop (3 attempts, exponential backoff with jitter) for HTTP 429, 500, 503.
+- `src/hooks/useChatOrchestration.ts` -- Expanded rate_limit error classification to also match `500`, `503`, `high demand`, `temporary`, `INTERNAL`.
+
 ## 2026-07-27: Fix CSV upload -- orchestrator was dropping file context
 
 **Problem**: Attaching a CSV file and sending produced an LLM response asking the user to paste data into chat. The `forcedSkill` and `handoffContext` from `sendMessageWithFile` were silently dropped by `processMessage()` when forwarding to the agent loop.
