@@ -250,10 +250,10 @@ export async function processWithAgentLoop({
     };
     envelopes.push(envelope);
   } else if (result.text) {
-    // ── Extract intent metadata from tool call args ──────────────────────────
-    // The LLM provides task_intent, visualization_hint, result_title, and
-    // suggested_follow_ups as tool call arguments. These are stored in
-    // event.tool_args by the loop.
+    // ── Build envelopes for ALL successful tool results ─────────────────────
+    // Instead of picking one "winner," render every tool result as its own card.
+    // The UI displays them all, giving the user a complete picture.
+
     type IntentMeta = {
       taskIntent?: TaskIntent;
       vizHint?: VisualizationType;
@@ -280,283 +280,264 @@ export async function processWithAgentLoop({
         sourceSkill: 'query' as SkillName,
       }));
     }
-    // Check for DML/DDL completion events
-    const dmlEvents = result.events.filter(
-      e => e.kind === 'tool_result' && e.tool_name === 'execute_dml' && e.status === 'ok'
+
+    // Collect all successful tool_result events
+    const successEvents = result.events.filter(
+      e => e.kind === 'tool_result' && e.status === 'ok'
     );
 
-    // Check for pipeline management events
-    const pipelineEvents = result.events.filter(
-      e => e.kind === 'tool_result' && e.tool_name === 'manage_pipeline' && e.status === 'ok'
-    );
+    // Track whether we built any structured envelopes
+    let builtStructured = false;
 
-    // Check for export events
-    const exportEvents = result.events.filter(
-      e => e.kind === 'tool_result' && e.tool_name === 'export_data' && e.status === 'ok'
-    );
+    // Track which schema scopes we've already rendered to avoid duplicates.
+    // When the AI calls get_schema(dataset=X) and then get_schema(dataset=X, table=Y),
+    // the dataset-level call was a preparatory step -- only render the table-level one.
+    const renderedSchemaScopes = new Set<string>();
 
-    // Check for query result events
-    const queryEvents = result.events.filter(
-      e => e.kind === 'tool_result' && e.tool_name === 'run_query' && e.status === 'ok'
-    );
+    // First pass: identify the most specific schema scope per dataset so we can
+    // skip preparatory (less specific) schema calls.
+    const schemaSpecificity = new Map<string, 'table' | 'dataset' | 'project'>();
+    for (const event of successEvents) {
+      if (event.tool_name === 'get_schema' || event.tool_name === 'list_resources') {
+        const args = event.tool_args ?? {};
+        const dataset = (args.dataset as string) || '';
+        const table = (args.table as string) || '';
+        const scope = event.tool_name === 'list_resources'
+          ? (args.scope as string) || 'datasets'
+          : '';
 
-    // Check for schema exploration events
-    const schemaEvents = result.events.filter(
-      e => e.kind === 'tool_result' &&
-      (e.tool_name === 'get_schema' || e.tool_name === 'list_resources') &&
-      e.status === 'ok'
-    );
-
-    // Check for presentation events (agent explicitly structured its response)
-    const presentEvents = result.events.filter(
-      e => e.kind === 'tool_result' && e.tool_name === 'present_result' && e.status === 'ok'
-    );
-
-    if (dmlEvents.length > 0 && queryEvents.length === 0) {
-      // DML/DDL completed -- build a completion envelope
-      const lastDmlEvent = dmlEvents[dmlEvents.length - 1];
-      let dmlData: { completed?: boolean; rows_affected?: number; job_id?: string } = {};
-      try {
-        if (lastDmlEvent.detail) {
-          dmlData = JSON.parse(lastDmlEvent.detail);
-        }
-      } catch { /* non-fatal */ }
-
-      const meta = extractIntentMeta(result.events, 'execute_dml');
-      const headline = meta.resultTitle || result.text.split('\n')[0].slice(0, 200);
-
-      const envelope: CompositionEnvelope = {
-        id: 'dml_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-        skill: 'data-management' as SkillName,
-        headline: {
-          text: headline,
-          tone: 'POSITIVE',
-          basis: 'STATUS',
-        },
-        primaryArtifact: {
-          type: 'CONVERSATION',
-          data: {
-            text: result.text,
-            rowsAffected: dmlData.rows_affected ?? 0,
-          },
-        },
-        provenance: { visibility: 'COLLAPSED', executionTrace },
-        skipSelfReview: true,
-        nextActions: buildFollowUpChips(meta.followUps),
-      };
-      envelopes.push(envelope);
-    } else if (pipelineEvents.length > 0 && queryEvents.length === 0) {
-      // Pipeline management result
-      const lastPipelineEvent = pipelineEvents[pipelineEvents.length - 1];
-      let pipelineData: Record<string, unknown> = {};
-      try {
-        if (lastPipelineEvent.detail) {
-          pipelineData = JSON.parse(lastPipelineEvent.detail);
-        }
-      } catch { /* non-fatal */ }
-
-      const actionToType: Record<string, string> = {
-        LIST: 'LIST_SCHEDULES',
-        DETAILS: 'SCHEDULE_DETAILS',
-        CREATE: 'CREATE_PIPELINE',
-        DELETE: 'DELETE_SCHEDULE',
-      };
-      const rawAction = String(pipelineData.action || 'list').toUpperCase();
-      const pipelineResult = {
-        skill: 'pipeline' as const,
-        pipelineType: (actionToType[rawAction] || 'LIST_SCHEDULES') as 'LIST_SCHEDULES',
-        schedules: (pipelineData.schedules as any[]) ?? [],
-      };
-      const composed = compose('pipeline', pipelineResult);
-      composed.provenance.executionTrace = executionTrace;
-      composed.headline.text = result.text.split('\n')[0].slice(0, 200);
-      composed.skipSelfReview = true;
-      envelopes.push(composed);
-    } else if (exportEvents.length > 0 && queryEvents.length === 0) {
-      // Export result
-      const lastExportEvent = exportEvents[exportEvents.length - 1];
-      let exportData: Record<string, unknown> = {};
-      try {
-        if (lastExportEvent.detail) {
-          exportData = JSON.parse(lastExportEvent.detail);
-        }
-      } catch { /* non-fatal */ }
-
-      const dataLoadingResult = {
-        skill: 'data-loading' as const,
-        operationType: (exportData.format === 'sheets' ? 'EXPORT_SHEETS' : 'EXPORT_CSV') as 'EXPORT_CSV',
-        message: result.text,
-        csvContent: exportData.csv_content as string | undefined,
-        sheetsUrl: exportData.sheets_url as string | undefined,
-        rowCount: exportData.row_count as number | undefined,
-        columnCount: exportData.column_count as number | undefined,
-      };
-      const composed = compose('data-loading', dataLoadingResult);
-      composed.provenance.executionTrace = executionTrace;
-      composed.headline.text = result.text.split('\n')[0].slice(0, 200);
-      composed.skipSelfReview = true;
-      envelopes.push(composed);
-    } else if (queryEvents.length > 0) {
-      // Query results take priority over schema exploration.
-      // The agent often calls get_schema first to discover column names,
-      // then calls run_query. The query result is what the user wants to see.
-      const lastQueryEvent = queryEvents[queryEvents.length - 1];
-      let resultData: { columns?: string[]; rows?: unknown[][]; column_types?: string[] } | null = null;
-
-      try {
-        // Read result_id from the dedicated event field (preferred),
-        // falling back to parsing it from the detail JSON (legacy).
-        const rid = lastQueryEvent.result_id
-          ?? (lastQueryEvent.detail ? JSON.parse(lastQueryEvent.detail).result_id : undefined);
-        if (rid) {
-          const cached = await resultCache.get(rid);
-          if (cached) {
-            resultData = {
-              columns: cached.schema.map(s => s.name),
-              column_types: cached.schema.map(s => s.type),
-              rows: cached.rows,
-            };
-          }
-        }
-      } catch {
-        // Non-fatal -- fall back to text response
-      }
-
-      if (resultData && resultData.columns && resultData.rows) {
-        // Build a query result envelope via compose
-        const meta = extractIntentMeta(result.events, 'run_query');
-        const vizHint = (meta.vizHint || 'TABLE') as VisualizationType;
-
-        const queryResult = {
-          skill: 'query' as const,
-          sql: '',
-          requiresConfirmation: false,
-          costConfirm: null,
-          columns: resultData.columns,
-          columnTypes: resultData.column_types ?? [],
-          rows: resultData.rows,
-          rowCount: resultData.rows.length,
-          totalBytesProcessed: result.totalBytesBilled,
-          costTier: 0 as const,
-          suggestedVisualization: vizHint,
-          resultSummary: result.text,
-        };
-        const composed = compose('query', queryResult);
-        composed.provenance.executionTrace = executionTrace;
-        // Use agent-provided title or fall back to LLM text
-        composed.headline.text = meta.resultTitle || result.text.split('\n')[0].slice(0, 200);
-        composed.skipSelfReview = true;
-        // Wire follow-up chips from agent metadata
-        if (meta.followUps?.length) {
-          composed.nextActions = [
-            ...composed.nextActions,
-            ...buildFollowUpChips(meta.followUps),
-          ];
-        }
-        envelopes.push(composed);
-      } else {
-        // Text response with data mentioned
-        envelopes.push(buildTextEnvelope(result.text, executionTrace));
-      }
-    } else if (schemaEvents.length > 0 && queryEvents.length === 0) {
-      // Schema exploration -- only when no query ran.
-      // When the agent fetches schema as a preparatory step for a query,
-      // the query result takes priority (handled above).
-      let targetEvent = schemaEvents[schemaEvents.length - 1];
-
-      // Prefer the most specific scope: table > dataset > project.
-      // When the agent calls get_schema(dataset=X) as a precursor to
-      // get_schema(dataset=X, table=Y), the table result is the user's answer.
-      const tableScopeEvent = schemaEvents.find(
-        e => e.tool_name === 'get_schema' && e.tool_args?.dataset && e.tool_args?.table
-      );
-      if (tableScopeEvent) {
-        targetEvent = tableScopeEvent;
-      }
-
-      const args = targetEvent.tool_args ?? {};
-
-      let schemaDataset: string | undefined;
-      let schemaTable: string | undefined;
-
-      if (targetEvent.tool_name === 'get_schema') {
-        schemaDataset = args.dataset as string | undefined;
-        schemaTable = args.table as string | undefined;
-      } else if (targetEvent.tool_name === 'list_resources') {
-        const scope = args.scope as string;
-        if (scope === 'tables') {
-          schemaDataset = args.dataset as string | undefined;
-        }
-      }
-
-      let schemaEnvelopeBuilt = false;
-      try {
-        const schemaResult = await fetchSchema(
-          schemaDataset ?? undefined,
-          schemaTable ?? undefined,
-          project,
-        );
-        const composed = compose('schema', schemaResult);
-        composed.provenance.executionTrace = executionTrace;
-        // Derive headline from the actual schema result, not the agent's text.
-        // The agent's text can hallucinate the wrong dataset name.
-        if (schemaTable && schemaDataset) {
-          composed.headline.text = `Schema: ${schemaDataset}.${schemaTable}`;
-        } else if (schemaDataset) {
-          composed.headline.text = `Tables in ${schemaDataset}`;
+        let level: 'table' | 'dataset' | 'project';
+        if (table) {
+          level = 'table';
+        } else if (dataset || scope === 'tables') {
+          level = 'dataset';
         } else {
-          composed.headline.text = `Datasets in ${project}`;
+          level = 'project';
         }
+
+        const key = dataset || '__project__';
+        const existing = schemaSpecificity.get(key);
+        const rank = { project: 0, dataset: 1, table: 2 };
+        if (!existing || rank[level] > rank[existing]) {
+          schemaSpecificity.set(key, level);
+        }
+      }
+    }
+
+    for (const event of successEvents) {
+      const tool = event.tool_name;
+
+      // ── DML/DDL result ──────────────────────────────────────────────────
+      if (tool === 'execute_dml') {
+        let dmlData: { completed?: boolean; rows_affected?: number; job_id?: string } = {};
+        try {
+          if (event.detail) dmlData = JSON.parse(event.detail);
+        } catch { /* non-fatal */ }
+
+        const meta = extractIntentMeta(result.events, 'execute_dml');
+        const headline = meta.resultTitle || result.text?.split('\n')[0].slice(0, 200) || 'Operation complete';
+
+        envelopes.push({
+          id: 'dml_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+          skill: 'data-management' as SkillName,
+          headline: { text: headline, tone: 'POSITIVE', basis: 'STATUS' },
+          primaryArtifact: {
+            type: 'CONVERSATION',
+            data: { text: result.text || headline, rowsAffected: dmlData.rows_affected ?? 0 },
+          },
+          provenance: { visibility: 'COLLAPSED', executionTrace },
+          skipSelfReview: true,
+          nextActions: buildFollowUpChips(meta.followUps),
+        });
+        builtStructured = true;
+        continue;
+      }
+
+      // ── Pipeline result ─────────────────────────────────────────────────
+      if (tool === 'manage_pipeline') {
+        let pipelineData: Record<string, unknown> = {};
+        try {
+          if (event.detail) pipelineData = JSON.parse(event.detail);
+        } catch { /* non-fatal */ }
+
+        const actionToType: Record<string, string> = {
+          LIST: 'LIST_SCHEDULES', DETAILS: 'SCHEDULE_DETAILS',
+          CREATE: 'CREATE_PIPELINE', DELETE: 'DELETE_SCHEDULE',
+        };
+        const rawAction = String(pipelineData.action || 'list').toUpperCase();
+        const pipelineResult = {
+          skill: 'pipeline' as const,
+          pipelineType: (actionToType[rawAction] || 'LIST_SCHEDULES') as 'LIST_SCHEDULES',
+          schedules: (pipelineData.schedules as any[]) ?? [],
+        };
+        const composed = compose('pipeline', pipelineResult);
+        composed.provenance.executionTrace = executionTrace;
+        composed.headline.text = result.text?.split('\n')[0].slice(0, 200) || 'Pipeline';
         composed.skipSelfReview = true;
         envelopes.push(composed);
-        schemaEnvelopeBuilt = true;
-      } catch {
-        // Non-fatal -- fall back to text envelope
+        builtStructured = true;
+        continue;
       }
 
-      if (!schemaEnvelopeBuilt) {
-        envelopes.push(buildTextEnvelope(result.text, executionTrace));
+      // ── Export result ────────────────────────────────────────────────────
+      if (tool === 'export_data') {
+        let exportData: Record<string, unknown> = {};
+        try {
+          if (event.detail) exportData = JSON.parse(event.detail);
+        } catch { /* non-fatal */ }
+
+        const dataLoadingResult = {
+          skill: 'data-loading' as const,
+          operationType: (exportData.format === 'sheets' ? 'EXPORT_SHEETS' : 'EXPORT_CSV') as 'EXPORT_CSV',
+          message: result.text || '',
+          csvContent: exportData.csv_content as string | undefined,
+          sheetsUrl: exportData.sheets_url as string | undefined,
+          rowCount: exportData.row_count as number | undefined,
+          columnCount: exportData.column_count as number | undefined,
+        };
+        const composed = compose('data-loading', dataLoadingResult);
+        composed.provenance.executionTrace = executionTrace;
+        composed.headline.text = result.text?.split('\n')[0].slice(0, 200) || 'Export complete';
+        composed.skipSelfReview = true;
+        envelopes.push(composed);
+        builtStructured = true;
+        continue;
       }
-    } else if (presentEvents.length > 0) {
-      // Agent structured its response via present_result.
-      // This only triggers when no other structured tool (schema, query, etc.)
-      // produced results. present_result is for enriching what would otherwise
-      // be plain text.
-      const lastPresentEvent = presentEvents[presentEvents.length - 1];
-      const pArgs = lastPresentEvent.tool_args ?? {};
-      const presentationData = {
-        format: (pArgs.format as string) || 'info',
-        title: pArgs.title as string | undefined,
-        text: pArgs.text as string | undefined,
-        items: (pArgs.items as Array<Record<string, unknown>>) || [],
-      };
-      const meta = extractIntentMeta(result.events, 'present_result');
 
-      // Title is required on present_result, so the AI should always provide it.
-      // Fallback chain for edge cases where it's missing.
-      const presentHeadline = presentationData.title
-        || meta.resultTitle
-        || 'Results';
+      // ── Query result ────────────────────────────────────────────────────
+      if (tool === 'run_query') {
+        let resultData: { columns?: string[]; rows?: unknown[][]; column_types?: string[] } | null = null;
+        try {
+          const rid = event.result_id
+            ?? (event.detail ? JSON.parse(event.detail).result_id : undefined);
+          if (rid) {
+            const cached = await resultCache.get(rid);
+            if (cached) {
+              resultData = {
+                columns: cached.schema.map(s => s.name),
+                column_types: cached.schema.map(s => s.type),
+                rows: cached.rows,
+              };
+            }
+          }
+        } catch { /* non-fatal */ }
 
-      const presentEnvelope: CompositionEnvelope = {
-        id: 'agent_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-        skill: 'conversation' as SkillName,
-        headline: {
-          text: presentHeadline,
-          tone: 'NEUTRAL',
-          basis: 'STATUS',
-        },
-        primaryArtifact: {
-          type: 'PRESENTATION',
-          data: presentationData,
-        },
-        provenance: { visibility: 'COLLAPSED', executionTrace },
-        skipSelfReview: true,
-        nextActions: meta.followUps?.length ? buildFollowUpChips(meta.followUps) : [],
-      };
-      envelopes.push(presentEnvelope);
-    } else {
-      // Pure text response -- no tools produced structured data
+        if (resultData?.columns && resultData?.rows) {
+          const meta = extractIntentMeta(result.events, 'run_query');
+          const vizHint = (meta.vizHint || 'TABLE') as VisualizationType;
+
+          const queryResult = {
+            skill: 'query' as const,
+            sql: '',
+            requiresConfirmation: false,
+            costConfirm: null,
+            columns: resultData.columns,
+            columnTypes: resultData.column_types ?? [],
+            rows: resultData.rows,
+            rowCount: resultData.rows.length,
+            totalBytesProcessed: result.totalBytesBilled,
+            costTier: 0 as const,
+            suggestedVisualization: vizHint,
+            resultSummary: result.text || '',
+          };
+          const composed = compose('query', queryResult);
+          composed.provenance.executionTrace = executionTrace;
+          composed.headline.text = meta.resultTitle || result.text?.split('\n')[0].slice(0, 200) || 'Query results';
+          composed.skipSelfReview = true;
+          if (meta.followUps?.length) {
+            composed.nextActions = [...composed.nextActions, ...buildFollowUpChips(meta.followUps)];
+          }
+          envelopes.push(composed);
+          builtStructured = true;
+        }
+        continue;
+      }
+
+      // ── Schema / list_resources result ───────────────────────────────────
+      if (tool === 'get_schema' || tool === 'list_resources') {
+        const args = event.tool_args ?? {};
+        const dataset = (args.dataset as string) || '';
+        const table = (args.table as string) || '';
+        const scope = tool === 'list_resources' ? (args.scope as string) || 'datasets' : '';
+
+        // Determine this event's specificity level
+        let level: 'table' | 'dataset' | 'project';
+        if (table) {
+          level = 'table';
+        } else if (dataset || scope === 'tables') {
+          level = 'dataset';
+        } else {
+          level = 'project';
+        }
+
+        // Skip if a more specific call exists for the same dataset
+        const key = dataset || '__project__';
+        const mostSpecific = schemaSpecificity.get(key);
+        const rank = { project: 0, dataset: 1, table: 2 };
+        if (mostSpecific && rank[level] < rank[mostSpecific]) {
+          continue; // Skip this preparatory call
+        }
+
+        // Deduplicate: don't render the same scope twice
+        const scopeKey = `${dataset}:${table}:${scope}`;
+        if (renderedSchemaScopes.has(scopeKey)) continue;
+        renderedSchemaScopes.add(scopeKey);
+
+        try {
+          const schemaResult = await fetchSchema(
+            dataset || undefined,
+            table || undefined,
+            project,
+          );
+          const composed = compose('schema', schemaResult);
+          composed.provenance.executionTrace = executionTrace;
+          if (table && dataset) {
+            composed.headline.text = `Schema: ${dataset}.${table}`;
+          } else if (dataset) {
+            composed.headline.text = `Tables in ${dataset}`;
+          } else {
+            composed.headline.text = `Datasets in ${project}`;
+          }
+          composed.skipSelfReview = true;
+          envelopes.push(composed);
+          builtStructured = true;
+        } catch {
+          // Non-fatal -- skip this schema card
+        }
+        continue;
+      }
+
+      // ── present_result ──────────────────────────────────────────────────
+      if (tool === 'present_result') {
+        const pArgs = event.tool_args ?? {};
+        const presentationData = {
+          format: (pArgs.format as string) || 'info',
+          title: pArgs.title as string | undefined,
+          text: pArgs.text as string | undefined,
+          items: (pArgs.items as Array<Record<string, unknown>>) || [],
+        };
+        const meta = extractIntentMeta(result.events, 'present_result');
+        const presentHeadline = presentationData.title || meta.resultTitle || 'Results';
+
+        envelopes.push({
+          id: 'agent_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+          skill: 'conversation' as SkillName,
+          headline: { text: presentHeadline, tone: 'NEUTRAL', basis: 'STATUS' },
+          primaryArtifact: { type: 'PRESENTATION', data: presentationData },
+          provenance: { visibility: 'COLLAPSED', executionTrace },
+          skipSelfReview: true,
+          nextActions: meta.followUps?.length ? buildFollowUpChips(meta.followUps) : [],
+        });
+        builtStructured = true;
+        continue;
+      }
+
+      // ── plan_analysis: skip (handled above) ─────────────────────────────
+      // plan_analysis events are handled in the ambiguity check before this loop.
+    }
+
+    // If no structured envelopes were built, fall back to text
+    if (!builtStructured && result.text) {
       envelopes.push(buildTextEnvelope(result.text, executionTrace));
     }
   } else if (result.interrupted) {

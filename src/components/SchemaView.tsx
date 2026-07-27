@@ -91,7 +91,7 @@ export function SchemaView({ result, onSendMessage }: Props) {
               {startHereTables.map(t => (
                 <div key={t.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <button
-                    onClick={() => send(`Show me more about ${result.dataset}.${t.name}`)}
+                    onClick={() => send(`Give me an overview of the ${t.name} table in the ${result.dataset} dataset`)}
                     style={{ fontSize: 12, fontWeight: 500, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
                   >
                     {t.name}
@@ -127,7 +127,7 @@ export function SchemaView({ result, onSendMessage }: Props) {
           return (
             <ClickableRow
               key={t.name}
-              onClick={() => send(`Show me more about ${result.dataset}.${t.name}`)}
+              onClick={() => send(`Give me an overview of the ${t.name} table in the ${result.dataset} dataset`)}
               tooltip={`Click to inspect ${t.name}`}
               index={i}
             >

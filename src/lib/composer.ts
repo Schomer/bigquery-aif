@@ -1293,7 +1293,7 @@ function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType |
   // present and presentation:'custom' is set by the early-return block above --
   // trusting it here produces an envelope that hits the default JSON-dump case in
   // the Artifact switch).
-  const NON_CHART_VIZ_TYPES = new Set(['TABLE', 'INTERACTIVE_WIDGET', 'KPI_CARD', 'STAT_ROW']);
+  const NON_CHART_VIZ_TYPES = new Set(['TABLE', 'INTERACTIVE_WIDGET']);
   if (result.suggestedVisualization && !NON_CHART_VIZ_TYPES.has(result.suggestedVisualization)) {
     return result.suggestedVisualization as ArtifactType;
   }
