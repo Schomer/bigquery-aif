@@ -133,9 +133,10 @@ UI Components (src/components/)
 - Auto-retry with safe query on GEOGRAPHY/STRUCT column errors
 - LLM-assisted range expectations and FK relationship detection
 
-### `handle-monitoring.ts` (770 lines)
+### `handle-monitoring.ts` (1195 lines)
 - 9 sub-types: JOBS, STORAGE, SLOTS, QUERY_PLAN, ALERT, STORAGE_BREAKDOWN, ACCESS_PATTERNS, COST_ANALYSIS, FRESHNESS
 - Alert three-way classification (PROJECT_WIDE, JOB_SPECIFIC, DATA_CONDITION)
+- Added `simulateAlert()` helper running alert rules against current data for DATA_CONDITION alerts
 - Save/schedule check actions via handoff context
 - Keyword fast-path for cost and freshness to avoid LLM misrouting
 - `normalizeTimestamp()` helper for BigQuery timestamp formats
@@ -202,9 +203,10 @@ UI Components (src/components/)
 
 ---
 
-### `src/lib/composer.ts` (~865 lines)
+### `src/lib/composer.ts` (~1998 lines)
 **Responsibility**: Transforms skill results into CompositionEnvelopes.
 - Each skill has a dedicated `compose[Skill]` function
+- Added `composeClarification()` for creating CLARIFICATION_CARD envelopes
 - Determines headline text and tone
 - Selects artifact type
 - Generates next-action handoff chips (including from quality flag suggested actions)
@@ -308,7 +310,7 @@ UI Components (src/components/)
 
 ---
 
-### `src/lib/types.ts` (535 lines)
+### `src/lib/types.ts` (1001 lines)
 **Responsibility**: All TypeScript interfaces.
 - `SkillName`, `CompositionEnvelope`, `SchemaResult`, `QueryResult`
 - `DataManagementResult`, `DataQualityResult`, `MonitoringResult`
@@ -317,6 +319,7 @@ UI Components (src/components/)
 - Added 2026-07-12: `SavedDashboard`, `DashboardTile`, `JoinDefinition`
 - Added 2026-07-13: `CsvUploadPreview`, `UPLOAD_PREVIEW`, `UPLOAD_CSV`, `CSV_UPLOAD_VIEW`
 - Added 2026-07-15: `PLAN_CARD` artifact type, `InteractiveWidgetData`
+- Added 2026-07-26: `ExecutionTraceEntry`, `ClarificationOption`, `ClarificationResult`, `AlertSimulation`, `CLARIFICATION_CARD` artifact type, `executionTrace` provenance, `simulation` on `AlertResult`
 
 ---
 
@@ -457,8 +460,8 @@ UI Components (src/components/)
 | MultistepView.tsx | 15KB | Multi-step workflow cards |
 | ErDiagramView.tsx | 14KB | Entity-relationship diagrams |
 | LineageDagView.tsx | 14KB | Data lineage DAG visualization |
-| ArtifactCard.tsx | 28KB | Artifact rendering wrapper with two paths: default (fixed chrome) and custom (thin container, view owns layout). Includes CustomArtifact dispatcher. Added dispatchers for: CSV_UPLOAD_VIEW (2026-07-13), INTERACTIVE_WIDGET (2026-07-14), PLAN_CARD (2026-07-15), DASHBOARD_VIEW (2026-07-15). |
-| ProvenancePanel.tsx | 14KB | Collapsible provenance panel (SQL, cost, job, tables, quality flags) |
+| ArtifactCard.tsx | 28KB (982 lines) | Artifact rendering wrapper with two paths: default (fixed chrome) and custom (thin container, view owns layout). Includes CustomArtifact dispatcher. Added dispatchers for: CSV_UPLOAD_VIEW (2026-07-13), INTERACTIVE_WIDGET (2026-07-14), PLAN_CARD (2026-07-15), DASHBOARD_VIEW (2026-07-15), CLARIFICATION_CARD (2026-07-26). |
+| ProvenancePanel.tsx | 14KB (440 lines) | Collapsible provenance panel (SQL, cost, job, tables, quality flags, step-by-step executionTrace timeline) |
 | HowItWorksPanel.tsx | 8KB | Static trust/transparency page (security, queries, costs) |
 | CostAnalysisView.tsx | 15KB | Cost breakdown visualizations |
 | AccessPatternView.tsx | 15KB | Table access pattern analysis |
@@ -492,6 +495,8 @@ UI Components (src/components/)
 | CrystalBallOracle.tsx | ~5KB | Enhanced crystal ball loading animation variant. |
 | SparkSpinner.tsx | ~2KB | Lightweight spinner used in compact contexts. |
 | StatRowCard.tsx | ~3KB | Horizontal stat row card variant. |
+| ClarificationCard.tsx | ~6KB (192 lines) | Inline clarification card component rendering clickable options and text input for disambiguation. Added 2026-07-26. |
+| AlertView.tsx | ~6KB (189 lines) | Historical alert simulation display component with zero-fire dual-interpretation framing. Added 2026-07-26. |
 | ErrorBoundary.tsx | ~3KB | React error boundary wrapping skill-specific views. |
 
 ---
@@ -580,17 +585,18 @@ New architecture components, behind feature flag `bqaif_agent_v2`.
 |------|----------------|--------|
 | model-adapter.ts | 50 | ModelAdapter interface (model-agnostic LLM calls) |
 | firebase-ai-adapter.ts | 120 | FirebaseAiLogicAdapter (wraps Firebase AI Logic SDK) |
-| prompts/flash.ts | 80 | Flash-optimized system prompt with injection defense |
+| prompts/flash.ts | 116 | Flash-optimized system prompt with planning and tool selection instructions |
 | step-events.ts | 150 | StepEvent protocol + emitter + StatusCallback bridge |
 | trace-recorder.ts | 165 | Trace recording for golden set evaluation |
 | context.ts | 170 | LoopContext assembly, history truncation, result summarization |
 | loop.ts | 300 | The agent loop (stall detection, interruption, gates, parallel reads) |
 | action-classes.ts | 185 | Action-class taxonomy (read/reversible/destructive) |
 | result-cache.ts | 160 | IndexedDB result store (200MB LRU) |
-| index.ts | 200 | Entry point, feature flag, processWithAgentLoop() |
+| index.ts | 612 | Entry point, feature flag, processWithAgentLoop(), executionTrace collection, plan ambiguity detection |
 | tools/types.ts | 45 | ToolDef, ToolCall, ToolResult |
 | tools/run-query.ts | 115 | run_query tool (execute + dry_run + cache) |
 | tools/get-schema.ts | 180 | get_schema tool (project/dataset/table scope + fuzzy match) |
 | tools/list-resources.ts | 85 | list_resources tool (datasets/tables) |
+| tools/plan-tool.ts | 102 | plan_analysis tool (pre-execution plan analysis & ambiguity detection) |
 
 
