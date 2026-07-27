@@ -2,6 +2,24 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-27: Remove dead code (keyword router, self-review, bq-tools, legacy skills)
+
+**Problem**: Legacy code paths (`router.ts`, `self-review.ts`, `bq-tools.ts`, 14 `handle-*.ts` skill files, unit tests, dead response schemas, and unused imports) remained in the codebase after migrating to the agent-loop architecture.
+
+**Changes**:
+- `src/lib/router.ts`, `src/lib/__tests__/router.test.ts` -- Deleted. Keyword router is completely removed.
+- `src/lib/self-review.ts` -- Deleted. Self-review pass is completely removed.
+- `src/lib/bq-tools.ts` -- Deleted. Tool declarations are now in `src/agent/tools/`.
+- `src/lib/skills/handle-*.ts` (14 files: query, schema, conversation, data-quality, monitoring, discovery, data-loading, pipeline, task, governance, saved, dashboard, data-management) -- Deleted.
+- `src/lib/skills/execute-confirmed.ts` -- Added to house `executeConfirmedOperation` extracted from `handle-data-management.ts`.
+- `src/lib/skills/index.ts` -- Updated to re-export `fetchSchema` and `executeConfirmedOperation`.
+- `src/lib/gemini-client.ts` -- Removed dead schemas (`SchemaResponseSchema`, `SelfReviewResponseSchema`, `DataManagementResponseSchema`, `IntentClassifierSchema`, etc.) and `SKILL_NAMES` import.
+- `src/lib/chat-orchestrator.ts` -- Simplified entry point delegating all active requests to `processWithAgentLoop()`.
+
+**Impact**: Streamlined codebase around the single active request flow: User message -> `chat-orchestrator.ts` -> `processWithAgentLoop()` -> `src/agent/tools/` -> `compose()` -> UI.
+
+---
+
 ## 2026-07-27: Deduplicate progress messages
 
 **Problem**: The progress area showed repetitive identical messages during query execution. "Query running..." appeared multiple times in the breadcrumb trail, and the completed thinking steps accordion showed the same message repeated.

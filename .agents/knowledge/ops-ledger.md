@@ -1,5 +1,24 @@
 # Operations Ledger
 
+## 2026-07-27: Removal of legacy keyword router and dead skill code
+
+**Context**: Cleaned up legacy dead code paths following the migration to the agent-loop architecture (`processWithAgentLoop`).
+
+**Code removed**:
+- `src/lib/router.ts` (keyword router) and `src/lib/__tests__/router.test.ts`
+- `src/lib/self-review.ts` (legacy self-review pass)
+- `src/lib/bq-tools.ts` (legacy tool definitions)
+- 14 legacy skill handlers under `src/lib/skills/`: `handle-query.ts`, `handle-schema.ts`, `handle-conversation.ts`, `handle-data-quality.ts`, `handle-monitoring.ts`, `handle-discovery.ts`, `handle-data-loading.ts`, `handle-pipeline.ts`, `handle-task.ts`, `handle-governance.ts`, `handle-saved.ts`, `handle-dashboard.ts`, `handle-data-management.ts` (with `executeConfirmedOperation` extracted to `execute-confirmed.ts`)
+- Dead response schemas from `src/lib/gemini-client.ts` (`SchemaResponseSchema`, `SelfReviewResponseSchema`, `DataManagementResponseSchema`, `MonitoringIntentSchema`, `DqIntentSchema`, `DiscoveryResponseSchema`, `DataLoadingIntentSchema`, `IntentClassifierSchema`, etc.) and `SKILL_NAMES` import.
+
+**Current structure**:
+- `src/lib/skills/` contains only `schema.ts`, `execute-confirmed.ts`, and `index.ts`.
+- Active flow: User message -> `chat-orchestrator.ts` -> `processWithAgentLoop()` (`src/agent/index.ts`) -> tools (`src/agent/tools/`) -> `compose()` (`src/lib/composer.ts`) -> UI rendering.
+
+**Derived rule**: Rely exclusively on the agent loop and tool definitions for request routing and execution. Do not maintain unused legacy schemas or skill handlers.
+
+---
+
 ## 2026-07-27: Duplicate progress messages in status area
 
 **Context**: The progress area showed repetitive identical messages (e.g. "Query running..." appearing 3-4 times in the breadcrumb trail). Four sources of duplication were identified.

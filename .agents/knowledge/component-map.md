@@ -2,7 +2,7 @@
 
 A guide to the codebase structure, key files, their responsibilities, and where to find things. Consult this before making changes to understand what you're touching and what might be affected.
 
-Last updated: 2026-07-16
+Last updated: 2026-07-27
 
 ---
 
@@ -12,29 +12,23 @@ Last updated: 2026-07-16
 User Message
     |
     v
-Router (src/lib/router.ts)
-  - Keyword scoring: classifyIntent()
-  - Reference resolution: resolveReferences()
-  - Scores signals from SKILL_MANIFESTS (manifest-driven)
-    |
-    v
 Orchestrator (src/lib/chat-orchestrator.ts)
-  - LLM classifier (medium/low confidence fallback)
-  - Manifest-driven dispatch via SKILL_MAP
-  - Self-review pass
+  - Confirmation handling (executeConfirmedOperation)
+  - Delegates request processing to processWithAgentLoop()
     |
     v
-Skill Handlers (src/lib/skills/handle-*.ts)
-  - Each exports a `manifest: SkillManifest`
-  - Barrel file: src/lib/skills/index.ts
+Agent Loop (src/agent/index.ts)
+  - processWithAgentLoop()
+  - Manages agent loop, tool calls, and execution steps
     |
     v
-Infrastructure (src/lib/{gemini-client,orchestrator-utils,self-review,regex-utils}.ts)
-  - Gemini API client (via /gemini-proxy Cloud Function), dataset resolution, self-review pass, regex escaping
+Agent Tools (src/agent/tools/)
+  - Tools: get_schema, run_query, list_resources, plan_tool, present_result, etc.
+  - Interacts with BigQuery REST API and schema helpers (src/lib/skills/schema.ts)
     |
     v
 Composer (src/lib/composer.ts)
-  - compose(skill, result) -> CompositionEnvelope
+  - compose(type, result) -> CompositionEnvelope
     |
     v
 UI Components (src/components/)
@@ -45,45 +39,25 @@ UI Components (src/components/)
 
 ## Core Files
 
-### `src/lib/router.ts` (~180 lines)
-**Responsibility**: Intent classification via weighted keyword scoring.
-- Lines 14-38: MUTATING_VERBS array and compiled regex patterns
-- Lines 42-55: `scoreSignals()` -- the scoring engine
-- Lines 57-104: `getContextBoosts()` -- follow-up action pattern matching
-- Lines 120-200: `classifyIntent()` -- main classification function (scores from SKILL_MANIFESTS)
-- Lines 205-220: `resolveReferences()` -- pronoun resolution
-
-**Key invariant**: Mutating verbs get checked first. High-confidence mutating verb match returns immediately unless a strong quality signal (from data-quality manifest) is also present.
-**Key change (2026-07-09)**: Signal arrays moved to handler manifests. Router now iterates `SKILL_MANIFESTS` to score signals.
+### `src/lib/chat-orchestrator.ts` (~80 lines)
+**Responsibility**: Entry point dispatch layer.
+- Confirmation handling: delegates to `executeConfirmedOperation` in `src/lib/skills/execute-confirmed.ts`
+- Active request routing: delegates to `processWithAgentLoop` in `src/agent/index.ts`
 
 ---
 
-### `src/lib/chat-orchestrator.ts` (~270 lines)
-**Responsibility**: Thin dispatch layer. Routes classified intents to skill handlers.
-- Lines 1-28: Imports (barrel, infrastructure, types)
-- Lines 30-56: `ProcessMessageArgs` and `OrchestrationResult` interfaces
-- Lines 58-270: `ChatOrchestrator.processMessage()` -- main entry point
-  - Lines 60-65: Confirmation handling (delegates to `executeConfirmedOperation`)
-  - Lines 70-71: Reference resolution
-  - Lines 75-195: Intent classification (keyword first, LLM fallback)
-  - Lines 200-215: Manifest-driven dispatch via `SKILL_MAP.get(skill)`
-  - Lines 220-260: Self-review pass with skip heuristics
-
-**Key change (2026-07-09)**: Switch-case replaced with manifest-driven dispatch.
-
----
-
-### `src/lib/gemini-client.ts` (~330 lines)
-**Responsibility**: Gemini API client and response schemas.
+### `src/lib/gemini-client.ts` (~120 lines)
+**Responsibility**: Gemini API client.
 - `callGemini()` -- structured output with retry logic
 - `callGeminiWithSchema<T>()` -- typed wrapper for structured output (used by task resolver)
 - `loadSkillDoc()` -- loads skill .md files from /public/skills/
-- All response schemas: `SchemaResponseSchema`, `QueryResponseSchema`, `DataManagementResponseSchema`, `MonitoringIntentSchema`, `DqIntentSchema`, `DiscoveryResponseSchema`, `DataLoadingIntentSchema`, `IntentClassifierSchema`, `SelfReviewResponseSchema`, `EnrichedSchemaQuerySchema`
+- Retained response schemas (`QueryResponseSchema`, `EnrichedSchemaQuerySchema`, etc.). Dead schemas removed (`SchemaResponseSchema`, `SelfReviewResponseSchema`, `DataManagementResponseSchema`, `MonitoringIntentSchema`, `DqIntentSchema`, `DiscoveryResponseSchema`, `DataLoadingIntentSchema`, `IntentClassifierSchema`, etc.)
+- `SKILL_NAMES` import removed
 
 ---
 
 ### `src/lib/orchestrator-utils.ts` (182 lines)
-**Responsibility**: Shared utility functions used across handlers.
+**Responsibility**: Shared utility functions.
 - `bqConsoleUrl()` -- generates BigQuery Console deep links
 - `stepWithLink()` -- creates status step with Console link
 - `getAvailableDatasets()` -- lists datasets via BigQuery API
@@ -94,101 +68,11 @@ UI Components (src/components/)
 
 ---
 
-### `src/lib/self-review.ts` (192 lines)
-**Responsibility**: LLM review pass that evaluates and improves composed output.
-- `buildReviewSnapshot()` -- extracts reviewable fields from envelope
-- `selfReviewEnvelope()` -- single Gemini pass across 4 dimensions (comprehension, completeness, presentation, visual design)
+## Skills Subsystem (`src/lib/skills/`)
 
----
-
-## Skill Handlers (`src/lib/skills/`)
-
-### `handle-schema.ts` (420 lines)
-- Keyword-based scope classifier (DATASET_LIST_SIGNALS, TABLE_LIST_SIGNALS, TABLE_DESCRIBE_SIGNALS)
-- Enrichment patterns and fast-path SQL generation (`tryFastEnrichment`)
-- Regex entity extraction (`extractSchemaIdentifiers`)
-- Main handler: `handleSchema()` -- scope resolution, enrichment, metadata fetch
-- Cross-dataset table search fallback
-
-### `handle-query.ts` (259 lines)
-- Plan cache check (`findReusablePlan` / `cachePlan`)
-- SQL generation via Gemini with full visualization type catalog
-- Dry-run cost check
-- Auto-retry on SQL errors (sends error back to Gemini for fix)
-- Result quality analysis via `analyzeResultQuality()`
-- `terminateAfter: ['run_query']` -- hard loop exit after run_query succeeds
-- Pre-fetches table list when dataset is resolved (eliminates list_tables tool calls)
-- Strips list_datasets/list_tables from tool declarations when context already available
-- Accepts `conversationState` for SESSION HISTORY injection
-
-### `handle-data-management.ts` (275 lines)
-- DML plan generation (INSERT, UPDATE, DELETE, CREATE, ALTER, etc.)
-- Preview/confirm flow with safety net
-- Safety-net redirect to query handler via lazy `await import('./handle-query')`
-- `executeConfirmedOperation()` -- runs confirmed DML statements
-
-### `handle-data-quality.ts` (489 lines)
-- 8 check types: PROFILE, NULLS, DUPLICATES, FRESHNESS, COMPLETENESS, RANGE_VALIDATION, REFERENTIAL_INTEGRITY, SCHEMA_DRIFT
-- Batched column profiling with cost gate (dry-run before execution)
-- Auto-retry with safe query on GEOGRAPHY/STRUCT column errors
-- LLM-assisted range expectations and FK relationship detection
-
-### `handle-monitoring.ts` (1195 lines)
-- 9 sub-types: JOBS, STORAGE, SLOTS, QUERY_PLAN, ALERT, STORAGE_BREAKDOWN, ACCESS_PATTERNS, COST_ANALYSIS, FRESHNESS
-- Alert three-way classification (PROJECT_WIDE, JOB_SPECIFIC, DATA_CONDITION)
-- Added `simulateAlert()` helper running alert rules against current data for DATA_CONDITION alerts
-- Save/schedule check actions via handoff context
-- Keyword fast-path for cost and freshness to avoid LLM misrouting
-- `normalizeTimestamp()` helper for BigQuery timestamp formats
-
-### `handle-discovery.ts` (386 lines)
-- 4 discovery types: SEARCH, COMPARISON, LINEAGE, ER_DIAGRAM
-- Table search across datasets
-- Column-level lineage via INFORMATION_SCHEMA.JOBS
-- ER diagram generation from FK/naming conventions
-
-### `handle-data-loading.ts` (232 lines)
-- 5 operation types: EXPORT_CSV, EXPORT_SHEETS, SCHEDULE, SAVED_QUERY, SHARE
-- Google Sheets export via BigQuery extract
-- Scheduled query creation via Data Transfer API
-- Query save to Firestore
-- Added 2026-07-13: CSV Upload (UPLOAD_CSV) -- 3-phase flow, client-side BigQuery multipart upload
-
-### `handle-pipeline.ts` (~390 lines)
-- 6 operation types: LIST_SCHEDULES, SCHEDULE_DETAILS, CREATE_PIPELINE, UPDATE_SCHEDULE, DELETE_SCHEDULE, RUN_HISTORY
-- BigQuery Data Transfer API for scheduled query CRUD
-- LLM-assisted pipeline SQL generation
-- Dry-run cost estimation per pipeline run
-- Run history with success/failure tracking
-
-### `handle-task.ts` (105 lines)
-- Generic task resolver for Google Cloud data tasks
-- Delegates to task framework (resolver, executor, learned plans)
-
-### `handle-saved.ts` (184 lines)
-- Runs saved artifacts from chat ("run my weekly report")
-- Fuzzy-matches user message against saved artifact names
-- Executes cached SQL directly without Gemini calls
-- Records run count via `recordRun()`
-- Added 2026-07-14: Injects `savedArtifactSql/Name/VizType` into QueryResult for CTE context forwarding
-
-### `handle-conversation.ts` [Added 2026-07-13]
-- Complete rewrite of the conversation skill as a tool-calling agent using `callGeminiWithTools`
-- 6 tools: `run_query`, `get_table_schema`, `list_tables`, `list_datasets`, `create_dataset`, `execute_dml`
-- Destructive DML intercept: DELETE/TRUNCATE/DROP are blocked, a COUNT preview runs, CONFIRMATION_CARD returned
-- Expert BigQuery/GCP system prompt; loads skill doc summaries for capability awareness
-- Default routing target for all non-fast-path skills and LLM classifier results
-- No keyword signals (empty manifest.signals) -- never reached by keyword scoring
-
-### `handle-governance.ts` [Added ~2026-07-11]
-- 4 sub-types: ACCESS_AUDIT, TABLE_SECURITY, SENSITIVE_DATA_SCAN, DATA_CLASSIFICATION
-- Queries IAM policies and INFORMATION_SCHEMA for access/security metadata
-- Returns `GOVERNANCE_VIEW` envelope with `presentation: 'custom'`
-
-### `handle-dashboard.ts` [Added 2026-07-15]
-- AI-driven dashboard builder: interprets "create a dashboard showing X, Y, Z" in chat
-- Generates SQL for each tile, fetches initial data, saves to Firestore
-- Returns `DASHBOARD_VIEW` artifact which opens as a new tab in the app
+- `schema.ts`: Direct BigQuery REST API calls for dataset/table metadata (`fetchSchema`, `fetchProjectSchema`, `fetchDatasetSchema`, `fetchTableSchema`, `fetchTableConstraints`). Used by agent tools.
+- `execute-confirmed.ts`: Executes confirmed DML operations (`executeConfirmedOperation`), extracted from legacy data management skill. Used by `chat-orchestrator.ts`.
+- `index.ts`: Barrel file re-exporting `fetchSchema` and `executeConfirmedOperation`.
 
 ---
 
@@ -358,12 +242,6 @@ UI Components (src/components/)
 - `fetchTablePage(project, dataset, table, token, {page, pageSize, filter})` -- builds SELECT + COUNT(*) queries
 - Filter uses SQL LIKE on CAST(...AS STRING); excludes GEOGRAPHY/STRUCT/ARRAY/JSON columns from the filter clause
 
-### `src/lib/bq-tools.ts` [Added ~2026-07-13]
-**Responsibility**: Tool definitions for the tool-calling agent loops.
-- `BQ_TOOLS` array: `run_query`, `get_table_schema`, `list_tables`, `list_datasets`, `create_dataset`, `execute_dml`
-- Each tool definition matches the function signature expected by `callGeminiWithTools()`
-- `createDatasetTool`, `executeDmlTool` added 2026-07-13
-
 ### `src/lib/result-insights.ts` [Added ~2026-07-11]
 **Responsibility**: Heuristic insights computed from query result data.
 - `computeInsights(columns, rows)` -- returns severity-ranked findings
@@ -529,7 +407,6 @@ UI Components (src/components/)
 - `scripts/generate-report.mjs` -- Markdown report generator
 - `scripts/visual-test.mjs` -- Puppeteer headed-browser screenshot capture (20 tests)
 - `scripts/ux-eval.mjs` (~580 lines) -- UX evaluation: 25 scenarios, screenshots + Gemini scoring on 6 dimensions. Outputs `test-results/ux-eval-report.md`. Run: `node scripts/ux-eval.mjs`
-- `scripts/snapshot-test.mjs` -- Offline router classification tests (no server needed)
 - No unit tests exist. No jest/vitest configuration.
 
 ---

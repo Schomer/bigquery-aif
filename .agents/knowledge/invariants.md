@@ -2,7 +2,7 @@
 
 Rules that must hold true across all code changes. Violating any of these has caused bugs in the past or would break critical functionality. Before making a change, check it against this list. If a change would violate an invariant, either the invariant needs updating (with justification) or the change needs rethinking.
 
-Last verified: 2026-07-16
+Last verified: 2026-07-27
 Note: "Last verified" = last time this document was audited for completeness and accuracy. Individual invariants were added throughout July as new bugs were discovered and fixed. See ops-ledger.md for derivation history.
 
 ---
@@ -36,7 +36,7 @@ These principles govern all design decisions. They are not suggestions -- they a
 - **`Artifact` switch default must not dump raw JSON**: The `default` case in the `Artifact` component (ArtifactCard.tsx) must degrade gracefully -- show a DataTable if the data has rows/columns, or return null. Never use `JSON.stringify(data)` as the fallback output; raw JSON is always a bug surface, not a valid fallback UX.
 - **Tooltips using `position: fixed` inside scrollable/animated containers must use React Portal**: `ChoroplethTooltip` in `map-charts.tsx` renders via `createPortal(el, document.body)`. If any ancestor has `overflow: hidden` + CSS `transform` (even `transform: translateY(0)` from animation fill), `position: fixed` resolves relative to that ancestor, not the viewport. Always use a portal to escape the containing block.
 - **The query skill prompt explicitly forbids fabricating data**: `query.md` contains the rule "NEVER fabricate or invent aggregate categories the data does not contain." This prevents the LLM from inventing groupings like "World", "Asia", "Europe" when they aren't in the source table. SQL must query real columns and return real values.
-- **Tool declaration enums must include all values the skill doc instructs the LLM to use**: The Gemini function-calling API enforces enum constraints on tool parameters. If a skill doc tells the LLM to set a parameter to value X, but the tool declaration's enum doesn't include X, the LLM cannot comply. When adding a new semantic value to a skill doc instruction (e.g., a new `visualizationHint` value), always update the corresponding tool declaration enum in `bq-tools.ts`.
+- **Tool declaration enums must include all values the skill doc instructs the LLM to use**: The Gemini function-calling API enforces enum constraints on tool parameters. If a skill doc tells the LLM to set a parameter to value X, but the tool declaration's enum doesn't include X, the LLM cannot comply. When adding a new semantic value to a skill doc instruction (e.g., a new `visualizationHint` value), always update the corresponding tool declaration enum in the agent tool definitions (`src/agent/tools/`).
 
 ---
 
@@ -47,45 +47,11 @@ These rules exist because keyword-based intent classification has failed repeate
 - **NEVER add keywords, regex patterns, or signal arrays to fix a routing or classification problem.** Keywords can never cover every way a user might say the same thing. If the AI misinterprets a prompt, fix the system prompt, the structured output schema, or the tool declarations. Adding keywords is always wrong.
 - **NEVER write rigid either/or rules in skill docs** that prevent the AI from handling nuance. Rules like "top-N queries NEVER get filter controls" create false dichotomies. The AI should understand that "top countries" and "top countries with a filter for year" are different intents.
 - **Trust AI output without double-gating.** If the AI produced a structured result (e.g., a widget spec in its response), that is sufficient signal. Do NOT require a second enum match or flag to "confirm" the AI really meant it. Double-condition gates silently drop features when any single condition fails.
-- **Fix misinterpretation at the source.** When the AI gets a prompt wrong: (1) improve the system prompt with better instructions or examples, (2) expand the structured output schema so the AI can express its decision more precisely, (3) update tool declarations to give the AI the right options, (4) add examples to the skill doc showing correct behavior.
-
-### Existing router context (legacy, do not expand)
-
-The keyword router in `router.ts` exists as a latency optimization. It is NOT the intent classification system. The AI (LLM classifier in the orchestrator, or the conversation handler) is the intent classification system. The keyword router's role is limited to:
-- **Ambiguous read/write defaults to read**: If a message has both mutating and quality signals, route to data-quality (or query), never to data-management.
-- **No-signal default is conversation with medium confidence**: When no signals match, the LLM classifier decides.
-- **Destructive DML is intercepted in the conversation handler**: The conversation agent's `execute_dml` tool intercepts DELETE/TRUNCATE/DROP and adds safety gates. This works with any phrasing because the AI wrote the SQL, not keyword matching.
-- **Conversation handler is a tool-calling agent**: `handleConversation()` uses `callGeminiWithTools()` with 6 tools. It can both converse AND execute operations.
-- **Final fallback is conversation, not keyword result**: When both keyword router and LLM classifier fail, the orchestrator defaults to conversation.
-- **Dispatch uses manifest-driven lookup, not switch-case**: `SKILL_MAP.get(skill)` retrieves the handler function. Unknown skills fall back to `handleQuery()`. Do not re-introduce a switch-case.
-- **All handler signatures are (message, history, context, onStatus)**: The 4-arg pattern enables uniform dispatch through the manifest. Do not add or remove parameters.
-- **Data-management safety net (high confidence only)**: `handleDataManagement()` re-checks the message against the keyword router before proceeding. If the router disagrees **at high confidence**, it redirects to `handleQuery()`. Medium/low confidence disagreements do not redirect -- the LLM classifier already decided this is data-management intent.
-- **Query handler uses tool-calling agent loop**: `handleQuery()` uses `callGeminiWithTools()` with 4 tools (`run_query`, `get_table_schema`, `list_tables`, `list_datasets`). The LLM decides what context to fetch. Do NOT re-introduce the old pipeline of `buildSchemaContext()` + `callGemini()` + `dryRun()` + `executeQuery()`.
-- **Query handler pre-fetches the table list**: When a dataset is resolved, `handleQuery()` calls `fetchSchema(dataset)` and includes the table names in the system prompt. This eliminates `list_tables`/`list_datasets` tool calls in the common case. The prompt tells the LLM not to call these tools unless querying a different dataset.
+- **Fix misinterpretation at the source.** When the AI gets a prompt wrong: (1) improve the system prompt with better instructions or examples, (2) expand the structured output schema so the AI can express its decision more precisely, (3) update tool declarations to give the AI the right options, (4) add examples to the system prompt showing correct behavior.
+- **Destructive DML is intercepted in the agent loop**: The agent's `execute_dml` tool intercepts DELETE/TRUNCATE/DROP and adds safety gates with confirmation cards.
 - **Query auto-retry is implicit**: Errors from `run_query` tool calls feed back to the LLM as function responses. The LLM can fix its SQL and call `run_query` again within the iteration cap. Do not add explicit retry logic.
-- **The iteration cap is a runaway guard, not a task budget**: `callGeminiWithTools()` defaults to 8 iterations, but handlers should override this to match their task complexity. `handleQuery()` uses 15; `handleConversation()` uses 30. The real protection against infinite loops is the tool-call deduplication cache -- identical calls are never re-executed, so a high cap is safe. Do NOT lower caps to fix correctness bugs; use `terminateAfter` instead.
-- **`terminateAfter: ['run_query']` is set in `handleQuery()`**: After `run_query` succeeds, the loop exits immediately. This is a code-level guarantee -- do NOT rely only on the system prompt instruction "STOP after run_query succeeds".
-- **`terminateAfter: ['execute_dml', 'create_dataset']` is set in `handleConversation()`**: After any terminal DML or dataset creation succeeds, the loop exits immediately. This prevents the agent from continuing to make tool calls after a task is complete.
-- **Self-review is non-fatal**: The `selfReviewEnvelope()` function catches all errors and returns the original envelope if review fails. Never make self-review failures block response delivery.
-- **buildSchemaContext still used by data-management**: `buildSchemaContext()` in `orchestrator-utils.ts` is used by `handle-data-management.ts`. Do not remove it.
-- **Available datasets are fetched once per turn**: The `getAvailableDatasets()` result is passed through `enrichedContext` to all handlers. Handlers must not re-fetch this list independently.
-- **Cross-dataset search on table not found**: When `handleSchema()` gets a 'Not found' error for a table, it searches all other datasets in parallel before failing. This is intentional -- users often reference tables without specifying the dataset.
-- **Schema+query multistep is always redundant**: `handleQuery()` fetches schema via tool calls as needed. A multistep workflow that fetches schema in step 1 and runs a query in step 2 is structurally redundant and must be collapsed to a single query step.
 - **Dataset name vs project name guard**: `fetchSchema()` in `src/lib/skills/schema.ts` checks if the requested dataset name equals the project name and ignores it if so. This prevents the confusing case where the project name is treated as a dataset.
 - **callGemini retries transient errors 3 times**: 429, 5xx, and errors containing 'demand', 'temporary', 'limit', 'quota', or 'resource' get exponential backoff with jitter. Auth errors (401/403) are never retried.
-- **No dry run for queries**: The dry run step was removed. Queries execute directly. Do not re-introduce `dryRun()` in the query handler.
-- **Schema columns from prior turns are threaded through `lastTableSchema` in context**: `ChatContext.lastTableSchema` stores the columns from the most recent table-scope SCHEMA_VIEW result. `handleQuery()` checks this first before calling `fetchSchema`. When present, it is used directly (no fetch at all) and the LLM prompt states the schema is "complete and authoritative -- do NOT call get_table_schema under any circumstances." Do not weaken this instruction to a suggestion.
-
-
----
-
-## Conversation Skill (`src/lib/skills/handle-conversation.ts`)
-
-- **No keyword signals, LLM-routed only**: The conversation manifest has an empty `signals` array. It is never reached by keyword scoring -- only by the LLM classifier or as the no-signal default.
-- **Loads skill doc summaries for capability awareness**: `getSkillKnowledge()` loads the first 20 lines of each skill doc to give the LLM awareness of what the app can do. Cached per session.
-- **Skips self-review**: Conversation envelopes set `skipSelfReview: true` because they contain no data artifacts that need quality review.
-- **Chip-based action handoffs**: The `suggestedActions` array in the response becomes `nextActions` on the envelope, rendered as pill-shaped buttons. Users click chips to invoke task skills.
-- **CONVERSATION artifact type renders as prose**: ChatThread renders CONVERSATION as plain styled text with optional action chips. It does NOT go through ArtifactCard.
 
 ---
 
@@ -109,7 +75,7 @@ The keyword router in `router.ts` exists as a latency optimization. It is NOT th
 - **Sample/preview queries force TABLE artifact type**: Any query matching `SELECT * FROM ... LIMIT N` is treated as a sample query and forced to TABLE view. Chart inference should only apply to aggregated/analytical results, not random row samples.
 - **Time-series charts sort chronologically**: `useChartSetup` in `recharts-charts.tsx` detects date-like x-axis values and sorts data oldest-to-newest. This ensures line/area charts read left-to-right in temporal order regardless of the SQL ORDER BY direction.
 - **`buildQueryHeadline` receives columns and rows**: The headline builder has access to actual data values to produce context-aware headlines (KPI values, data shape descriptions) instead of generic "X rows from table" messages.
-- **Briefing must be set in both heuristic and LLM paths**: Every compose function sets a heuristic `briefing` on the envelope. Self-review may override it with an LLM-generated briefing. If a new compose function is added, it must also set `briefing`.
+- **Briefing must be set in compose functions**: Every compose function sets a briefing on the envelope.
 - **Narrative-only briefings are suppressed at render time**: ArtifactCard only renders BriefingBlock when `briefing.findings` has entries. Narrative-only briefings always restate the headline and are not displayed. To show additional text beyond the headline, use structured `findings` (bullet points) or the `insight` field.
 
 ---
@@ -192,12 +158,8 @@ The keyword router in `router.ts` exists as a latency optimization. It is NOT th
 
 ---
 
-## Orchestrator Architecture
+## Orchestrator & Agent Architecture
 
-- **Any skill handler exceeding 300 lines must be extracted to its own file in `src/lib/skills/`.**
-- **Adding a new skill requires exactly 2 files**: Create `handle-{name}.ts` with a `manifest` export, then add one import + one array entry in `src/lib/skills/index.ts`. No other files need editing.
-- **Each handler must export a `manifest: SkillManifest`**: The manifest declares skill name, label, signals array, and handler function. The barrel file aggregates them.
-- **`IntentClassifierSchema` is lazily initialized**: Because `gemini-client.ts` and `skills/index.ts` have a circular import, the schema is built via a `Proxy` that defers initialization until first property access.
 - **Total LLM prompt (system instruction + schema context + conversation history + skill doc) should stay under 28,000 tokens when practical.** Use shorter context when full context is not needed.
 - **A single user turn should do whatever Gemini calls are needed to serve the request -- there is no hard cap.** If more than 6 calls happen in one turn, log a warning for visibility.
 
@@ -264,8 +226,8 @@ The keyword router in `router.ts` exists as a latency optimization. It is NOT th
 
 ## Table Name Resolution
 
-- **Fuzzy table name matching on "Not found"**: Both `handle-schema.ts` and `bq-tools.ts:get_table_schema` perform fuzzy matching when a table is not found in its dataset. The search order is: exact variants (plural/singular, `v_` prefix), then substring matching on the dataset's table list. The shortest substring match wins.
-- **Query handler must verify table names before writing SQL**: The system prompt in `handle-query.ts` instructs the LLM to call `get_table_schema` first to verify tables exist. If the tool returns `actualTableName`, the LLM must use that name in SQL.
+- **Fuzzy table name matching on "Not found"**: Both `src/lib/skills/schema.ts` and `src/agent/tools/get-schema.ts` perform fuzzy matching when a table is not found in its dataset. The search order is: exact variants (plural/singular, `v_` prefix), then substring matching on the dataset's table list. The shortest substring match wins.
+- **Query agent must verify table names before writing SQL**: The system prompt in `src/agent/prompts/flash.ts` instructs the LLM to call `get_schema` first to verify tables exist. If the tool returns `actualTableName`, the LLM must use that name in SQL.
 
 ---
 
@@ -278,10 +240,9 @@ The keyword router in `router.ts` exists as a latency optimization. It is NOT th
 
 ## Visualization Selection -- Explicit User Intent
 
-- **Explicit chart type always wins**: When the user explicitly names a chart type (e.g., "show as a bar chart", "bar chart", "line chart"), `extractVisualizationIntent()` returns a non-null `userIntent`. This value is threaded through `enrichedContext.userIntent` → `handleQuery()` → `compose()` → `inferVisualizationType()`. `inferVisualizationType()` returns `userIntent` immediately at Step 0 before any heuristic runs. This is absolute -- geographic detection, LLM visualization hints, and self-review overrides cannot supersede it.
+- **Explicit chart type always wins**: When the user explicitly names a chart type (e.g., "show as a bar chart", "bar chart", "line chart"), `extractVisualizationIntent()` returns a non-null `userIntent`. This value is threaded through `enrichedContext.userIntent` → `compose()` → `inferVisualizationType()`. `inferVisualizationType()` returns `userIntent` immediately at Step 0 before any heuristic runs. This is absolute -- geographic detection and LLM visualization hints cannot supersede it.
 - **Interactive widget inner chart respects user intent**: When a query is rendered as an INTERACTIVE_WIDGET (e.g., user asked for a date picker), the inner chart type (`widgetData.visualization`) must also respect `context?.userIntent` with highest priority. The LLM's `widgetSpec.visualization` and `result.suggestedVisualization` are only consulted when no explicit intent is present.
 - **Cached-plan path must forward user intent**: `executeCachedPlan()` calls `compose()` and must pass `context?.userIntent ?? null` as the 4th argument. Omitting it causes geographic heuristics to override the user's explicit request when data contains country/state columns.
-- **Self-review visualization override is code-blocked when userIntent is set**: `selfReviewEnvelope()` accepts a `userIntent` parameter. When non-null, the `betterVisualization` field from the LLM review is silently ignored in code -- this is not a prompt instruction but a hard code-level guard. A prompt-only guard is insufficient because the LLM can still return a `betterVisualization` value.
 - **viz-intent.ts EXPLICIT_INTENT_MAP is first-match-wins**: The array is ordered so that explicit named chart types (BAR_CHART, COLUMN_CHART, etc.) appear before geographic patterns (WORLD_MAP, USA_MAP). A prompt like "show population for each country as a bar chart" matches COLUMN_CHART first and returns before reaching WORLD_MAP. Do NOT reorder the EXPLICIT_INTENT_MAP entries.
 - **Ambiguous geographic phrases are NOT explicit map requests**: Phrases like "by country", "by state", "each country" indicate categorical grouping (like "by month" or "by year"), not a map visualization. They must NOT appear in EXPLICIT_INTENT_MAP for USA_MAP/WORLD_MAP. Only phrases that explicitly name a map ("world map", "show on a map", "choropleth") should trigger map intent. Geographic data gets a bar/column chart by default; the map is available via the UI toggle.
 - **Map toggle appears when geographic columns are detected**: The Chart/Table segmented control in both ArtifactCard and InteractiveWidgetView shows a third "Map" option when `classifyColumns()` detects `geo-state` or `geo-country` roles. The map type (USA_MAP vs WORLD_MAP) is determined by `detectChoroplethType()`.
@@ -290,7 +251,7 @@ The keyword router in `router.ts` exists as a latency optimization. It is NOT th
 
 ## Widget Auto-Construction (`tryAutoConstructWidget`)
 
-- **Schema-driven, not keyword-driven**: The fallback widget builder in `handle-query.ts` uses only query structure (presence of a WHERE clause) and column types (DATE/TIMESTAMP/numeric) to decide whether to auto-add a filter dropdown. It does NOT use keyword matching, phrase lists, or regex against the user's message. This is a hard rule -- do not add keyword or phrase detection.
+- **Schema-driven, not keyword-driven**: The fallback widget builder in `src/agent/index.ts` uses only query structure (presence of a WHERE clause) and column types (DATE/TIMESTAMP/numeric) to decide whether to auto-add a filter dropdown. It does NOT use keyword matching, phrase lists, or regex against the user's message. This is a hard rule -- do not add keyword or phrase detection.
 - **Fires only when no WHERE clause exists**: If the LLM's SQL already has a WHERE clause, auto-construction is skipped. A query that already filters on something doesn't need an additional filter injected.
 - **Column type priority**: DATE/TIMESTAMP columns are preferred over numeric columns as filter candidates. This matches the most common exploration pattern (filtering by time period).
 - **Tooltips in map views use React Portal**: `ChoroplethTooltip` renders via `createPortal(... , document.body)`. Inline rendering breaks when ancestor elements have CSS `transform` or `overflow: hidden`.
