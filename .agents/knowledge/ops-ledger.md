@@ -1226,3 +1226,22 @@ The first query may have worked because the function was already warm or had res
 
 **Derived rule**: Schema events must always produce a SCHEMA_VIEW envelope, even when the agent also ran supplementary queries. The envelope builder priority should be: DML > pipeline > export > **schema** > query > text. Also, click messages in SchemaView must use explicit action language ("List the tables in X") not vague exploratory language ("Tell me more about X").
 
+---
+
+## 2026-07-26 -- present_result tool and envelope priority fixes
+
+**What**: Added `present_result` tool that lets the agent structure any text response as entity_list, key_values, summary, steps, or info. Created `PresentationView.tsx` component. Also fixed the envelope builder priority chain three times:
+
+1. Schema events were ranked below query events, so dataset exploration produced text walls when the agent also ran supplementary queries. Moved schema above query.
+2. present_result was initially ranked above schema, so it blocked SCHEMA_VIEW rendering when the agent called both. Moved present_result to the bottom (just above text fallback).
+3. The agent was skipping tools entirely for schema requests (answering from context), producing raw text. Added system prompt rule forcing tool use for all resource browsing.
+
+**Final priority chain**: DML > pipeline > export > schema > query > present_result > text.
+
+**Derived rules**:
+- Schema tools (get_schema, list_resources) must always produce SCHEMA_VIEW, regardless of what other tools were called.
+- present_result should only trigger when no other structured tool (schema, query, DML, etc.) produced results.
+- The agent must use schema/resource tools for listing and browsing even when it already knows the answer from context, because tools produce interactive visual output.
+- Click messages in UI components must use natural language with entity-type context (e.g., "the X dataset") -- never hardcoded commands.
+
+

@@ -1875,3 +1875,22 @@ Copy this when adding a new entry:
 - Updated `src/components/ArtifactCard.tsx` to render secondaryArtifacts
 - Updated `src/lib/composer.ts` to generate secondary TABLE artifacts for chart views
 
+---
+
+## 2026-07-26 -- Session: Schema exploration fixes + present_result tool
+
+### Changes
+- Fixed dataset click messages in `src/components/SchemaView.tsx` -- changed from ambiguous "Tell me more about X" to "Tell me more about the X dataset" (entity-type context)
+- Fixed entity click messages in `src/components/chat/ConversationRenderer.tsx` -- same pattern
+- Added decision rule 6 to `src/agent/prompts/flash.ts` -- forces tool use for all schema/resource browsing
+- Added decision rule 7 to `src/agent/prompts/flash.ts` -- guides present_result usage
+- Reordered envelope builder priority in `src/agent/index.ts` -- schema above query, present_result above text
+- Created `src/agent/tools/present-result.ts` -- new tool for structuring text responses
+- Created `src/components/PresentationView.tsx` -- renders entity_list, key_values, summary, steps, info formats
+- Added `PRESENTATION` to ArtifactType in `src/lib/types.ts`
+- Wired PresentationView into `src/components/ArtifactCard.tsx`
+- Added status label for present_result in `src/agent/firebase-ai-adapter.ts`
+- Added anti-pattern 6 and correction step 5 to `AGENTS.md` (no hardcoded click messages)
+- Added "Fix prompt/response through AI" invariant to `.agents/knowledge/invariants.md`
+
+
