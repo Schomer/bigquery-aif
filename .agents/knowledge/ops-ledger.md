@@ -15,6 +15,34 @@
 
 ---
 
+## 2026-07-27: Query results showing as schema views (priority bug)
+
+**Context**: When the user asked "top 10 products by revenue from order_items in ecomm", the app showed "Tables in ecomm" instead of query results. The agent was calling `get_schema` first (to discover columns) then `run_query`, but the schema result was displayed instead of the query result.
+
+**Root cause**: In `index.ts` envelope builder, the `schemaEvents.length > 0` check came BEFORE `queryEvents.length > 0` and had no guard against query events. The DML, pipeline, and export branches all had `&& queryEvents.length === 0` guards, but schema did not.
+
+**Fix**: Moved query event check above schema event check. Added `&& queryEvents.length === 0` guard to schema branch. Now query results always take priority over schema exploration.
+
+**Derived rules**:
+- Every `else if` branch in the envelope priority chain MUST have a `queryEvents.length === 0` guard (except query itself). Query is what the user asked for; everything else is context-gathering.
+- When adding new tool types to the envelope builder, add them BELOW query but ABOVE the text fallback.
+
+---
+
+## 2026-07-27: Query results rendering as text (result_id truncation bug)
+
+**Context**: Even after fixing priority order, some queries (like "top 10 products") still rendered as plain text instead of charts/tables. The agent ran `run_query` successfully but the result cache lookup failed.
+
+**Root cause**: The `detail` field on `StepEvent` was `JSON.stringify(contextData).slice(0, 500)`. For result sets with long column names or many rows, the JSON was truncated at 500 characters, cutting off the `result_id` that the envelope builder needed to retrieve the cached result from IndexedDB.
+
+**Fix**: Added a dedicated `result_id` field to `StepEvent` interface. The loop now stores `result_id` directly on the event (not inside the truncated detail string). The envelope builder reads `event.result_id` first, falling back to parsing detail for backward compatibility.
+
+**Derived rules**:
+- Never rely on parsing truncated JSON for critical data. If a value is needed downstream, give it its own field.
+- The `detail` field is for human-readable debugging info; machine-readable fields go on the event object directly.
+
+
+
 ## 2026-07-26: Wordy headline from present_result
 
 **Context**: When the user asks "list my datasets", the headline shows the AI's chatty narration ("I have retrieved the list of datasets available in your malloy-data project. You have 13 datasets, including ecomm, faa, formula_1, imdb, iowa_liquor_sales, and several sandbox or test env") instead of a concise title like "13 datasets in project malloy-data".
