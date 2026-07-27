@@ -57,7 +57,7 @@ async function run() {
 
   try {
     const page = await browser.newPage();
-    const freshUrl = `${APP_URL}?t=${Date.now()}`;
+    const freshUrl = `${APP_URL}?t=${Date.now()}&agent=v2`;
     console.log('[run] Navigating...');
     await page.goto(freshUrl, { waitUntil: 'networkidle2', timeout: 30000 });
     await delay(4000);

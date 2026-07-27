@@ -1,16 +1,17 @@
 # Operations Ledger
 
-## 2026-07-26: Wordy headline from present_result entity_list
+## 2026-07-26: Wordy headline from present_result
 
-**Context**: When the user asks "list my datasets", the headline shows the AI's chatty narration ("I have retrieved the list of datasets available in your malloy-data project. You have 13 datasets, including ecomm, faa, formula_1, imdb, iowa_liquor_sales, and several sandbox or test env") instead of a concise title.
+**Context**: When the user asks "list my datasets", the headline shows the AI's chatty narration ("I have retrieved the list of datasets available in your malloy-data project. You have 13 datasets, including ecomm, faa, formula_1, imdb, iowa_liquor_sales, and several sandbox or test env") instead of a concise title like "13 datasets in project malloy-data".
 
-**Root cause**: The `present_result` event path in `processWithAgentLoop()` (agent/index.ts) set the headline to `presentationData.title || result.text.split('\n')[0].slice(0, 200)`. The `title` parameter on `present_result` is optional, so the AI often omits it. The fallback uses the first line of the AI's prose response -- chatty narration that restates the request (a headline anti-pattern per response-composition SKILL.md). This only manifests when the AI calls `present_result` WITHOUT also calling `get_schema`/`list_resources` (which would take priority in the if-else chain).
+**Root cause**: The `present_result` tool's `title` parameter was optional with a vague description ("Headline for the presented content"), so the AI often omitted it. The fallback used `result.text.split('\n')[0]` -- the first line of the AI's conversational prose, which is always chatty narration that restates the request.
 
-**Fix applied**: For `entity_list` format, derive a concise headline from the structured data itself (count items, read entity_type): "13 datasets", "6 tables", etc. For other formats, fall back to `meta.resultTitle` or `presentationData.text`, never to `result.text` prose.
+**Fix applied**: Made `title` required on `present_result` with a descriptive instruction and examples (matching the quality of `run_query`'s `result_title`). The description explicitly says: describe the content, not how you got it. Examples: "13 datasets in project malloy-data", "Tables in ecomm", "Top sales by category in the USA". The agent/index.ts headline code was simplified to trust the AI's title with a minimal fallback chain.
 
 **Derived rules**:
 - **Never use `result.text` as a headline fallback**: The AI's conversational text always restates the request ("I have retrieved...", "Here are the..."). Headlines should describe what the data shows, not narrate the action taken.
-- **Derive entity_list headlines from the data, not the AI**: Count items and read entity_type. The data is authoritative; the AI's description of the data is redundant.
+- **Fix headline problems through the AI, not mechanical derivation**: Making `title` required with good examples is better than counting items in code. The AI understands context (project name, dataset scope) that mechanical code would need to reconstruct.
+- **Tool parameter descriptions need examples**: A vague description like "Headline for the presented content" gets vague output. Examples like "13 datasets in project malloy-data" show the AI exactly what quality to target.
 
 ---
 

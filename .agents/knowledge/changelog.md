@@ -2,14 +2,15 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
-## 2026-07-26: Fix wordy headline in present_result entity_list responses
+## 2026-07-26: Fix wordy headline in present_result responses
 
-**Problem**: When the AI calls `present_result` (for dataset/table lists) without also calling `get_schema`/`list_resources`, the headline displayed the AI's chatty narration (e.g. "I have retrieved the list of datasets available in your malloy-data project. You have 13 datasets, including..."). This restates the request -- a headline anti-pattern.
+**Problem**: When the AI calls `present_result` (for dataset/table lists) without also calling `get_schema`/`list_resources`, the headline displayed the AI's chatty narration (e.g. "I have retrieved the list of datasets available in your malloy-data project..."). This restates the request instead of summarizing the output.
 
-**Root cause**: The `present_result` path in `agent/index.ts` used `presentationData.title || result.text.split('\n')[0].slice(0, 200)` as the headline. The `title` parameter is optional, so the AI often omits it, and the fallback grabs the first line of the AI's conversational prose.
+**Root cause**: The `title` parameter on `present_result` was optional with a vague description ("Headline for the presented content"), so the AI often omitted it. The fallback grabbed the first line of `result.text` -- always chatty narration.
 
 **Changes**:
-- `src/agent/index.ts` -- For `entity_list` format, derive headline from the structured data (count items + entity_type): "13 datasets", "6 tables". For other formats, fall back to `meta.resultTitle` or `presentationData.text`, never to `result.text` narration.
+- `src/agent/tools/present-result.ts` -- Made `title` required. Added descriptive instruction with examples: "13 datasets in project malloy-data", "Tables in ecomm", "Top sales by category in the USA". Explicitly says: describe the content, not how you got it.
+- `src/agent/index.ts` -- Simplified headline code to trust the AI's title. Fallback chain: `title` -> `meta.resultTitle` -> "Results". Removed mechanical entity-counting approach and `result.text` fallback.
 
 
 ## 2026-07-25: Reconnect schema tools to SchemaView, add ConversationRenderer
