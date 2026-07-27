@@ -1,5 +1,17 @@
 # Operations Ledger
 
+## 2026-07-27: Clicking table row re-shows dataset listing instead of table schema
+
+**Context**: After the schema-to-SchemaView reconnection, clicking a table row (e.g., "drivers" in formula_1) sent "Show me more about formula_1.drivers" but the response showed the same dataset-level table listing instead of the table's column schema.
+
+**Root cause**: Lines 445-455 of `src/agent/index.ts` had logic that explicitly preferred dataset-scope events over table-scope events. When the agent called both `get_schema(dataset='formula_1')` and `get_schema(dataset='formula_1', table='drivers')` in the same turn, the code picked the dataset-scope event and called `fetchSchema('formula_1', undefined, project)`, producing a dataset-level SchemaView.
+
+**Fix applied**: Reversed the preference. Now prefers the most specific scope (table > dataset > project). When a table-scope event exists, it's used for the envelope. The agent typically drills down from dataset to table, so the table result is the user's actual answer.
+
+**Derived rule**: **Schema envelope scope preference: most specific wins.** Always prefer table-scope events over dataset-scope events. The agent fetches dataset schema as a precursor to table schema, not as the final answer.
+
+---
+
 ## 2026-07-27: Three quick wins from CA skills analysis
 
 **Context**: After analyzing Google's internal Conversational Analytics skills system, identified three low-risk improvements: visualization row budget, SQL error rewrite recipes, and smarter follow-up chip suggestions.
