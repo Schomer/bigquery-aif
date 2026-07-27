@@ -532,8 +532,13 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
             if (controller.signal.aborted) return;
             const text = typeof s === 'string' ? s : s.text;
             setStatusText(text);
-            setLiveSteps((prev) => [...prev, s]);
-            pendingStepsRef.current.push(s);
+            // Skip consecutive duplicate messages (e.g. BigQuery polling "Query running..." every 1.5s)
+            const lastStep = pendingStepsRef.current[pendingStepsRef.current.length - 1];
+            const lastText = lastStep == null ? null : (typeof lastStep === 'string' ? lastStep : lastStep.text);
+            if (text !== lastText) {
+              setLiveSteps((prev) => [...prev, s]);
+              pendingStepsRef.current.push(s);
+            }
           },
         }));
 
@@ -600,8 +605,13 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
           if (controller.signal.aborted) return;
           const text = typeof s === 'string' ? s : s.text;
           setStatusText(text);
-          setLiveSteps((prev) => [...prev, s]);
-          pendingStepsRef.current.push(s);
+          // Skip consecutive duplicate messages
+          const lastStep = pendingStepsRef.current[pendingStepsRef.current.length - 1];
+          const lastText = lastStep == null ? null : (typeof lastStep === 'string' ? lastStep : lastStep.text);
+          if (text !== lastText) {
+            setLiveSteps((prev) => [...prev, s]);
+            pendingStepsRef.current.push(s);
+          }
         },
         signal: controller.signal,
       }));

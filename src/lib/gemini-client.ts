@@ -310,7 +310,6 @@ export async function callGeminiWithTools({
     for (const fc of functionCalls) {
       const name = fc.name;
       const args = (fc.args ?? {}) as Record<string, unknown>;
-      onStatus?.(getToolStatus(name, args));
       try {
         // Deduplication: skip re-execution of identical tool calls
         const callKey = `${name}:${JSON.stringify(args ?? {})}`;
@@ -320,6 +319,8 @@ export async function callGeminiWithTools({
           responseParts.push({ functionResponse: { name, response: { result: cached } } });
           continue;
         }
+        // Emit status only for non-cached calls
+        onStatus?.(getToolStatus(name, args));
         const execResult = await toolExecutor(name, args ?? {}, onStatus);
         callCache.set(callKey, execResult);
         allToolCalls.push({ name, args: args ?? {}, result: execResult });

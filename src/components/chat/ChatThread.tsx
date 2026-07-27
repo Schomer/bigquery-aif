@@ -49,10 +49,12 @@ function QueryProgressPanel({ statusText, liveSteps, loadingStartTime }: QueryPr
 
   // Prior steps: all steps except if the last one matches the current statusText
   // (to avoid showing the current step twice). Cap at 5.
+  // Also filter consecutive duplicates (e.g. repeated polling messages).
   const priorSteps = liveSteps
     .slice(0, -1)
-    .slice(-5)
-    .map((s) => (typeof s === 'string' ? s : s.text));
+    .map((s) => (typeof s === 'string' ? s : s.text))
+    .filter((text, i, arr) => i === 0 || text !== arr[i - 1])
+    .slice(-5);
 
   return (
     <div style={{ padding: '8px 0 10px', marginLeft: 2 }}>

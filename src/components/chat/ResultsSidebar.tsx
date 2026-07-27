@@ -572,7 +572,15 @@ export function ResultsSidebar({
                       <div className="chat-sidebar-thinking-content">
                         {thinkingSteps[i] && thinkingSteps[i].length > 0 && (
                           <>
-                            {thinkingSteps[i].map((step, si) => {
+                            {thinkingSteps[i]
+                              .filter((step, si, arr) => {
+                                if (si === 0) return true;
+                                const curText = typeof step === 'string' ? step : step.text;
+                                const prevStep = arr[si - 1];
+                                const prevText = typeof prevStep === 'string' ? prevStep : prevStep.text;
+                                return curText !== prevText;
+                              })
+                              .map((step, si) => {
                               const info: StepInfo = typeof step === 'string' ? { text: step } : step;
                               const isCompleted = !!info.link || /^(Tool call:|Fetched|Loaded|Created|Saved|Built|Generated)/i.test(info.text);
                               return (
