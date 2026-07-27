@@ -126,6 +126,105 @@ export interface ChatOrchestrationReturn {
 
 // ---- Hook -----------------------------------------------------------------
 
+// ---- Envelope summary for conversation history -----------------------------
+// Generates a concise text description of what the assistant showed, so the LLM
+// has context about the conversation on subsequent turns. Without this, assistant
+// messages are empty strings and the LLM has no idea what was previously displayed.
+
+function summarizeEnvelopesForHistory(envelopes: CompositionEnvelope[]): string {
+  if (!envelopes.length) return '';
+  const parts: string[] = [];
+
+  for (const env of envelopes) {
+    const data = env.primaryArtifact?.data as Record<string, unknown> | null;
+    const type = env.primaryArtifact?.type;
+    const headline = env.headline?.text;
+
+    if (!data && !headline) continue;
+
+    switch (type) {
+      case 'SCHEMA_VIEW': {
+        const scope = data?.scope as string | undefined;
+        const dataset = data?.dataset as string | undefined;
+        const table = data?.table as string | undefined;
+        const columns = data?.columns as Array<{ name: string; type?: string }> | undefined;
+
+        if (scope === 'TABLE' && table && columns?.length) {
+          const colNames = columns.slice(0, 15).map(c => c.name).join(', ');
+          const more = (columns.length > 15) ? `, ... (${columns.length} total)` : '';
+          parts.push(`[Displayed table schema for ${dataset ? dataset + '.' : ''}${table}: columns: ${colNames}${more}]`);
+        } else if (scope === 'DATASET' && dataset && columns?.length) {
+          const tableNames = columns.slice(0, 20).map(c => c.name).join(', ');
+          const more = (columns.length > 20) ? `, ... (${columns.length} total)` : '';
+          parts.push(`[Displayed ${columns.length} tables in ${dataset}: ${tableNames}${more}]`);
+        } else if (scope === 'PROJECT' && columns?.length) {
+          const dsNames = columns.slice(0, 15).map(c => c.name).join(', ');
+          parts.push(`[Displayed ${columns.length} datasets: ${dsNames}]`);
+        } else if (headline) {
+          parts.push(`[${headline}]`);
+        }
+        break;
+      }
+      case 'TABLE':
+      case 'LINE_CHART':
+      case 'BAR_CHART':
+      case 'AREA_CHART':
+      case 'PIE_CHART':
+      case 'DONUT_CHART':
+      case 'COLUMN_CHART':
+      case 'SCATTER':
+      case 'HISTOGRAM':
+      case 'KPI_CARD':
+      case 'STAT_ROW': {
+        const cols = data?.columns as string[] | undefined;
+        const rowCount = data?.rowCount as number | undefined;
+        const summary = data?.resultSummary as string | undefined;
+        if (summary) {
+          parts.push(`[${summary}]`);
+        } else if (cols?.length && rowCount != null) {
+          parts.push(`[Displayed query result: ${rowCount} rows, columns: ${cols.join(', ')}]`);
+        } else if (headline) {
+          parts.push(`[${headline}]`);
+        }
+        break;
+      }
+      case 'CONFIRMATION_CARD': {
+        const sql = data?.sql as string | undefined;
+        parts.push(`[Showed confirmation card for: ${sql?.slice(0, 100) ?? 'operation'}]`);
+        break;
+      }
+      case 'PRESENTATION': {
+        const title = data?.title as string | undefined;
+        const items = data?.items as Array<{ label: string }> | undefined;
+        if (title && items?.length) {
+          const labels = items.slice(0, 10).map(i => i.label).join(', ');
+          parts.push(`[${title}: ${labels}]`);
+        } else if (title) {
+          parts.push(`[${title}]`);
+        } else if (headline) {
+          parts.push(`[${headline}]`);
+        }
+        break;
+      }
+      case 'CONVERSATION': {
+        const text = data?.text as string | undefined;
+        if (text) {
+          parts.push(text.slice(0, 500));
+        }
+        break;
+      }
+      default: {
+        if (headline) {
+          parts.push(`[${headline}]`);
+        }
+        break;
+      }
+    }
+  }
+
+  return parts.join('\n') || '';
+}
+
 export function useChatOrchestration(): ChatOrchestrationReturn {
   const { activeProject, user, signIn, refreshAccessToken } = useAuth();
   const { conversationId, addOperation } = useConversation();
@@ -544,7 +643,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
 
         const assistantMsg: ChatMessage = {
           role: 'assistant',
-          content: '',
+          content: summarizeEnvelopesForHistory([planEnvelope]),
           envelopes: [planEnvelope],
           timestamp: new Date().toISOString(),
         };
@@ -620,7 +719,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
 
       const assistantMsg: ChatMessage = {
         role: 'assistant',
-        content: '',
+        content: summarizeEnvelopesForHistory(envelopes),
         envelopes,
         timestamp: new Date().toISOString(),
       };
@@ -807,7 +906,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       // No user bubble -- append only the assistant response
       const assistantMsg: ChatMessage = {
         role: 'assistant',
-        content: '',
+        content: summarizeEnvelopesForHistory(envelopes),
         envelopes,
         timestamp: new Date().toISOString(),
       };
@@ -897,7 +996,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
         const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
         const assistantMsg: ChatMessage = {
           role: 'assistant',
-          content: '',
+          content: summarizeEnvelopesForHistory(envelopes),
           envelopes,
           timestamp: new Date().toISOString(),
         };
@@ -971,7 +1070,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
           const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
           const assistantMsg: ChatMessage = {
             role: 'assistant',
-            content: '',
+            content: summarizeEnvelopesForHistory(envelopes),
             envelopes,
             timestamp: new Date().toISOString(),
           };
@@ -1009,7 +1108,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
         onStatus: (s: string | StepInfo) => setStatusText(typeof s === 'string' ? s : s.text),
       }));
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
-      const assistantMsg: ChatMessage = { role: 'assistant', content: '', envelopes, timestamp: new Date().toISOString() };
+      const assistantMsg: ChatMessage = { role: 'assistant', content: summarizeEnvelopesForHistory(envelopes), envelopes, timestamp: new Date().toISOString() };
       const cleaned = messages.map((msg) =>
         msg.envelopes?.some((e) => e.id === envelope.id)
           ? { ...msg, envelopes: msg.envelopes?.filter((e) => e.id !== envelope.id) }
@@ -1119,7 +1218,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
       const assistantMsg: ChatMessage = {
         role: 'assistant',
-        content: '',
+        content: summarizeEnvelopesForHistory(envelopes),
         envelopes,
         timestamp: new Date().toISOString(),
       };
@@ -1202,7 +1301,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
       const newAssistantMsg: ChatMessage = {
         role: 'assistant',
-        content: '',
+        content: summarizeEnvelopesForHistory(envelopes),
         envelopes,
         timestamp: new Date().toISOString(),
       };
@@ -1256,7 +1355,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       const envelopes: CompositionEnvelope[] = data.envelopes ?? [];
       const newAssistantMsg: ChatMessage = {
         role: 'assistant',
-        content: '',
+        content: summarizeEnvelopesForHistory(envelopes),
         envelopes,
         timestamp: new Date().toISOString(),
       };
