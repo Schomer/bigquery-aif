@@ -40,6 +40,8 @@ export interface StepEvent {
   tool_name?: string;
   /** Tool arguments, if this is a tool_start event */
   tool_args?: Record<string, unknown>;
+  /** Result cache ID, if this tool produced cacheable results */
+  result_id?: string;
 }
 
 // ── StepEventEmitter ──────────────────────────────────────────────────────────

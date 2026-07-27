@@ -318,11 +318,9 @@ export async function runLoop(
               kind: 'tool_result',
               status: 'ok',
               t_end: Date.now(),
-              // Ensure result_id is at the start of detail so it survives truncation
-              detail: result.result_id
-                ? JSON.stringify({ result_id: result.result_id, ...contextData as object }).slice(0, 500)
-                : JSON.stringify(contextData).slice(0, 500),
+              detail: JSON.stringify(contextData).slice(0, 500),
               bytes_billed: result.bytes_billed,
+              result_id: result.result_id,
             });
 
             responseParts.push({

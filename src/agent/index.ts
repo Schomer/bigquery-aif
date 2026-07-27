@@ -382,17 +382,18 @@ export async function processWithAgentLoop({
       let resultData: { columns?: string[]; rows?: unknown[][]; column_types?: string[] } | null = null;
 
       try {
-        if (lastQueryEvent.detail) {
-          const parsed = JSON.parse(lastQueryEvent.detail);
-          if (parsed.result_id) {
-            const cached = await resultCache.get(parsed.result_id);
-            if (cached) {
-              resultData = {
-                columns: cached.schema.map(s => s.name),
-                column_types: cached.schema.map(s => s.type),
-                rows: cached.rows,
-              };
-            }
+        // Read result_id from the dedicated event field (preferred),
+        // falling back to parsing it from the detail JSON (legacy).
+        const rid = lastQueryEvent.result_id
+          ?? (lastQueryEvent.detail ? JSON.parse(lastQueryEvent.detail).result_id : undefined);
+        if (rid) {
+          const cached = await resultCache.get(rid);
+          if (cached) {
+            resultData = {
+              columns: cached.schema.map(s => s.name),
+              column_types: cached.schema.map(s => s.type),
+              rows: cached.rows,
+            };
           }
         }
       } catch {
