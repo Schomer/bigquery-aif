@@ -1,5 +1,22 @@
 # Operations Ledger
 
+## 2026-07-27: Multi-envelope display and table overview
+
+**What changed**: Replaced the single-winner heuristic chain in `src/agent/index.ts` (lines 252-561) with a loop that builds an envelope for every successful tool result. Previously, if the AI called get_schema and then run_query, only the query result was shown. Now both produce visible cards.
+
+**Other changes**:
+- System prompt (`src/agent/prompts/flash.ts`) now includes MULTI-RESULT DISPLAY and TABLE OVERVIEW sections telling the AI to call multiple tools for comprehensive answers.
+- Table click messages in SchemaView.tsx changed from "Show me more about X" to "Give me an overview of the X table in the Y dataset" -- prompts the AI to show schema + data preview + profile.
+- Composer (`src/lib/composer.ts`) now trusts AI visualization hints for KPI_CARD and STAT_ROW instead of overriding them with heuristics.
+
+**Key design decisions**:
+- Schema deduplication: when the AI calls get_schema(dataset=X) then get_schema(dataset=X, table=Y), only the table-level result is shown. The dataset-level call is treated as preparatory.
+- Text fallback only fires if zero structured envelopes were built.
+
+**Derived rule**: Every successful tool call produces a visible card. The system does not pick winners.
+
+---
+
 ## 2026-07-27: Auth errors now propagate from agent loop instead of being swallowed
 
 **What broke**: When a BigQuery tool call returned a 401 inside the agent loop, the loop caught the error and fed it back to the LLM as a function response. The LLM composed a polite response about "authentication issue" with a "Credentials Expired" chip. The user saw this in the output area with no way to re-authenticate.
