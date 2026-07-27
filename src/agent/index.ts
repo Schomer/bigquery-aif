@@ -166,6 +166,23 @@ export async function processWithAgentLoop({
   const result = await runLoop(ctx, adapter, PHASE_0_TOOLS, config, onStatus, interruptSignal);
   const executionTrace = buildExecutionTrace(result.events);
 
+  // ── Debug logging: capture actual agent behavior ──────────────────────────
+  // This is the primary diagnostic tool for understanding what the agent did.
+  // Read this in browser DevTools console when debugging issues.
+  const toolCalls = result.events
+    .filter(e => e.kind === 'tool_result')
+    .map(e => ({
+      tool: e.tool_name,
+      status: e.status,
+      args: e.tool_args,
+      detail: e.detail?.slice(0, 200),
+    }));
+  console.group(`[Agent] "${message.slice(0, 80)}"`);
+  console.log('Tool calls:', toolCalls);
+  console.log('LLM text:', result.text?.slice(0, 300));
+  console.log('Confirmation needed:', result.confirmationNeeded);
+  console.groupEnd();
+
   // Check if plan_analysis detected ambiguities that need user resolution
   const planEvents = result.events.filter(
     e => e.kind === 'tool_result' && e.tool_name === 'plan_analysis'
@@ -543,6 +560,9 @@ export async function processWithAgentLoop({
       executionTrace
     ));
   }
+
+  // Log the final envelope decision
+  console.log(`[Agent] Envelope: ${envelopes.map(e => `${e.primaryArtifact.type} (skill=${e.skill})`).join(', ') || 'none'}`);
 
   return {
     envelopes,
