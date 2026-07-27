@@ -2,6 +2,16 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-26: Fix wordy headline in present_result entity_list responses
+
+**Problem**: When the AI calls `present_result` (for dataset/table lists) without also calling `get_schema`/`list_resources`, the headline displayed the AI's chatty narration (e.g. "I have retrieved the list of datasets available in your malloy-data project. You have 13 datasets, including..."). This restates the request -- a headline anti-pattern.
+
+**Root cause**: The `present_result` path in `agent/index.ts` used `presentationData.title || result.text.split('\n')[0].slice(0, 200)` as the headline. The `title` parameter is optional, so the AI often omits it, and the fallback grabs the first line of the AI's conversational prose.
+
+**Changes**:
+- `src/agent/index.ts` -- For `entity_list` format, derive headline from the structured data (count items + entity_type): "13 datasets", "6 tables". For other formats, fall back to `meta.resultTitle` or `presentationData.text`, never to `result.text` narration.
+
+
 ## 2026-07-25: Reconnect schema tools to SchemaView, add ConversationRenderer
 
 **Problem**: The v2 agent loop (`src/agent/index.ts`) produced plain text CONVERSATION envelopes for all non-query responses. When the agent called `get_schema` or `list_resources` tools, the structured data was consumed by the LLM and only its prose summary reached the user. The rich SchemaView component (with ClickableRow, IconBadge, staggered animations, metadata pills, Start Here section) was unreachable through the agent path.
@@ -1892,5 +1902,28 @@ Copy this when adding a new entry:
 - Added status label for present_result in `src/agent/firebase-ai-adapter.ts`
 - Added anti-pattern 6 and correction step 5 to `AGENTS.md` (no hardcoded click messages)
 - Added "Fix prompt/response through AI" invariant to `.agents/knowledge/invariants.md`
+
+---
+
+## 2026-07-26 -- Session: CA Skills System Patterns Integration (Execution Trace, Clarification Cards, Planning Phase, Alert Simulation)
+
+### Changes
+- Pattern 1 (Planning Phase): Created `src/agent/tools/plan-tool.ts` (`plan_analysis` tool). Updated system prompt in `src/agent/prompts/flash.ts` with planning guidelines. Intercepted plan ambiguity in `src/agent/index.ts` to trigger clarification cards.
+- Pattern 2 (Clarification Cards): Added `CLARIFICATION_CARD` artifact type and interfaces (`ClarificationResult`, `ClarificationOption`) to `src/lib/types.ts`. Created `src/components/ClarificationCard.tsx`. Added `composeClarification()` in `src/lib/composer.ts`. Updated `src/components/ArtifactCard.tsx` with `CLARIFICATION_CARD` case.
+- Pattern 3 (Execution Trace): Added `ExecutionTraceEntry` interface and `executionTrace` provenance field to `src/lib/types.ts`. Collected `tool_result` events during loop execution in `src/agent/index.ts`. Updated `src/components/ProvenancePanel.tsx` to render step-by-step execution timeline.
+- Pattern 4 (Alert Simulation): Added `AlertSimulation` interface and `simulation` field on `AlertResult` in `src/lib/types.ts`. Added `simulateAlert()` helper in `src/lib/skills/handle-monitoring.ts`. Updated `src/components/AlertView.tsx` with historical simulation section and zero-fire framing.
+
+### Files modified:
+- `src/lib/types.ts`
+- `src/agent/index.ts`
+- `src/agent/prompts/flash.ts`
+- `src/agent/tools/plan-tool.ts` [NEW]
+- `src/components/ClarificationCard.tsx` [NEW]
+- `src/components/ArtifactCard.tsx`
+- `src/components/ProvenancePanel.tsx`
+- `src/components/AlertView.tsx`
+- `src/lib/composer.ts`
+- `src/lib/skills/handle-monitoring.ts`
+
 
 

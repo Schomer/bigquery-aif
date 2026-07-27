@@ -1,5 +1,19 @@
 # Operations Ledger
 
+## 2026-07-26: Wordy headline from present_result entity_list
+
+**Context**: When the user asks "list my datasets", the headline shows the AI's chatty narration ("I have retrieved the list of datasets available in your malloy-data project. You have 13 datasets, including ecomm, faa, formula_1, imdb, iowa_liquor_sales, and several sandbox or test env") instead of a concise title.
+
+**Root cause**: The `present_result` event path in `processWithAgentLoop()` (agent/index.ts) set the headline to `presentationData.title || result.text.split('\n')[0].slice(0, 200)`. The `title` parameter on `present_result` is optional, so the AI often omits it. The fallback uses the first line of the AI's prose response -- chatty narration that restates the request (a headline anti-pattern per response-composition SKILL.md). This only manifests when the AI calls `present_result` WITHOUT also calling `get_schema`/`list_resources` (which would take priority in the if-else chain).
+
+**Fix applied**: For `entity_list` format, derive a concise headline from the structured data itself (count items, read entity_type): "13 datasets", "6 tables", etc. For other formats, fall back to `meta.resultTitle` or `presentationData.text`, never to `result.text` prose.
+
+**Derived rules**:
+- **Never use `result.text` as a headline fallback**: The AI's conversational text always restates the request ("I have retrieved...", "Here are the..."). Headlines should describe what the data shows, not narrate the action taken.
+- **Derive entity_list headlines from the data, not the AI**: Count items and read entity_type. The data is authoritative; the AI's description of the data is redundant.
+
+---
+
 ## 2026-07-25: Agent v2 loop producing plain text for schema operations
 
 **Context**: The v2 agent loop (`processWithAgentLoop` in `src/agent/index.ts`) produced `CONVERSATION` (plain text) envelopes for all non-query tool results. Schema operations ("list my datasets", "show tables in X") rendered as raw text bullets instead of the rich interactive SchemaView.
@@ -1243,5 +1257,24 @@ The first query may have worked because the function was already warm or had res
 - present_result should only trigger when no other structured tool (schema, query, DML, etc.) produced results.
 - The agent must use schema/resource tools for listing and browsing even when it already knows the answer from context, because tools produce interactive visual output.
 - Click messages in UI components must use natural language with entity-type context (e.g., "the X dataset") -- never hardcoded commands.
+
+---
+
+## 2026-07-26 -- Execution trace, clarification cards, planning phase, and alert simulation (CA Skills system patterns)
+
+**What changed**: Added 4 features based on patterns from Google's internal CA skills system:
+1. **Execution Trace (Pattern 3)**: Added `ExecutionTraceEntry` interface to `types.ts`. Agent loop step events (`tool_result`) are collected and attached to `CompositionEnvelope.provenance.executionTrace`. `ProvenancePanel.tsx` renders them as a collapsible step-by-step timeline.
+2. **Clarification Cards (Pattern 2)**: Added `CLARIFICATION_CARD` artifact type, `ClarificationResult` and `ClarificationOption` interfaces in `types.ts`. Created `ClarificationCard.tsx` rendering inline options + text input. Added `composeClarification()` in `composer.ts`.
+3. **Planning Phase (Pattern 1)**: Added `plan-tool.ts` (`plan_analysis` tool) to agent tool belt. Updated `flash.ts` prompt with planning instructions. `index.ts` intercepts plan ambiguity results and produces clarification card envelopes.
+4. **Alert Simulation (Pattern 4)**: Added `AlertSimulation` interface in `types.ts`. Added `simulateAlert()` helper in `handle-monitoring.ts` running alert conditions against current data. `AlertView.tsx` renders simulation results with dual-interpretation framing for zero-fire results.
+
+**What worked**: The execution trace gives full visibility into agent loop steps. Clarification cards allow the agent to resolve ambiguities interactively before executing expensive queries. Planning phase structures complex analytical tasks. Alert simulation tests alert rules against current data with clear zero-fire framing.
+
+**Derived rules**:
+- `plan_analysis` tool must be first in `PHASE_0_TOOLS` array so the model sees it before `run_query`.
+- `CLARIFICATION_CARD` envelopes must have `presentation: 'inline'` and `skipSelfReview: true`.
+- `executionTrace` only includes `tool_result` events (not `tool_start`) to avoid duplication.
+- `simulateAlert` is best-effort and must never block alert creation on failure.
+
 
 
