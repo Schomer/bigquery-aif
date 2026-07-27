@@ -2,6 +2,18 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-27: Deduplicate progress messages
+
+**Problem**: The progress area showed repetitive identical messages during query execution. "Query running..." appeared multiple times in the breadcrumb trail, and the completed thinking steps accordion showed the same message repeated.
+
+**Changes**:
+- `src/hooks/useChatOrchestration.ts` -- Skip appending to `liveSteps`/`pendingStepsRef` when the text matches the previous entry.
+- `src/lib/gemini-client.ts` -- Move `onStatus` emission after the tool call cache check so cached calls produce no progress message.
+- `src/components/chat/ChatThread.tsx` -- Filter consecutive duplicate text in `priorSteps` before rendering.
+- `src/components/chat/ResultsSidebar.tsx` -- Filter consecutive duplicates in thinking steps accordion.
+
+---
+
 ## 2026-07-26: Fix wordy headline in present_result responses
 
 **Problem**: When the AI calls `present_result` (for dataset/table lists) without also calling `get_schema`/`list_resources`, the headline displayed the AI's chatty narration (e.g. "I have retrieved the list of datasets available in your malloy-data project..."). This restates the request instead of summarizing the output.

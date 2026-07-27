@@ -1,5 +1,25 @@
 # Operations Ledger
 
+## 2026-07-27: Duplicate progress messages in status area
+
+**Context**: The progress area showed repetitive identical messages (e.g. "Query running..." appearing 3-4 times in the breadcrumb trail). Four sources of duplication were identified.
+
+**Root causes**:
+1. BigQuery polling loop in `bq-tools.ts` emitted "Query running..." every 1.5s with identical text.
+2. `gemini-client.ts` emitted `onStatus` before checking the tool call cache, so cached calls still produced progress messages.
+3. `useChatOrchestration.ts` appended every status message unconditionally to `liveSteps` without checking for consecutive duplicates.
+4. Neither `QueryProgressPanel` nor `ResultsSidebar` filtered consecutive duplicates at display time.
+
+**Fix applied**: Four-layer fix:
+- `useChatOrchestration.ts`: Skip appending to `liveSteps`/`pendingStepsRef` when text matches the last entry.
+- `gemini-client.ts`: Move `onStatus` call after the cache check (cached calls emit nothing).
+- `ChatThread.tsx` `QueryProgressPanel`: Filter consecutive duplicates in `priorSteps`.
+- `ResultsSidebar.tsx`: Filter consecutive duplicates in thinking steps accordion.
+
+**Derived rule**: Progress message deduplication should happen at the collection layer (hook) as primary defense, with display-layer deduplication as a safety net.
+
+---
+
 ## 2026-07-27: Clicking table row re-shows dataset listing instead of table schema
 
 **Context**: After the schema-to-SchemaView reconnection, clicking a table row (e.g., "drivers" in formula_1) sent "Show me more about formula_1.drivers" but the response showed the same dataset-level table listing instead of the table's column schema.
