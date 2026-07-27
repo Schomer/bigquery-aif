@@ -210,6 +210,7 @@ The keyword router in `router.ts` exists as a latency optimization. It is NOT th
 - **Schema scope preference: most specific wins**: When the agent made multiple schema calls in one turn, prefer table-scope events over dataset-scope. The agent fetches dataset schema as a precursor to table schema -- the table result is the user's actual answer. Never prefer dataset-scope over table-scope.
 - **Schema tool results use `fetchSchema()` for full data**: The `get_schema` and `list_resources` tools return simplified data to the LLM context. For UI composition, call `fetchSchema()` which returns the full `SchemaResult` with column schemas, usage signals, constraints, etc. The call is free because the tool already populated the internal schema cache during the loop.
 - **CONVERSATION text must render through ConversationRenderer**: Even pure conversational responses (no tools used) should use `ConversationRenderer` instead of raw text. Entity names in backticks become clickable chips. Lists of identifiers become clickable card rows.
+- **Assistant messages must have meaningful content for LLM history**: Never store `content: ''` when envelopes are present. Use `summarizeEnvelopesForHistory()` to generate a concise description of what was displayed. The LLM needs conversation context to make correct decisions on follow-up prompts. The summary is NOT rendered in the UI (ChatThread skips content when envelopes exist).
 
 ---
 
