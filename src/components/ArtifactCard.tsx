@@ -3,6 +3,7 @@
 import type { CompositionEnvelope, HandoffEnvelope, QualityFlag } from '@/lib/types';
 import { SchemaView } from './SchemaView';
 import { DataTable } from './DataTable';
+import { ClarificationCard } from './ClarificationCard';
 import { ConfirmationCard } from './ConfirmationCard';
 import { CompletionCard } from './CompletionCard';
 import { ChartView } from './ChartView';
@@ -731,6 +732,8 @@ function Artifact({
     case 'STAT_ROW':
       return <StatRowCard result={data as import('@/lib/types').QueryResult} />;
 
+    case 'CLARIFICATION_CARD':
+      return <ClarificationCard result={data as import('@/lib/types').ClarificationResult} onSendMessage={onSendMessage} />;
     case 'CONFIRMATION_CARD':
       return <ConfirmationCard result={data as import('@/lib/types').DataManagementConfirmResult} onConfirm={onConfirm} onCancel={onCancel} />;
     case 'COMPLETION_CARD':

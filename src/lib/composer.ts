@@ -37,6 +37,7 @@ import type {
   QualityFlag,
   PipelineResult,
   DashboardResult,
+  ClarificationResult,
 } from './types';
 
 // ─── Main compose function ────────────────────────────────────────────────────
@@ -1969,3 +1970,29 @@ function composePipeline(result: PipelineResult): CompositionEnvelope {
   };
 }
 
+export function composeClarification(result: ClarificationResult): CompositionEnvelope {
+  const chips: HandoffEnvelope[] = result.options.map(opt => ({
+    targetSkill: 'query' as SkillName,
+    label: opt.label,
+    context: { prefill: opt.value },
+    sourceSkill: 'conversation' as SkillName,
+  }));
+
+  return {
+    id: 'clarify_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    skill: 'conversation' as SkillName,
+    headline: {
+      text: result.question,
+      tone: 'NEUTRAL' as const,
+      basis: 'DIRECT_ANSWER' as const,
+    },
+    primaryArtifact: {
+      type: 'CLARIFICATION_CARD',
+      data: result,
+    },
+    provenance: { visibility: 'COLLAPSED' },
+    skipSelfReview: true,
+    nextActions: chips.slice(0, 4),
+    presentation: 'inline',
+  };
+}

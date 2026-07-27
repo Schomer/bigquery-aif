@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import type { CompositionEnvelope, QualityFlag } from '@/lib/types';
+import type { CompositionEnvelope, QualityFlag, ExecutionTraceEntry } from '@/lib/types';
 import { formatBytes } from '@/lib/format';
 import { Badge } from './ui/Badge';
 
@@ -105,10 +105,11 @@ export function ProvenancePanel({ envelope, defaultExpanded = false }: Provenanc
   const hasCost = !!provenance.cost;
   const hasJobId = !!provenance.jobId;
   const hasQualityFlags = qualityFlags && qualityFlags.length > 0;
+  const hasTrace = !!provenance.executionTrace?.length;
   const referencedTables = hasSql ? extractReferencedTables(provenance.sql!) : [];
 
   // Nothing to show if provenance is empty
-  const hasContent = hasSql || hasCost || hasJobId || hasQualityFlags;
+  const hasContent = hasSql || hasCost || hasJobId || hasQualityFlags || hasTrace;
   if (!hasContent) return null;
 
   const handleCopySql = useCallback(() => {
@@ -178,6 +179,84 @@ export function ProvenancePanel({ envelope, defaultExpanded = false }: Provenanc
             <span style={{ fontWeight: 500, color: 'var(--text)' }}>Skill:</span>
             <span>{skill}</span>
           </div>
+
+          {/* Execution Steps */}
+          {hasTrace && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--text-dim)' }}>
+                  route
+                </span>
+                <span style={{ fontWeight: 500, color: 'var(--text)' }}>Execution steps</span>
+                <span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 'auto' }}>
+                  {provenance.executionTrace!.length} step{provenance.executionTrace!.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 0,
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+              }}>
+                {provenance.executionTrace!.map((entry: ExecutionTraceEntry) => (
+                  <div
+                    key={entry.step}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 8,
+                      padding: '3px 0',
+                      borderLeft: `2px solid ${entry.status === 'error' ? 'var(--attention)' : entry.status === 'retrying' ? 'var(--warning, #f59e0b)' : 'var(--border-subtle)'}`,
+                      paddingLeft: 10,
+                    }}
+                  >
+                    <span style={{
+                      minWidth: 18,
+                      color: 'var(--text-dim)',
+                      fontWeight: 500,
+                      textAlign: 'right',
+                    }}>
+                      {entry.step}.
+                    </span>
+                    <span style={{
+                      flex: 1,
+                      color: entry.status === 'error' ? 'var(--attention)' : 'var(--text-muted)',
+                    }}>
+                      {entry.action}
+                      {entry.error && (
+                        <span style={{ display: 'block', fontSize: 10, color: 'var(--attention)', marginTop: 1 }}>
+                          {entry.error}
+                        </span>
+                      )}
+                    </span>
+                    {entry.tool && (
+                      <span style={{
+                        fontSize: 9,
+                        color: 'var(--text-dim)',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {entry.tool}
+                      </span>
+                    )}
+                    {entry.durationMs != null && (
+                      <span style={{
+                        fontSize: 9,
+                        color: 'var(--text-dim)',
+                        whiteSpace: 'nowrap',
+                        minWidth: 40,
+                        textAlign: 'right',
+                      }}>
+                        {entry.durationMs < 1000
+                          ? `${entry.durationMs}ms`
+                          : `${(entry.durationMs / 1000).toFixed(1)}s`}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* SQL */}
           {hasSql && (

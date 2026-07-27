@@ -157,7 +157,30 @@ export type ArtifactType =
   | 'DASHBOARD_VIEW'
   | 'PLAN_CARD'
   | 'PRESENTATION'
+  | 'CLARIFICATION_CARD'
   | 'CONVERSATION';
+
+export interface ExecutionTraceEntry {
+  step: number;
+  action: string;        // Human-readable: "Looked up schema for dataset.table"
+  tool?: string;         // Tool name: "get_schema"
+  durationMs?: number;   // How long this step took
+  status: 'ok' | 'error' | 'retrying';
+  error?: string;        // Error message if step failed
+}
+
+export interface ClarificationOption {
+  label: string;          // Display text: "Gross sales (revenue before returns)"
+  value: string;          // Gets sent as follow-up message if clicked
+}
+
+export interface ClarificationResult {
+  category: 'column_reference' | 'vague_filter' | 'date_range' | 'open_intent' | 'table_ambiguity';
+  question: string;           // "By 'sales', do you mean..."
+  options: ClarificationOption[];
+  context?: string;           // What the model has determined so far
+  assumptions?: string[];     // Assumptions that don't need clarification
+}
 
 export interface CompositionEnvelope {
   id: string; // unique per response, used as sourceResultRef
@@ -183,6 +206,7 @@ export interface CompositionEnvelope {
     sourceResultRef?: string;
     jobId?: string;
     project?: string;
+    executionTrace?: ExecutionTraceEntry[];
   };
   nextActions: HandoffEnvelope[];
   /** Controls how much visual chrome ArtifactCard renders.

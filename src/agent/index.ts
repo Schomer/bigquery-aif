@@ -15,7 +15,7 @@ import { managePipelineTool } from './tools/manage-pipeline';
 import { exportDataTool } from './tools/export-data';
 import { presentResultTool } from './tools/present-result';
 import type { ToolDef } from './tools/types';
-import type { StatusCallback, CompositionEnvelope, HandoffEnvelope, SkillName, ChatMessage, TaskIntent, VisualizationType } from '../lib/types';
+import type { StatusCallback, CompositionEnvelope, HandoffEnvelope, SkillName, ChatMessage, TaskIntent, VisualizationType, ExecutionTraceEntry } from '../lib/types';
 import { compose } from '../lib/composer';
 import { resultCache } from './result-cache';
 import { fetchSchema } from '../lib/skills/schema';
@@ -162,6 +162,7 @@ export async function processWithAgentLoop({
   // Run the loop
   onStatus?.('Thinking...');
   const result = await runLoop(ctx, adapter, PHASE_0_TOOLS, config, onStatus, interruptSignal);
+  const executionTrace = buildExecutionTrace(result.events);
 
   // Build envelopes from the result
   const envelopes: CompositionEnvelope[] = [];
@@ -184,7 +185,7 @@ export async function processWithAgentLoop({
           actionClass: result.pendingActionClass,
         },
       },
-      provenance: { visibility: 'COLLAPSED' },
+      provenance: { visibility: 'COLLAPSED', executionTrace },
       requiresConfirmation: true,
       skipSelfReview: true,
       nextActions: [],
@@ -281,7 +282,7 @@ export async function processWithAgentLoop({
             rowsAffected: dmlData.rows_affected ?? 0,
           },
         },
-        provenance: { visibility: 'COLLAPSED' },
+        provenance: { visibility: 'COLLAPSED', executionTrace },
         skipSelfReview: true,
         nextActions: buildFollowUpChips(meta.followUps),
       };
@@ -309,6 +310,7 @@ export async function processWithAgentLoop({
         schedules: (pipelineData.schedules as any[]) ?? [],
       };
       const composed = compose('pipeline', pipelineResult);
+      composed.provenance.executionTrace = executionTrace;
       composed.headline.text = result.text.split('\n')[0].slice(0, 200);
       composed.skipSelfReview = true;
       envelopes.push(composed);
@@ -332,23 +334,38 @@ export async function processWithAgentLoop({
         columnCount: exportData.column_count as number | undefined,
       };
       const composed = compose('data-loading', dataLoadingResult);
+      composed.provenance.executionTrace = executionTrace;
       composed.headline.text = result.text.split('\n')[0].slice(0, 200);
       composed.skipSelfReview = true;
       envelopes.push(composed);
     } else if (schemaEvents.length > 0) {
       // Schema exploration -- build SCHEMA_VIEW even if queries also ran.
-      // When a user explores a dataset, the agent may call get_schema AND
-      // run supplementary queries. The schema view is the primary result.
-      const lastSchemaEvent = schemaEvents[schemaEvents.length - 1];
-      const args = lastSchemaEvent.tool_args ?? {};
+      // When a user explores a dataset, the agent may call get_schema multiple
+      // times (list tables, then inspect one). Prefer the dataset-scope event
+      // so the user sees the table list they asked for.
+      let targetEvent = schemaEvents[schemaEvents.length - 1];
+
+      // Prefer dataset-scope events over table-scope events.
+      // If the agent called get_schema(dataset=X) AND get_schema(dataset=X, table=Y),
+      // the user asked about the dataset -- show the table list.
+      const datasetScopeEvent = schemaEvents.find(
+        e => e.tool_name === 'get_schema' && e.tool_args?.dataset && !e.tool_args?.table
+      ) || schemaEvents.find(
+        e => e.tool_name === 'list_resources'
+      );
+      if (datasetScopeEvent) {
+        targetEvent = datasetScopeEvent;
+      }
+
+      const args = targetEvent.tool_args ?? {};
 
       let schemaDataset: string | undefined;
       let schemaTable: string | undefined;
 
-      if (lastSchemaEvent.tool_name === 'get_schema') {
+      if (targetEvent.tool_name === 'get_schema') {
         schemaDataset = args.dataset as string | undefined;
         schemaTable = args.table as string | undefined;
-      } else if (lastSchemaEvent.tool_name === 'list_resources') {
+      } else if (targetEvent.tool_name === 'list_resources') {
         const scope = args.scope as string;
         if (scope === 'tables') {
           schemaDataset = args.dataset as string | undefined;
@@ -363,7 +380,16 @@ export async function processWithAgentLoop({
           project,
         );
         const composed = compose('schema', schemaResult);
-        composed.headline.text = result.text.split('\n')[0].slice(0, 200);
+        composed.provenance.executionTrace = executionTrace;
+        // Derive headline from the actual schema result, not the agent's text.
+        // The agent's text can hallucinate the wrong dataset name.
+        if (schemaTable && schemaDataset) {
+          composed.headline.text = `Schema: ${schemaDataset}.${schemaTable}`;
+        } else if (schemaDataset) {
+          composed.headline.text = `Tables in ${schemaDataset}`;
+        } else {
+          composed.headline.text = `Datasets in ${project}`;
+        }
         composed.skipSelfReview = true;
         envelopes.push(composed);
         schemaEnvelopeBuilt = true;
@@ -372,7 +398,7 @@ export async function processWithAgentLoop({
       }
 
       if (!schemaEnvelopeBuilt) {
-        envelopes.push(buildTextEnvelope(result.text));
+        envelopes.push(buildTextEnvelope(result.text, executionTrace));
       }
     } else if (queryEvents.length > 0) {
       // Find the last successful query result_id
@@ -418,6 +444,7 @@ export async function processWithAgentLoop({
           resultSummary: result.text,
         };
         const composed = compose('query', queryResult);
+        composed.provenance.executionTrace = executionTrace;
         // Use agent-provided title or fall back to LLM text
         composed.headline.text = meta.resultTitle || result.text.split('\n')[0].slice(0, 200);
         composed.skipSelfReview = true;
@@ -431,7 +458,7 @@ export async function processWithAgentLoop({
         envelopes.push(composed);
       } else {
         // Text response with data mentioned
-        envelopes.push(buildTextEnvelope(result.text));
+        envelopes.push(buildTextEnvelope(result.text, executionTrace));
       }
     } else if (presentEvents.length > 0) {
       // Agent structured its response via present_result.
@@ -459,18 +486,19 @@ export async function processWithAgentLoop({
           type: 'PRESENTATION',
           data: presentationData,
         },
-        provenance: { visibility: 'COLLAPSED' },
+        provenance: { visibility: 'COLLAPSED', executionTrace },
         skipSelfReview: true,
         nextActions: meta.followUps?.length ? buildFollowUpChips(meta.followUps) : [],
       };
       envelopes.push(presentEnvelope);
     } else {
       // Pure text response -- no tools produced structured data
-      envelopes.push(buildTextEnvelope(result.text));
+      envelopes.push(buildTextEnvelope(result.text, executionTrace));
     }
   } else if (result.interrupted) {
     envelopes.push(buildTextEnvelope(
-      'The request was interrupted. Work completed up to the interruption point is preserved.'
+      'The request was interrupted. Work completed up to the interruption point is preserved.',
+      executionTrace
     ));
   }
 
@@ -486,7 +514,33 @@ export async function processWithAgentLoop({
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 
-function buildTextEnvelope(text: string): CompositionEnvelope {
+/** Convert raw step events into a human-readable execution trace. */
+function buildExecutionTrace(events: ReadonlyArray<{ kind: string; status: string; label: string; tool_name?: string; tool_args?: Record<string, unknown>; t_start: number; t_end?: number; detail?: string }>): ExecutionTraceEntry[] {
+  const trace: ExecutionTraceEntry[] = [];
+  let stepNum = 0;
+  for (const event of events) {
+    // Only include tool events and thinking events, skip internal/final
+    if (event.kind === 'tool_start' || event.kind === 'tool_result') {
+      // tool_start and tool_result share the same event ID after update(),
+      // so we only track tool_result (the completed state)
+      if (event.kind === 'tool_result') {
+        stepNum++;
+        const duration = event.t_end ? event.t_end - event.t_start : undefined;
+        trace.push({
+          step: stepNum,
+          action: event.label,
+          tool: event.tool_name,
+          durationMs: duration,
+          status: event.status as 'ok' | 'error' | 'retrying',
+          error: event.status === 'error' ? event.detail?.slice(0, 200) : undefined,
+        });
+      }
+    }
+  }
+  return trace;
+}
+
+function buildTextEnvelope(text: string, trace?: ExecutionTraceEntry[]): CompositionEnvelope {
   return {
     id: 'agent_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
     skill: 'conversation' as SkillName,
@@ -499,7 +553,7 @@ function buildTextEnvelope(text: string): CompositionEnvelope {
       type: 'CONVERSATION',
       data: { text },
     },
-    provenance: { visibility: 'COLLAPSED' },
+    provenance: { visibility: 'COLLAPSED', executionTrace: trace },
     skipSelfReview: true,
     nextActions: [],
   };
