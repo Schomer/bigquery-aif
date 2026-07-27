@@ -1,12 +1,6 @@
 // src/lib/chat-orchestrator.ts
-// Per-turn client-side orchestration: receive message -> router -> skill dispatch -> compose -> return envelopes
+// Per-turn client-side orchestration: receive message -> agent loop -> compose -> return envelopes
 // Runs entirely in the browser using the Gemini API REST endpoint via the configured API key.
-//
-// This file was refactored from a 3,835-line monolith into a thin dispatch layer.
-// Handler logic lives in src/lib/skills/handle-*.ts
-// Infrastructure lives in src/lib/gemini-client.ts, orchestrator-utils.ts, self-review.ts
-
-import { resolveReferences } from './router';
 import { callGemini, loadSkillDoc } from './gemini-client';
 import {
   getAvailableDatasets,
@@ -15,7 +9,7 @@ import {
 import type { ConversationState } from './conversation-state';
 
 // Skill handlers -- only confirmation execution remains
-import { executeConfirmedOperation } from './skills/handle-data-management';
+import { executeConfirmedOperation } from './skills/execute-confirmed';
 
 import type {
   ChatMessage,
@@ -27,6 +21,22 @@ import type {
 
 // Agent v2 loop
 import { processWithAgentLoop } from '../agent';
+
+// ── Inline reference resolver (moved from router.ts) ──────────────────────────
+// Replaces "that table" / "this table" / "about it" with the last table name.
+// Only used by the /plan path.
+function resolveTableReferences(
+  message: string,
+  context?: { lastTable?: string; lastResultRef?: string }
+): string {
+  if (!context?.lastTable) return message;
+  return message
+    .replace(/\bthat table\b/gi, context.lastTable)
+    .replace(/\bthis table\b/gi, context.lastTable)
+    .replace(/\b(?:from|in|on|to|into|of|against|about)\s+it\b/gi, (match) =>
+      match.replace(/\bit\b/i, context.lastTable!)
+    );
+}
 
 // ---- Orchestrator client class ----
 
@@ -127,7 +137,7 @@ export class ChatOrchestrator {
 
     onStatus?.(existingPlan ? 'Updating plan...' : 'Building your plan...');
 
-    const resolvedMessage = resolveReferences(message, context);
+    const resolvedMessage = resolveTableReferences(message, context);
 
     // Get available datasets for context, but don't fail if unavailable
     let availableDatasets: string[] = context?.availableDatasets || [];
