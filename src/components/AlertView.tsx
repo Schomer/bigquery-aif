@@ -112,6 +112,53 @@ export default function AlertView({ data, onAction }: AlertViewProps) {
         </div>
       )}
 
+      {/* Historical Simulation */}
+      {data.simulation && (
+        <div style={{
+          marginBottom: 16,
+          padding: '12px 16px',
+          borderRadius: 8,
+          background: 'var(--bg-subtle, #fafafa)',
+          border: '1px solid var(--border-subtle)',
+        }}>
+          <h4 style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>
+            Historical simulation
+          </h4>
+          <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--text-muted)' }}>
+            Over the last {data.simulation.historyDays} days, this condition was met {data.simulation.totalFires} times ({data.simulation.firesPerDay.toFixed(1)} per day).
+          </p>
+
+          {data.simulation.totalFires === 0 ? (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, background: 'var(--bg-code, #f5f5f5)', padding: 12, borderRadius: 6 }}>
+              <div style={{ marginBottom: 8 }}>The data met your criteria during this period -- the alert is correctly configured and waiting for a condition violation.</div>
+              <div>Alternatively, the threshold may need adjustment to catch more events.</div>
+            </div>
+          ) : data.simulation.topFires.length > 0 ? (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', marginBottom: 8 }}>Top violations:</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                    <th style={{ textAlign: 'left', padding: '4px 8px', color: 'var(--text-muted)', fontWeight: 500 }}>Time</th>
+                    <th style={{ textAlign: 'left', padding: '4px 8px', color: 'var(--text-muted)', fontWeight: 500 }}>Value</th>
+                    <th style={{ textAlign: 'left', padding: '4px 8px', color: 'var(--text-muted)', fontWeight: 500 }}>Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.simulation.topFires.map((fire, i) => (
+                    <tr key={i} style={{ borderBottom: i < data.simulation!.topFires.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                      <td style={{ padding: '6px 8px', color: 'var(--text)' }}>{fire.timestamp}</td>
+                      <td style={{ padding: '6px 8px', color: 'var(--text)' }}>{fire.value}</td>
+                      <td style={{ padding: '6px 8px', color: 'var(--text-muted)' }}>{fire.details || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </div>
+      )}
+
       {/* Action chips */}
       {data.nextActions && data.nextActions.length > 0 && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

@@ -14,6 +14,7 @@ import { executeDmlTool } from './tools/execute-dml';
 import { managePipelineTool } from './tools/manage-pipeline';
 import { exportDataTool } from './tools/export-data';
 import { presentResultTool } from './tools/present-result';
+import { planAnalysisTool } from './tools/plan-tool';
 import type { ToolDef } from './tools/types';
 import type { StatusCallback, CompositionEnvelope, HandoffEnvelope, SkillName, ChatMessage, TaskIntent, VisualizationType, ExecutionTraceEntry } from '../lib/types';
 import { compose } from '../lib/composer';
@@ -62,6 +63,7 @@ export function setAgentV2Enabled(enabled: boolean): void {
 // ── Phase 0 tool belt ─────────────────────────────────────────────────────────
 
 const PHASE_0_TOOLS: ToolDef[] = [
+  planAnalysisTool,
   runQueryTool,
   getSchemaTool,
   listResourcesTool,
@@ -163,6 +165,40 @@ export async function processWithAgentLoop({
   onStatus?.('Thinking...');
   const result = await runLoop(ctx, adapter, PHASE_0_TOOLS, config, onStatus, interruptSignal);
   const executionTrace = buildExecutionTrace(result.events);
+
+  // Check if plan_analysis detected ambiguities that need user resolution
+  const planEvents = result.events.filter(
+    e => e.kind === 'tool_result' && e.tool_name === 'plan_analysis'
+  );
+  if (planEvents.length > 0) {
+    const lastPlanEvent = planEvents[planEvents.length - 1];
+    const planArgs = lastPlanEvent.tool_args;
+    if (planArgs?.ambiguities && Array.isArray(planArgs.ambiguities) && planArgs.ambiguities.length > 0) {
+      // Ambiguities detected -- produce a clarification card
+      const firstAmbiguity = planArgs.ambiguities[0] as {
+        category: string;
+        question: string;
+        options: Array<{ label: string; value: string }>;
+      };
+      const { composeClarification } = await import('../lib/composer');
+      const clarificationEnvelope = composeClarification({
+        category: firstAmbiguity.category as any,
+        question: firstAmbiguity.question,
+        options: firstAmbiguity.options,
+        context: typeof planArgs.plan_summary === 'string' ? planArgs.plan_summary : undefined,
+        assumptions: undefined,
+      });
+      clarificationEnvelope.provenance.executionTrace = executionTrace;
+      return {
+        envelopes: [clarificationEnvelope],
+        skill: 'conversation' as SkillName,
+        resolvedContext: {
+          availableDatasets,
+          resolvedDataset: context?.resolvedDataset,
+        },
+      };
+    }
+  }
 
   // Build envelopes from the result
   const envelopes: CompositionEnvelope[] = [];

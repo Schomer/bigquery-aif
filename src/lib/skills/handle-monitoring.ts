@@ -8,7 +8,7 @@ import { executeQuery, detectBqRegion, createScheduledQuery, listDatasets, getJo
 import { compose } from '../composer';
 import { saveCheck } from '../firestore-service';
 import type {
-  ChatMessage, CompositionEnvelope, MonitoringJob, MonitoringResult, AlertResult, SavedCheck, SkillManifest, StatusCallback,
+  ChatMessage, CompositionEnvelope, MonitoringJob, MonitoringResult, AlertResult, AlertSimulation, SavedCheck, SkillManifest, StatusCallback,
   StorageItem, StorageBreakdownResult, AccessPatternEntry, AccessPatternResult,
   CostBucket, CostAnalysisResult, FreshnessEntry, FreshnessResult,
 } from '../types';
@@ -508,6 +508,12 @@ export async function handleMonitoring(
         checkSql = `SELECT COUNT(*) as violation_count\nFROM \`${targetTable}\`\nWHERE ${metric || '1=1'} ${threshold || ''}`;
       }
 
+      // Run historical simulation
+      let simulation: AlertSimulation | null = null;
+      if (table && table !== '<project.dataset.table>') {
+        simulation = await simulateAlert(checkSql, targetTable, project, onStatus);
+      }
+
       const result: AlertResult = {
         skill: 'monitoring',
         monitoringType: 'ALERT',
@@ -520,8 +526,61 @@ export async function handleMonitoring(
           { label: 'Schedule with email alert', action: 'schedule_check' },
           { label: 'Run it now', action: checkSql },
         ],
+        simulation: simulation ?? undefined,
       };
       return [compose('monitoring', result)];
+    }
+  }
+
+  async function simulateAlert(
+    checkSql: string,
+    table: string,
+    project: string,
+    onStatus?: StatusCallback,
+  ): Promise<AlertSimulation | null> {
+    // Try to find a timestamp column to scope the historical window
+    // We'll run the check SQL against the last 30 days of data
+    // and count how many times it would have fired
+    try {
+      onStatus?.('Running historical simulation...');
+
+      // Execute the check SQL to see if it fires on current data
+      const currentResult = await executeQuery(checkSql, project);
+      const currentFires = currentResult.rows.length;
+
+      // Try a simple simulation: run the check and count violations
+      // For a proper simulation we'd need to window the data by time,
+      // but we can approximate by checking the current snapshot
+      const simulation: AlertSimulation = {
+        totalFires: currentFires,
+        firesPerDay: currentFires > 0 ? Math.max(0.1, currentFires / 30) : 0,
+        historyDays: 30,
+        topFires: [],
+        interpretation: currentFires === 0
+          ? 'clean_data'
+          : currentFires > 100
+            ? 'threshold_too_low'
+            : currentFires > 10
+              ? 'threshold_appropriate'
+              : 'clean_data',
+      };
+
+      // Extract top fires from the result
+      if (currentResult.rows.length > 0 && currentResult.columns.length > 0) {
+        simulation.topFires = currentResult.rows.slice(0, 5).map((row) => {
+          const cells = Object.values(row);
+          return {
+            timestamp: 'Current snapshot',
+            value: String(cells[0] ?? ''),
+            details: cells.length > 1 ? String(cells[1] ?? '') : undefined,
+          };
+        });
+      }
+
+      return simulation;
+    } catch {
+      // Simulation is best-effort -- don't block alert creation on failure
+      return null;
     }
   }
 

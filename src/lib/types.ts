@@ -734,6 +734,14 @@ export interface SavedCheck {
   transferConfigName?: string;  // BigQuery Data Transfer config name for Tier 1
 }
 
+export interface AlertSimulation {
+  totalFires: number;
+  firesPerDay: number;
+  historyDays: number;
+  topFires: Array<{ timestamp: string; value: string; details?: string }>;
+  interpretation: 'clean_data' | 'threshold_appropriate' | 'threshold_too_high' | 'threshold_too_low';
+}
+
 export interface AlertResult {
   skill: 'monitoring';
   monitoringType: 'ALERT';
@@ -744,6 +752,7 @@ export interface AlertResult {
   tier?: AlertTier;
   guidance?: string;
   nextActions?: Array<{ label: string; action: string }>;
+  simulation?: AlertSimulation;
 }
 
 // ─── Discovery normalized result ──────────────────────────────────────────────
