@@ -60,6 +60,15 @@ async function run() {
     const freshUrl = `${APP_URL}?t=${Date.now()}&agent=v2`;
     console.log('[run] Navigating...');
     await page.goto(freshUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+    
+    // Enable agent v2 via localStorage so it persists across internal navigations
+    await page.evaluate(() => {
+      localStorage.setItem('bqaif_agent_v2', 'true');
+    });
+    
+    // Reload so the v2 flag is picked up during React initialization
+    await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
+    
     await delay(4000);
 
     // Wait for textarea

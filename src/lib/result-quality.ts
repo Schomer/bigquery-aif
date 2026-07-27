@@ -9,7 +9,7 @@ import type { SkillName } from './types';
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface QualityFlag {
-  type: 'NULL_RATE' | 'CATEGORICAL_NEAR_DUPES' | 'LOW_ROW_COUNT';
+  type: 'NULL_RATE' | 'CATEGORICAL_NEAR_DUPES' | 'LOW_ROW_COUNT' | 'HIGH_ROW_COUNT';
   severity: 'info' | 'warning';
   message: string;
   column?: string;
@@ -184,6 +184,19 @@ function checkLowRowCount(
 }
 
 
+const VIZ_ROW_BUDGET = 1000;
+
+function checkHighRowCount(
+  rows: unknown[][],
+): QualityFlag[] {
+  if (rows.length <= VIZ_ROW_BUDGET) return [];
+  return [{
+    type: 'HIGH_ROW_COUNT',
+    severity: 'warning',
+    message: `Query returned ${rows.length.toLocaleString()} rows. Charts perform best with under ${VIZ_ROW_BUDGET.toLocaleString()} rows. Consider adding aggregation or filters to reduce the result set.`,
+  }];
+}
+
 // ─── Main entry point ────────────────────────────────────────────────────────
 
 /**
@@ -205,6 +218,7 @@ export function analyzeResultQuality(
     ...checkNullRates(columns, rows, sql),
     ...checkCategoricalNearDupes(columns, rows, sql),
     ...checkLowRowCount(rows, sql),
+    ...checkHighRowCount(rows),
 
   ];
 
