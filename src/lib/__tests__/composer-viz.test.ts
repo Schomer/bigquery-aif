@@ -141,9 +141,9 @@ describe('inferVisualizationType', () => {
       expect(inferVisualizationType(result)).toBe('KPI_CARD');
     });
 
-    it('returns STAT_ROW for 2-5 rows, 1 cat, 1-2 numeric, 0 date', () => {
+    it('returns COLUMN_CHART for 2-5 rows, 1 cat, 1-2 numeric, 0 date (STAT_ROW removed from tree)', () => {
       const result = categorical(3);
-      expect(inferVisualizationType(result)).toBe('STAT_ROW');
+      expect(inferVisualizationType(result)).toBe('COLUMN_CHART');
     });
   });
 
@@ -254,9 +254,9 @@ describe('inferVisualizationType', () => {
       expect(inferVisualizationType(result)).toBe('FUNNEL');
     });
 
-    it('KNOWN WRONG: returns STAT_ROW for <=5 rows, all positive, parts-of-whole signal (DONUT_CHART unreachable)', () => {
+    it('FIX: returns DONUT_CHART for <=5 rows, all positive, parts-of-whole signal (was blocked by STAT_ROW)', () => {
       const result = categorical(4, { columnName: 'percent' });
-      expect(inferVisualizationType(result)).toBe('STAT_ROW');
+      expect(inferVisualizationType(result)).toBe('DONUT_CHART');
     });
 
     it('returns COLUMN_CHART for <=15 rows, short labels', () => {
@@ -413,9 +413,22 @@ describe('inferVisualizationType', () => {
   });
 
   describe('KNOWN WRONG behaviors', () => {
-    it('KNOWN WRONG: returns STAT_ROW for 3-row comparison queries', () => {
+    it('FIX: returns COLUMN_CHART for 3-row comparison queries (was STAT_ROW)', () => {
       const result = categorical(3);
-      expect(inferVisualizationType(result)).toBe('STAT_ROW');
+      expect(inferVisualizationType(result)).toBe('COLUMN_CHART');
+    });
+
+    it('rejects STAT_ROW hint for ranking queries with ORDER BY', () => {
+      const result = makeResult({
+        columns: ['ticker', 'percent'],
+        columnTypes: ['STRING', 'FLOAT64'],
+        rows: [['NVDA', 6.32], ['AAPL', 5.84], ['MSFT', 3.81], ['AMZN', 3.17], ['GOOGL', 2.88]],
+        sql: 'SELECT ticker, percent FROM holdings ORDER BY percent DESC LIMIT 5',
+        suggestedVisualization: 'STAT_ROW'
+      });
+      // Validation rejects STAT_ROW for ORDER BY queries, tree decides
+      const result2 = inferVisualizationType(result);
+      expect(result2).not.toBe('STAT_ROW');
     });
 
     it('Phase 4 FIX: returns BAR_CHART for sorted 30-row ranking queries', () => {

@@ -47,9 +47,9 @@
     "rowCount": 4,
     "sampleRows": [["Q1", 1200000], ["Q2", 1350000], ["Q3", 980000], ["Q4", 1470000]],
     "aiHint": "TABLE",
-    "expected": "STAT_ROW",
-    "acceptable": ["STAT_ROW", "COLUMN_CHART"],
-    "notes": "4 rows, 1 cat + 1 numeric. STAT_ROW fires first but COLUMN_CHART is also valid."
+    "expected": "COLUMN_CHART",
+    "acceptable": ["COLUMN_CHART", "BAR_CHART"],
+    "notes": "4 rows, 1 cat + 1 numeric. STAT_ROW removed from tree. Tree produces COLUMN_CHART."
   },
   {
     "id": "line-monthly-trend",
@@ -515,8 +515,8 @@
     "rowCount": 3,
     "sampleRows": [["Online", 3200000], ["Retail", 1800000], ["Wholesale", 1000000]],
     "aiHint": "COLUMN_CHART",
-    "expected": "STAT_ROW",
-    "acceptable": ["STAT_ROW", "COLUMN_CHART"],
-    "notes": "3 rows, 1 cat + 1 numeric. STAT_ROW fires before chart branches. Both are acceptable."
+    "expected": "COLUMN_CHART",
+    "acceptable": ["COLUMN_CHART", "BAR_CHART"],
+    "notes": "3 rows, 1 cat + 1 numeric. STAT_ROW removed from tree. Tree produces COLUMN_CHART."
   }
 ]

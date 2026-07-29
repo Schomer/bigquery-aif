@@ -1344,10 +1344,8 @@ export function inferFromDataShape(result: QueryResult): ArtifactType {
     return 'KPI_CARD';
   }
 
-  // W2-02: STAT_ROW -- 2-5 rows with 1 categorical + 1-2 numeric columns -> StatCard grid
-  if (rowCount >= 2 && rowCount <= 5 && catCols.length === 1 && numericCols.length >= 1 && numericCols.length <= 2 && dateCols.length === 0) {
-    return 'STAT_ROW';
-  }
+  // STAT_ROW removed from tree -- it blocked DONUT_CHART, COLUMN_CHART, and
+  // BAR_CHART for 2-5 row results. STAT_ROW is now AI-hint-only (validated).
 
   // Step 3 -- Geographic detection (disabled: maps available via UI toggle)
 
@@ -1508,6 +1506,13 @@ function validateHint(hint: string, result: QueryResult): string | null {
     case 'COLUMN_CHART':
       // Single-row data should be KPI, not a bar/column
       if (rowCount === 1 && numericCount >= 1 && columns.length <= 3) return null;
+      break;
+    case 'STAT_ROW':
+      // STAT_ROW is only appropriate for small independent metric sets.
+      // Reject if: too many rows, no numerics, or ranking query (ORDER BY).
+      if (rowCount < 2 || rowCount > 5) return null;
+      if (numericCount === 0) return null;
+      if (/ORDER\s+BY\b/i.test(result.sql ?? '')) return null;
       break;
   }
 
