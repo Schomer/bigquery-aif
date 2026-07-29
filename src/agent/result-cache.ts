@@ -1,7 +1,7 @@
 // src/agent/result-cache.ts
 // IndexedDB-backed result cache for the agent loop.
 // Stores full query results under result_id; LRU eviction at 200MB.
-// Used by run_query tool, affordance controls, and "show underlying data".
+// Used by run_query tool and affordance controls.
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

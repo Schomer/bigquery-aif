@@ -529,22 +529,6 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[], userInt
     }
   } catch { /* non-fatal */ }
 
-    // ── Secondary artifacts (multi-layered output) ──────────────────────────────
-    // When the primary is a chart, offer the underlying data as a collapsed table.
-    const secondaryArtifacts: CompositionEnvelope['secondaryArtifacts'] = [];
-
-    const isChart = artifactType !== 'TABLE' && artifactType !== 'KPI_CARD'
-      && artifactType !== 'STAT_ROW' && artifactType !== 'SCHEMA_VIEW'
-      && artifactType !== 'INTERACTIVE_WIDGET';
-
-    if (isChart && result.rowCount > 0) {
-      secondaryArtifacts.push({
-        type: 'TABLE',
-        label: `Underlying data (${result.rowCount} row${result.rowCount !== 1 ? 's' : ''})`,
-        data: result,
-        defaultOpen: false,
-      });
-    }
 
     return {
       id,
@@ -584,7 +568,7 @@ function composeQuery(result: QueryResult, qualityFlags?: QualityFlag[], userInt
         ],
       },
       companionArtifact,
-      ...(secondaryArtifacts.length > 0 ? { secondaryArtifacts } : {}),
+
     };
 }
 

@@ -34,7 +34,7 @@ import { GovernanceView } from './GovernanceView';
 import { InteractiveWidgetView } from './InteractiveWidgetView';
 import { BriefingBlock } from './BriefingBlock';
 import { DashboardArtifactCard } from './DashboardArtifactCard';
-import { CollapsibleSection } from './CollapsibleSection';
+
 import { PlanCard } from './chat/PlanCard';
 import type { PlanCardData } from './chat/PlanCard';
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
@@ -548,22 +548,7 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
           </div>
         )}
 
-        {/* Divider before suggestions */}
-        {envelope.secondaryArtifacts && envelope.secondaryArtifacts.length > 0 && (
-          <div style={{ padding: '0 0 4px' }}>
-            {envelope.secondaryArtifacts.map((sa, idx) => (
-              <CollapsibleSection key={idx} label={sa.label} defaultOpen={sa.defaultOpen}>
-                {sa.type === 'TABLE' && sa.data ? (
-                  <DataTable result={sa.data as import('@/lib/types').QueryResult} onSendMessage={handleInlineClick} />
-                ) : (
-                  <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                    {String(sa.label)}
-                  </div>
-                )}
-              </CollapsibleSection>
-            ))}
-          </div>
-        )}
+
 
         {/* Divider before suggestions */}
         {!envelope.requiresConfirmation && showSuggestions && envelope.nextActions.length > 0 && (
