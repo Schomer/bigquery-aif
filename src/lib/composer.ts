@@ -3,6 +3,7 @@
 // Implements bigquery-response-composition.md
 import { formatBytes } from '@/lib/format';
 import { computeInsights, type StatInsight } from '@/lib/result-insights';
+import { CHART_THRESHOLDS } from '@/lib/chartThresholds';
 
 function randomUUID(): string {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
@@ -1269,47 +1270,52 @@ function scaleRatio(col1Values: number[], col2Values: number[]): number {
   return max1 / max2;
 }
 
+/**
+ * Phase 4: Detect ranking signals in categorical+numeric data.
+ * Returns true if the SQL sorts by the numeric column and the values
+ * are roughly monotonic (either up or down), suggesting a ranking/top-N query.
+ */
+function isRankingResult(sql: string, numericColName: string, numIdx: number, numValues: number[]): boolean {
+  // Signal 1: SQL contains ORDER BY ... DESC or LIMIT (common ranking patterns)
+  const hasOrderBy = /ORDER\s+BY\b/i.test(sql);
+  const hasLimit = /\bLIMIT\b/i.test(sql);
+
+  // Signal 2: Values are monotonically decreasing (top-N) or increasing (bottom-N)
+  const isDecreasing = isMonotonicallyDecreasing(numValues);
+  // Allow roughly monotonic (90% of adjacent pairs are non-increasing)
+  const pairs = numValues.slice(0, -1).map((v, i) => v >= numValues[i + 1]);
+  const roughlyDecreasing = pairs.length > 0 && pairs.filter(Boolean).length / pairs.length >= 0.9;
+
+  // Require at least one SQL signal + monotonicity signal
+  if ((hasOrderBy || hasLimit) && (isDecreasing || roughlyDecreasing)) return true;
+
+  return false;
+}
+
 // BQ DATE/TIMESTAMP type names that authoritatively identify date columns
 const BQ_DATE_TYPES = new Set(['DATE', 'DATETIME', 'TIMESTAMP', 'TIME']);
 const BQ_NUMERIC_TYPES = new Set(['INTEGER', 'INT64', 'FLOAT', 'FLOAT64', 'NUMERIC', 'BIGNUMERIC', 'INT', 'SMALLINT', 'BIGINT']);
 
 /**
- * Expert 13-step visualization decision tree.
- * Layer 2 of the five-layer visualization decision system.
+ * Decides a chart type from data shape alone. Knows nothing about AI hints
+ * or user intent. This is the single source of truth for shape -> chart.
  *
- * @param result - The query result
- * @param userIntent - Layer 1 explicit intent (highest authority)
+ * Phases 2-4: Uses centralized thresholds, includes ranking detection.
  */
-function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType | null): ArtifactType {
-  // Step 0 — User explicit intent (highest authority)
-  if (userIntent && userIntent !== null) return userIntent;
-
+export function inferFromDataShape(result: QueryResult): ArtifactType {
   const { columns, rows, rowCount, columnTypes, sql } = result;
   if (!columns || columns.length === 0 || !rows || rows.length === 0) return 'TABLE';
 
-  // Step 0b — LLM visualization hint (trusted over heuristics, but below user intent)
-  // Only trust renderable chart types returned by the LLM. Exclude TABLE (the
-  // default/fallback value) and INTERACTIVE_WIDGET (only valid when widgetData is
-  // present and presentation:'custom' is set by the early-return block above --
-  // trusting it here produces an envelope that hits the default JSON-dump case in
-  // the Artifact switch).
-  const NON_CHART_VIZ_TYPES = new Set(['TABLE', 'INTERACTIVE_WIDGET']);
-  if (result.suggestedVisualization && !NON_CHART_VIZ_TYPES.has(result.suggestedVisualization)) {
-    return result.suggestedVisualization as ArtifactType;
-  }
-
-  // Step 1 — Data validity gates
+  // Step 1 -- Data validity gates
   const allIdCols = columns.every((c) => isIdColumn(c));
   if (allIdCols) return 'TABLE';
 
   // Use authoritative BQ types when available, fall back to sample-value inference
   const colTypes: ('numeric' | 'date' | 'categorical')[] = columns.map((col, i) => {
-    // Authoritative BQ type takes precedence
     const bqType = columnTypes?.[i]?.toUpperCase();
     if (bqType && BQ_DATE_TYPES.has(bqType)) return 'date';
     if (bqType && BQ_NUMERIC_TYPES.has(bqType)) return 'numeric';
 
-    // Fall back to sample-value inference
     const sampleValues = rows.slice(0, 10).map(r => (r as unknown[])[i]);
     const nonNull = sampleValues.filter(v => v != null);
     if (nonNull.length === 0) return 'categorical';
@@ -1325,12 +1331,12 @@ function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType |
 
   const lowerCols = columns.map(c => c.toLowerCase());
 
-  // Step 1b — Geo-point detection (lat/lng columns → point map)
+  // Step 1b -- Geo-point detection (lat/lng columns -> point map)
   const hasLat = lowerCols.some(c => c === 'lat' || c === 'latitude' || c.endsWith('_lat') || c.endsWith('_latitude'));
   const hasLng = lowerCols.some(c => c === 'lng' || c === 'longitude' || c === 'lon' || c === 'long' || c.endsWith('_lng') || c.endsWith('_longitude') || c.endsWith('_lon') || c.endsWith('_long'));
   if (hasLat && hasLng) return 'GEO_POINT_MAP';
 
-  // Step 2 — Single-value results (KPI card)
+  // Step 2 -- Single-value results (KPI card)
   if (rowCount === 1 && numericCols.length >= 1 && columns.length <= 3 && catCols.length === 0 && dateCols.length === 0) {
     return 'KPI_CARD';
   }
@@ -1338,18 +1344,14 @@ function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType |
     return 'KPI_CARD';
   }
 
-  // W2-02: STAT_ROW — 2–5 rows with 1 categorical + 1–2 numeric columns → StatCard grid
+  // W2-02: STAT_ROW -- 2-5 rows with 1 categorical + 1-2 numeric columns -> StatCard grid
   if (rowCount >= 2 && rowCount <= 5 && catCols.length === 1 && numericCols.length >= 1 && numericCols.length <= 2 && dateCols.length === 0) {
     return 'STAT_ROW';
   }
 
-  // Step 3 — Geographic detection (disabled: maps available via UI toggle)
-  // Country/state data is treated as categorical and gets a bar/column chart
-  // by default. The segmented control offers a Map option when geo columns
-  // are detected, so the user can switch to a map view on demand.
+  // Step 3 -- Geographic detection (disabled: maps available via UI toggle)
 
-  // Step 4 — Structural specialty matches
-  // Candlestick: has open/high/low/close columns + 1 date
+  // Step 4 -- Structural specialty matches
   const ohlcNames = columns.map(c => c.toLowerCase());
   const hasOpen = ohlcNames.some(c => /^open/.test(c));
   const hasHigh = ohlcNames.some(c => /^high/.test(c));
@@ -1357,15 +1359,12 @@ function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType |
   const hasClose = ohlcNames.some(c => /^close/.test(c));
   if (hasOpen && hasHigh && hasLow && hasClose && dateCols.length >= 1) return 'CANDLESTICK';
 
-  // Sankey: source + target + numeric flow columns
   const hasSankeySource = columns.some(c => /^(source|from|origin|src)$/i.test(c));
   const hasSankeyTarget = columns.some(c => /^(target|to|destination|dest)$/i.test(c));
   if (hasSankeySource && hasSankeyTarget && numericCols.length >= 1) return 'SANKEY';
 
   // Heatmap via 2 categoricals + 1 numeric + sufficient rows
-  // Guard: both categorical dimensions must have >1 unique value; if one is a constant
-  // (e.g. year=900 in every row), the result is a simple ranked list, not a 2D matrix.
-  if (catCols.length === 2 && numericCols.length === 1 && rowCount >= 9 && rowCount <= 400) {
+  if (catCols.length === 2 && numericCols.length === 1 && rowCount >= CHART_THRESHOLDS.MIN_HEATMAP_ROWS && rowCount <= CHART_THRESHOLDS.MAX_HEATMAP_ROWS) {
     const catIdx0 = columns.indexOf(catCols[0]);
     const catIdx1 = columns.indexOf(catCols[1]);
     const unique0 = new Set(rows.map(r => (r as unknown[])[catIdx0])).size;
@@ -1373,58 +1372,59 @@ function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType |
     if (unique0 > 1 && unique1 > 1) return 'HEATMAP';
   }
 
-  // Step 5 — Time-series detection (1 date column + 1+ numeric)
+  // Step 5 -- Time-series detection (1 date column + 1+ numeric)
   if (dateCols.length === 1 && numericCols.length >= 1 && rowCount >= 2) {
-    // Sparse data (< 5 rows): column chart looks better than lines
-    if (rowCount < 5) return 'COLUMN_CHART';
-    // Dual-scale series: use composed chart
+    if (rowCount < CHART_THRESHOLDS.MIN_POINTS_PER_LINE_SERIES) return 'COLUMN_CHART';
     if (numericCols.length >= 2) {
       const numIdx1 = columns.indexOf(numericCols[0]);
       const numIdx2 = columns.indexOf(numericCols[1]);
       const vals1 = rows.slice(0, 20).map(r => Number((r as unknown[])[numIdx1]) || 0);
       const vals2 = rows.slice(0, 20).map(r => Number((r as unknown[])[numIdx2]) || 0);
-      if (scaleRatio(vals1, vals2) > 10 || scaleRatio(vals2, vals1) > 10) return 'COMPOSED_CHART';
+      if (scaleRatio(vals1, vals2) > CHART_THRESHOLDS.DUAL_AXIS_SCALE_RATIO || scaleRatio(vals2, vals1) > CHART_THRESHOLDS.DUAL_AXIS_SCALE_RATIO) return 'COMPOSED_CHART';
     }
-    // Cumulative/running total: area chart
     if (numericCols.some(c => isCumulativePattern(c))) return 'AREA_CHART';
-    // Standard time series
     return 'LINE_CHART';
   }
 
-  // Step 6 — Distribution detection (1 numeric, no categorical, no date, many rows)
-  if (numericCols.length === 1 && catCols.length === 0 && dateCols.length === 0 && rowCount >= 20) {
+  // Step 6 -- Distribution detection (1 numeric, no categorical, no date, many rows)
+  if (numericCols.length === 1 && catCols.length === 0 && dateCols.length === 0 && rowCount >= CHART_THRESHOLDS.MIN_HISTOGRAM_ROWS) {
     return 'HISTOGRAM';
   }
 
-  // Step 7 — Categorical + numeric (main branch)
+  // Step 7 -- Categorical + numeric (main branch)
   if (catCols.length === 1 && numericCols.length >= 1 && rowCount >= 2) {
     const catIdx = columns.indexOf(catCols[0]);
     const numIdx = columns.indexOf(numericCols[0]);
     const catValues = rows.map(r => (r as unknown[])[catIdx]);
     const numValues = rows.map(r => Number((r as unknown[])[numIdx]) || 0);
 
-    // Too many categories → table
-    if (rowCount > 25) return 'TABLE';
+    // Phase 4: ranking detection for >25 rows
+    if (rowCount > CHART_THRESHOLDS.CATEGORICAL_CHART_HARD_LIMIT) return 'TABLE';
+    if (rowCount > CHART_THRESHOLDS.CATEGORICAL_CHART_SOFT_LIMIT) {
+      return isRankingResult(sql ?? '', numericCols[0], numIdx, numValues)
+        ? 'BAR_CHART'
+        : 'TABLE';
+    }
 
     // Funnel: monotonically decreasing values + stage-like column name
-    if (rowCount >= 2 && rowCount <= 8 && isMonotonicallyDecreasing(numValues) &&
+    if (rowCount >= 2 && rowCount <= CHART_THRESHOLDS.MAX_FUNNEL_ROWS && isMonotonicallyDecreasing(numValues) &&
         (isStagePattern(catCols[0]) || numericCols.some(c => isStagePattern(c)))) {
       return 'FUNNEL';
     }
 
-    // Parts-of-whole: ≤5 categories, all positive, and semantic signals
+    // Parts-of-whole: <=5 categories, all positive, and semantic signals
     if (rowCount <= 5 && numericCols.length === 1 && numValues.every(v => v >= 0)) {
       if (isPartsOfWhole(numericCols[0], sql ?? '')) return 'DONUT_CHART';
     }
 
     // Default: distinguish COLUMN vs BAR by actual label length
     const avgLen = avgLabelLength(catValues);
-    if (avgLen <= 12 && rowCount <= 15) return 'COLUMN_CHART';
+    if (avgLen <= CHART_THRESHOLDS.MAX_LABEL_LENGTH_FOR_COLUMNS && rowCount <= CHART_THRESHOLDS.MAX_ROWS_FOR_COLUMNS) return 'COLUMN_CHART';
     return 'BAR_CHART';
   }
 
-  // Step 8 — Multi-category (2 categoricals + 1 numeric)
-  if (catCols.length === 2 && numericCols.length === 1 && rowCount <= 400) {
+  // Step 8 -- Multi-category (2 categoricals + 1 numeric)
+  if (catCols.length === 2 && numericCols.length === 1 && rowCount <= CHART_THRESHOLDS.MAX_HEATMAP_ROWS) {
     const catIdx0 = columns.indexOf(catCols[0]);
     const catIdx1 = columns.indexOf(catCols[1]);
     const unique0 = new Set(rows.map(r => (r as unknown[])[catIdx0])).size;
@@ -1433,20 +1433,19 @@ function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType |
   }
   if (catCols.length >= 2 && numericCols.length >= 1) return 'BAR_CHART';
 
-  // Step 9 — Scatter (relationship detection)
-  if (numericCols.length === 2 && catCols.length <= 1 && dateCols.length === 0 && rowCount >= 10) {
-    // Don't scatter if both numerics look like IDs
+  // Step 9 -- Scatter (relationship detection)
+  if (numericCols.length === CHART_THRESHOLDS.MIN_SCATTER_NUMERIC_COLS && catCols.length <= 1 && dateCols.length === 0 && rowCount >= CHART_THRESHOLDS.MIN_SCATTER_ROWS) {
     if (!numericCols.every(c => isIdColumn(c))) return 'SCATTER';
   }
 
-  // Step 10 — Multi-dimensional comparison (radar)
-  if (catCols.length === 1 && numericCols.length >= 3 && numericCols.length <= 8 && rowCount <= 10) {
+  // Step 10 -- Multi-dimensional comparison (radar)
+  if (catCols.length === 1 && numericCols.length >= CHART_THRESHOLDS.MIN_RADAR_NUMERIC_COLS && numericCols.length <= CHART_THRESHOLDS.MAX_RADAR_NUMERIC_COLS && rowCount <= CHART_THRESHOLDS.MAX_RADAR_ROWS) {
     return 'RADAR';
   }
 
-  // Step 11 — Treemap (hierarchical parts-of-whole)
+  // Step 11 -- Treemap (hierarchical parts-of-whole)
   if (catCols.length >= 1 && catCols.length <= 2 && numericCols.length === 1 &&
-      rowCount >= 5 && rowCount <= 50) {
+      rowCount >= CHART_THRESHOLDS.MIN_TREEMAP_ROWS && rowCount <= CHART_THRESHOLDS.MAX_TREEMAP_ROWS) {
     const numIdx = columns.indexOf(numericCols[0]);
     const numValues = rows.map(r => Number((r as unknown[])[numIdx]) || 0);
     if (numValues.every(v => v >= 0) && isPartsOfWhole(numericCols[0], sql ?? '')) {
@@ -1454,10 +1453,92 @@ function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType |
     }
   }
 
-  // Step 12 — (moved to Step 0b above)
-
-  // Step 13 — TABLE (last resort)
+  // Step 13 -- TABLE (last resort)
   return 'TABLE';
+}
+
+/**
+ * Phase 5: Validate an AI hint against data preconditions.
+ * Returns the hint if it passes, or null if the hint is inappropriate
+ * for the actual data shape and the tree should decide instead.
+ *
+ * Rules:
+ * - LINE_CHART / AREA_CHART: need >= MIN_POINTS_PER_LINE_SERIES data points
+ * - PIE_CHART / DONUT_CHART: need <= MAX_PIE_SLICES rows, all positive values, and a numeric column
+ * - SCATTER: need >= MIN_SCATTER_POINTS rows
+ * - KPI_CARD: need 1 row and at least 1 numeric column
+ * - BAR_CHART / COLUMN_CHART: need at least 1 row (any more constraints are shape-based)
+ * - HISTOGRAM: need >= MIN_HISTOGRAM_ROWS rows
+ * - Everything else: trusted as-is
+ */
+function validateHint(hint: string, result: QueryResult): string | null {
+  const { rows, rowCount, columns, columnTypes } = result;
+
+  // Quick type classification (lightweight -- just counts, no full tree overhead)
+  const numericCount = columns.filter((_, i) => {
+    const bqType = columnTypes?.[i]?.toUpperCase();
+    if (bqType && BQ_NUMERIC_TYPES.has(bqType)) return true;
+    if (bqType && (BQ_DATE_TYPES.has(bqType) || bqType === 'STRING' || bqType === 'BOOL' || bqType === 'BOOLEAN')) return false;
+    // Sample inference
+    const sample = rows.slice(0, 5).map(r => (r as unknown[])[i]).filter(v => v != null);
+    return sample.length > 0 && sample.every(isNumericValue);
+  }).length;
+
+  switch (hint) {
+    case 'LINE_CHART':
+    case 'AREA_CHART':
+      if (rowCount < CHART_THRESHOLDS.MIN_POINTS_PER_LINE_SERIES) return null;
+      break;
+    case 'PIE_CHART':
+    case 'DONUT_CHART':
+      if (rowCount > CHART_THRESHOLDS.MAX_PIE_SLICES) return null;
+      if (numericCount === 0) return null;
+      break;
+    case 'SCATTER':
+      if (rowCount < CHART_THRESHOLDS.MIN_SCATTER_POINTS) return null;
+      if (numericCount < 2) return null;
+      break;
+    case 'KPI_CARD':
+      if (rowCount !== 1 || numericCount === 0) return null;
+      break;
+    case 'HISTOGRAM':
+      if (rowCount < CHART_THRESHOLDS.MIN_HISTOGRAM_ROWS) return null;
+      break;
+    case 'BAR_CHART':
+    case 'COLUMN_CHART':
+      // Single-row data should be KPI, not a bar/column
+      if (rowCount === 1 && numericCount >= 1 && columns.length <= 3) return null;
+      break;
+  }
+
+  return hint;
+}
+
+/**
+ * Entry point for visualization type inference.
+ * Handles user intent and AI hint (with validation), then delegates to shape inference.
+ *
+ * Phases 3+5: Separated from inferFromDataShape. AI hints are validated
+ * against data preconditions before being trusted. If validation fails,
+ * the shape tree decides.
+ */
+export function inferVisualizationType(result: QueryResult, userIntent?: ArtifactType | null): ArtifactType {
+  // Layer 0: User explicit intent (highest authority)
+  if (userIntent && userIntent !== null) return userIntent;
+
+  const { columns, rows } = result;
+  if (!columns || columns.length === 0 || !rows || rows.length === 0) return 'TABLE';
+
+  // Layer 0b: AI visualization hint (trusted for renderable chart types, with validation)
+  const NON_CHART_VIZ_TYPES = new Set(['TABLE', 'INTERACTIVE_WIDGET']);
+  if (result.suggestedVisualization && !NON_CHART_VIZ_TYPES.has(result.suggestedVisualization)) {
+    const validated = validateHint(result.suggestedVisualization, result);
+    if (validated) return validated as ArtifactType;
+    // Hint rejected by validation -- fall through to shape tree
+  }
+
+  // Layer 1: Shape-based heuristic tree
+  return inferFromDataShape(result);
 }
 
 

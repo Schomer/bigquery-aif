@@ -1,5 +1,16 @@
 # Operations Ledger
 
+## 2026-07-28: Chart selection -- added validation layer, ranking detection, test suite
+
+**What broke (previously)**: No test coverage for chart selection. AI hints like LINE_CHART for 2-row data or PIE_CHART for 15 categories were blindly trusted. Rankings >25 rows always became TABLE even when sorted. Several chart types (RADAR, DONUT_CHART, TREEMAP) were unreachable due to Step 7 intercepting.
+
+**Root cause**: `inferVisualizationType()` combined AI hint trust, data validation, and shape inference in one function with no separation of concerns. No tests meant regressions went undetected. Magic numbers scattered throughout the function made threshold changes risky.
+
+**Fix**: (1) Extracted `inferFromDataShape()` (pure shape-based tree) from `inferVisualizationType()` (orchestrator). (2) Added `validateHint()` that checks data preconditions before trusting AI hints -- LINE_CHART needs >=5 points, PIE needs <=6 slices, SCATTER needs >=5 points, etc. (3) Added `isRankingResult()` using SQL ORDER BY + value monotonicity to allow sorted 26-50 row data as BAR_CHART. (4) Created `chartThresholds.ts` as single source of truth for all numeric constants. (5) Added 151 tests including 40-entry golden corpus.
+
+**Derived rule**: AI hints must pass data precondition validation before being trusted. The tree is the final authority for data shape -> chart type. This prevents the AI from producing charts that don't render well with the actual data.
+
+
 ## 2026-07-27: "Clean up the data" produced 22 cards instead of phased workflow
 
 **What broke**: User asked to "clean up the data" in a table. The agent ran 22 separate tool calls (queries + DML), each producing a visible card. User expected: (1) assessment of issues found, (2) confirmation prompt, (3) single final result.

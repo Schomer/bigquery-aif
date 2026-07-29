@@ -2,6 +2,21 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-28: Chart selection improvement (Phases 0-5)
+
+**Problem**: Chart type selection had no test coverage, no validation of AI hints, and several unreachable code paths (RADAR, DONUT_CHART, TREEMAP). Rankings >25 rows always fell to TABLE even when sorted.
+
+**Changes**:
+- `src/lib/composer.ts` -- Extracted `inferFromDataShape()` from `inferVisualizationType()`. Added `validateHint()` (Phase 5) to reject AI hints that violate data preconditions (e.g., LINE_CHART with 2 rows, PIE_CHART with 15 slices). Added `isRankingResult()` (Phase 4) using SQL ORDER BY + monotonicity detection to allow sorted 26-50 row data as BAR_CHART. Replaced all magic numbers with `CHART_THRESHOLDS` constants.
+- `src/lib/chartThresholds.ts` -- [NEW] Single source of truth for all chart selection thresholds.
+- `src/agent/tools/run-query.ts` -- Added COMPOSED_CHART, SANKEY, CANDLESTICK to visualization_hint enum.
+- `src/lib/__tests__/composer-viz.test.ts` -- [NEW] 85 characterization tests covering all branches, regressions, invariants, and a 40-entry golden corpus.
+- `src/lib/__tests__/viz-enum-consistency.test.ts` -- [NEW] Verifies prompt and tool enum stay in sync.
+- `src/lib/__tests__/helpers/queryResult.ts` -- [NEW] Test fixture builder.
+- `src/lib/__tests__/fixtures/chart-corpus.json` -- [NEW] 40-entry golden corpus for scored accuracy testing.
+
+**Results**: 151 tests pass. Corpus accuracy: 97.5% (39/40), up from 95.0% baseline. Build passes.
+
 ## 2026-07-27: Add multi-step operations phasing and card budget
 
 **Problem**: "Clean up the data" produced 22 separate cards (queries + DML operations). User expected an assessment, confirmation, then final result.

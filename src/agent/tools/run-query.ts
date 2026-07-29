@@ -46,7 +46,7 @@ export const runQueryTool: ToolDef = {
             'Suggested chart type based on the data shape and task intent. ' +
             'Values: TABLE, LINE_CHART, BAR_CHART, AREA_CHART, SCATTER, PIE_CHART, ' +
             'DONUT_CHART, COLUMN_CHART, HISTOGRAM, SPARKLINE, HEATMAP, KPI_CARD, STAT_ROW, ' +
-            'GEO_POINT_MAP, USA_MAP, WORLD_MAP, TREEMAP, FUNNEL, GAUGE.',
+            'GEO_POINT_MAP, USA_MAP, WORLD_MAP, TREEMAP, FUNNEL, GAUGE, COMPOSED_CHART, SANKEY, CANDLESTICK.',
         },
         result_title: {
           type: 'STRING',
