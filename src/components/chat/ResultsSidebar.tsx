@@ -42,6 +42,14 @@ function artifactIcon(type: string, data?: any): string {
 }
 
 function envelopeName(env: CompositionEnvelope): string {
+  // Use the headline text as the card name -- it matches the title shown
+  // in the results panel (e.g., "Top 15 Holdings by USD Amount").
+  const headline = env.headline?.text;
+  if (typeof headline === 'string' && headline.trim().length > 0) {
+    return headline.trim();
+  }
+
+  // Fallback: derive a name from the artifact type and data
   const { type, data } = env.primaryArtifact;
   const d = data as any;
   const CHART_TYPES = new Set(['LINE_CHART','BAR_CHART','AREA_CHART','PIE_CHART','DONUT_CHART','COLUMN_CHART','SCATTER','HISTOGRAM','HEATMAP','FUNNEL','TREEMAP','GAUGE']);
@@ -58,14 +66,12 @@ function envelopeName(env: CompositionEnvelope): string {
     return 'Schema';
   }
   if (type === 'TABLE') {
-    // Try to pull a table name out of the SQL or provenance
     const sql: string = env.provenance?.sql || '';
     const m = sql.match(/\bFROM\s+`?([\w.]+)`?/i);
     if (m) return m[1].split('.').pop() || 'Query Result';
     return 'Query Result';
   }
   if (CHART_TYPES.has(type)) {
-    // Use yKey/metric column as the name, or fall back to chart type label
     const col = d?.yKey || d?.metric || d?.valueKey;
     return col || CHART_LABELS[type] || 'Chart';
   }

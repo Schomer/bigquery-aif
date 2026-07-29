@@ -2,6 +2,18 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-28: Remove "Underlying data" collapsible sections
+
+**Rationale**: The segmented chart/table toggle makes the collapsible "Underlying data (N rows)" section redundant -- users can switch to the table view directly.
+
+**Changes**:
+- `src/lib/composer.ts` -- Removed `secondaryArtifacts` construction (the underlying data collapsed table for chart results).
+- `src/components/ArtifactCard.tsx` -- Removed secondary artifacts rendering block and `CollapsibleSection` import.
+- `src/components/CollapsibleSection.tsx` -- [DELETED] No longer used anywhere.
+- `src/lib/types.ts` -- Removed `secondaryArtifacts` from `CompositionEnvelope`.
+- `src/agent/result-cache.ts` -- Updated comment removing "show underlying data" reference.
+- `.agents/knowledge/invariants.md` -- Removed stale invariant about `secondaryArtifacts`.
+
 ## 2026-07-28: Chart selection improvement (Phases 0-5)
 
 **Problem**: Chart type selection had no test coverage, no validation of AI hints, and several unreachable code paths (RADAR, DONUT_CHART, TREEMAP). Rankings >25 rows always fell to TABLE even when sorted.
