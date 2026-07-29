@@ -1,5 +1,15 @@
 # Operations Ledger
 
+## 2026-07-28: Duplicate cards when agent calls both run_query and present_result
+
+**What broke**: Queries like "What is the total percentage of the top 10 tickers?" rendered two cards: a bare KPI (31.87) and a richer multi-metric summary (31.87% + 68.13% remaining + 10 tickers). The second card was strictly better.
+
+**Root cause**: The agent loop in `src/agent/index.ts` iterates over all successful tool_result events and builds a card for each. The AI called `run_query` (data gathering) and then `present_result` (formatted output) in the same turn, producing two envelopes. The invariants already documented the priority order (present_result > query) but the code didn't enforce it.
+
+**Fix**: Added `hasPresentResult` flag before the main event loop. When true, `run_query` events are skipped (they were data-gathering steps, not the final presentation). The `present_result` card is the agent's deliberate formatting choice and subsumes the raw query output.
+
+**Derived rule**: When `present_result` is in the success events for a turn, `run_query` results are intermediate data-gathering steps and must not produce their own cards.
+
 ## 2026-07-28: Chart selection -- added validation layer, ranking detection, test suite
 
 **What broke (previously)**: No test coverage for chart selection. AI hints like LINE_CHART for 2-row data or PIE_CHART for 15 categories were blindly trusted. Rankings >25 rows always became TABLE even when sorted. Several chart types (RADAR, DONUT_CHART, TREEMAP) were unreachable due to Step 7 intercepting.

@@ -2,6 +2,21 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-28: Fix duplicate cards when present_result + run_query in same turn
+
+**Problem**: Queries like "total percentage of top 10 tickers" rendered two cards -- a bare KPI and a richer multi-metric summary. The agent called both `run_query` and `present_result` in the same turn, and the loop built a card for each.
+
+**Changes**:
+- `src/agent/index.ts` -- Added `hasPresentResult` flag. When the agent used `present_result`, `run_query` envelope construction is skipped (those were data-gathering steps, not final presentation).
+
+## 2026-07-28: Artifact card names now match result titles
+
+**Problem**: Artifact cards in the chat sidebar showed generic labels derived from the artifact type (e.g., "Bar Chart", "Query Result") rather than the actual descriptive title shown in the results panel (e.g., "Top 15 Holdings by USD Amount").
+
+**Changes**:
+- `src/components/chat/ResultsSidebar.tsx` -- `envelopeName()` now uses `env.headline.text` as the primary name, falling back to the type-derived name only when no headline exists.
+- `src/app/globals.css` -- `.chat-sidebar-artifact-card-name` switched from monospace font to Google Sans and from single-line truncation to 2-line clamp, since the names are now natural language titles.
+
 ## 2026-07-28: Remove "Underlying data" collapsible sections
 
 **Rationale**: The segmented chart/table toggle makes the collapsible "Underlying data (N rows)" section redundant -- users can switch to the table view directly.

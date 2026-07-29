@@ -289,6 +289,12 @@ export async function processWithAgentLoop({
     // Track whether we built any structured envelopes
     let builtStructured = false;
 
+    // When the agent called present_result, it explicitly chose how to format
+    // the output. Any run_query calls in the same turn were data-gathering steps
+    // and should not produce their own cards. This enforces the documented
+    // priority: present_result > query (see invariants.md).
+    const hasPresentResult = successEvents.some(e => e.tool_name === 'present_result');
+
     // Track which schema scopes we've already rendered to avoid duplicates.
     // When the AI calls get_schema(dataset=X) and then get_schema(dataset=X, table=Y),
     // the dataset-level call was a preparatory step -- only render the table-level one.
@@ -406,6 +412,12 @@ export async function processWithAgentLoop({
 
       // ── Query result ────────────────────────────────────────────────────
       if (tool === 'run_query') {
+        // Skip query cards when the agent explicitly formatted output via
+        // present_result -- the query was a data-gathering step, not the
+        // final presentation.
+        if (hasPresentResult) {
+          continue;
+        }
         let resultData: { columns?: string[]; rows?: unknown[][]; column_types?: string[] } | null = null;
         try {
           const rid = event.result_id
