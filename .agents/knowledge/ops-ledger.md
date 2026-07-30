@@ -1,5 +1,15 @@
 # Operations Ledger
 
+## 2026-07-30: Recent item chips fail when item belongs to a different project
+
+**What broke**: Clicking a recent dataset/table chip on the empty chat view failed silently when the item belonged to a different project than the currently selected one. The query ran against the wrong project.
+
+**Root cause**: `RecentItem` did not store a `project` field, so the click handler had no way to know the item came from a different project. It just sent the prompt with the current project context.
+
+**Fix**: (1) Added `project?: string` to the `RecentItem` interface. (2) Updated `updateRecentItemsFromEnvelopes()` to capture the project from envelope data (`data.project`) and from fully-qualified SQL references. (3) Updated click handlers in both `page.tsx` and `ResultsSidebar.tsx` to call `setActiveProject(item.project)` before sending the message, when the item's project differs from the active one.
+
+**Rule**: Any clickable entity reference (chip, row, link) that can target a specific project must switch to that project before executing. The project context is not optional -- queries fail without it.
+
 ## 2026-07-30: Large project dataset lists unusable -- added search filter and skipped table counts
 
 **Context**: When a project has hundreds or thousands of datasets, listing them produced an unusable flat list. The `fetchProjectSchema()` function also fired N parallel API calls (one per dataset) to get table counts, making it slow and likely to hit rate limits.
