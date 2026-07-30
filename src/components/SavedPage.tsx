@@ -19,10 +19,14 @@ import {
   getSharedArtifacts,
 } from '@/lib/saved-work';
 import { useAuth } from '@/lib/auth-context';
+import { useBuilder } from '@/lib/builder-context';
+import { usePage } from '@/lib/page-context';
+import type { BuilderDocument } from '@/lib/builder-types';
+import { deleteBuilderDocument } from '@/lib/builder-persistence';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-type TabKey = 'all' | SavedArtifactType;
+type TabKey = 'all' | SavedArtifactType | 'documents';
 type SortMode = 'recent' | 'name' | 'most-used' | 'type';
 type ViewMode = 'card' | 'list';
 type VisibilityFilter = 'all' | 'public' | 'private';
@@ -33,6 +37,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'workflow', label: 'Workflows' },
   { key: 'pipeline', label: 'Pipelines' },
   { key: 'app', label: 'Apps' },
+  { key: 'documents', label: 'Documents' },
 ];
 
 const TYPE_ICONS: Record<string, string> = {
@@ -40,6 +45,7 @@ const TYPE_ICONS: Record<string, string> = {
   workflow: 'conversion_path',
   pipeline: 'schedule',
   app: 'apps',
+  documents: 'dashboard_customize',
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -47,6 +53,7 @@ const TYPE_LABELS: Record<string, string> = {
   workflow: 'Workflow',
   pipeline: 'Pipeline',
   app: 'App',
+  documents: 'Document',
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -681,6 +688,9 @@ interface SpacesPageProps {
 
 export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }: SpacesPageProps) {
   const { user } = useAuth();
+  const builder = useBuilder();
+  const { openBuilderTab } = usePage();
+  const builderDocs = builder.getOpenDocuments();
   const [items, setItems] = useState<SavedArtifact[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab ?? 'all');
@@ -1668,6 +1678,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
     workflow: 'Workflows',
     pipeline: 'Pipelines',
     app: 'Apps',
+    documents: 'Documents',
   };
 
   // If viewing a thread replay, show that instead of the catalog
@@ -1742,7 +1753,85 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
       </div>
 
       {/* Content */}
-      {renderContent()}
+      {activeTab === 'documents' && (
+        <div style={S.grid}>
+          {builderDocs.length === 0 ? (
+            <div style={{ ...S.emptyState, gridColumn: '1 / -1' }}>
+              <span className="material-symbols-outlined" style={S.emptyIcon}>dashboard_customize</span>
+              <div style={S.emptyTitle}>No documents yet</div>
+              <div style={S.emptyDesc}>Create documents from chat results using the "Add to..." action on any result card.</div>
+            </div>
+          ) : (
+            builderDocs.map((doc) => (
+              <div
+                key={doc.id}
+                style={{
+                  ...S.card(false),
+                  ...(hoveredCard === doc.id ? S.cardHover : {}),
+                }}
+                onMouseEnter={() => setHoveredCard(doc.id)}
+                onMouseLeave={() => setHoveredCard(null)}
+              >
+                <div style={{ ...S.cardHeaderPad, ...S.cardHeader }}>
+                  <div style={S.cardTitleRow}>
+                    <div style={S.cardIconAvatar}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--accent, #1967d2)' }}>
+                        {doc.type === 'dashboard' ? 'dashboard' : doc.type === 'app' ? 'widgets' : doc.type === 'report' ? 'description' : 'receipt_long'}
+                      </span>
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <h3 style={S.cardName} title={doc.name}>{doc.name}</h3>
+                      <div style={S.cardSubtype}>{doc.type.charAt(0).toUpperCase() + doc.type.slice(1)} -- {doc.tiles.length} tile{doc.tiles.length !== 1 ? 's' : ''}</div>
+                    </div>
+                  </div>
+                </div>
+                <div style={S.cardThumbnail}>
+                  <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 110 }}>
+                    {doc.tiles.slice(0, 4).map((tile, i) => {
+                      const x = (i % 2) * 130 + 10;
+                      const y = Math.floor(i / 2) * 80 + 10;
+                      return (
+                        <g key={tile.id}>
+                          <rect x={x} y={y} width={120} height={70} rx={6} fill={i === 0 ? '#4f7af8' : i === 1 ? '#a8c0f8' : '#c7d9ff'} opacity={0.85} />
+                          <rect x={x + 8} y={y + 8} width={60} height={8} rx={3} fill="white" opacity={0.6} />
+                          <rect x={x + 8} y={y + 22} width={40} height={6} rx={3} fill="white" opacity={0.4} />
+                        </g>
+                      );
+                    })}
+                  </svg>
+                </div>
+                <div style={S.cardBody}>
+                  <div style={{ ...S.cardDesc, color: 'var(--text-dim, #80868b)', fontStyle: 'italic' }}>
+                    Updated {relativeTime(doc.updatedAt)}
+                  </div>
+                </div>
+                <div style={S.cardFooter}>
+                  <button style={S.outlineBtn} onClick={() => {
+                    builder.loadDocument(doc);
+                    openBuilderTab(doc.id, doc.name);
+                  }}>Open</button>
+                  <button
+                    style={S.deleteIconBtn}
+                    title="Delete"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        await deleteBuilderDocument(userId, doc.id);
+                        builder.discardDocument(doc.id);
+                      } catch (err) {
+                        console.error('Failed to delete document:', err);
+                      }
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 20 }}>delete</span>
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+      {activeTab !== 'documents' && renderContent()}
 
       {/* Skeleton animation keyframes */}
       <style>{`

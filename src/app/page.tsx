@@ -210,7 +210,7 @@ export default function Home() {
         <div style={{ display: (activePage === 'spaces' || activePage.startsWith('spaces:')) ? 'flex' : 'none', height: '100%', flexDirection: 'column', overflow: 'auto' }}>
           <SpacesPage
             userId={user.uid}
-            initialTab={activePage.startsWith('spaces:') ? (activePage.slice('spaces:'.length) as import('@/lib/types').SavedArtifactType | 'all') : 'all'}
+            initialTab={activePage.startsWith('spaces:') ? (activePage.slice('spaces:'.length) as import('@/lib/types').SavedArtifactType | 'all' | 'documents') : 'all'}
             refreshKey={chat.saveCount + spacesVisitCount}
             onRun={(artifact: SavedArtifact) => {
               chat.setInput(`run my ${artifact.name}`);

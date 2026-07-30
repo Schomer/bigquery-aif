@@ -20,6 +20,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'Workflows', icon: 'conversion_path', page: 'spaces:workflow' },
       { label: 'Pipelines', icon: 'schedule', page: 'spaces:pipeline' },
       { label: 'Apps', icon: 'apps', page: 'spaces:app' },
+      { label: 'Documents', icon: 'dashboard_customize', page: 'spaces:documents' },
     ],
   },
 ];

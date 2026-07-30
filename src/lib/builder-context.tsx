@@ -10,12 +10,13 @@ import {
   useState,
   useCallback,
   useRef,
+  useEffect,
   type ReactNode,
 } from 'react';
 import type { CompositionEnvelope } from './types';
 import type { BuilderDocument, BuilderTile, DocumentType } from './builder-types';
 import { envelopeToTile } from './builder-types';
-import { saveBuilderDocument } from './builder-persistence';
+import { saveBuilderDocument, getBuilderDocuments } from './builder-persistence';
 import { useAuth } from './auth-context';
 
 interface BuilderContextValue {
@@ -131,6 +132,17 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
     // Mark as "saved" since it came from Firestore
     savedSnapshots.current.set(doc.id, JSON.stringify(doc));
   }, []);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    getBuilderDocuments(user.uid)
+      .then((docs) => {
+        for (const doc of docs) {
+          loadDocument(doc);
+        }
+      })
+      .catch((err) => console.error('Failed to load builder documents:', err));
+  }, [user?.uid, loadDocument]);
 
   const saveDocument = useCallback(
     async (docId: string) => {
