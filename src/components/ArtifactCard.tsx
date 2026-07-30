@@ -39,6 +39,9 @@ import { PlanCard } from './chat/PlanCard';
 import type { PlanCardData } from './chat/PlanCard';
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { usePreferences } from '@/lib/preferences-context';
+import { useBuilder } from '@/lib/builder-context';
+import { usePage } from '@/lib/page-context';
+import type { DocumentType } from '@/lib/builder-types';
 
 interface Props {
   envelope: CompositionEnvelope;
@@ -73,6 +76,12 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
   const sqlTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [kebabOpen, setKebabOpen] = useState(false);
   const kebabRef = useRef<HTMLDivElement>(null);
+  const [addToOpen, setAddToOpen] = useState(false);
+  const [addToNaming, setAddToNaming] = useState<DocumentType | null>(null);
+  const [addToName, setAddToName] = useState('');
+  const addToRef = useRef<HTMLDivElement>(null);
+  const builder = useBuilder();
+  const { openBuilderTab } = usePage();
 
   useEffect(() => {
     if (!kebabOpen) return;
@@ -84,6 +93,19 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [kebabOpen]);
+
+  // Close addTo menu on outside click
+  useEffect(() => {
+    if (!addToOpen && !addToNaming) return;
+    function handleClick(e: MouseEvent) {
+      if (addToRef.current && !addToRef.current.contains(e.target as Node)) {
+        setAddToOpen(false);
+        setAddToNaming(null);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [addToOpen, addToNaming]);
 
   const autoSizeTextarea = useCallback(() => {
     const ta = sqlTextareaRef.current;
@@ -235,6 +257,30 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
             >
               <img src="/icons/add_to_context.svg" alt="Add to context" width={16} height={16} style={{ opacity: 0.7 }} />
             </button>
+          )}
+          {/* Add to builder */}
+          {!envelope.requiresConfirmation && envelope.primaryArtifact.type !== 'COMPLETION_CARD' && envelope.primaryArtifact.type !== 'MULTISTEP_VIEW' && envelope.primaryArtifact.type !== 'COST_CONFIRM_CARD' && envelope.primaryArtifact.type !== 'CLARIFICATION_CARD' && envelope.primaryArtifact.type !== 'CONFIRMATION_CARD' && envelope.primaryArtifact.type !== 'CONVERSATION' && (
+            <div ref={addToRef} style={{ position: 'relative', flexShrink: 0, marginTop: 1 }}>
+              <button
+                className="context-action-btn"
+                onClick={() => { setAddToOpen((v) => !v); setAddToNaming(null); }}
+                title="Add to..."
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16, opacity: 0.7 }}>add_to_photos</span>
+              </button>
+              {(addToOpen || addToNaming) && (
+                <AddToBuilderMenu
+                  envelope={envelope}
+                  builder={builder}
+                  openBuilderTab={openBuilderTab}
+                  addToNaming={addToNaming}
+                  setAddToNaming={setAddToNaming}
+                  addToName={addToName}
+                  setAddToName={setAddToName}
+                  onClose={() => { setAddToOpen(false); setAddToNaming(null); }}
+                />
+              )}
+            </div>
           )}
           {hasExportableData && !envelope.requiresConfirmation && (
             <div ref={kebabRef} style={{ position: 'relative', flexShrink: 0, marginTop: 1 }}>
@@ -913,6 +959,185 @@ function CustomArtifact(props: import('@/lib/types').CustomViewProps) {
 }
 
 // W3-16: Share link button — writes to sharedArtifacts/{id} and copies URL
+// ── Add to Builder menu ──
+const ADD_TO_TYPES: Array<{ type: DocumentType; label: string; icon: string }> = [
+  { type: 'dashboard', label: 'New Dashboard', icon: 'dashboard' },
+  { type: 'app', label: 'New App', icon: 'widgets' },
+  { type: 'report', label: 'New Report', icon: 'description' },
+  { type: 'recipe', label: 'New Recipe', icon: 'receipt_long' },
+];
+
+function AddToBuilderMenu({
+  envelope,
+  builder,
+  openBuilderTab,
+  addToNaming,
+  setAddToNaming,
+  addToName,
+  setAddToName,
+  onClose,
+}: {
+  envelope: CompositionEnvelope;
+  builder: ReturnType<typeof import('@/lib/builder-context').useBuilder>;
+  openBuilderTab: (id: string, label: string) => void;
+  addToNaming: DocumentType | null;
+  setAddToNaming: (v: DocumentType | null) => void;
+  addToName: string;
+  setAddToName: (v: string) => void;
+  onClose: () => void;
+}) {
+  const openDocs = builder.getOpenDocuments();
+
+  const handleCreate = (type: DocumentType) => {
+    setAddToNaming(type);
+    setAddToName('');
+  };
+
+  const handleConfirmCreate = () => {
+    if (!addToNaming || !addToName.trim()) return;
+    const id = builder.createDocument(addToNaming, addToName.trim(), envelope);
+    openBuilderTab(id, addToName.trim());
+    onClose();
+  };
+
+  const handleAddToExisting = (docId: string) => {
+    builder.addTile(docId, envelope);
+    onClose();
+  };
+
+  const menuStyle: React.CSSProperties = {
+    position: 'absolute',
+    top: '100%',
+    right: 0,
+    marginTop: 4,
+    background: '#fff',
+    border: '1px solid var(--border)',
+    borderRadius: 8,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+    minWidth: 200,
+    zIndex: 20,
+    overflow: 'hidden',
+  };
+
+  const itemStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    padding: '10px 14px',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 400,
+    color: 'var(--text)',
+    fontFamily: 'inherit',
+    textAlign: 'left',
+  };
+
+  // Show name input when creating a new doc
+  if (addToNaming) {
+    return (
+      <div style={menuStyle}>
+        <div style={{ padding: '12px 14px' }}>
+          <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>
+            Name your {addToNaming}
+          </label>
+          <input
+            autoFocus
+            value={addToName}
+            onChange={(e) => setAddToName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleConfirmCreate();
+              if (e.key === 'Escape') onClose();
+            }}
+            placeholder={`My ${addToNaming}`}
+            style={{
+              width: '100%',
+              padding: '7px 10px',
+              fontSize: 13,
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              outline: 'none',
+              fontFamily: 'inherit',
+              background: 'var(--surface)',
+              boxSizing: 'border-box',
+            }}
+          />
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, justifyContent: 'flex-end' }}>
+            <button
+              onClick={onClose}
+              style={{ ...itemStyle, padding: '5px 12px', fontSize: 12, color: 'var(--text-muted)', justifyContent: 'center', width: 'auto' }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmCreate}
+              disabled={!addToName.trim()}
+              style={{
+                padding: '5px 14px',
+                fontSize: 12,
+                fontWeight: 500,
+                border: 'none',
+                borderRadius: 6,
+                background: addToName.trim() ? '#1a73e8' : 'var(--surface-2)',
+                color: addToName.trim() ? '#fff' : 'var(--text-dim)',
+                cursor: addToName.trim() ? 'pointer' : 'default',
+                fontFamily: 'inherit',
+              }}
+            >
+              Create
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={menuStyle}>
+      {/* New document options */}
+      {ADD_TO_TYPES.map(({ type, label, icon }) => (
+        <button
+          key={type}
+          onClick={() => handleCreate(type)}
+          style={itemStyle}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f5f5f5)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>{icon}</span>
+          {label}
+        </button>
+      ))}
+
+      {/* Existing open documents */}
+      {openDocs.length > 0 && (
+        <>
+          <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+          <div style={{ padding: '6px 14px 4px', fontSize: 10, fontWeight: 600, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Open documents
+          </div>
+          {openDocs.map((doc) => (
+            <button
+              key={doc.id}
+              onClick={() => handleAddToExisting(doc.id)}
+              style={itemStyle}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f5f5f5)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>
+                {doc.type === 'dashboard' ? 'dashboard' : doc.type === 'app' ? 'widgets' : doc.type === 'report' ? 'description' : 'receipt_long'}
+              </span>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.name}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)', flexShrink: 0 }}>{doc.tiles.length}</span>
+            </button>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
 function ShareLinkButton({ envelope, onClose }: { envelope: CompositionEnvelope; onClose: () => void }) {
   const [state, setState] = useState<'idle' | 'loading' | 'copied' | 'error'>('idle');
 

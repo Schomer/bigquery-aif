@@ -6,6 +6,7 @@ import { ConversationProvider } from '@/lib/conversation-context';
 import { PageProvider } from '@/lib/page-context';
 import { LayoutProvider } from '@/lib/layout-context';
 import { PreferencesProvider } from '@/lib/preferences-context';
+import { BuilderProvider } from '@/lib/builder-context';
 import { TopBar } from './TopBar';
 import { SideNav } from './SideNav';
 import { SignedOutPage } from './SignedOutPage';
@@ -38,6 +39,7 @@ export function ShellLayout({ children }: ShellLayoutProps) {
   return (
     <ConversationProvider>
       <PageProvider>
+      <BuilderProvider>
         <LayoutProvider>
           <PreferencesProvider>
           <GlobalSearch />
@@ -53,6 +55,7 @@ export function ShellLayout({ children }: ShellLayoutProps) {
           </div>
           </PreferencesProvider>
         </LayoutProvider>
+      </BuilderProvider>
       </PageProvider>
     </ConversationProvider>
   );

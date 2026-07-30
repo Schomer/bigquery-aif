@@ -17,6 +17,7 @@ import { SpacesPage } from '@/components/SavedPage';
 import { FavoritesPage } from '@/components/FavoritesPage';
 import dynamic from 'next/dynamic';
 const DashboardPage = dynamic(() => import('@/app/dashboard/page'), { ssr: false });
+import { BuilderPage } from '@/components/BuilderPage';
 import { SaveModal } from '@/components/SaveModal';
 import type { SavedArtifact } from '@/lib/types';
 import {
@@ -231,6 +232,16 @@ export default function Home() {
           style={{ display: activeTabId === tab.id ? 'flex' : 'none', height: '100%', overflow: 'hidden', flexDirection: 'column' }}
         >
           <DashboardPage initialDashboardId={tab.dashboardId} />
+        </div>
+      ))}
+
+      {/* -- Builder tabs (document editor for dashboards/apps/reports/recipes) -- */}
+      {tabs.filter((t) => t.id.startsWith('builder:')).map((tab) => (
+        <div
+          key={tab.id}
+          style={{ display: activeTabId === tab.id ? 'flex' : 'none', height: '100%', overflow: 'hidden', flexDirection: 'column' }}
+        >
+          <BuilderPage documentId={tab.builderId!} />
         </div>
       ))}
 

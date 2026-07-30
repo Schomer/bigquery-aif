@@ -10,10 +10,11 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 export type AppPage = 'chat' | 'prompts' | 'favorites' | 'spaces' | string;
 
 export interface AppTab {
-  id: string;            // unique key: 'chat' | 'dashboard:{dashboardId}'
+  id: string;            // unique key: 'chat' | 'dashboard:{dashboardId}' | 'builder:{builderId}'
   label: string;         // display text in the tab bar
   page: AppPage;         // which page/view this tab renders
   dashboardId?: string;  // set when page === 'dashboard'
+  builderId?: string;    // set when page === 'builder'
   closeable: boolean;    // Chat tab is not closeable
 }
 
@@ -26,6 +27,7 @@ interface PageContextValue {
   tabs: AppTab[];
   activeTabId: string;
   openDashboardTab: (dashboardId: string, label: string) => void;
+  openBuilderTab: (builderId: string, label: string) => void;
   closeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
 }
@@ -68,6 +70,20 @@ export function PageProvider({ children }: { children: ReactNode }) {
     setActivePageState('chat'); // clear overlays
   }, []);
 
+  const openBuilderTab = useCallback((builderId: string, label: string) => {
+    const tabId = `builder:${builderId}`;
+    setTabs((prev) => {
+      const exists = prev.find((t) => t.id === tabId);
+      if (exists) return prev;
+      return [
+        ...prev,
+        { id: tabId, label, page: 'builder', builderId, closeable: true },
+      ];
+    });
+    setActiveTabIdState(tabId);
+    setActivePageState('chat'); // clear overlays
+  }, []);
+
   const closeTab = useCallback((tabId: string) => {
     setTabs((prev) => {
       const filtered = prev.filter((t) => t.id !== tabId);
@@ -87,6 +103,7 @@ export function PageProvider({ children }: { children: ReactNode }) {
       tabs,
       activeTabId,
       openDashboardTab,
+      openBuilderTab,
       closeTab,
       setActiveTab,
     }}>

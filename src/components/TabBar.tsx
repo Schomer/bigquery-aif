@@ -6,9 +6,11 @@
 // user clicks "Open Dashboard" from a chat artifact card.
 
 import { usePage } from '@/lib/page-context';
+import { useBuilder } from '@/lib/builder-context';
 
 export function TabBar() {
   const { tabs, activeTabId, setActiveTab, closeTab } = usePage();
+  const builder = useBuilder();
 
   // Don't render if only the Chat tab exists — nothing to switch between
   if (tabs.length <= 1) return null;
@@ -67,8 +69,22 @@ export function TabBar() {
                 flexShrink: 0,
               }}
             >
-              {tab.id === 'chat' ? 'chat' : 'dashboard'}
+              {tab.id === 'chat' ? 'chat' : tab.page === 'builder' ? 'dashboard_customize' : 'dashboard'}
             </span>
+
+            {/* Unsaved indicator for builder tabs */}
+            {tab.page === 'builder' && tab.builderId && builder.hasUnsavedChanges(tab.builderId) && (
+              <span
+                style={{
+                  width: 5,
+                  height: 5,
+                  borderRadius: '50%',
+                  background: '#fb923c',
+                  flexShrink: 0,
+                }}
+                title="Unsaved changes"
+              />
+            )}
 
             {/* Tab label */}
             <span
