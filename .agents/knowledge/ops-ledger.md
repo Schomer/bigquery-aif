@@ -1,5 +1,20 @@
 # Operations Ledger
 
+## 2026-07-30: Dataset info producing 3 cards + Chart/Map toggle mismatch
+
+**What broke (1)**: Asking for info about a dataset produced three cards (schema, chart/map, KPI) instead of one. The TABLE OVERVIEW recipe in the system prompt applied to dataset-level queries, causing the agent to call get_schema, run_query (data preview), and run_query (profile) for datasets.
+
+**Fix (1)**: Scoped the TABLE OVERVIEW recipe in `flash.ts` to "specific table only" and added a DATASET INFO section instructing the agent to produce a single `get_schema` card for dataset-level requests.
+
+**What broke (2)**: The Chart/Map/Table segmented control showed "Chart" as selected but rendered a map. When `chartType` was a map type (e.g., `USA_MAP`), `ChartWithToggle` initialized view state to `'chart'`, but `ChartView` rendered the map renderer because `RENDERERS['USA_MAP'] = USAMapRenderer`.
+
+**Fix (2)**: In both `ArtifactCard.tsx` (ChartWithToggle) and `InteractiveWidgetView.tsx`, detect map artifact types and initialize view state to `'map'`. When user selects "Chart", override map-type chartType with `BAR_CHART` so an actual chart renders.
+
+**Rules**:
+- The system prompt's overview/info recipes must distinguish between table-level and dataset-level requests. Table overview = 3 cards; dataset info = 1 card.
+- When a component's artifact type is a map, the initial view state must match. Chart/Map/Table toggle state and rendered content must always agree.
+- When `view === 'chart'`, `ChartView` must receive a non-map chart type. Map types render map components, which violates the user's expectation of seeing a chart.
+
 ## 2026-07-30: Recent item chips fail when item belongs to a different project
 
 **What broke**: Clicking a recent dataset/table chip on the empty chat view failed silently when the item belonged to a different project than the currently selected one. The query ran against the wrong project.

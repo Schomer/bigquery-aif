@@ -2,6 +2,17 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-30: Dataset info single card + Chart/Map toggle mismatch
+
+**Problem 1**: Asking for info about a dataset produced three cards (schema, chart/map, KPI). Only the schema card was needed. The system prompt's TABLE OVERVIEW recipe was being applied to dataset-level queries.
+
+**Problem 2**: The Chart/Map/Table segmented control showed "Chart" as the active button but rendered a map. This happened because map artifact types (USA_MAP, WORLD_MAP, GEO_POINT_MAP) were routed through `ChartView`, which dispatched to map renderers, while the toggle always initialized to "chart".
+
+**Changes**:
+- `src/agent/prompts/flash.ts` -- Scoped TABLE OVERVIEW to "specific table only", added DATASET INFO section telling the agent to produce a single get_schema card for dataset-level requests.
+- `src/components/ArtifactCard.tsx` -- ChartWithToggle: detect map artifact types, initialize view to 'map', resolve chartType to BAR_CHART when user selects "Chart".
+- `src/components/InteractiveWidgetView.tsx` -- Same fix: detect map visualization types, initialize viewMode to 'map', resolve chartType to BAR_CHART for chart mode.
+
 ## 2026-07-30: Skip naming step when creating dashboards
 
 **Problem**: Creating a new dashboard (both from the "Add to..." menu on artifact cards and from the dashboard page dropdown) required the user to type a name before proceeding. This added friction -- users just want to create and start adding tiles.
