@@ -476,4 +476,22 @@ New architecture components, behind feature flag `bqaif_agent_v2`.
 | tools/list-resources.ts | 85 | list_resources tool (datasets/tables) |
 | tools/plan-tool.ts | 102 | plan_analysis tool (pre-execution plan analysis & ambiguity detection) |
 
+---
 
+## Builder Subsystem (Added 2026-07-29)
+
+The builder allows users to compose reusable documents (dashboards, apps, reports, recipes) from chat output. Users click "Add to..." on any artifact card to add it as a tile to a builder document. Builder documents open as tabs in the TabBar.
+
+| File | Lines (approx) | Purpose |
+|------|----------------|---------|
+| src/lib/builder-types.ts | 68 | `BuilderDocument`, `BuilderTile`, `DocumentType` types, `envelopeToTile()` converter |
+| src/lib/builder-context.tsx | 195 | React context: document lifecycle, tile CRUD, dirty tracking, auto-placement |
+| src/lib/builder-persistence.ts | 37 | Firestore CRUD for `users/{uid}/documents/{docId}` |
+| src/components/BuilderPage.tsx | 420 | Document editor canvas: grid layout, editable tile names, save/discard toolbar |
+
+**Key integration points:**
+- `src/lib/page-context.tsx`: `openBuilderTab()` creates `builder:{id}` tabs
+- `src/components/ArtifactCard.tsx`: "Add to..." button + `AddToBuilderMenu` dropdown
+- `src/app/page.tsx`: Renders `BuilderPage` for builder tabs
+- `src/components/shell/ShellLayout.tsx`: Wraps app with `BuilderProvider`
+- `src/components/TabBar.tsx`: `dashboard_customize` icon + unsaved-changes dot for builder tabs

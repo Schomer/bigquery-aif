@@ -2,6 +2,24 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-29: Builder tab -- compose reusable documents from chat output
+
+**Purpose**: Let users create dashboards, apps, reports, and recipes by adding tiles from chat results, without re-running AI every time.
+
+**New files**:
+- `src/lib/builder-types.ts` -- `BuilderDocument`, `BuilderTile`, `DocumentType` types
+- `src/lib/builder-context.tsx` -- React context with document lifecycle, tile CRUD, dirty tracking
+- `src/lib/builder-persistence.ts` -- Firestore CRUD at `users/{uid}/documents/{docId}`
+- `src/components/BuilderPage.tsx` -- Grid-based document editor canvas
+
+**Modified files**:
+- `src/lib/page-context.tsx` -- Added `openBuilderTab()`, `builderId` on `AppTab`
+- `src/components/ArtifactCard.tsx` -- Added "Add to..." button and `AddToBuilderMenu` dropdown
+- `src/app/page.tsx` -- Renders `BuilderPage` for `builder:` tabs
+- `src/components/TabBar.tsx` -- Builder tab icon (`dashboard_customize`) + unsaved dot
+- `src/components/shell/ShellLayout.tsx` -- Wraps app with `BuilderProvider`
+
+
 ## 2026-07-28: Fix duplicate cards when present_result + run_query in same turn
 
 **Problem**: Queries like "total percentage of top 10 tickers" rendered two cards -- a bare KPI and a richer multi-metric summary. The agent called both `run_query` and `present_result` in the same turn, and the loop built a card for each.
