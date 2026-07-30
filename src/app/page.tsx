@@ -407,6 +407,9 @@ export default function Home() {
                           className="recent-item-chip"
                           onClick={() => {
                             setChatListOpen(false);
+                            if (item.project && item.project !== activeProject) {
+                              setActiveProject(item.project);
+                            }
                             if (item.type === 'table' && item.dataset) {
                               chat.sendMessage(`Show me ${item.dataset}.${item.name}`);
                             } else if (item.type === 'table') {

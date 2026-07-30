@@ -215,6 +215,7 @@ export interface RecentItem {
   type: 'dataset' | 'table';
   name: string;
   dataset?: string;       // parent dataset (for tables)
+  project?: string;       // source project
   lastUsed: string;       // ISO timestamp
 }
 
@@ -252,7 +253,8 @@ export function updateRecentItemsFromEnvelopes(
 
     // Extract dataset from artifact data
     if (data?.dataset && typeof data.dataset === 'string') {
-      newItems.push({ type: 'dataset', name: data.dataset, lastUsed: now });
+      const proj = typeof data.project === 'string' ? data.project : undefined;
+      newItems.push({ type: 'dataset', name: data.dataset, project: proj, lastUsed: now });
     }
 
     // Extract table from artifact data
@@ -261,7 +263,8 @@ export function updateRecentItemsFromEnvelopes(
       const parts = raw.split('.');
       const tableName = parts[parts.length - 1];
       const parentDataset = parts.length >= 2 ? parts[parts.length - 2] : (data.dataset as string | undefined);
-      newItems.push({ type: 'table', name: tableName, dataset: parentDataset, lastUsed: now });
+      const proj = typeof data.project === 'string' ? data.project : (parts.length >= 3 ? parts[0] : undefined);
+      newItems.push({ type: 'table', name: tableName, dataset: parentDataset, project: proj, lastUsed: now });
     }
 
     // Extract from SQL FROM clauses
@@ -276,7 +279,8 @@ export function updateRecentItemsFromEnvelopes(
           const parentDs = parts[parts.length - 2];
           // Skip INFORMATION_SCHEMA references
           if (parentDs === 'INFORMATION_SCHEMA' || tableName === 'INFORMATION_SCHEMA') continue;
-          newItems.push({ type: 'table', name: tableName, dataset: parentDs, lastUsed: now });
+          const proj = parts.length >= 3 ? parts[0] : undefined;
+          newItems.push({ type: 'table', name: tableName, dataset: parentDs, project: proj, lastUsed: now });
         }
       }
     }

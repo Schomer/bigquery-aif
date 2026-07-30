@@ -390,6 +390,9 @@ export function ResultsSidebar({
             key={`${item.type}-${item.name}-${idx}`}
             className="recent-item-chip"
             onClick={() => {
+              if (item.project && item.project !== activeProject) {
+                setActiveProject(item.project);
+              }
               if (item.type === 'table' && item.dataset) {
                 onSend(`Show me ${item.dataset}.${item.name}`);
               } else if (item.type === 'table') {
