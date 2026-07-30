@@ -230,7 +230,9 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
     return initial;
   });
 
-  const [viewMode, setViewMode] = useState<ViewMode>('chart');
+  const MAP_VIZ_TYPES: ReadonlySet<string> = new Set(['GEO_POINT_MAP', 'USA_MAP', 'WORLD_MAP']);
+  const isMapVisualization = MAP_VIZ_TYPES.has(widgetData.visualization);
+  const [viewMode, setViewMode] = useState<ViewMode>(isMapVisualization ? 'map' : 'chart');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -254,7 +256,7 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
   }, [currentResult]);
 
   const viewOptions: ViewMode[] = isChartable
-    ? (geoMapType ? ['chart', 'map', 'table'] : ['chart', 'table'])
+    ? (geoMapType || isMapVisualization ? ['chart', 'map', 'table'] : ['chart', 'table'])
     : ['table'];
 
   const viewLabel = (v: ViewMode) => {
@@ -422,7 +424,10 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
     resultSummary: null,
   };
 
-  const chartType = widgetData.visualization as Exclude<VisualizationType, 'TABLE' | 'KPI_CARD' | 'STAT_ROW' | 'INTERACTIVE_WIDGET'>;
+  const rawChartType = widgetData.visualization as Exclude<VisualizationType, 'TABLE' | 'KPI_CARD' | 'STAT_ROW' | 'INTERACTIVE_WIDGET'>;
+  // When the user selects "Chart", use a standard chart type for map artifacts
+  const chartType = viewMode === 'chart' && isMapVisualization ? 'BAR_CHART' as typeof rawChartType : rawChartType;
+  const resolvedMapType = geoMapType ?? (isMapVisualization ? rawChartType : null);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -614,8 +619,8 @@ export function InteractiveWidgetView({ envelope, onSendMessage, onSave, onPin, 
       {/* Content */}
       {isChartable && viewMode === 'chart' ? (
         <ChartView result={queryResult} chartType={chartType} onSendMessage={onSendMessage ?? (() => {})} />
-      ) : isChartable && viewMode === 'map' && geoMapType ? (
-        <ChartView result={queryResult} chartType={geoMapType} onSendMessage={onSendMessage ?? (() => {})} />
+      ) : isChartable && viewMode === 'map' && resolvedMapType ? (
+        <ChartView result={queryResult} chartType={resolvedMapType} onSendMessage={onSendMessage ?? (() => {})} />
       ) : (
         <div style={{ maxHeight: 420, overflowY: 'auto', borderRadius: 8, border: '1px solid var(--border, #e8edf5)' }}>
           <DataTable result={queryResult} onSendMessage={onSendMessage ?? (() => {})} />

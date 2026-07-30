@@ -2,6 +2,16 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-30: Skip naming step when creating dashboards
+
+**Problem**: Creating a new dashboard (both from the "Add to..." menu on artifact cards and from the dashboard page dropdown) required the user to type a name before proceeding. This added friction -- users just want to create and start adding tiles.
+
+**Change**: Both creation flows now auto-generate a name ("Untitled dashboard", "Untitled dashboard 2", etc.) and create immediately on click. The naming modal/input is removed entirely. Users can rename and save later.
+
+**Modified files**:
+- `src/components/ArtifactCard.tsx` -- Removed `addToNaming`/`addToName` state and the naming modal in `AddToBuilderMenu`. `handleCreate` now auto-names and creates the document in one step.
+- `src/app/dashboard/page.tsx` -- Removed `newDashName` state and the inline input. `createDashboard()` auto-generates a name. The dropdown shows a single "New dashboard" button.
+
 ## 2026-07-30: Searchable dataset list for large projects
 
 **Problem**: Listing datasets in a project with hundreds or thousands of datasets produced a flat, unscrollable list with no way to find a specific dataset. The fetch also fired N parallel API calls to get per-dataset table counts, making it slow.
