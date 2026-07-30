@@ -2,6 +2,13 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-30: Unified browse/search bar and reordered new-chat sections
+
+**Changes**:
+- `src/app/page.tsx` -- Redesigned `DataStartSection`: replaced separate "Browse datasets" button + search field with a single composite search bar containing an inline "Browse" button separated by a divider. Swapped section order so browse/search appears above recent items in the empty chat state.
+- `src/components/chat/ResultsSidebar.tsx` -- Same section reorder for the split-layout results panel empty state.
+- `src/app/globals.css` -- Added CSS for `.data-start-bar`, `.data-start-search-row`, `.data-start-browse-btn`, `.data-start-divider`, and `.data-start-select-project` classes.
+
 ## 2026-07-30: Dataset info single card + Chart/Map toggle mismatch
 
 **Problem 1**: Asking for info about a dataset produced three cards (schema, chart/map, KPI). Only the schema card was needed. The system prompt's TABLE OVERVIEW recipe was being applied to dataset-level queries.

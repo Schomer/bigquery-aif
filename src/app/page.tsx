@@ -399,7 +399,6 @@ export default function Home() {
                 {/* Browse your data / select project */}
                 <DataStartSection
                   activeProject={activeProject}
-                  onBrowse={() => { setChatListOpen(false); chat.sendMessage('What datasets are in this project?'); }}
                   onJump={(query) => { setChatListOpen(false); chat.sendMessage(query); }}
                 />
 
@@ -612,13 +611,15 @@ export default function Home() {
 
 // ─── Data start section for empty chat state ──────────────────────────────────
 
-function DataStartSection({ activeProject, onBrowse, onJump }: {
+import { DatasetBrowserDialog } from '@/components/DatasetBrowserDialog';
+
+function DataStartSection({ activeProject, onJump }: {
   activeProject: string;
-  onBrowse: () => void;
   onJump: (query: string) => void;
 }) {
   const [jumpValue, setJumpValue] = useState('');
   const [focused, setFocused] = useState(false);
+  const [browserOpen, setBrowserOpen] = useState(false);
 
   function handleJumpSubmit() {
     const v = jumpValue.trim();
@@ -662,32 +663,43 @@ function DataStartSection({ activeProject, onBrowse, onJump }: {
   }
 
   return (
-    <div className="data-start-bar" style={{ marginTop: 20 }}>
-      <div className={`data-start-search-row${focused ? ' data-start-search-row--focused' : ''}`}>
-        <span
-          className="material-symbols-outlined"
-          style={{ fontSize: 16, color: 'var(--text-dim)', flexShrink: 0 }}
-        >search</span>
-        <input
-          type="text"
-          value={jumpValue}
-          onChange={(e) => setJumpValue(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') handleJumpSubmit(); }}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          placeholder="Jump to a dataset or table..."
-          className="data-start-search-input"
-        />
-        <div className="data-start-divider" />
-        <button
-          onClick={onBrowse}
-          className="data-start-browse-btn"
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 15 }}>database</span>
-          Browse
-        </button>
+    <>
+      <div className="data-start-bar" style={{ marginTop: 20 }}>
+        <div className={`data-start-search-row${focused ? ' data-start-search-row--focused' : ''}`}>
+          <span
+            className="material-symbols-outlined"
+            style={{ fontSize: 16, color: 'var(--text-dim)', flexShrink: 0 }}
+          >search</span>
+          <input
+            type="text"
+            value={jumpValue}
+            onChange={(e) => setJumpValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleJumpSubmit(); }}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            placeholder="Jump to a dataset or table..."
+            className="data-start-search-input"
+          />
+          <div className="data-start-divider" />
+          <button
+            onClick={() => setBrowserOpen(true)}
+            className="data-start-browse-btn"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>database</span>
+            Browse
+          </button>
+        </div>
       </div>
-    </div>
+      <DatasetBrowserDialog
+        open={browserOpen}
+        project={activeProject}
+        onSelect={(datasetId) => {
+          setBrowserOpen(false);
+          onJump(`Tell me more about the ${datasetId} dataset`);
+        }}
+        onClose={() => setBrowserOpen(false)}
+      />
+    </>
   );
 }
 

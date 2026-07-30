@@ -759,7 +759,6 @@ export function ResultsSidebar({
             )}
             <DataStartSection
               activeProject={activeProject}
-              onBrowse={() => onSend('What datasets are in this project?')}
               onJump={(query) => onSend(query)}
             />
             {recentItemsSection}

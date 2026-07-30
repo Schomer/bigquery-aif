@@ -111,6 +111,26 @@ export async function listDatasets(project: string): Promise<Array<{ datasetId: 
   }));
 }
 
+/**
+ * Paginated fetch of ALL datasets in a project.
+ * Returns just dataset IDs and locations. Used by the browse dialog.
+ */
+export async function listAllDatasets(project: string): Promise<Array<{ datasetId: string; location: string }>> {
+  let all: Array<{ datasetId: string; location: string }> = [];
+  let pageToken: string | undefined;
+  do {
+    const url = `${BQ_BASE}/${encodeURIComponent(project)}/datasets?maxResults=1000${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`;
+    const data = await bqFetch(url);
+    const datasets = (data.datasets || []).map((ds: any) => ({
+      datasetId: ds.datasetReference?.datasetId || '',
+      location: (ds.location || 'US') as string,
+    }));
+    all = all.concat(datasets);
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+  return all;
+}
+
 export async function listTables(project: string, datasetId: string): Promise<Array<{ tableId: string; numBytes: string; numRows: string; type: string }>> {
   const data = await bqFetch(
     `${BQ_BASE}/${encodeURIComponent(project)}/datasets/${encodeURIComponent(datasetId)}/tables?maxResults=200`
