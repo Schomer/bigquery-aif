@@ -87,6 +87,14 @@ Always use `WaitMsBeforeAsync: 500` so it runs as a background task. The script 
 3. If the persistent profile already has auth (profile at `/tmp/bqaif-puppeteer-profile`), it may skip the sign-in step
 4. Send `\n` via `manage_task send_input` with the task ID
 
+### Auth Troubleshooting
+
+**Known issue**: Firebase Auth with Google Sign-in does NOT persist reliably across Puppeteer launches. The IndexedDB-stored auth tokens expire or fail to restore, causing a blank loading screen. Each new Puppeteer launch may require re-auth.
+
+**Workaround for authenticated testing**: Use the Chrome DevTools MCP (`chrome_devtools/*` tools) instead of Puppeteer. The MCP manages its own persistent Chrome profile where auth persists reliably. Use `navigate_page`, `take_snapshot`, `take_screenshot`, `click`, `fill` etc. to interact with the app. This is the recommended approach for any test that requires authentication.
+
+**Puppeteer is still suitable for**: Ad-hoc screenshots of non-authenticated pages, or tests where the user is available to re-authenticate interactively.
+
 ### Reading Results
 
 Screenshots are saved to: `/Users/schomer/Desktop/DATA APPS/bigquery-aif/test-screenshots/`
