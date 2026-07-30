@@ -189,7 +189,7 @@ export default function DashboardPage({ initialDashboardId }: DashboardPageProps
   const [dashboards, setDashboards] = useState<SavedDashboard[]>([]);
   const [activeDashboard, setActiveDashboard] = useState<SavedDashboard | null>(null);
   const [editMode, setEditMode] = useState(false);
-  const [newDashName, setNewDashName] = useState('');
+
   const [saving, setSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -281,12 +281,14 @@ export default function DashboardPage({ initialDashboardId }: DashboardPageProps
   }
 
   function createDashboard() {
-    if (!newDashName.trim() || !uid) return;
+    if (!uid) return;
+    const base = 'Untitled dashboard';
+    const count = dashboards.filter((d) => d.name.startsWith(base)).length;
+    const name = count === 0 ? base : `${base} ${count + 1}`;
     const now = new Date().toISOString();
-    const d: SavedDashboard = { id: generateId(), userId: uid, name: newDashName.trim(), description: '', tiles: [], project, createdAt: now, updatedAt: now };
+    const d: SavedDashboard = { id: generateId(), userId: uid, name, description: '', tiles: [], project, createdAt: now, updatedAt: now };
     setActiveDashboard(d);
     setDashboards((prev) => [d, ...prev]);
-    setNewDashName('');
     setDropdownOpen(false);
     setEditMode(true);
   }
@@ -438,11 +440,10 @@ export default function DashboardPage({ initialDashboardId }: DashboardPageProps
                     <button onClick={() => handleDelete(d.id)} style={{ padding: 4, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-dim)', borderRadius: 4 }} title="Delete"><span className="material-symbols-outlined" style={{ fontSize: 13 }}>delete</span></button>
                   </div>
                 ))}
-                <div style={{ borderTop: dashboards.length > 0 ? '1px solid var(--border)' : 'none', marginTop: 4, paddingTop: 8 }}>
-                  <div style={{ display: 'flex', gap: 6, padding: '0 2px' }}>
-                    <input value={newDashName} onChange={(e) => setNewDashName(e.target.value)} placeholder="New dashboard name" onKeyDown={(e) => e.key === 'Enter' && createDashboard()} style={{ flex: 1, fontSize: 12, padding: '5px 8px', border: '1px solid var(--border)', borderRadius: 6, outline: 'none', fontFamily: 'inherit' }} autoFocus />
-                    <button onClick={createDashboard} disabled={!newDashName.trim()} style={{ padding: '5px 12px', fontSize: 12, background: '#1967d2', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit' }}>Create</button>
-                  </div>
+                <div style={{ borderTop: dashboards.length > 0 ? '1px solid var(--border)' : 'none', marginTop: 4, paddingTop: 4 }}>
+                  <button onClick={createDashboard} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '7px 10px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', color: '#1967d2', fontWeight: 500, borderRadius: 6 }} onMouseEnter={(e) => { e.currentTarget.style.background = '#e8f0fe'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>add</span>New dashboard
+                  </button>
                 </div>
               </div>
             )}

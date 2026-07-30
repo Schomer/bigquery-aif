@@ -77,8 +77,6 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
   const [kebabOpen, setKebabOpen] = useState(false);
   const kebabRef = useRef<HTMLDivElement>(null);
   const [addToOpen, setAddToOpen] = useState(false);
-  const [addToNaming, setAddToNaming] = useState<DocumentType | null>(null);
-  const [addToName, setAddToName] = useState('');
   const addToRef = useRef<HTMLDivElement>(null);
   const builder = useBuilder();
   const { openBuilderTab } = usePage();
@@ -96,16 +94,15 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
 
   // Close addTo menu on outside click
   useEffect(() => {
-    if (!addToOpen && !addToNaming) return;
+    if (!addToOpen) return;
     function handleClick(e: MouseEvent) {
       if (addToRef.current && !addToRef.current.contains(e.target as Node)) {
         setAddToOpen(false);
-        setAddToNaming(null);
       }
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [addToOpen, addToNaming]);
+  }, [addToOpen]);
 
   const autoSizeTextarea = useCallback(() => {
     const ta = sqlTextareaRef.current;
@@ -263,21 +260,17 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
             <div ref={addToRef} style={{ position: 'relative', flexShrink: 0, marginTop: 1 }}>
               <button
                 className="context-action-btn"
-                onClick={() => { setAddToOpen((v) => !v); setAddToNaming(null); }}
+                onClick={() => setAddToOpen((v) => !v)}
                 title="Add to..."
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 16, opacity: 0.7 }}>add_to_photos</span>
               </button>
-              {(addToOpen || addToNaming) && (
+              {addToOpen && (
                 <AddToBuilderMenu
                   envelope={envelope}
                   builder={builder}
                   openBuilderTab={openBuilderTab}
-                  addToNaming={addToNaming}
-                  setAddToNaming={setAddToNaming}
-                  addToName={addToName}
-                  setAddToName={setAddToName}
-                  onClose={() => { setAddToOpen(false); setAddToNaming(null); }}
+                  onClose={() => setAddToOpen(false)}
                 />
               )}
             </div>
@@ -865,7 +858,9 @@ function ChartWithToggle({
   chartType: ChartToggleType;
   onSendMessage: (msg: string) => void;
 }) {
-  const [view, setView] = useState<'chart' | 'map' | 'table'>('chart');
+  const MAP_TYPES: ReadonlySet<string> = new Set(['GEO_POINT_MAP', 'USA_MAP', 'WORLD_MAP']);
+  const isMapArtifact = MAP_TYPES.has(chartType);
+  const [view, setView] = useState<'chart' | 'map' | 'table'>(isMapArtifact ? 'map' : 'chart');
 
   // Detect whether the data has geographic columns (state or country)
   const geoMapType = useMemo(() => {
@@ -876,7 +871,7 @@ function ChartWithToggle({
     return detectChoroplethType(result);
   }, [result]);
 
-  const viewOptions: Array<'chart' | 'map' | 'table'> = geoMapType
+  const viewOptions: Array<'chart' | 'map' | 'table'> = geoMapType || isMapArtifact
     ? ['chart', 'map', 'table']
     : ['chart', 'table'];
 
@@ -885,6 +880,12 @@ function ChartWithToggle({
     if (v === 'map') return '\u25CB Map';
     return '\u229E Table';
   };
+
+  // When the user selects "Chart", use a standard chart type even if the
+  // artifact was originally composed as a map. When "Map" is selected, use
+  // the detected geoMapType (or fall back to the original chartType).
+  const resolvedChartType = view === 'chart' && isMapArtifact ? 'BAR_CHART' as ChartToggleType : chartType;
+  const resolvedMapType = geoMapType ?? (isMapArtifact ? chartType : null);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -924,9 +925,9 @@ function ChartWithToggle({
 
       {/* Content */}
       {view === 'chart' ? (
-        <ChartView result={result} chartType={chartType} onSendMessage={onSendMessage} />
-      ) : view === 'map' && geoMapType ? (
-        <ChartView result={result} chartType={geoMapType} onSendMessage={onSendMessage} />
+        <ChartView result={result} chartType={resolvedChartType} onSendMessage={onSendMessage} />
+      ) : view === 'map' && resolvedMapType ? (
+        <ChartView result={result} chartType={resolvedMapType} onSendMessage={onSendMessage} />
       ) : (
         <DataTable result={result} onSendMessage={onSendMessage} />
       )}
@@ -971,32 +972,21 @@ function AddToBuilderMenu({
   envelope,
   builder,
   openBuilderTab,
-  addToNaming,
-  setAddToNaming,
-  addToName,
-  setAddToName,
   onClose,
 }: {
   envelope: CompositionEnvelope;
   builder: ReturnType<typeof import('@/lib/builder-context').useBuilder>;
   openBuilderTab: (id: string, label: string) => void;
-  addToNaming: DocumentType | null;
-  setAddToNaming: (v: DocumentType | null) => void;
-  addToName: string;
-  setAddToName: (v: string) => void;
   onClose: () => void;
 }) {
   const openDocs = builder.getOpenDocuments();
 
   const handleCreate = (type: DocumentType) => {
-    setAddToNaming(type);
-    setAddToName('');
-  };
-
-  const handleConfirmCreate = () => {
-    if (!addToNaming || !addToName.trim()) return;
-    const id = builder.createDocument(addToNaming, addToName.trim(), envelope);
-    openBuilderTab(id, addToName.trim());
+    const existing = openDocs.filter((d) => d.type === type);
+    const base = `Untitled ${type}`;
+    const name = existing.length === 0 ? base : `${base} ${existing.length + 1}`;
+    const id = builder.createDocument(type, name, envelope);
+    openBuilderTab(id, name);
     onClose();
   };
 
@@ -1035,64 +1025,7 @@ function AddToBuilderMenu({
     textAlign: 'left',
   };
 
-  // Show name input when creating a new doc
-  if (addToNaming) {
-    return (
-      <div style={menuStyle}>
-        <div style={{ padding: '12px 14px' }}>
-          <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>
-            Name your {addToNaming}
-          </label>
-          <input
-            autoFocus
-            value={addToName}
-            onChange={(e) => setAddToName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleConfirmCreate();
-              if (e.key === 'Escape') onClose();
-            }}
-            placeholder={`My ${addToNaming}`}
-            style={{
-              width: '100%',
-              padding: '7px 10px',
-              fontSize: 13,
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              outline: 'none',
-              fontFamily: 'inherit',
-              background: 'var(--surface)',
-              boxSizing: 'border-box',
-            }}
-          />
-          <div style={{ display: 'flex', gap: 6, marginTop: 8, justifyContent: 'flex-end' }}>
-            <button
-              onClick={onClose}
-              style={{ ...itemStyle, padding: '5px 12px', fontSize: 12, color: 'var(--text-muted)', justifyContent: 'center', width: 'auto' }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleConfirmCreate}
-              disabled={!addToName.trim()}
-              style={{
-                padding: '5px 14px',
-                fontSize: 12,
-                fontWeight: 500,
-                border: 'none',
-                borderRadius: 6,
-                background: addToName.trim() ? '#1a73e8' : 'var(--surface-2)',
-                color: addToName.trim() ? '#fff' : 'var(--text-dim)',
-                cursor: addToName.trim() ? 'pointer' : 'default',
-                fontFamily: 'inherit',
-              }}
-            >
-              Create
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+
 
   return (
     <div style={menuStyle}>
