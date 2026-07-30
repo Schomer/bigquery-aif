@@ -396,6 +396,13 @@ export default function Home() {
                   </div>
                 )}
 
+                {/* Browse your data / select project */}
+                <DataStartSection
+                  activeProject={activeProject}
+                  onBrowse={() => { setChatListOpen(false); chat.sendMessage('What datasets are in this project?'); }}
+                  onJump={(query) => { setChatListOpen(false); chat.sendMessage(query); }}
+                />
+
                 {/* Recently-used datasets / tables */}
                 {activeProject && recentItems.length > 0 && (
                   <div className="recent-items-section" style={{ marginTop: 24, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -431,13 +438,6 @@ export default function Home() {
                     </div>
                   </div>
                 )}
-
-                {/* Browse your data / select project */}
-                <DataStartSection
-                  activeProject={activeProject}
-                  onBrowse={() => { setChatListOpen(false); chat.sendMessage('What datasets are in this project?'); }}
-                  onJump={(query) => { setChatListOpen(false); chat.sendMessage(query); }}
-                />
               </div>
 
               {/* Prompt pinned to bottom */}
@@ -618,6 +618,7 @@ function DataStartSection({ activeProject, onBrowse, onJump }: {
   onJump: (query: string) => void;
 }) {
   const [jumpValue, setJumpValue] = useState('');
+  const [focused, setFocused] = useState(false);
 
   function handleJumpSubmit() {
     const v = jumpValue.trim();
@@ -635,96 +636,57 @@ function DataStartSection({ activeProject, onBrowse, onJump }: {
     if (chip) chip.click();
   }
 
-  const chipStyle: React.CSSProperties = {
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    borderRadius: 8,
-    padding: '8px 14px',
-    cursor: 'pointer',
-    fontSize: 13,
-    color: 'var(--text)',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    transition: 'border-color 0.15s, background 0.15s',
-    fontFamily: "'Google Sans', sans-serif",
-  };
-
-  return (
-    <div style={{
-      marginTop: 20,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: 12,
-      maxWidth: 480,
-      width: '100%',
-    }}>
-      <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
-        {activeProject ? 'Browse your data' : 'Get started'}
-      </div>
-
-      {!activeProject ? (
+  if (!activeProject) {
+    return (
+      <div style={{
+        marginTop: 20,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 12,
+        maxWidth: 480,
+        width: '100%',
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
+          Get started
+        </div>
         <button
           onClick={openProjectPicker}
-          style={chipStyle}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--surface-hover)'; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)'; }}
+          className="data-start-select-project"
         >
           <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>folder_open</span>
           Select a project
         </button>
-      ) : (
-        <>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <button
-              onClick={onBrowse}
-              style={chipStyle}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--surface-hover)'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)'; }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#6366f1' }}>database</span>
-              Browse datasets
-            </button>
-          </div>
-          <div style={{ position: 'relative', width: '100%', maxWidth: 320 }}>
-            <input
-              type="text"
-              value={jumpValue}
-              onChange={(e) => setJumpValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleJumpSubmit(); }}
-              placeholder="Jump to a dataset or table..."
-              style={{
-                width: '100%',
-                boxSizing: 'border-box',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                padding: '7px 12px 7px 32px',
-                fontSize: 13,
-                color: 'var(--text)',
-                outline: 'none',
-                fontFamily: "'Google Sans', sans-serif",
-                transition: 'border-color 0.15s',
-              }}
-              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; }}
-            />
-            <span
-              className="material-symbols-outlined"
-              style={{
-                position: 'absolute',
-                left: 8,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                fontSize: 16,
-                color: 'var(--text-dim)',
-                pointerEvents: 'none',
-              }}
-            >search</span>
-          </div>
-        </>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="data-start-bar" style={{ marginTop: 20 }}>
+      <div className={`data-start-search-row${focused ? ' data-start-search-row--focused' : ''}`}>
+        <span
+          className="material-symbols-outlined"
+          style={{ fontSize: 16, color: 'var(--text-dim)', flexShrink: 0 }}
+        >search</span>
+        <input
+          type="text"
+          value={jumpValue}
+          onChange={(e) => setJumpValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleJumpSubmit(); }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder="Jump to a dataset or table..."
+          className="data-start-search-input"
+        />
+        <div className="data-start-divider" />
+        <button
+          onClick={onBrowse}
+          className="data-start-browse-btn"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 15 }}>database</span>
+          Browse
+        </button>
+      </div>
     </div>
   );
 }
