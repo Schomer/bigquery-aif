@@ -1163,7 +1163,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
         const userMsg: ChatMessage = { role: 'user', content: chip.label, timestamp: new Date().toISOString() };
         const assistantMsg: ChatMessage = {
           role: 'assistant',
-          content: `Saved to your library. View it in Saved Work.`,
+          content: `Saved to your Library.`,
           timestamp: new Date().toISOString(),
         };
         const finalMsgs = [...messages, userMsg, assistantMsg];
@@ -1453,7 +1453,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       const now = new Date().toISOString();
       setMessages(prev => [
         ...prev,
-        { role: 'assistant', content: `Saved "${name}" to your library.`, timestamp: now, envelopes: [] },
+        { role: 'assistant', content: `Saved "${name}" to your Library.`, timestamp: now, envelopes: [] },
       ]);
       setSaveModalState(null);
     } catch (err) {
@@ -1523,7 +1523,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       const now = new Date().toISOString();
       setMessages(prev => [
         ...prev,
-        { role: 'assistant', content: `Saved workflow "${name}" with ${steps.length} steps to your library.`, timestamp: now, envelopes: [] },
+        { role: 'assistant', content: `Saved workflow "${name}" with ${steps.length} steps to your Library.`, timestamp: now, envelopes: [] },
       ]);
     } catch (err) {
       console.error('Failed to save workflow:', err);

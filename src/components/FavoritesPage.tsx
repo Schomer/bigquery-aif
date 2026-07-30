@@ -335,7 +335,7 @@ export function FavoritesPage({ userId, onLoadConversation, onRunArtifact }: Fav
               maxWidth: 360,
             }}
           >
-            Star conversations or pin saved items to see them here.
+            Star conversations or favorite Library items to see them here.
           </p>
         </div>
       )}
@@ -451,7 +451,7 @@ export function FavoritesPage({ userId, onLoadConversation, onRunArtifact }: Fav
             </div>
           ))}
 
-          {/* Pinned artifact cards */}
+          {/* Favorited Library items */}
           {filteredArtifacts.map((artifact) => (
             <div
               key={`pin-${artifact.id}`}
@@ -504,9 +504,9 @@ export function FavoritesPage({ userId, onLoadConversation, onRunArtifact }: Fav
                   }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
-                    push_pin
+                    star
                   </span>
-                  Pinned
+                  Favorited
                 </span>
               </div>
 
@@ -557,7 +557,7 @@ export function FavoritesPage({ userId, onLoadConversation, onRunArtifact }: Fav
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <button
-                    title="Unpin"
+                    title="Remove from favorites"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleUnpin(artifact.id);
@@ -578,7 +578,7 @@ export function FavoritesPage({ userId, onLoadConversation, onRunArtifact }: Fav
                     onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-dim)')}
                   >
                     <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-                      push_pin
+                      star
                     </span>
                   </button>
                   <button

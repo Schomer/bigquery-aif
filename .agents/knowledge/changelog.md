@@ -2,6 +2,17 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-30: Browse button opens dataset picker dialog
+
+**Problem**: The "Browse" button sent a prompt through the AI pipeline, which was slow and often timed out for large projects. Users wanted instant dataset browsing.
+
+**Changes**:
+- `src/lib/bigquery-client.ts` -- Added `listAllDatasets()` that paginates through all datasets via the BigQuery REST API directly.
+- `src/components/DatasetBrowserDialog.tsx` -- New modal dialog that opens instantly, fetches datasets in the background, and shows a searchable/filterable list with keyboard navigation (arrow keys + Enter). Clicking a dataset sends a natural-language prompt about it.
+- `src/app/page.tsx` -- `DataStartSection` now opens the dialog instead of calling `onBrowse`. Removed `onBrowse` prop.
+- `src/components/chat/ResultsSidebar.tsx` -- Same prop removal.
+- `src/app/globals.css` -- Added CSS for `.dataset-browser-*` classes.
+
 ## 2026-07-30: Unified browse/search bar and reordered new-chat sections
 
 **Changes**:

@@ -194,12 +194,8 @@ export default function Home() {
             userId={user.uid}
             onLoadConversation={(convId) => { loadConversation(convId); setActivePage('chat'); }}
             onRunArtifact={(artifact: SavedArtifact) => {
-              chat.setInput(`run my ${artifact.name}`);
               setActivePage('chat');
-              setTimeout(() => {
-                inputRef.current?.focus();
-                chat.sendMessage(`run my ${artifact.name}`);
-              }, 50);
+              chat.runSavedArtifact(artifact);
             }}
           />
         </div>
@@ -213,12 +209,8 @@ export default function Home() {
             initialTab={activePage.startsWith('spaces:') ? (activePage.slice('spaces:'.length) as import('@/lib/types').SavedArtifactType | 'all' | 'documents') : 'all'}
             refreshKey={chat.saveCount + spacesVisitCount}
             onRun={(artifact: SavedArtifact) => {
-              chat.setInput(`run my ${artifact.name}`);
               setActivePage('chat');
-              setTimeout(() => {
-                inputRef.current?.focus();
-                chat.sendMessage(`run my ${artifact.name}`);
-              }, 50);
+              chat.runSavedArtifact(artifact);
             }}
             onNavigate={(page) => setActivePage(page)}
           />

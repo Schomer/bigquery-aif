@@ -544,8 +544,8 @@ export function ResultsSidebar({
                                     <button
                                       className="chat-sidebar-artifact-card-save"
                                       onClick={(e) => { e.stopPropagation(); onSave(env); }}
-                                      title="Save to library"
-                                      aria-label="Save to library"
+                                      title="Save to Library"
+                                      aria-label="Save to Library"
                                     >
                                       <span className="material-symbols-outlined">bookmark_add</span>
                                     </button>

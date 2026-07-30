@@ -22,7 +22,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useBuilder } from '@/lib/builder-context';
 import { usePage } from '@/lib/page-context';
 import type { BuilderDocument } from '@/lib/builder-types';
-import { deleteBuilderDocument } from '@/lib/builder-persistence';
+import { deleteBuilderDocument, getBuilderDocuments } from '@/lib/builder-persistence';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -691,6 +691,18 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
   const builder = useBuilder();
   const { openBuilderTab } = usePage();
   const builderDocs = builder.getOpenDocuments();
+  const [persistedDocs, setPersistedDocs] = useState<BuilderDocument[]>([]);
+
+  useEffect(() => {
+    if (!userId) return;
+    getBuilderDocuments(userId).then(setPersistedDocs).catch(() => {});
+  }, [userId, refreshKey]);
+
+  const allBuilderDocs = (() => {
+    const ids = new Set(builderDocs.map(d => d.id));
+    return [...builderDocs, ...persistedDocs.filter(d => !ids.has(d.id))];
+  })();
+
   const [items, setItems] = useState<SavedArtifact[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab ?? 'all');
@@ -1673,7 +1685,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
   // ── Main render ──────────────────────────────────────────────────────────
 
   const TAB_TITLES: Record<string, string> = {
-    all: 'All Content',
+    all: 'Library',
     query: 'Queries',
     workflow: 'Workflows',
     pipeline: 'Pipelines',
@@ -1698,7 +1710,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
     <div style={S.container}>
       {/* Header */}
       <div style={S.header}>
-        <h1 style={S.title}>{TAB_TITLES[activeTab] ?? 'Content'}</h1>
+        <h1 style={S.title}>{TAB_TITLES[activeTab] ?? 'Library'}</h1>
         <div style={S.headerRight}>
           <select
             value={sortBy}
@@ -1753,16 +1765,16 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
       </div>
 
       {/* Content */}
-      {activeTab === 'documents' && (
+      {(activeTab === 'documents' || (activeTab === 'all' && allBuilderDocs.length > 0)) && (
         <div style={S.grid}>
-          {builderDocs.length === 0 ? (
+          {allBuilderDocs.length === 0 ? (
             <div style={{ ...S.emptyState, gridColumn: '1 / -1' }}>
               <span className="material-symbols-outlined" style={S.emptyIcon}>dashboard_customize</span>
               <div style={S.emptyTitle}>No documents yet</div>
               <div style={S.emptyDesc}>Create documents from chat results using the "Add to..." action on any result card.</div>
             </div>
           ) : (
-            builderDocs.map((doc) => (
+            allBuilderDocs.map((doc) => (
               <div
                 key={doc.id}
                 style={{

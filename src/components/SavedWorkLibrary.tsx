@@ -158,7 +158,7 @@ export function SavedWorkLibrary({ userId, onLoadItem, onNavigate }: SavedWorkLi
             margin: 0,
             color: 'var(--text)',
           }}>
-            Saved Work
+            Library
           </h1>
           <button
             onClick={() => onNavigate('chat')}

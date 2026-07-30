@@ -9,11 +9,16 @@ import { usePage } from '@/lib/page-context';
 import { useBuilder } from '@/lib/builder-context';
 
 export function TabBar() {
-  const { tabs, activeTabId, setActiveTab, closeTab } = usePage();
+  const { tabs, activeTabId, setActiveTab, closeTab, activePage } = usePage();
   const builder = useBuilder();
 
   // Don't render if only the Chat tab exists — nothing to switch between
   if (tabs.length <= 1) return null;
+
+  // Hide when viewing a sidebar overlay page (Library, Favorites, etc.)
+  // UNLESS a non-chat tab is active — keep it visible so the user can return
+  const isOverlayPage = activePage !== 'chat';
+  if (isOverlayPage && activeTabId === 'chat') return null;
 
   return (
     <div

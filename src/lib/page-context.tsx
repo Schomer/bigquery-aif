@@ -89,11 +89,13 @@ export function PageProvider({ children }: { children: ReactNode }) {
       const filtered = prev.filter((t) => t.id !== tabId);
       return filtered.length > 0 ? filtered : [CHAT_TAB];
     });
+    // Use setActiveTab (not raw setActiveTabIdState) so activePage also resets
     setActiveTabIdState((current) => {
       if (current !== tabId) return current;
-      // Activate the tab to the left, or Chat
       return 'chat';
     });
+    // Always clear overlay pages when closing a tab to prevent stale activePage
+    setActivePageState('chat');
   }, []);
 
   return (

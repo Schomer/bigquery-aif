@@ -13,7 +13,7 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Content',
+    label: 'Library',
     items: [
       { label: 'All', icon: 'home_storage', page: 'spaces:all' },
       { label: 'Queries', icon: 'query_stats', page: 'spaces:query' },
@@ -32,7 +32,7 @@ interface SideNavProps {
 export function SideNav({ collapsed }: SideNavProps) {
   const { user } = useAuth();
   const { newConversation } = useConversation();
-  const { activePage, setActivePage } = usePage();
+  const { activePage, setActivePage, tabs, activeTabId, setActiveTab } = usePage();
   const { layout, chatListOpen, toggleChatList, setChatListOpen } = useLayout();
   const [navGroupsOpen, setNavGroupsOpen] = useState<Record<string, boolean>>(
     Object.fromEntries(NAV_GROUPS.map((g) => [g.label, true]))
@@ -140,6 +140,34 @@ export function SideNav({ collapsed }: SideNavProps) {
             )}
           </div>
         ))}
+
+        {/* Open document/dashboard tabs */}
+        {tabs.filter(t => t.id !== 'chat').length > 0 && (
+          <div className="gc-nav-group">
+            <div className="gc-nav-group-header" style={{ cursor: 'default' }}>
+              <span className="gc-nav-group-label">Open</span>
+            </div>
+            <div className="gc-nav-group-items">
+              {tabs.filter(t => t.id !== 'chat').map(tab => (
+                <div className="gc-nav-item-row" key={tab.id}>
+                  <a
+                    className={`gc-nav-item${activeTabId === tab.id && activePage === 'chat' ? ' gc-nav-item--active' : ''}`}
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setActiveTab(tab.id);
+                    }}
+                  >
+                    <span className="material-symbols-outlined">
+                      {tab.page === 'builder' ? 'dashboard_customize' : 'dashboard'}
+                    </span>
+                    <span className="gc-nav-label">{tab.label}</span>
+                  </a>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
       </div>
 
