@@ -1,5 +1,21 @@
 # Operations Ledger
 
+## 2026-07-30 -- Library rename, tab/nav bug fixes, pin/favorite cleanup
+
+**What**: Renamed "Content" to "Library" across UI. Fixed 8 navigation/tab bugs. Cleaned up pin vs favorite terminology.
+
+**Bugs fixed**:
+1. TabBar stayed visible on sidebar overlay pages (Favorites, Library, Prompts, Templates) -- added activePage check
+2. closeTab() did not reset activePage, leaving stale overlay state -- added setActivePageState('chat')
+3. No way to return to open builder/dashboard tabs from sidebar -- added "Open" group to SideNav showing non-chat tabs
+4. activePage and activeTabId could get out of sync -- fixed by ensuring closeTab resets both
+5. "Open" on saved artifacts duplicated onRun logic inline -- consolidated to use chat.runSavedArtifact()
+6. Builder documents not shown on All tab -- added condition to show documents on both All and Documents tabs
+7. Builder documents disappeared after discardDocument() until page reload -- SavedPage now fetches from Firestore directly
+8. "Pinned" label on Library items renamed to "Favorited" with star icon
+
+**Rule derived**: The sidebar group for saved items must always be labeled "Library". Pin = chats only. Favorite = Library items only. TabBar visibility must account for activePage, not just tab count.
+
 ## 2026-07-30: Dataset info producing 3 cards + Chart/Map toggle mismatch
 
 **What broke (1)**: Asking for info about a dataset produced three cards (schema, chart/map, KPI) instead of one. The TABLE OVERVIEW recipe in the system prompt applied to dataset-level queries, causing the agent to call get_schema, run_query (data preview), and run_query (profile) for datasets.

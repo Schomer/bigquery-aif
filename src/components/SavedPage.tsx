@@ -1586,7 +1586,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
       app: 'apps',
     };
     const icon = EMPTY_ICONS[activeTab] ?? 'folder_open';
-    const tabLabel = activeTab === 'all' ? 'saved items' : activeTab === 'query' ? 'queries' : activeTab === 'workflow' ? 'workflows' : activeTab === 'pipeline' ? 'pipelines' : 'apps';
+    const tabLabel = activeTab === 'all' ? 'items' : activeTab === 'query' ? 'queries' : activeTab === 'workflow' ? 'workflows' : activeTab === 'pipeline' ? 'pipelines' : 'apps';
     return (
       <div style={S.emptyState}>
         <span className="material-symbols-outlined" style={S.emptyIcon}>

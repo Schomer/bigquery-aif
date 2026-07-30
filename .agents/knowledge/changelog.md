@@ -2,6 +2,18 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-30 -- Library rename + tab/nav fixes
+
+- Renamed "Content" to "Library" in sidebar, page headers, save confirmations, and tooltips
+- Fixed TabBar staying visible on sidebar overlay pages
+- Fixed closeTab() not resetting activePage state
+- Added "Open" section to sidebar showing non-chat tabs
+- Consolidated onRun handlers to use runSavedArtifact()
+- Builder documents now visible on All tab
+- Builder documents fetched from Firestore in SavedPage (not just in-memory)
+- Renamed "Pinned" to "Favorited" with star icons in FavoritesPage
+- Pin = chats, Favorite = Library items
+
 ## 2026-07-30: Browse button opens dataset picker dialog
 
 **Problem**: The "Browse" button sent a prompt through the AI pipeline, which was slow and often timed out for large projects. Users wanted instant dataset browsing.
