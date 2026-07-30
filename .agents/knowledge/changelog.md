@@ -11,6 +11,14 @@ A record of what changed in each coding session. Read this to understand recent 
 - `src/lib/skills/schema.ts` -- Skip per-dataset table-count fetches when >50 datasets (set `tableCount` to `null`)
 - `src/lib/composer.ts` -- Headline for >50 datasets mentions the search field
 
+## 2026-07-30: "Browse your data" section on empty chat state
+
+**Purpose**: When a user opens a new chat with a project selected, there was no affordance to discover and navigate to data. They had to know to type "list datasets" or similar. Now the empty state always shows a "Browse your data" section with a one-click "Browse datasets" button and a quick-jump search input.
+
+**Modified files**:
+- `src/app/page.tsx` -- Added `DataStartSection` component (exported). Rendered in the unified layout empty state below the crystal ball and recent items, always visible when `activeProject` is set.
+- `src/components/chat/ResultsSidebar.tsx` -- Imported and rendered `DataStartSection` in the split-layout results panel empty state.
+
 ## 2026-07-29: Builder tab -- compose reusable documents from chat output
 
 **Purpose**: Let users create dashboards, apps, reports, and recipes by adding tiles from chat results, without re-running AI every time.

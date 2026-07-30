@@ -19,6 +19,7 @@ import type { ChatError } from '@/hooks/useChatOrchestration';
 import { CrystalBallThinking, ErrorCard, RegenerateButton, QueryProgressPanel } from './ChatThread';
 import { ChatInput } from './ChatInput';
 import type { RecentItem } from '@/lib/firestore-service';
+import { DataStartSection } from '@/app/page';
 
 // ---- Helper functions -------------------------------------------------------
 
@@ -754,6 +755,12 @@ export function ResultsSidebar({
               </div>
             )}
             {recentItemsSection}
+            {activeProject && (
+              <DataStartSection
+                onBrowse={() => onSend('What datasets are in this project?')}
+                onJump={(query) => onSend(query)}
+              />
+            )}
           </div>
         ) : allEnvelopes.length > 0 ? (
           <div className="results-panel-inner">
