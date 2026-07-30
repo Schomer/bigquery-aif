@@ -758,12 +758,11 @@ export function ResultsSidebar({
               </div>
             )}
             {recentItemsSection}
-            {activeProject && (
-              <DataStartSection
-                onBrowse={() => onSend('What datasets are in this project?')}
-                onJump={(query) => onSend(query)}
-              />
-            )}
+            <DataStartSection
+              activeProject={activeProject}
+              onBrowse={() => onSend('What datasets are in this project?')}
+              onJump={(query) => onSend(query)}
+            />
           </div>
         ) : allEnvelopes.length > 0 ? (
           <div className="results-panel-inner">
