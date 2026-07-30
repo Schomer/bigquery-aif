@@ -15,9 +15,12 @@ A record of what changed in each coding session. Read this to understand recent 
 **Modified files**:
 - `src/lib/page-context.tsx` -- Added `openBuilderTab()`, `builderId` on `AppTab`
 - `src/components/ArtifactCard.tsx` -- Added "Add to..." button and `AddToBuilderMenu` dropdown
-- `src/app/page.tsx` -- Renders `BuilderPage` for `builder:` tabs
+- `src/app/page.tsx` -- Renders `BuilderPage` for `builder:` tabs, handles `initialTab=documents` routing
 - `src/components/TabBar.tsx` -- Builder tab icon (`dashboard_customize`) + unsaved dot
 - `src/components/shell/ShellLayout.tsx` -- Wraps app with `BuilderProvider`
+- `src/components/shell/SideNav.tsx` -- Added "Documents" link to sidebar navigation
+- `src/components/SavedPage.tsx` -- Added "Documents" tab with builder document cards (open, delete, thumbnail preview)
+- `src/lib/builder-context.tsx` -- Added `useEffect` to load saved documents from Firestore on auth
 
 
 ## 2026-07-28: Fix duplicate cards when present_result + run_query in same turn
