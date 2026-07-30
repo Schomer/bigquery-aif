@@ -107,20 +107,25 @@ async function fetchProjectSchema(project: string): Promise<SchemaResult> {
     pageToken = data.nextPageToken;
   } while (pageToken);
 
-  // Fetch table counts for each dataset in parallel
+  // Fetch table counts for each dataset in parallel — but only for manageable
+  // project sizes. For large projects (>50 datasets) the N parallel requests are
+  // slow and likely to hit rate limits, and per-dataset counts add noise when
+  // the user's primary goal is finding the right dataset via search.
   const datasetIds = allDatasets.map((ds: any) => ds.datasetReference?.datasetId ?? '');
-  const tableCounts = await Promise.all(
-    datasetIds.map(async (dsId: string) => {
-      if (!dsId) return 0;
-      try {
-        const url = `${BQ_BASE}/${encodeURIComponent(project)}/datasets/${encodeURIComponent(dsId)}/tables?maxResults=1000`;
-        const data = await bqGet(url);
-        return data.totalItems ? parseInt(data.totalItems, 10) : (data.tables?.length ?? 0);
-      } catch {
-        return 0;
-      }
-    })
-  );
+  const tableCounts: (number | null)[] = datasetIds.length <= 50
+    ? await Promise.all(
+        datasetIds.map(async (dsId: string) => {
+          if (!dsId) return 0;
+          try {
+            const url = `${BQ_BASE}/${encodeURIComponent(project)}/datasets/${encodeURIComponent(dsId)}/tables?maxResults=1000`;
+            const data = await bqGet(url);
+            return data.totalItems ? parseInt(data.totalItems, 10) : (data.tables?.length ?? 0);
+          } catch {
+            return 0;
+          }
+        })
+      )
+    : datasetIds.map(() => null);
 
   const columns: SchemaColumn[] = allDatasets.map((ds: any, i: number) => ({
     name: ds.datasetReference?.datasetId ?? '',

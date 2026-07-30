@@ -333,7 +333,7 @@ UI Components (src/components/)
 
 | Component | Size | Renders |
 |-----------|------|--------|
-| SchemaView.tsx | 67KB | Dataset/table listings, full table schemas, Sample tab with pagination/filter (added 2026-07-15) |
+| SchemaView.tsx | 92KB | Dataset/table listings (ProjectDatasetList with search filter for >15 datasets), full table schemas, Sample tab with pagination/filter |
 | PromptsLibrary.tsx | 33KB | Saved prompts and quick actions |
 | MultistepView.tsx | 15KB | Multi-step workflow cards |
 | ErDiagramView.tsx | 14KB | Entity-relationship diagrams |

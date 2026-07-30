@@ -23,27 +23,7 @@ export function SchemaView({ result, onSendMessage }: Props) {
   const send = onSendMessage ?? (() => {});
 
   if (result.scope === 'PROJECT') {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {result.columns.map((ds, i) => (
-          <ClickableRow
-            key={ds.name}
-            onClick={() => send(`Tell me more about the ${ds.name} dataset`)}
-            tooltip={`Click to list tables in ${ds.name}`}
-            index={i}
-          >
-            <IconBadge icon="database" color="#6366f1" />
-            <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ds.name}</span>
-            {ds.tableCount != null && (
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                {ds.tableCount} table{ds.tableCount !== 1 ? 's' : ''}
-              </span>
-            )}
-          </ClickableRow>
-        ))}
-        <ListAnimationStyle />
-      </div>
-    );
+    return <ProjectDatasetList datasets={result.columns} onSendMessage={send} />;
   }
 
   if (result.scope === 'DATASET') {
@@ -174,6 +154,117 @@ export function SchemaView({ result, onSendMessage }: Props) {
 
   // TABLE scope — render tabbed view
   return <TableSchemaView result={result} onSendMessage={send} />;
+}
+
+// ─── Project dataset list with search ─────────────────────────────────────────
+
+function ProjectDatasetList({ datasets, onSendMessage }: { datasets: SchemaColumn[]; onSendMessage: (msg: string) => void }) {
+  const [filter, setFilter] = useState('');
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const showSearch = datasets.length > 15;
+  const autoFocus = datasets.length > 50;
+
+  // Auto-focus the search input for very large lists
+  useEffect(() => {
+    if (autoFocus && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [autoFocus]);
+
+  const visible = filter
+    ? datasets.filter(ds => ds.name.toLowerCase().includes(filter.toLowerCase()))
+    : datasets;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {showSearch && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+          <div style={{ position: 'relative', flex: 1 }}>
+            <input
+              ref={inputRef}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter datasets..."
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                padding: '5px 10px 5px 28px',
+                fontSize: 12,
+                color: 'var(--text)',
+                outline: 'none',
+              }}
+            />
+            <span
+              className="material-symbols-outlined"
+              style={{
+                position: 'absolute',
+                left: 7,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                fontSize: 15,
+                color: 'var(--text-dim)',
+                pointerEvents: 'none',
+              }}
+            >search</span>
+            {filter && (
+              <button
+                onClick={() => setFilter('')}
+                style={{
+                  position: 'absolute',
+                  right: 6,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  lineHeight: 1,
+                  color: 'var(--text-dim)',
+                  fontSize: 14,
+                }}
+              >x</button>
+            )}
+          </div>
+          <span style={{ fontSize: 11, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
+            {visible.length} of {datasets.length}
+          </span>
+        </div>
+      )}
+      <div style={{
+        maxHeight: datasets.length > 20 ? 400 : undefined,
+        overflowY: datasets.length > 20 ? 'auto' : undefined,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 5,
+      }}>
+        {visible.length === 0 && filter && (
+          <div style={{ padding: '16px 12px', textAlign: 'center', color: 'var(--text-dim)', fontSize: 12 }}>
+            No datasets match "{filter}"
+          </div>
+        )}
+        {visible.map((ds, i) => (
+          <ClickableRow
+            key={ds.name}
+            onClick={() => onSendMessage(`Tell me more about the ${ds.name} dataset`)}
+            tooltip={`Click to list tables in ${ds.name}`}
+            index={i}
+          >
+            <IconBadge icon="database" color="#6366f1" />
+            <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ds.name}</span>
+            {ds.tableCount != null && (
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                {ds.tableCount} table{ds.tableCount !== 1 ? 's' : ''}
+              </span>
+            )}
+          </ClickableRow>
+        ))}
+      </div>
+      <ListAnimationStyle />
+    </div>
+  );
 }
 
 // ─── Tabbed TABLE view ────────────────────────────────────────────────────────

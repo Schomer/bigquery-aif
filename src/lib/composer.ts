@@ -125,7 +125,9 @@ function composeSchema(result: SchemaResult): CompositionEnvelope {
 
   if (result.scope === 'PROJECT') {
     const count = result.columns.length;
-    headlineText = `Here are your ${count} dataset${count !== 1 ? 's' : ''}`;
+    headlineText = count > 50
+      ? `This project has ${count} datasets -- use the search field to find what you need`
+      : `Here are your ${count} dataset${count !== 1 ? 's' : ''}`;
     // Add a chip for each dataset (up to 4) so the user can drill in immediately
     result.columns.slice(0, 4).forEach((ds) => {
       nextActions.push({

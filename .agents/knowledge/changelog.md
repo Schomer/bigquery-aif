@@ -2,6 +2,15 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-07-30: Searchable dataset list for large projects
+
+**Problem**: Listing datasets in a project with hundreds or thousands of datasets produced a flat, unscrollable list with no way to find a specific dataset. The fetch also fired N parallel API calls to get per-dataset table counts, making it slow.
+
+**Modified files**:
+- `src/components/SchemaView.tsx` -- Extracted `ProjectDatasetList` component with client-side search/filter input (shows for >15 datasets, auto-focuses for >50), scrollable container (max-height 400px for >20 datasets), and "no results" state
+- `src/lib/skills/schema.ts` -- Skip per-dataset table-count fetches when >50 datasets (set `tableCount` to `null`)
+- `src/lib/composer.ts` -- Headline for >50 datasets mentions the search field
+
 ## 2026-07-29: Builder tab -- compose reusable documents from chat output
 
 **Purpose**: Let users create dashboards, apps, reports, and recipes by adding tiles from chat results, without re-running AI every time.

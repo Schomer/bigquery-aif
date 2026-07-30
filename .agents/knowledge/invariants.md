@@ -62,6 +62,7 @@ These rules exist because keyword-based intent classification has failed repeate
 - **`fetchSchema()` requires both project AND dataset for table lookups**: Calling `fetchSchema(dataset, table, project)` with a dataset but no table returns dataset-level listing. With both dataset and table, returns full table schema.
 - **Schema results are cached in memory**: `schema-cache.ts` provides `getFromCache`/`setInCache` keyed by `(project, dataset, table)`. Cache is per-session (browser tab). Do not add persistent caching without considering staleness.
 - **Pagination is mandatory for list operations**: Both `fetchProjectSchema()` and `fetchDatasetSchema()` loop on `nextPageToken`. Removing pagination will break for projects with >1000 datasets or tables.
+- **Table count fetches are skipped for large projects**: When >50 datasets, `fetchProjectSchema()` sets `tableCount` to `null` instead of firing N parallel API calls. The UI (`ProjectDatasetList`) handles `null` gracefully. This threshold prevents rate limiting and slow responses.
 - **Table constraints query may fail**: INFORMATION_SCHEMA constraint tables may not be accessible. `fetchTableConstraints()` catches all errors and returns empty arrays. This is intentional.
 
 ---

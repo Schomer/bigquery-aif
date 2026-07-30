@@ -1,5 +1,13 @@
 # Operations Ledger
 
+## 2026-07-30: Large project dataset lists unusable -- added search filter and skipped table counts
+
+**Context**: When a project has hundreds or thousands of datasets, listing them produced an unusable flat list. The `fetchProjectSchema()` function also fired N parallel API calls (one per dataset) to get table counts, making it slow and likely to hit rate limits.
+
+**Changes**: (1) Added `ProjectDatasetList` component in `SchemaView.tsx` with client-side search/filter input. Shows for >15 datasets, auto-focuses for >50. List is capped at 400px height with scrolling. (2) In `schema.ts`, skipped per-dataset table-count fetches when there are >50 datasets (sets `tableCount` to `null`, which the UI handles gracefully). (3) Adjusted composer headline for >50 datasets to mention the search field.
+
+**Rule**: For large list responses, always provide client-side filtering. The BigQuery datasets.list API has no server-side name filter, so client-side is the only option. Per-entity metadata fetches (like table counts) should be skipped when the entity count is large -- the user's goal is finding the right item, not comparing metadata across hundreds.
+
 ## 2026-07-28: Duplicate cards when agent calls both run_query and present_result
 
 **What broke**: Queries like "What is the total percentage of the top 10 tickers?" rendered two cards: a bare KPI (31.87) and a richer multi-metric summary (31.87% + 68.13% remaining + 10 tickers). The second card was strictly better.
