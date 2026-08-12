@@ -1,5 +1,19 @@
 # Operations Ledger
 
+## 2026-08-11 -- Persist chart data across sessions (dehydration/hydration)
+
+**What broke**: Charts and tables in old conversations were blank when re-opened. The conversation messages (including full result row arrays) were serialized into `messagesJson` in a single Firestore document per user. Large result sets pushed the document past Firestore's 1MB limit, causing `saveConversation()` to fail silently (`.catch(e => console.warn(...))`). Even when saves succeeded, the JSON payloads were unnecessarily large.
+
+**Root cause**: No separation between conversation metadata (headline, SQL, columns) and result data (rows). Everything was in one Firestore document field.
+
+**Fix**: Added IndexedDB-based dehydration/hydration:
+1. `result-cache.ts`: Added a second IndexedDB store `persistent_results` (500MB budget) alongside the existing `results` store (200MB LRU). Bumped DB_VERSION to 2.
+2. `firestore-service.ts`: `saveConversation()` now dehydrates messages before saving -- strips `rows` from data-bearing envelopes, persists them to IndexedDB under `envelope.id`, replaces with `rows: []` + `_resultCacheId` marker. Added `getConversationHydrated()` which restores rows from IndexedDB on load.
+3. `page.tsx`: Conversation load effect uses `getConversationHydrated()` instead of `getConversations()`.
+4. `ArtifactCard.tsx`: Added fallback card when `_dataMissing: true` (data cleared/different device) -- shows "Re-run query" button using preserved `provenance.sql`.
+
+**Rule derived**: Conversation result data must be stored separately from conversation metadata. Large binary data (row arrays) goes to IndexedDB; only references go to Firestore. Always provide a re-run fallback for missing data.
+
 ## 2026-07-30 -- Library rename, tab/nav bug fixes, pin/favorite cleanup
 
 **What**: Renamed "Content" to "Library" across UI. Fixed 8 navigation/tab bugs. Cleaned up pin vs favorite terminology.

@@ -2,6 +2,16 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-08-11 -- Persist chart data across sessions
+
+- Fixed blank charts/tables when re-opening old conversations
+- Added `persistent_results` IndexedDB store (500MB) in `result-cache.ts` for long-lived result data
+- `saveConversation()` now dehydrates envelopes: strips rows, persists to IndexedDB, keeps slim reference in Firestore
+- Added `getConversationHydrated()` which restores row data from IndexedDB on load
+- `page.tsx` conversation load effect uses hydrated loader
+- Added re-run fallback card in `ArtifactCard.tsx` when IndexedDB data is missing (different browser/cleared data)
+- Root cause: Firestore 1MB document limit was silently dropping conversations with large result sets
+
 ## 2026-07-30 -- Library rename + tab/nav fixes
 
 - Renamed "Content" to "Library" in sidebar, page headers, save confirmations, and tooltips

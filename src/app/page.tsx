@@ -22,6 +22,7 @@ import { SaveModal } from '@/components/SaveModal';
 import type { SavedArtifact } from '@/lib/types';
 import {
   getConversations,
+  getConversationHydrated,
   getRecentDatasets,
   getRecentItemsFromCache,
   updateRecentItemsFromEnvelopes,
@@ -122,8 +123,7 @@ export default function Home() {
     chat.setPinnedEnvelopeId(null);
     chat.titleSetRef.current = false;
 
-    getConversations(user.uid).then((convs) => {
-      const match = convs.find((c) => c.id === conversationId);
+    getConversationHydrated(user.uid, conversationId).then((match) => {
       if (match) {
         chat.setMessages(match.messages);
         // Restore the project that was active when this conversation was saved

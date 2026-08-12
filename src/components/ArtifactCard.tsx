@@ -719,6 +719,43 @@ function Artifact({
 }) {
   const { type, data } = envelope.primaryArtifact;
 
+  // If result data was dehydrated to IndexedDB but could not be restored
+  // (browser data cleared, different device), show a re-run fallback.
+  const dataRecord = data as Record<string, unknown> | null;
+  if (dataRecord?._dataMissing && envelope.provenance?.sql) {
+    return (
+      <div style={{
+        padding: '24px 20px',
+        border: '1px solid var(--border-subtle, #e0e0e0)',
+        borderRadius: 10,
+        background: 'var(--surface-secondary, #f8f9fa)',
+        textAlign: 'center',
+      }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--text-muted, #999)', display: 'block', marginBottom: 8 }}>
+          cached
+        </span>
+        <div style={{ fontSize: 13, color: 'var(--text-muted, #666)', marginBottom: 12 }}>
+          Result data is stored locally and was not found. Click to re-run the query.
+        </div>
+        <button
+          onClick={() => onSendMessage(envelope.provenance.sql!)}
+          style={{
+            padding: '8px 20px',
+            fontSize: 13,
+            fontFamily: "'Google Sans', sans-serif",
+            background: 'var(--accent, #4285f4)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 8,
+            cursor: 'pointer',
+          }}
+        >
+          Re-run query
+        </button>
+      </div>
+    );
+  }
+
   switch (type) {
     case 'SCHEMA_VIEW':
       return <SchemaView result={data as import('@/lib/types').SchemaResult} onSendMessage={onSendMessage} />;

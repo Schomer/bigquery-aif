@@ -3,7 +3,8 @@
 
 import { doc, getDoc, setDoc, deleteField, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
-import type { ChatMessage, CompositionEnvelope, SavedCheck } from './types';
+import type { ChatMessage, CompositionEnvelope, ArtifactType, SavedCheck } from './types';
+import { persistentResultCache } from '../agent/result-cache';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -44,6 +45,142 @@ async function getUserData(uid: string): Promise<any> {
   return snap.exists() ? snap.data() : {};
 }
 
+// ── Envelope Dehydration / Hydration ─────────────────────────────────────────
+// Artifact types whose primaryArtifact.data has a `rows` array worth offloading.
+// These contain QueryResult-shaped data with potentially thousands of rows.
+
+const DATA_BEARING_TYPES: Set<ArtifactType> = new Set([
+  'TABLE',
+  'LINE_CHART', 'BAR_CHART', 'AREA_CHART', 'SCATTER', 'PIE_CHART',
+  'DONUT_CHART', 'COLUMN_CHART', 'HISTOGRAM', 'SPARKLINE',
+  'RADAR', 'FUNNEL', 'TREEMAP', 'SANKEY', 'COMPOSED_CHART',
+  'GAUGE', 'HEATMAP', 'BOXPLOT', 'CANDLESTICK',
+  'VIOLIN', 'DENSITY_PLOT', 'RIDGELINE', 'NETWORK_GRAPH', 'TILE_MAP',
+  'GEO_POINT_MAP', 'USA_MAP', 'WORLD_MAP',
+  'KPI_CARD', 'STAT_ROW',
+  'INTERACTIVE_WIDGET',
+]);
+
+/**
+ * Dehydrate messages before saving to Firestore: strip large row arrays
+ * from data-bearing envelopes, persist them to IndexedDB, and replace
+ * with a lightweight reference. Returns a modified copy -- does not
+ * mutate the original messages.
+ */
+async function dehydrateMessages(messages: ChatMessage[]): Promise<ChatMessage[]> {
+  const dehydrated: ChatMessage[] = [];
+  const persistPromises: Promise<void>[] = [];
+
+  for (const msg of messages) {
+    if (msg.role !== 'assistant' || !msg.envelopes?.length) {
+      dehydrated.push(msg);
+      continue;
+    }
+
+    const newEnvelopes: CompositionEnvelope[] = [];
+    for (const env of msg.envelopes) {
+      const type = env.primaryArtifact?.type;
+      const data = env.primaryArtifact?.data as Record<string, unknown> | null;
+
+      if (type && DATA_BEARING_TYPES.has(type) && data && Array.isArray(data.rows) && data.rows.length > 0) {
+        // Clone the envelope and strip rows
+        const slimData = { ...data, rows: [], _resultCacheId: env.id };
+        const slimEnv: CompositionEnvelope = {
+          ...env,
+          primaryArtifact: { ...env.primaryArtifact, data: slimData },
+        };
+        newEnvelopes.push(slimEnv);
+
+        // Persist rows to IndexedDB (non-blocking batch)
+        const rowsJson = JSON.stringify(data.rows);
+        persistPromises.push(
+          persistentResultCache.put({
+            id: env.id,
+            rows: data.rows as unknown[][],
+            columns: (data.columns as string[]) ?? [],
+            columnTypes: (data.columnTypes as string[]) ?? [],
+            created: Date.now(),
+            bytes: rowsJson.length,
+          })
+        );
+      } else {
+        newEnvelopes.push(env);
+      }
+    }
+
+    dehydrated.push({ ...msg, envelopes: newEnvelopes });
+  }
+
+  // Wait for all IndexedDB writes to finish
+  await Promise.all(persistPromises);
+  return dehydrated;
+}
+
+/**
+ * Rehydrate messages loaded from Firestore: restore row data from
+ * IndexedDB into dehydrated envelopes. Envelopes whose data was lost
+ * (cleared browser, different device) get a `_dataMissing: true` flag.
+ */
+async function rehydrateMessages(messages: ChatMessage[]): Promise<ChatMessage[]> {
+  // Collect all envelope IDs that need rehydration
+  const idsToFetch: string[] = [];
+  for (const msg of messages) {
+    if (msg.role !== 'assistant' || !msg.envelopes) continue;
+    for (const env of msg.envelopes) {
+      const data = env.primaryArtifact?.data as Record<string, unknown> | null;
+      if (data?._resultCacheId && Array.isArray(data.rows) && data.rows.length === 0) {
+        idsToFetch.push(data._resultCacheId as string);
+      }
+    }
+  }
+
+  if (idsToFetch.length === 0) return messages;
+
+  // Batch-fetch from IndexedDB
+  const cached = await persistentResultCache.getMany(idsToFetch);
+
+  // Restore rows into envelopes
+  const rehydrated: ChatMessage[] = [];
+  for (const msg of messages) {
+    if (msg.role !== 'assistant' || !msg.envelopes) {
+      rehydrated.push(msg);
+      continue;
+    }
+
+    const newEnvelopes: CompositionEnvelope[] = [];
+    for (const env of msg.envelopes) {
+      const data = env.primaryArtifact?.data as Record<string, unknown> | null;
+      const cacheId = data?._resultCacheId as string | undefined;
+
+      if (cacheId && Array.isArray(data?.rows) && (data?.rows as unknown[]).length === 0) {
+        const persisted = cached.get(cacheId);
+        if (persisted) {
+          // Restore rows from IndexedDB
+          const restoredData = { ...data, rows: persisted.rows };
+          delete (restoredData as Record<string, unknown>)._resultCacheId;
+          newEnvelopes.push({
+            ...env,
+            primaryArtifact: { ...env.primaryArtifact, data: restoredData },
+          });
+        } else {
+          // Data is missing (cleared, different device) -- mark for fallback UI
+          const missingData = { ...data, _dataMissing: true };
+          newEnvelopes.push({
+            ...env,
+            primaryArtifact: { ...env.primaryArtifact, data: missingData },
+          });
+        }
+      } else {
+        newEnvelopes.push(env);
+      }
+    }
+
+    rehydrated.push({ ...msg, envelopes: newEnvelopes });
+  }
+
+  return rehydrated;
+}
+
 // ── Conversations ────────────────────────────────────────────────────────────
 
 export async function getConversations(uid: string): Promise<SavedConversation[]> {
@@ -58,11 +195,25 @@ export async function getConversations(uid: string): Promise<SavedConversation[]
   return conversations.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
 }
 
+/**
+ * Load a single conversation and rehydrate its envelope data from IndexedDB.
+ * Use this when opening a specific conversation (vs listing all for sidebar).
+ */
+export async function getConversationHydrated(uid: string, conversationId: string): Promise<SavedConversation | null> {
+  const convs = await getConversations(uid);
+  const match = convs.find(c => c.id === conversationId);
+  if (!match) return null;
+  match.messages = await rehydrateMessages(match.messages);
+  return match;
+}
+
 export async function saveConversation(uid: string, conv: SavedConversation): Promise<void> {
-  const { messages, ...rest } = conv;
+  // Dehydrate: move large row arrays to IndexedDB, keep slim references in Firestore
+  const dehydratedMessages = await dehydrateMessages(conv.messages);
+  const { messages: _orig, ...rest } = conv;
   const persisted = {
     ...rest,
-    messagesJson: JSON.stringify(messages),
+    messagesJson: JSON.stringify(dehydratedMessages),
   };
   await setDoc(userDoc(uid), {
     conversations: { [conv.id]: persisted },

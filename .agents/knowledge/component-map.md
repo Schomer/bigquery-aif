@@ -274,9 +274,11 @@ UI Components (src/components/)
 - `historyVisible` / `setHistoryVisible` -- history toggle in TopBar
 
 ### `src/lib/firestore-service.ts`
-**Responsibility**: Thin Firestore abstraction layer.
+**Responsibility**: Thin Firestore abstraction layer + envelope dehydration/hydration.
 - Wraps Firebase Firestore SDK calls used across multiple modules
-- Prevents direct SDK calls from being scattered across the codebase
+- Dehydrates conversation envelopes on save: strips rows to IndexedDB, keeps slim references in Firestore
+- `getConversationHydrated()`: restores rows from IndexedDB when opening a specific conversation
+- `getConversations()`: returns raw (dehydrated) messages for sidebar listing (no IndexedDB lookup)
 
 
 
@@ -468,7 +470,7 @@ New architecture components, behind feature flag `bqaif_agent_v2`.
 | context.ts | 170 | LoopContext assembly, history truncation, result summarization |
 | loop.ts | 300 | The agent loop (stall detection, interruption, gates, parallel reads) |
 | action-classes.ts | 185 | Action-class taxonomy (read/reversible/destructive) |
-| result-cache.ts | 160 | IndexedDB result store (200MB LRU) |
+| result-cache.ts | 280 | IndexedDB result store: `results` (200MB LRU, session-scoped) + `persistent_results` (500MB, long-lived for conversation rehydration) |
 | index.ts | 612 | Entry point, feature flag, processWithAgentLoop(), executionTrace collection, plan ambiguity detection |
 | tools/types.ts | 45 | ToolDef, ToolCall, ToolResult |
 | tools/run-query.ts | 115 | run_query tool (execute + dry_run + cache) |

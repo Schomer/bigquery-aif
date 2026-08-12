@@ -91,6 +91,18 @@ These rules exist because keyword-based intent classification has failed repeate
 
 ---
 
+## Conversation Result Persistence (`src/agent/result-cache.ts`, `src/lib/firestore-service.ts`)
+
+- **Envelope data is dehydrated on save, rehydrated on load**: `saveConversation()` strips `rows` from data-bearing envelopes (charts, tables, KPIs, widgets) and stores them in the `persistent_results` IndexedDB store. `getConversationHydrated()` restores them. This prevents Firestore's 1MB document size limit from silently dropping conversations with large result sets.
+- **Two IndexedDB stores, different lifecycles**: `results` (200MB LRU, session-scoped, used by the agent loop) and `persistent_results` (500MB, long-lived, used for conversation rehydration). Do not merge them -- the agent cache evicts aggressively, the persistent store must not.
+- **Dehydrated envelopes use `_resultCacheId` marker**: When `rows` is `[]` and `_resultCacheId` is present, the envelope was dehydrated. `_resultCacheId` equals the envelope's `id`. This marker is cleaned up on rehydration.
+- **Missing data shows a re-run fallback, never a blank chart**: When IndexedDB data is lost (cleared browser, different device), `rehydrateMessages()` sets `_dataMissing: true`. `ArtifactCard` renders a "Re-run query" card instead of a blank chart. The SQL is preserved in `provenance.sql`.
+- **Data is per-browser, not cross-device**: IndexedDB is local storage. Conversations opened on a different browser/device will show the fallback. This is acceptable because re-running is a single click and cross-device sync of query results is not practical.
+- **`getConversations()` does NOT hydrate**: The sidebar listing uses `getConversations()` which returns raw (dehydrated) messages for speed. Only `getConversationHydrated()` does the IndexedDB lookup, and it is called only when opening a specific conversation.
+- **DB_VERSION must increment when adding new stores**: Currently version 2 (added `persistent_results`). IndexedDB `onupgradeneeded` handles creating stores that do not exist yet.
+
+---
+
 ## Result Quality (`src/lib/result-quality.ts`)
 
 - **No model calls, ever**: This module is pure heuristic analysis. Adding a Gemini call here would defeat the purpose (latency budget is zero).
