@@ -1406,7 +1406,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     }
     const defaultName = envelope.headline?.text?.slice(0, 80) || 'Untitled';
     const defaultDescription = envelope.insight || '';
-    const sql = envelope.provenance?.sql || '';
+    const sql = envelope.provenance?.sql || (envelope.primaryArtifact?.data as any)?.sql || '';
 
     // Attempt to extract dataset from SQL or conversation state
     let extractedDs = '';
@@ -1474,7 +1474,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       return;
     }
     const env = modal.envelope;
-    const sql = env.provenance?.sql;
+    const sql = env.provenance?.sql || (env.primaryArtifact?.data as any)?.sql || modal.sql || '';
     const step: ArtifactStep = {
       id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36),
       order: 0,

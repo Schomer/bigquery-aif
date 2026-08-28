@@ -7,11 +7,12 @@
 **Why**: Saving queries only into app-level storage (Firestore) meant users could not see or query their saved queries directly in BigQuery Console or connect them to external BI tools.
 
 **Fix**:
-1. `src/lib/bigquery-client.ts`: Added `createBigQueryView()` using DDL execution (`CREATE OR REPLACE VIEW \`project.dataset.viewName\` OPTIONS(...) AS <sql>`).
-2. `src/components/SaveModal.tsx`: Added BigQuery dataset selection, view name slugification/validation, and target preview (`` `project.dataset.view_name` ``).
-3. `src/hooks/useChatOrchestration.ts`: Extracted dataset from source SQL/context and invoked `createBigQueryView()` upon saving with confirmation in the chat stream.
+1. `src/agent/index.ts`: Fixed bug where `queryResult.sql` was hardcoded to `''` when constructing query envelopes from `run_query` events. Now extracts SQL from `event.tool_args.sql` and `cached.sql`.
+2. `src/lib/bigquery-client.ts`: Added `createBigQueryView()` using DDL execution (`CREATE OR REPLACE VIEW \`project.dataset.viewName\` OPTIONS(...) AS <sql>`).
+3. `src/components/SaveModal.tsx`: Added BigQuery dataset selection, view name slugification/validation, and target preview (`` `project.dataset.view_name` ``).
+4. `src/hooks/useChatOrchestration.ts`: Extracted dataset from source SQL/context and invoked `createBigQueryView()` upon saving with confirmation in the chat stream.
 
-**Rule derived**: Saving queries or analytical artifacts with underlying SQL should always provide the option to persist directly to BigQuery as standard database Views so the logic is accessible directly in Google Cloud BigQuery.
+**Rule derived**: Saving queries or analytical artifacts with underlying SQL should always provide the option to persist directly to BigQuery as standard database Views so the logic is accessible directly in Google Cloud BigQuery. Always propagate `sql` from tool results into envelope provenance.
 
 ## 2026-08-11 -- Persist chart data across sessions (dehydration/hydration)
 

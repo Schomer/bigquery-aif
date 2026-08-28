@@ -418,17 +418,20 @@ export async function processWithAgentLoop({
         if (hasPresentResult) {
           continue;
         }
-        let resultData: { columns?: string[]; rows?: unknown[][]; column_types?: string[] } | null = null;
+        let resultData: { columns?: string[]; rows?: unknown[][]; column_types?: string[]; sql?: string } | null = null;
+        let querySql = typeof event.tool_args?.sql === 'string' ? event.tool_args.sql : '';
         try {
           const rid = event.result_id
             ?? (event.detail ? JSON.parse(event.detail).result_id : undefined);
           if (rid) {
             const cached = await resultCache.get(rid);
             if (cached) {
+              if (!querySql && cached.sql) querySql = cached.sql;
               resultData = {
                 columns: cached.schema.map(s => s.name),
                 column_types: cached.schema.map(s => s.type),
                 rows: cached.rows,
+                sql: cached.sql,
               };
             }
           }
@@ -437,10 +440,11 @@ export async function processWithAgentLoop({
         if (resultData?.columns && resultData?.rows) {
           const meta = extractIntentMeta(result.events, 'run_query');
           const vizHint = (meta.vizHint || 'TABLE') as VisualizationType;
+          const finalSql = querySql || resultData.sql || '';
 
           const queryResult = {
             skill: 'query' as const,
-            sql: '',
+            sql: finalSql,
             requiresConfirmation: false,
             costConfirm: null,
             columns: resultData.columns,
@@ -454,6 +458,9 @@ export async function processWithAgentLoop({
           };
           const composed = compose('query', queryResult);
           composed.provenance.executionTrace = executionTrace;
+          if (finalSql) {
+            composed.provenance.sql = finalSql;
+          }
           composed.headline.text = meta.resultTitle || result.text?.split('\n')[0].slice(0, 200) || 'Query results';
           composed.skipSelfReview = true;
           if (meta.followUps?.length) {

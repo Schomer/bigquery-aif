@@ -5,6 +5,7 @@ A record of what changed in each coding session. Read this to understand recent 
 ## 2026-08-28 -- Save queries and charts directly to BigQuery as Views
 
 - Added `createBigQueryView()` in `src/lib/bigquery-client.ts` to execute `CREATE OR REPLACE VIEW \`project.dataset.viewName\` AS <sql>` directly in BigQuery.
+- Fixed `src/agent/index.ts` where `queryResult.sql` was hardcoded to empty string, preventing SQL from reaching envelopes and the SaveModal.
 - Updated `SaveModal.tsx` to detect SQL queries and present BigQuery dataset & view name inputs with autocomplete from active project datasets.
 - Enhanced `useChatOrchestration.ts` to execute BigQuery view creation upon saving, report the full target view identifier `` `project.dataset.view_name` `` in chat feedback, and persist the artifact metadata in the workspace library.
 - Wired up project, dataset, and SQL props in `page.tsx` for seamless view creation from any queried table/chart.
