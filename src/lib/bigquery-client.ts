@@ -327,6 +327,14 @@ export interface DmlResult {
   jobId: string;
 }
 
+export interface CreateViewResult {
+  fullTableId: string;
+  project: string;
+  dataset: string;
+  viewName: string;
+  jobId: string;
+}
+
 export async function executeDml(sql: string, project?: string): Promise<DmlResult> {
   const projectId = project || '';
   try {
@@ -358,6 +366,36 @@ export async function executeDml(sql: string, project?: string): Promise<DmlResu
   } catch (err: unknown) {
     throw new Error(`BigQuery DML failed: ${err instanceof Error ? err.message : String(err)}`);
   }
+}
+
+/**
+ * Create or replace a standard SQL view directly in BigQuery.
+ */
+export async function createBigQueryView(
+  project: string,
+  dataset: string,
+  viewName: string,
+  sql: string,
+  description?: string,
+): Promise<CreateViewResult> {
+  const cleanProj = project.trim();
+  const cleanDs = dataset.trim();
+  const cleanView = viewName.trim().replace(/[^a-zA-Z0-9_]/g, '_');
+  if (!cleanProj || !cleanDs || !cleanView) {
+    throw new Error('Project, dataset, and view name are required to create a BigQuery view.');
+  }
+  const descClause = description && description.trim()
+    ? ` OPTIONS(description=${JSON.stringify(description.trim())})`
+    : '';
+  const ddl = `CREATE OR REPLACE VIEW \`${cleanProj}.${cleanDs}.${cleanView}\`${descClause} AS\n${sql}`;
+  const dmlRes = await executeDml(ddl, cleanProj);
+  return {
+    fullTableId: `${cleanProj}.${cleanDs}.${cleanView}`,
+    project: cleanProj,
+    dataset: cleanDs,
+    viewName: cleanView,
+    jobId: dmlRes.jobId,
+  };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

@@ -1,5 +1,18 @@
 # Operations Ledger
 
+## 2026-08-28 -- Save queries directly to BigQuery as Views
+
+**What**: When users save a query or chart, provide direct persistence into BigQuery as a BigQuery View (`CREATE OR REPLACE VIEW \`project.dataset.viewName\` AS <sql>`).
+
+**Why**: Saving queries only into app-level storage (Firestore) meant users could not see or query their saved queries directly in BigQuery Console or connect them to external BI tools.
+
+**Fix**:
+1. `src/lib/bigquery-client.ts`: Added `createBigQueryView()` using DDL execution (`CREATE OR REPLACE VIEW \`project.dataset.viewName\` OPTIONS(...) AS <sql>`).
+2. `src/components/SaveModal.tsx`: Added BigQuery dataset selection, view name slugification/validation, and target preview (`` `project.dataset.view_name` ``).
+3. `src/hooks/useChatOrchestration.ts`: Extracted dataset from source SQL/context and invoked `createBigQueryView()` upon saving with confirmation in the chat stream.
+
+**Rule derived**: Saving queries or analytical artifacts with underlying SQL should always provide the option to persist directly to BigQuery as standard database Views so the logic is accessible directly in Google Cloud BigQuery.
+
 ## 2026-08-11 -- Persist chart data across sessions (dehydration/hydration)
 
 **What broke**: Charts and tables in old conversations were blank when re-opened. The conversation messages (including full result row arrays) were serialized into `messagesJson` in a single Firestore document per user. Large result sets pushed the document past Firestore's 1MB limit, causing `saveConversation()` to fail silently (`.catch(e => console.warn(...))`). Even when saves succeeded, the JSON payloads were unnecessarily large.

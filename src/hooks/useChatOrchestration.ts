@@ -27,6 +27,8 @@ import {
   nowISO,
 } from '@/lib/firestore-service';
 import { saveArtifact, recordRun } from '@/lib/saved-work';
+import { createBigQueryView, listDatasets } from '@/lib/bigquery-client';
+import type { BigQuerySaveOptions } from '@/components/SaveModal';
 import html2canvas from 'html2canvas';
 
 // ---- Types ----------------------------------------------------------------
@@ -115,9 +117,19 @@ export interface ChatOrchestrationReturn {
     type: SavedArtifactType;
     defaultName: string;
     defaultDescription: string;
+    thumbnailUrl?: string;
+    sql?: string;
+    defaultDataset?: string;
+    availableDatasets?: string[];
   } | null;
   saveEnvelopeAsArtifact: (envelope: CompositionEnvelope) => void;
-  handleSaveConfirm: (name: string, description: string, tags: string[]) => Promise<void>;
+  handleSaveConfirm: (
+    name: string,
+    description: string,
+    tags: string[],
+    parameters?: ParameterDef[],
+    bqOptions?: BigQuerySaveOptions,
+  ) => Promise<void>;
   handleSaveModalClose: () => void;
   saveChatAsWorkflow: (name: string, description: string, tags: string[]) => Promise<void>;
   runSavedArtifact: (artifact: SavedArtifact) => Promise<void>;
@@ -253,6 +265,9 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     defaultName: string;
     defaultDescription: string;
     thumbnailUrl?: string;
+    sql?: string;
+    defaultDataset?: string;
+    availableDatasets?: string[];
   } | null>(null);
   const saveModalRef = useRef(saveModalState);
   saveModalRef.current = saveModalState;
@@ -1391,6 +1406,22 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     }
     const defaultName = envelope.headline?.text?.slice(0, 80) || 'Untitled';
     const defaultDescription = envelope.insight || '';
+    const sql = envelope.provenance?.sql || '';
+
+    // Attempt to extract dataset from SQL or conversation state
+    let extractedDs = '';
+    if (sql) {
+      const m3 = sql.match(/(?:FROM|JOIN)\s+`?[a-zA-Z0-9_-]+`?\.`?([a-zA-Z0-9_]+)`?\.`?[a-zA-Z0-9_]+`?/i);
+      if (m3 && m3[1]) {
+        extractedDs = m3[1];
+      } else {
+        const m2 = sql.match(/(?:FROM|JOIN)\s+`?([a-zA-Z0-9_]+)`?\.`?[a-zA-Z0-9_]+`?/i);
+        if (m2 && m2[1]) extractedDs = m2[1];
+      }
+    }
+    if (!extractedDs) {
+      extractedDs = context.dataset || conversationState.activeDataset || '';
+    }
 
     // Open modal immediately, then capture thumbnail in the background
     setSaveModalState({
@@ -1399,7 +1430,18 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       type,
       defaultName,
       defaultDescription,
+      sql,
+      defaultDataset: extractedDs,
+      availableDatasets: context.availableDatasets || [],
     });
+
+    // If availableDatasets is not in context, fetch in background
+    if (activeProject && (!context.availableDatasets || context.availableDatasets.length === 0)) {
+      listDatasets(activeProject).then(datasets => {
+        const dsIds = datasets.map(d => d.datasetId).filter(Boolean);
+        setSaveModalState(prev => prev ? { ...prev, availableDatasets: dsIds } : prev);
+      }).catch(() => {});
+    }
 
     // Capture screenshot of the artifact card DOM element
     const el = document.querySelector(`[data-envelope-id="${envelope.id}"]`) as HTMLElement | null;
@@ -1416,9 +1458,15 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
         // Silently fail -- fallback SVG thumbnail will be used
       });
     }
-  }, []);
+  }, [context.dataset, context.availableDatasets, conversationState.activeDataset, activeProject]);
 
-  const handleSaveConfirm = useCallback(async (name: string, description: string, tags: string[]) => {
+  const handleSaveConfirm = useCallback(async (
+    name: string,
+    description: string,
+    tags: string[],
+    parameters?: ParameterDef[],
+    bqOptions?: BigQuerySaveOptions,
+  ) => {
     // Read from ref to avoid stale closure on saveModalState
     const modal = saveModalRef.current;
     if (!user || !modal?.envelope) {
@@ -1426,15 +1474,36 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       return;
     }
     const env = modal.envelope;
+    const sql = env.provenance?.sql;
     const step: ArtifactStep = {
       id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36),
       order: 0,
       skill: env.skill,
       prompt: name,
-      cachedSql: env.provenance?.sql,
+      cachedSql: sql,
       visualizationType: env.primaryArtifact?.type,
-      parameters: env.extractedParameters,
+      parameters: parameters || env.extractedParameters,
     };
+
+    let bqViewCreated: string | null = null;
+    let bqError: string | null = null;
+
+    if (bqOptions?.saveAsView && bqOptions.dataset && bqOptions.viewName && sql && activeProject) {
+      try {
+        const res = await createBigQueryView(
+          activeProject,
+          bqOptions.dataset,
+          bqOptions.viewName,
+          sql,
+          description,
+        );
+        bqViewCreated = res.fullTableId;
+      } catch (err) {
+        console.error('Failed to create BigQuery view:', err);
+        bqError = err instanceof Error ? err.message : String(err);
+      }
+    }
+
     try {
       await saveArtifact(user.uid, {
         userId: user.uid,
@@ -1442,18 +1511,26 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
         name,
         description,
         steps: [step],
-        parameters: env.extractedParameters || [],
+        parameters: parameters || env.extractedParameters || [],
         project: activeProject || undefined,
         tags,
         pinned: false,
         thumbnailUrl: modal.thumbnailUrl,
       });
       setSaveCount(n => n + 1);
+
       // Confirm in chat
       const now = new Date().toISOString();
+      let confirmMsg = `Saved "${name}" to your Library.`;
+      if (bqViewCreated) {
+        confirmMsg = `Created BigQuery view \`${bqViewCreated}\` and saved "${name}" to your Library.`;
+      } else if (bqError) {
+        confirmMsg = `Saved "${name}" to Library, but failed to create BigQuery view: ${bqError}`;
+      }
+
       setMessages(prev => [
         ...prev,
-        { role: 'assistant', content: `Saved "${name}" to your Library.`, timestamp: now, envelopes: [] },
+        { role: 'assistant', content: confirmMsg, timestamp: now, envelopes: [] },
       ]);
       setSaveModalState(null);
     } catch (err) {

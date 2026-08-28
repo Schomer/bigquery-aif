@@ -584,6 +584,10 @@ export default function Home() {
           defaultName={chat.saveModalState.defaultName}
           defaultDescription={chat.saveModalState.defaultDescription}
           artifactType={chat.saveModalState.type}
+          sql={chat.saveModalState.sql}
+          project={activeProject || undefined}
+          defaultDataset={chat.saveModalState.defaultDataset}
+          availableDatasets={chat.saveModalState.availableDatasets}
         />
       )}
       {/* Save as Workflow modal */}

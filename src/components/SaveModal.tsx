@@ -10,14 +10,38 @@ const TYPE_LABELS: Record<SavedArtifactType, string> = {
   app: 'App',
 };
 
+export interface BigQuerySaveOptions {
+  saveAsView: boolean;
+  dataset: string;
+  viewName: string;
+}
+
 interface SaveModalProps {
   open: boolean;
   onClose: () => void;
-  onSave: (name: string, description: string, tags: string[], parameters?: ParameterDef[]) => void;
+  onSave: (
+    name: string,
+    description: string,
+    tags: string[],
+    parameters?: ParameterDef[],
+    bqOptions?: BigQuerySaveOptions,
+  ) => void;
   defaultName?: string;
   defaultDescription?: string;
   artifactType: SavedArtifactType;
   sql?: string;  // W3-14: SQL to scan for @param patterns
+  project?: string;
+  defaultDataset?: string;
+  availableDatasets?: string[];
+  isSaving?: boolean;
+}
+
+function slugifyViewName(str: string): string {
+  let slug = str.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  if (/^[0-9]/.test(slug)) {
+    slug = 'v_' + slug;
+  }
+  return slug || 'my_view';
 }
 
 export function SaveModal({
@@ -28,11 +52,23 @@ export function SaveModal({
   defaultDescription = '',
   artifactType,
   sql = '',
+  project = '',
+  defaultDataset = '',
+  availableDatasets = [],
+  isSaving = false,
 }: SaveModalProps) {
   const [name, setName] = useState(defaultName);
   const [description, setDescription] = useState(defaultDescription);
   const [tagsInput, setTagsInput] = useState('');
   const [showParams, setShowParams] = useState(false);
+
+  // BigQuery View destination state
+  const hasSql = Boolean(sql && sql.trim());
+  const [saveAsView, setSaveAsView] = useState(hasSql);
+  const [dataset, setDataset] = useState(defaultDataset);
+  const [viewName, setViewName] = useState(() => slugifyViewName(defaultName));
+  const [userEditedViewName, setUserEditedViewName] = useState(false);
+
   // W3-14: auto-detect @param patterns in SQL
   const [parameters, setParameters] = useState<ParameterDef[]>(() => {
     const found = new Set<string>();
@@ -48,13 +84,18 @@ export function SaveModal({
     setName(defaultName);
     setDescription(defaultDescription);
     setTagsInput('');
+    setDataset(defaultDataset);
+    setViewName(slugifyViewName(defaultName));
+    setUserEditedViewName(false);
+    setSaveAsView(Boolean(sql && sql.trim()));
+
     // Re-detect params when SQL changes
     const found = new Set<string>();
     const re = /@([a-zA-Z_][a-zA-Z0-9_]*)/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(sql)) !== null) found.add(m[1]);
     setParameters(Array.from(found).map(n => ({ name: n, type: 'string' as const, description: '', required: false })));
-  }, [defaultName, defaultDescription, open, sql]);
+  }, [defaultName, defaultDescription, defaultDataset, open, sql]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -67,14 +108,30 @@ export function SaveModal({
     }
   }, [open]);
 
+  function handleNameChange(newName: string) {
+    setName(newName);
+    if (!userEditedViewName) {
+      setViewName(slugifyViewName(newName));
+    }
+  }
+
   function handleSave() {
     const trimmed = name.trim();
-    if (!trimmed) return;
+    if (!trimmed || isSaving) return;
     const tags = tagsInput
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean);
-    onSave(trimmed, description.trim(), tags, parameters.length > 0 ? parameters : undefined);
+
+    const bqOptions: BigQuerySaveOptions | undefined = hasSql && saveAsView
+      ? {
+          saveAsView: true,
+          dataset: dataset.trim(),
+          viewName: viewName.trim().replace(/[^a-zA-Z0-9_]/g, '_'),
+        }
+      : undefined;
+
+    onSave(trimmed, description.trim(), tags, parameters.length > 0 ? parameters : undefined, bqOptions);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -84,6 +141,10 @@ export function SaveModal({
     }
   }
 
+  const isFormValid =
+    name.trim().length > 0 &&
+    (!saveAsView || (dataset.trim().length > 0 && viewName.trim().length > 0));
+
   return (
     <dialog
       ref={dialogRef}
@@ -92,8 +153,10 @@ export function SaveModal({
         border: 'none',
         borderRadius: 16,
         padding: 0,
-        maxWidth: 480,
+        maxWidth: 520,
         width: '90vw',
+        maxHeight: '90vh',
+        overflowY: 'auto',
         boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
         fontFamily: "'Google Sans', sans-serif",
         position: 'fixed',
@@ -114,7 +177,7 @@ export function SaveModal({
             ref={nameRef}
             type="text"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => handleNameChange(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="e.g. Weekly sales report"
             style={{
@@ -130,13 +193,112 @@ export function SaveModal({
           />
         </label>
 
+        {/* BigQuery destination section */}
+        {hasSql && (
+          <div style={{
+            background: 'var(--bg-secondary, #f8f9fa)',
+            border: '1px solid var(--border, #dadce0)',
+            borderRadius: 10,
+            padding: '14px 16px',
+            marginBottom: 16,
+          }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: saveAsView ? 12 : 0 }}>
+              <input
+                type="checkbox"
+                checked={saveAsView}
+                onChange={(e) => setSaveAsView(e.target.checked)}
+                style={{ width: 16, height: 16, cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #1a1a1a)' }}>
+                Save as BigQuery View
+              </span>
+            </label>
+
+            {saveAsView && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <label style={{ display: 'block' }}>
+                    <span style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary, #5f6368)', marginBottom: 4 }}>
+                      BigQuery Dataset
+                    </span>
+                    <input
+                      type="text"
+                      list="save-modal-datasets"
+                      value={dataset}
+                      onChange={(e) => setDataset(e.target.value)}
+                      placeholder="e.g. analytics"
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        fontSize: 13,
+                        border: '1px solid var(--border, #dadce0)',
+                        borderRadius: 6,
+                        background: 'white',
+                        fontFamily: "'Google Sans', sans-serif",
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                    {availableDatasets && availableDatasets.length > 0 && (
+                      <datalist id="save-modal-datasets">
+                        {availableDatasets.map((ds) => (
+                          <option key={ds} value={ds} />
+                        ))}
+                      </datalist>
+                    )}
+                  </label>
+
+                  <label style={{ display: 'block' }}>
+                    <span style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary, #5f6368)', marginBottom: 4 }}>
+                      View Name
+                    </span>
+                    <input
+                      type="text"
+                      value={viewName}
+                      onChange={(e) => {
+                        setViewName(e.target.value);
+                        setUserEditedViewName(true);
+                      }}
+                      placeholder="e.g. sales_summary"
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        fontSize: 13,
+                        border: '1px solid var(--border, #dadce0)',
+                        borderRadius: 6,
+                        background: 'white',
+                        fontFamily: "'Google Sans', monospace",
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </label>
+                </div>
+
+                <div style={{
+                  fontSize: 11,
+                  color: 'var(--text-secondary, #5f6368)',
+                  background: 'white',
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: '1px solid var(--border, #dadce0)',
+                  fontFamily: 'monospace',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}>
+                  Target: {project || 'project'}.{dataset || 'dataset'}.{viewName || 'view_name'}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <label style={{ display: 'block', marginBottom: 16 }}>
           <span style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary, #5f6368)', marginBottom: 6 }}>Description</span>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="What does this do?"
-            rows={3}
+            rows={2}
             style={{
               width: '100%',
               padding: '10px 14px',
@@ -238,6 +400,7 @@ export function SaveModal({
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
           <button
             onClick={onClose}
+            disabled={isSaving}
             style={{
               padding: '12px 28px',
               fontSize: 14,
@@ -246,7 +409,7 @@ export function SaveModal({
               borderRadius: 12,
               background: 'white',
               color: 'var(--text, #1a1a1a)',
-              cursor: 'pointer',
+              cursor: isSaving ? 'default' : 'pointer',
               fontFamily: "'Google Sans', sans-serif",
             }}
           >
@@ -254,20 +417,20 @@ export function SaveModal({
           </button>
           <button
             onClick={handleSave}
-            disabled={!name.trim()}
+            disabled={!isFormValid || isSaving}
             style={{
               padding: '12px 28px',
               fontSize: 14,
               fontWeight: 600,
               border: 'none',
               borderRadius: 12,
-              background: name.trim() ? '#496CC3' : '#dadce0',
-              color: name.trim() ? 'white' : '#80868b',
-              cursor: name.trim() ? 'pointer' : 'default',
+              background: isFormValid && !isSaving ? '#496CC3' : '#dadce0',
+              color: isFormValid && !isSaving ? 'white' : '#80868b',
+              cursor: isFormValid && !isSaving ? 'pointer' : 'default',
               fontFamily: "'Google Sans', sans-serif",
             }}
           >
-            Save
+            {isSaving ? 'Saving...' : (saveAsView ? 'Save & Create View' : 'Save')}
           </button>
         </div>
       </div>
