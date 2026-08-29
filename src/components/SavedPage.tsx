@@ -774,13 +774,12 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
     setStudioLoading(true);
     setStudioError(null);
     try {
-      inspectAllDataformAssets(activeProject)
-        .then((res) => setInspectionData(res))
-        .catch(() => {});
-      const ws = await ensureStudioWorkspace(activeProject);
-      setStudioWorkspace(ws);
-      const list = await listStudioSavedQueries(ws.projectId, ws.location, ws.repositoryId, ws.workspaceId);
-      setStudioQueries(list);
+      const [allAssets, ws] = await Promise.all([
+        listStudioSavedQueries(activeProject),
+        ensureStudioWorkspace(activeProject).catch(() => null),
+      ]);
+      if (ws) setStudioWorkspace(ws);
+      setStudioQueries(allAssets);
     } catch (err: any) {
       console.warn('BigQuery Studio load warning:', err);
       setStudioError(err?.message || 'Could not connect to BigQuery Studio repository.');
@@ -1706,14 +1705,17 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
   }
 
   async function handleRunStudioQuery(query: StudioQueryItem) {
-    if (!activeProject || !studioWorkspace) return;
+    if (!activeProject) return;
     setRunningStudioPath(query.path);
     try {
+      const loc = query.location || studioWorkspace?.location || 'us-west2';
+      const repoId = query.repositoryId || studioWorkspace?.repositoryId || '';
+      const wsId = query.workspaceId || studioWorkspace?.workspaceId;
       const sql = await readStudioSavedQuery(
-        studioWorkspace.projectId,
-        studioWorkspace.location,
-        studioWorkspace.repositoryId,
-        studioWorkspace.workspaceId,
+        activeProject,
+        loc,
+        repoId,
+        wsId,
         query.path,
       );
 
@@ -1750,13 +1752,16 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
   }
 
   async function handleCopyStudioSql(query: StudioQueryItem) {
-    if (!studioWorkspace) return;
+    if (!activeProject) return;
     try {
+      const loc = query.location || studioWorkspace?.location || 'us-west2';
+      const repoId = query.repositoryId || studioWorkspace?.repositoryId || '';
+      const wsId = query.workspaceId || studioWorkspace?.workspaceId;
       const sql = await readStudioSavedQuery(
-        studioWorkspace.projectId,
-        studioWorkspace.location,
-        studioWorkspace.repositoryId,
-        studioWorkspace.workspaceId,
+        activeProject,
+        loc,
+        repoId,
+        wsId,
         query.path,
       );
       await navigator.clipboard.writeText(sql);
@@ -2021,53 +2026,6 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
 
   return (
     <div style={S.container}>
-      {inspectionData && inspectionData.length > 0 && (
-        <div style={{
-          background: '#f8f9fa',
-          border: '1px solid var(--border, #dadce0)',
-          borderRadius: 8,
-          padding: 14,
-          marginBottom: 20,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#1967d2' }}>
-              GCP Dataform Discovery Report ({inspectionData.length} repositories found)
-            </span>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(JSON.stringify(inspectionData, null, 2));
-                alert('Copied inspection JSON to clipboard!');
-              }}
-              style={{
-                fontSize: 12,
-                padding: '6px 14px',
-                background: '#1967d2',
-                color: 'white',
-                border: 'none',
-                borderRadius: 4,
-                cursor: 'pointer',
-                fontFamily: "'Google Sans', sans-serif",
-                fontWeight: 500,
-              }}
-            >
-              Copy JSON
-            </button>
-          </div>
-          <pre style={{
-            margin: 0,
-            fontSize: 11,
-            background: '#202124',
-            color: '#8ab4f8',
-            padding: 12,
-            borderRadius: 6,
-            overflowX: 'auto',
-            maxHeight: 280,
-          }}>
-            {JSON.stringify(inspectionData, null, 2)}
-          </pre>
-        </div>
-      )}
-
       {/* Header */}
       <div style={S.header}>
         <h1 style={S.title}>{TAB_TITLES[activeTab] ?? 'Library'}</h1>

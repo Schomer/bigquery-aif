@@ -29,7 +29,7 @@ import {
 import { saveArtifact, recordRun } from '@/lib/saved-work';
 import { createBigQueryView, listDatasets } from '@/lib/bigquery-client';
 import type { BigQuerySaveOptions, StudioSaveOptions } from '@/components/SaveModal';
-import { ensureStudioWorkspace, saveStudioSavedQuery } from '@/lib/dataform-client';
+import { ensureStudioWorkspace, saveStudioSavedQuery, saveNativeStudioQuery } from '@/lib/dataform-client';
 import html2canvas from 'html2canvas';
 
 // ---- Types ----------------------------------------------------------------
@@ -1512,19 +1512,15 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
 
     if (studioOptions?.saveToStudio && sql && activeProject) {
       try {
-        const ws = await ensureStudioWorkspace(activeProject);
-        const res = await saveStudioSavedQuery(
-          ws.projectId,
-          ws.location,
-          ws.repositoryId,
-          ws.workspaceId,
-          studioOptions.queryFileName,
+        const res = await saveNativeStudioQuery(
+          activeProject,
+          name,
           sql,
           description,
         );
-        studioSavedPath = res.path;
+        studioSavedPath = `Queries/${res.name}`;
       } catch (err) {
-        console.warn('Failed to save query to BigQuery Studio:', err);
+        console.warn('Failed to save native BigQuery Studio query:', err);
       }
     }
 
