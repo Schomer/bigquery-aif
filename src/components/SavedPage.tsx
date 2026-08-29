@@ -1903,29 +1903,85 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
 
   function renderContent() {
     if (activeTab === 'studio') {
-      if (studioLoading) return renderSkeleton();
+      const inspectionBanner = inspectionData && inspectionData.length > 0 ? (
+        <div style={{
+          background: '#f8f9fa',
+          border: '1px solid var(--border, #dadce0)',
+          borderRadius: 8,
+          padding: 14,
+          marginBottom: 20,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#1967d2' }}>
+              GCP Dataform Discovery Report ({inspectionData.length} repositories found)
+            </span>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(JSON.stringify(inspectionData, null, 2));
+                alert('Copied inspection JSON to clipboard!');
+              }}
+              style={{
+                fontSize: 12,
+                padding: '4px 12px',
+                background: '#1967d2',
+                color: 'white',
+                border: 'none',
+                borderRadius: 4,
+                cursor: 'pointer',
+                fontFamily: "'Google Sans', sans-serif",
+              }}
+            >
+              Copy JSON
+            </button>
+          </div>
+          <pre style={{
+            margin: 0,
+            fontSize: 11,
+            background: '#202124',
+            color: '#8ab4f8',
+            padding: 12,
+            borderRadius: 6,
+            overflowX: 'auto',
+            maxHeight: 280,
+          }}>
+            {JSON.stringify(inspectionData, null, 2)}
+          </pre>
+        </div>
+      ) : null;
+
+      if (studioLoading) {
+        return (
+          <div>
+            {inspectionBanner}
+            {renderSkeleton()}
+          </div>
+        );
+      }
 
       if (studioError) {
         return (
-          <div style={S.emptyState}>
-            <span className="material-symbols-outlined" style={{ ...S.emptyIcon, color: 'var(--issue, #d93025)' }}>
-              cloud_off
-            </span>
-            <div style={S.emptyTitle}>BigQuery Studio Connection</div>
-            <div style={S.emptyDesc}>{studioError}</div>
-            <div style={{ marginTop: 16, display: 'flex', gap: 10, justifyContent: 'center' }}>
-              <button style={S.runBtn} onClick={loadStudioData}>Retry</button>
-              {activeProject && (
-                <a
-                  href={`https://console.cloud.google.com/bigquery?project=${encodeURIComponent(activeProject)}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ ...S.outlineBtn, display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
-                >
-                  Open Console
-                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>open_in_new</span>
-                </a>
-              )}
+          <div>
+            {inspectionBanner}
+            <div style={S.emptyState}>
+              <span className="material-symbols-outlined" style={{ ...S.emptyIcon, color: 'var(--issue, #d93025)' }}>
+                cloud_off
+              </span>
+              <div style={S.emptyTitle}>BigQuery Studio Connection</div>
+              <div style={S.emptyDesc}>{studioError}</div>
+              <div style={{ marginTop: 16, display: 'flex', gap: 10, justifyContent: 'center' }}>
+                <button style={S.runBtn} onClick={loadStudioData}>Retry</button>
+                {activeProject && (
+                  <a
+                    href={`https://console.cloud.google.com/bigquery?project=${encodeURIComponent(activeProject)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ ...S.outlineBtn, display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
+                  >
+                    Open Console
+                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>open_in_new</span>
+                  </a>
+                )}
+              </div>
             </div>
           </div>
         );
@@ -1937,13 +1993,16 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
 
       if (filteredStudio.length === 0) {
         return (
-          <div style={S.emptyState}>
-            <span className="material-symbols-outlined" style={S.emptyIcon}>
-              code
-            </span>
-            <div style={S.emptyTitle}>No BigQuery Studio queries found</div>
-            <div style={S.emptyDesc}>
-              Queries saved with "Save to BigQuery Studio" will automatically appear here and sync with your GCP BigQuery Studio workspace.
+          <div>
+            {inspectionBanner}
+            <div style={S.emptyState}>
+              <span className="material-symbols-outlined" style={S.emptyIcon}>
+                code
+              </span>
+              <div style={S.emptyTitle}>No BigQuery Studio queries found</div>
+              <div style={S.emptyDesc}>
+                Queries saved with "Save to BigQuery Studio" will automatically appear here and sync with your GCP BigQuery Studio workspace.
+              </div>
             </div>
           </div>
         );
@@ -1951,43 +2010,20 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
 
       if (viewMode === 'list') {
         return (
-          <table style={S.listTable}>
-            <tbody>
-              {filteredStudio.map((q) => renderStudioRow(q))}
-            </tbody>
-          </table>
+          <div>
+            {inspectionBanner}
+            <table style={S.listTable}>
+              <tbody>
+                {filteredStudio.map((q) => renderStudioRow(q))}
+              </tbody>
+            </table>
+          </div>
         );
       }
 
       return (
         <div>
-          {inspectionData && inspectionData.length > 0 && (
-            <div style={{
-              background: '#f8f9fa',
-              border: '1px solid var(--border, #dadce0)',
-              borderRadius: 8,
-              padding: 12,
-              marginBottom: 20,
-            }}>
-              <details>
-                <summary style={{ fontSize: 13, fontWeight: 600, color: '#1967d2', cursor: 'pointer' }}>
-                  GCP Dataform Discovery Report ({inspectionData.length} repositories found)
-                </summary>
-                <pre style={{
-                  marginTop: 10,
-                  fontSize: 11,
-                  background: '#202124',
-                  color: '#8ab4f8',
-                  padding: 12,
-                  borderRadius: 6,
-                  overflowX: 'auto',
-                  maxHeight: 280,
-                }}>
-                  {JSON.stringify(inspectionData, null, 2)}
-                </pre>
-              </details>
-            </div>
-          )}
+          {inspectionBanner}
           <div style={S.grid}>
             {filteredStudio.map((q) => renderStudioCard(q))}
           </div>
