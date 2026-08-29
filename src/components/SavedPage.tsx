@@ -758,6 +758,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [dragOverBreadcrumb, setDragOverBreadcrumb] = useState(false);
+  const [inspectionData, setInspectionData] = useState<any[] | null>(null);
 
   // ── Data loading ─────────────────────────────────────────────────────────
 
@@ -766,7 +767,9 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
     setStudioLoading(true);
     setStudioError(null);
     try {
-      inspectAllDataformAssets(activeProject).catch(() => {});
+      inspectAllDataformAssets(activeProject)
+        .then((res) => setInspectionData(res))
+        .catch(() => {});
       const ws = await ensureStudioWorkspace(activeProject);
       setStudioWorkspace(ws);
       const list = await listStudioSavedQueries(ws.projectId, ws.location, ws.repositoryId, ws.workspaceId);
@@ -1957,8 +1960,37 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
       }
 
       return (
-        <div style={S.grid}>
-          {filteredStudio.map((q) => renderStudioCard(q))}
+        <div>
+          {inspectionData && inspectionData.length > 0 && (
+            <div style={{
+              background: '#f8f9fa',
+              border: '1px solid var(--border, #dadce0)',
+              borderRadius: 8,
+              padding: 12,
+              marginBottom: 20,
+            }}>
+              <details>
+                <summary style={{ fontSize: 13, fontWeight: 600, color: '#1967d2', cursor: 'pointer' }}>
+                  GCP Dataform Discovery Report ({inspectionData.length} repositories found)
+                </summary>
+                <pre style={{
+                  marginTop: 10,
+                  fontSize: 11,
+                  background: '#202124',
+                  color: '#8ab4f8',
+                  padding: 12,
+                  borderRadius: 6,
+                  overflowX: 'auto',
+                  maxHeight: 280,
+                }}>
+                  {JSON.stringify(inspectionData, null, 2)}
+                </pre>
+              </details>
+            </div>
+          )}
+          <div style={S.grid}>
+            {filteredStudio.map((q) => renderStudioCard(q))}
+          </div>
         </div>
       );
     }

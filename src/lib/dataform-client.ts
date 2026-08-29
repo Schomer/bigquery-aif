@@ -80,7 +80,7 @@ export async function listDataformRepositories(
 export async function inspectAllDataformAssets(project: string): Promise<any[]> {
   const regions = [
     'us-central1', 'us-east1', 'us-east4', 'us-west1', 'us-west2', 'us-south1',
-    'us', 'europe-west1', 'europe-west2', 'europe-west3', 'europe-west4'
+    'europe-west1', 'europe-west2', 'europe-west3', 'europe-west4'
   ];
   const results: any[] = [];
 
@@ -90,10 +90,28 @@ export async function inspectAllDataformAssets(project: string): Promise<any[]> 
       if (repos && repos.length > 0) {
         for (const repo of repos) {
           const workspaces = await listDataformWorkspaces(project, loc, repo.id);
+          const workspaceDetails: any[] = [];
+
+          if (workspaces && workspaces.length > 0) {
+            for (const ws of workspaces) {
+              let wsFiles: any = null;
+              try {
+                const dirUrl = `${DATAFORM_BASE}/${encodeURIComponent(project)}/locations/${encodeURIComponent(loc)}/repositories/${encodeURIComponent(repo.id)}/workspaces/${encodeURIComponent(ws.id)}:fetchFileGitStatuses`;
+                wsFiles = await dataformFetch(dirUrl);
+              } catch {
+                // ignore
+              }
+              workspaceDetails.push({
+                workspace: ws,
+                gitStatuses: wsFiles,
+              });
+            }
+          }
+
           results.push({
             location: loc,
             repo: repo.raw || repo,
-            workspaces,
+            workspaces: workspaceDetails,
           });
         }
       }
@@ -102,7 +120,7 @@ export async function inspectAllDataformAssets(project: string): Promise<any[]> 
     }
   }
 
-  console.log('[Dataform Full Inspection Report]', results);
+  console.log('DATAFORM_INSPECTION_JSON:\n' + JSON.stringify(results, null, 2));
   return results;
 }
 
