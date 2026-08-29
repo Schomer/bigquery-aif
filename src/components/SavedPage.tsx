@@ -29,6 +29,7 @@ import {
   ensureStudioWorkspace,
   listStudioSavedQueries,
   readStudioSavedQuery,
+  inspectAllDataformAssets,
 } from '@/lib/dataform-client';
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -765,6 +766,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
     setStudioLoading(true);
     setStudioError(null);
     try {
+      inspectAllDataformAssets(activeProject).catch(() => {});
       const ws = await ensureStudioWorkspace(activeProject);
       setStudioWorkspace(ws);
       const list = await listStudioSavedQueries(ws.projectId, ws.location, ws.repositoryId, ws.workspaceId);

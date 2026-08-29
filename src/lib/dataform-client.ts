@@ -57,15 +57,16 @@ async function dataformFetch(url: string, init?: RequestInit): Promise<any> {
 export async function listDataformRepositories(
   project: string,
   location: string,
-): Promise<Array<{ id: string; name: string }>> {
+): Promise<Array<{ id: string; name: string; displayName?: string; labels?: Record<string, string>; raw?: any }>> {
   const url = `${DATAFORM_BASE}/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/repositories`;
   try {
     const data = await dataformFetch(url);
     const repos = data.repositories || [];
+    console.log(`[Dataform API] Repositories in ${project}/${location}:`, repos);
     return repos.map((r: any) => {
       const parts = (r.name || '').split('/');
       const id = parts[parts.length - 1] || r.name;
-      return { id, name: r.name };
+      return { id, name: r.name, displayName: r.displayName, labels: r.labels, raw: r };
     });
   } catch (err: any) {
     // If Dataform API is not yet enabled or no repos found, return empty array
@@ -74,6 +75,35 @@ export async function listDataformRepositories(
     }
     throw err;
   }
+}
+
+export async function inspectAllDataformAssets(project: string): Promise<any[]> {
+  const regions = [
+    'us-central1', 'us-east1', 'us-east4', 'us-west1', 'us-west2', 'us-south1',
+    'us', 'europe-west1', 'europe-west2', 'europe-west3', 'europe-west4'
+  ];
+  const results: any[] = [];
+
+  for (const loc of regions) {
+    try {
+      const repos = await listDataformRepositories(project, loc);
+      if (repos && repos.length > 0) {
+        for (const repo of repos) {
+          const workspaces = await listDataformWorkspaces(project, loc, repo.id);
+          results.push({
+            location: loc,
+            repo: repo.raw || repo,
+            workspaces,
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  console.log('[Dataform Full Inspection Report]', results);
+  return results;
 }
 
 export async function createDataformRepository(
