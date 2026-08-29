@@ -194,10 +194,15 @@ export async function ensureStudioWorkspace(
   const workspaces = await listDataformWorkspaces(project, location, repoId);
   let workspaceId = workspaces.length > 0 ? workspaces[0].id : '';
 
-  // 4. If no workspace exists, create 'main'
+  // 4. If no workspace exists, create 'studio-workspace' (Dataform forbids naming workspaces the same as the default branch like 'main'/'master')
   if (!workspaceId) {
-    const newWs = await createDataformWorkspace(project, location, repoId, 'main');
-    workspaceId = newWs.id;
+    try {
+      const newWs = await createDataformWorkspace(project, location, repoId, 'studio-workspace');
+      workspaceId = newWs.id;
+    } catch {
+      const fallbackWs = await createDataformWorkspace(project, location, repoId, 'workspace');
+      workspaceId = fallbackWs.id;
+    }
   }
 
   return {
