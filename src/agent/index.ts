@@ -295,6 +295,18 @@ export async function processWithAgentLoop({
     // priority: present_result > query (see invariants.md).
     const hasPresentResult = successEvents.some(e => e.tool_name === 'present_result');
 
+    // When a primary action occurred (query, DML, pipeline, export, present_result),
+    // schema lookups (get_schema, list_resources) were preparatory steps and
+    // should not produce redundant SCHEMA_VIEW cards.
+    // Only build a SCHEMA_VIEW when schema inspection was the terminal action.
+    const hasPrimaryAction = successEvents.some(e =>
+      e.tool_name === 'run_query' ||
+      e.tool_name === 'execute_dml' ||
+      e.tool_name === 'manage_pipeline' ||
+      e.tool_name === 'export_data' ||
+      e.tool_name === 'present_result'
+    );
+
     // Track which schema scopes we've already rendered to avoid duplicates.
     // When the AI calls get_schema(dataset=X) and then get_schema(dataset=X, table=Y),
     // the dataset-level call was a preparatory step -- only render the table-level one.
@@ -474,6 +486,13 @@ export async function processWithAgentLoop({
 
       // ── Schema / list_resources result ───────────────────────────────────
       if (tool === 'get_schema' || tool === 'list_resources') {
+        // Skip schema cards when a primary action (query, DML, pipeline, export, present_result)
+        // was executed. Schema fetches are preparatory context-gathering steps for queries/mutations.
+        // Only build a SCHEMA_VIEW when schema inspection was the terminal action.
+        if (hasPrimaryAction) {
+          continue;
+        }
+
         const args = event.tool_args ?? {};
         const dataset = (args.dataset as string) || '';
         const table = (args.table as string) || '';

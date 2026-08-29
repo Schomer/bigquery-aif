@@ -1,5 +1,17 @@
 # Operations Ledger
 
+## 2026-08-28 -- Suppress preparatory schema cards when primary actions (queries/DML/exports) are executed
+
+**What broke**: For every analytical query prompt (e.g. "Top 20 Items by total sales", "by item_description"), the response displayed two result cards: a table schema card (`Schema: dataset.table`) and a query chart/table card (`Top 20 Items by Total Sales`).
+
+**Root cause**: In `processWithAgentLoop` (`src/agent/index.ts`), envelope construction iterated through all successful tool events and generated a card for every tool call without distinguishing primary results from preparatory lookups. Since the agent always calls `get_schema` before writing SQL to verify table schemas, `get_schema` produced a `SCHEMA_VIEW` card alongside the `run_query` card on every turn.
+
+**Fix applied**:
+1. `src/agent/index.ts`: Added `hasPrimaryAction` check (`run_query`, `execute_dml`, `manage_pipeline`, `export_data`, `present_result`). When a primary action succeeds, preparatory `get_schema` and `list_resources` calls are skipped during envelope generation, producing only the primary result envelope(s). `SCHEMA_VIEW` envelopes are now only generated when schema inspection/exploration is the terminal action (e.g. "show schema for X", "list tables in Y").
+2. `src/agent/prompts/flash.ts`: Updated `MULTI-RESULT DISPLAY` and `TABLE OVERVIEW` sections to clarify that schema lookups used as preparatory steps before queries do not produce separate cards, while multiple data queries (preview + profile) continue to produce their respective cards.
+
+**Rule derived**: Schema tool calls (`get_schema`, `list_resources`) executed alongside primary actions (`run_query`, `execute_dml`, `manage_pipeline`, `export_data`, `present_result`) are internal context-gathering steps and must not emit redundant `SCHEMA_VIEW` cards in the UI.
+
 ## 2026-08-28 -- BigQuery Studio (Dataform) saved query integration and two-way sync
 
 **What**: Connected BigQuery Studio saved queries via Google Cloud Dataform API (`dataform.googleapis.com`). Users can save queries as BigQuery Studio SQL code assets (`queries/<name>.sql`), browse existing Studio queries under a dedicated "BigQuery Studio" Library tab, preview/copy SQL, and execute them directly in chat.

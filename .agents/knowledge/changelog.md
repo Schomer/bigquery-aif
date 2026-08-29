@@ -2,6 +2,12 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-08-28 -- Suppress redundant schema cards on query and analytical responses
+
+- Updated `processWithAgentLoop` in `src/agent/index.ts` to suppress preparatory `get_schema` and `list_resources` cards when primary actions (`run_query`, `execute_dml`, `manage_pipeline`, `export_data`, `present_result`) are executed in the same turn.
+- Updated `src/agent/prompts/flash.ts` prompt guidelines for `MULTI-RESULT DISPLAY` and `TABLE OVERVIEW` to clarify that schema lookups are internal preparatory lookups for queries, eliminating dual schema+chart card generation on analytical queries.
+- Verified test suite: 152 vitest unit tests passing, snapshot tests passing.
+
 ## 2026-08-28 -- BigQuery Studio (Dataform) saved query integration and two-way sync
 
 - Created `src/lib/dataform-client.ts` to manage BigQuery Studio code assets via the Google Cloud Dataform REST API (`dataform.googleapis.com`), including auto-discovery/initialization of `studio-queries` repository and `main` workspace.

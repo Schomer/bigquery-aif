@@ -6,6 +6,10 @@ Last updated: 2026-07-21
 
 ## Recent Changes
 
+### 2026-08-28: flash.ts -- multi-result display & table overview clarification
+- **File**: `src/agent/prompts/flash.ts`
+- **Updated**: `MULTI-RESULT DISPLAY` and `TABLE OVERVIEW` sections to clarify that schema lookups are preparatory context-gathering steps when writing queries, and will not emit separate cards. Multiple data queries (e.g. data preview + profile) still produce their own cards.
+
 ### 2026-07-21: query.md -- anti-fabrication rule + WIDGET_SPEC concrete example
 - **File**: `public/skills/query.md`
 - **Added**: SQL rule "NEVER fabricate or invent aggregate categories the data does not contain" -- prevents the LLM from inventing values like "World", "Asia", "Europe" when the user asks "by country" and the source table has no such aggregates.
