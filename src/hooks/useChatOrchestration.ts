@@ -28,7 +28,8 @@ import {
 } from '@/lib/firestore-service';
 import { saveArtifact, recordRun } from '@/lib/saved-work';
 import { createBigQueryView, listDatasets } from '@/lib/bigquery-client';
-import type { BigQuerySaveOptions } from '@/components/SaveModal';
+import type { BigQuerySaveOptions, StudioSaveOptions } from '@/components/SaveModal';
+import { ensureStudioWorkspace, saveStudioSavedQuery } from '@/lib/dataform-client';
 import html2canvas from 'html2canvas';
 
 // ---- Types ----------------------------------------------------------------
@@ -129,6 +130,7 @@ export interface ChatOrchestrationReturn {
     tags: string[],
     parameters?: ParameterDef[],
     bqOptions?: BigQuerySaveOptions,
+    studioOptions?: StudioSaveOptions,
   ) => Promise<void>;
   handleSaveModalClose: () => void;
   saveChatAsWorkflow: (name: string, description: string, tags: string[]) => Promise<void>;
@@ -1466,6 +1468,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     tags: string[],
     parameters?: ParameterDef[],
     bqOptions?: BigQuerySaveOptions,
+    studioOptions?: StudioSaveOptions,
   ) => {
     // Read from ref to avoid stale closure on saveModalState
     const modal = saveModalRef.current;
@@ -1487,6 +1490,27 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
 
     let bqViewCreated: string | null = null;
     let bqError: string | null = null;
+    let studioSavedPath: string | null = null;
+    let studioError: string | null = null;
+
+    if (studioOptions?.saveToStudio && sql && activeProject) {
+      try {
+        const ws = await ensureStudioWorkspace(activeProject);
+        const res = await saveStudioSavedQuery(
+          ws.projectId,
+          ws.location,
+          ws.repositoryId,
+          ws.workspaceId,
+          studioOptions.queryFileName,
+          sql,
+          description,
+        );
+        studioSavedPath = res.path;
+      } catch (err) {
+        console.error('Failed to save query to BigQuery Studio:', err);
+        studioError = err instanceof Error ? err.message : String(err);
+      }
+    }
 
     if (bqOptions?.saveAsView && bqOptions.dataset && bqOptions.viewName && sql && activeProject) {
       try {
@@ -1521,11 +1545,26 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
 
       // Confirm in chat
       const now = new Date().toISOString();
-      let confirmMsg = `Saved "${name}" to your Library.`;
+      const parts: string[] = [];
+      if (studioSavedPath) {
+        parts.push(`saved to BigQuery Studio as \`${studioSavedPath}\``);
+      }
       if (bqViewCreated) {
-        confirmMsg = `Created BigQuery view \`${bqViewCreated}\` and saved "${name}" to your Library.`;
-      } else if (bqError) {
-        confirmMsg = `Saved "${name}" to Library, but failed to create BigQuery view: ${bqError}`;
+        parts.push(`created BigQuery view \`${bqViewCreated}\``);
+      }
+      if (parts.length > 0) {
+        parts.push('added to your Library');
+      }
+
+      let confirmMsg = parts.length > 0
+        ? `Saved "${name}": ${parts.join(', ')}.`
+        : `Saved "${name}" to your Library.`;
+
+      if (studioError) {
+        confirmMsg += ` (BigQuery Studio note: ${studioError})`;
+      }
+      if (bqError) {
+        confirmMsg += ` (BigQuery view note: ${bqError})`;
       }
 
       setMessages(prev => [

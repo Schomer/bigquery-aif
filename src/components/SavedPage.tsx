@@ -23,10 +23,17 @@ import { useBuilder } from '@/lib/builder-context';
 import { usePage } from '@/lib/page-context';
 import type { BuilderDocument } from '@/lib/builder-types';
 import { deleteBuilderDocument, getBuilderDocuments } from '@/lib/builder-persistence';
+import {
+  type StudioQueryItem,
+  type StudioWorkspaceContext,
+  ensureStudioWorkspace,
+  listStudioSavedQueries,
+  readStudioSavedQuery,
+} from '@/lib/dataform-client';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-type TabKey = 'all' | SavedArtifactType | 'documents';
+type TabKey = 'all' | SavedArtifactType | 'documents' | 'studio';
 type SortMode = 'recent' | 'name' | 'most-used' | 'type';
 type ViewMode = 'card' | 'list';
 type VisibilityFilter = 'all' | 'public' | 'private';
@@ -34,6 +41,7 @@ type VisibilityFilter = 'all' | 'public' | 'private';
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'query', label: 'Queries' },
+  { key: 'studio', label: 'BigQuery Studio' },
   { key: 'workflow', label: 'Workflows' },
   { key: 'pipeline', label: 'Pipelines' },
   { key: 'app', label: 'Apps' },
@@ -46,6 +54,7 @@ const TYPE_ICONS: Record<string, string> = {
   pipeline: 'schedule',
   app: 'apps',
   documents: 'dashboard_customize',
+  studio: 'code',
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -54,6 +63,7 @@ const TYPE_LABELS: Record<string, string> = {
   pipeline: 'Pipeline',
   app: 'App',
   documents: 'Document',
+  studio: 'Studio Query',
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -687,11 +697,19 @@ interface SpacesPageProps {
 }
 
 export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }: SpacesPageProps) {
-  const { user } = useAuth();
+  const { user, activeProject } = useAuth();
   const builder = useBuilder();
   const { openBuilderTab } = usePage();
   const builderDocs = builder.getOpenDocuments();
   const [persistedDocs, setPersistedDocs] = useState<BuilderDocument[]>([]);
+
+  // BigQuery Studio Queries state
+  const [studioQueries, setStudioQueries] = useState<StudioQueryItem[]>([]);
+  const [studioWorkspace, setStudioWorkspace] = useState<StudioWorkspaceContext | null>(null);
+  const [studioLoading, setStudioLoading] = useState(false);
+  const [studioError, setStudioError] = useState<string | null>(null);
+  const [runningStudioPath, setRunningStudioPath] = useState<string | null>(null);
+  const [copiedStudioPath, setCopiedStudioPath] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -742,6 +760,24 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
 
   // ── Data loading ─────────────────────────────────────────────────────────
 
+  const loadStudioData = useCallback(async () => {
+    if (!activeProject) return;
+    setStudioLoading(true);
+    setStudioError(null);
+    try {
+      const ws = await ensureStudioWorkspace(activeProject);
+      setStudioWorkspace(ws);
+      const list = await listStudioSavedQueries(ws.projectId, ws.location, ws.repositoryId, ws.workspaceId);
+      setStudioQueries(list);
+    } catch (err: any) {
+      console.warn('BigQuery Studio load warning:', err);
+      setStudioError(err?.message || 'Could not connect to BigQuery Studio repository.');
+      setStudioQueries([]);
+    } finally {
+      setStudioLoading(false);
+    }
+  }, [activeProject]);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -749,7 +785,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
         getSpaces(userId),
         searchQuery.trim()
           ? searchArtifacts(userId, searchQuery.trim())
-          : getArtifacts(userId, activeTab === 'all' ? undefined : activeTab as SavedArtifactType),
+          : getArtifacts(userId, activeTab === 'all' || activeTab === 'studio' ? undefined : activeTab as SavedArtifactType),
         getSharedArtifacts(),
       ]);
       setSpaces(spacesResult);
@@ -772,7 +808,10 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+    if (activeTab === 'studio' || activeTab === 'all') {
+      loadStudioData();
+    }
+  }, [loadData, loadStudioData, activeTab]);
 
   // Sync tab when parent navigation changes (e.g. clicking Content > Queries in sidebar)
   useEffect(() => {
@@ -1656,9 +1695,272 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
     );
   }
 
+  async function handleRunStudioQuery(query: StudioQueryItem) {
+    if (!activeProject || !studioWorkspace) return;
+    setRunningStudioPath(query.path);
+    try {
+      const sql = await readStudioSavedQuery(
+        studioWorkspace.projectId,
+        studioWorkspace.location,
+        studioWorkspace.repositoryId,
+        studioWorkspace.workspaceId,
+        query.path,
+      );
+
+      const syntheticArtifact: SavedArtifact = {
+        id: `studio-${query.name}`,
+        userId,
+        type: 'query',
+        name: query.name,
+        description: `BigQuery Studio query: ${query.path}`,
+        steps: [
+          {
+            id: `step-${query.name}`,
+            order: 0,
+            skill: 'query',
+            prompt: `Execute BigQuery Studio query: ${query.name}`,
+            cachedSql: sql,
+          },
+        ],
+        parameters: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        tags: ['bigquery-studio'],
+        pinned: false,
+        runCount: 0,
+      };
+
+      onRun(syntheticArtifact);
+    } catch (err: any) {
+      console.error('Failed to read and run Studio query:', err);
+      alert(`Could not load query SQL: ${err?.message || String(err)}`);
+    } finally {
+      setRunningStudioPath(null);
+    }
+  }
+
+  async function handleCopyStudioSql(query: StudioQueryItem) {
+    if (!studioWorkspace) return;
+    try {
+      const sql = await readStudioSavedQuery(
+        studioWorkspace.projectId,
+        studioWorkspace.location,
+        studioWorkspace.repositoryId,
+        studioWorkspace.workspaceId,
+        query.path,
+      );
+      await navigator.clipboard.writeText(sql);
+      setCopiedStudioPath(query.path);
+      setTimeout(() => setCopiedStudioPath(null), 2000);
+    } catch (err: any) {
+      console.error('Failed to copy Studio SQL:', err);
+    }
+  }
+
+  function renderStudioCard(q: StudioQueryItem) {
+    const isRunning = runningStudioPath === q.path;
+    const isCopied = copiedStudioPath === q.path;
+
+    return (
+      <div
+        key={`studio-${q.path}`}
+        style={{
+          ...S.card(false),
+          ...(hoveredCard === q.path ? S.cardHover : {}),
+        }}
+        onMouseEnter={() => setHoveredCard(q.path)}
+        onMouseLeave={() => setHoveredCard(null)}
+      >
+        <div style={{ ...S.cardHeaderPad, ...S.cardHeader }}>
+          <div style={S.cardTitleRow}>
+            <div style={S.cardIconAvatar}>
+              <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--accent, #1967d2)' }}>
+                code
+              </span>
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <h3 style={S.cardName} title={q.name}>{q.name}</h3>
+              <div style={S.cardSubtype}>BigQuery Studio SQL Asset</div>
+            </div>
+          </div>
+          <span style={S.sharedBadge} title="Synced with Google Cloud BigQuery Studio">
+            <span className="material-symbols-outlined" style={{ fontSize: 13 }}>cloud_sync</span>
+            Studio
+          </span>
+        </div>
+
+        <div style={S.cardThumbnail}>
+          <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 110 }}>
+            <rect x={15} y={15} width={230} height={130} rx={8} fill="#1e293b" />
+            <rect x={28} y={30} width={45} height={8} rx={3} fill="#38bdf8" opacity={0.8} />
+            <rect x={78} y={30} width={65} height={8} rx={3} fill="#f1f5f9" opacity={0.6} />
+            <rect x={28} y={48} width={35} height={8} rx={3} fill="#818cf8" opacity={0.8} />
+            <rect x={68} y={48} width={80} height={8} rx={3} fill="#cbd5e1" opacity={0.5} />
+            <rect x={28} y={66} width={50} height={8} rx={3} fill="#f43f5e" opacity={0.8} />
+            <rect x={83} y={66} width={100} height={8} rx={3} fill="#94a3b8" opacity={0.5} />
+            <rect x={28} y={84} width={70} height={8} rx={3} fill="#38bdf8" opacity={0.7} />
+          </svg>
+        </div>
+
+        <div style={S.cardBody}>
+          <div style={{ ...S.cardDesc, fontFamily: 'monospace', fontSize: 12, color: 'var(--text-secondary, #5f6368)' }}>
+            {q.path}
+          </div>
+        </div>
+
+        <div style={S.cardFooter}>
+          <button
+            style={{
+              ...S.runBtn,
+              opacity: isRunning ? 0.7 : 1,
+              cursor: isRunning ? 'default' : 'pointer',
+            }}
+            disabled={isRunning}
+            onClick={() => handleRunStudioQuery(q)}
+          >
+            {isRunning ? 'Loading...' : 'Run Query'}
+          </button>
+          <button
+            style={S.outlineBtn}
+            onClick={() => handleCopyStudioSql(q)}
+          >
+            {isCopied ? 'Copied' : 'Copy SQL'}
+          </button>
+          {activeProject && (
+            <a
+              href={`https://console.cloud.google.com/bigquery?project=${encodeURIComponent(activeProject)}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                ...S.outlineBtn,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                textDecoration: 'none',
+                color: 'var(--text, #1a1a1a)',
+              }}
+              title="Open Google Cloud Console BigQuery Studio"
+            >
+              Console
+              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>open_in_new</span>
+            </a>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function renderStudioRow(q: StudioQueryItem) {
+    const isRunning = runningStudioPath === q.path;
+    const isCopied = copiedStudioPath === q.path;
+
+    return (
+      <tr key={`studio-${q.path}`} style={S.listRow(false)}>
+        <td style={{ ...S.listCell, width: 32 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--accent, #1967d2)' }}>
+            code
+          </span>
+        </td>
+        <td style={S.listCell}>
+          <div style={{ fontWeight: 500 }}>{q.name}</div>
+          <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-dim, #80868b)' }}>{q.path}</div>
+        </td>
+        <td style={S.listCellMuted}>
+          <span style={S.typeBadge}>BigQuery Studio</span>
+        </td>
+        <td style={S.listCellMuted}>
+          <span style={S.sharedBadge}>Studio Asset</span>
+        </td>
+        <td style={S.listCellMuted} />
+        <td style={S.listCellMuted} />
+        <td style={{ ...S.listCell, textAlign: 'right' as const }}>
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+            <button
+              style={{ ...S.outlineBtn, padding: '4px 10px', fontSize: 12 }}
+              disabled={isRunning}
+              onClick={() => handleRunStudioQuery(q)}
+            >
+              {isRunning ? '...' : 'Run'}
+            </button>
+            <button
+              style={{ ...S.outlineBtn, padding: '4px 10px', fontSize: 12 }}
+              onClick={() => handleCopyStudioSql(q)}
+            >
+              {isCopied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
   // ── Render: content ────────────────────────────────────────────────────
 
   function renderContent() {
+    if (activeTab === 'studio') {
+      if (studioLoading) return renderSkeleton();
+
+      if (studioError) {
+        return (
+          <div style={S.emptyState}>
+            <span className="material-symbols-outlined" style={{ ...S.emptyIcon, color: 'var(--issue, #d93025)' }}>
+              cloud_off
+            </span>
+            <div style={S.emptyTitle}>BigQuery Studio Connection</div>
+            <div style={S.emptyDesc}>{studioError}</div>
+            <div style={{ marginTop: 16, display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button style={S.runBtn} onClick={loadStudioData}>Retry</button>
+              {activeProject && (
+                <a
+                  href={`https://console.cloud.google.com/bigquery?project=${encodeURIComponent(activeProject)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ ...S.outlineBtn, display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
+                >
+                  Open Console
+                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>open_in_new</span>
+                </a>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      const filteredStudio = studioQueries.filter((q) =>
+        !searchQuery.trim() || q.name.toLowerCase().includes(searchQuery.toLowerCase()) || q.path.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+
+      if (filteredStudio.length === 0) {
+        return (
+          <div style={S.emptyState}>
+            <span className="material-symbols-outlined" style={S.emptyIcon}>
+              code
+            </span>
+            <div style={S.emptyTitle}>No BigQuery Studio queries found</div>
+            <div style={S.emptyDesc}>
+              Queries saved with "Save to BigQuery Studio" will automatically appear here and sync with your GCP BigQuery Studio workspace.
+            </div>
+          </div>
+        );
+      }
+
+      if (viewMode === 'list') {
+        return (
+          <table style={S.listTable}>
+            <tbody>
+              {filteredStudio.map((q) => renderStudioRow(q))}
+            </tbody>
+          </table>
+        );
+      }
+
+      return (
+        <div style={S.grid}>
+          {filteredStudio.map((q) => renderStudioCard(q))}
+        </div>
+      );
+    }
+
     if (loading) return renderSkeleton();
 
     const hasContent = filteredItems.length > 0;
@@ -1687,6 +1989,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
   const TAB_TITLES: Record<string, string> = {
     all: 'Library',
     query: 'Queries',
+    studio: 'BigQuery Studio Queries',
     workflow: 'Workflows',
     pipeline: 'Pipelines',
     app: 'Apps',

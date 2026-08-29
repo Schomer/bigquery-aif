@@ -1,5 +1,19 @@
 # Operations Ledger
 
+## 2026-08-28 -- BigQuery Studio (Dataform) saved query integration and two-way sync
+
+**What**: Connected BigQuery Studio saved queries via Google Cloud Dataform API (`dataform.googleapis.com`). Users can save queries as BigQuery Studio SQL code assets (`queries/<name>.sql`), browse existing Studio queries under a dedicated "BigQuery Studio" Library tab, preview/copy SQL, and execute them directly in chat.
+
+**Why**: BigQuery Studio manages saved queries as Dataform code assets rather than database views. Users need to save SQL so it appears in BigQuery Studio's Explorer panel and load existing Studio queries into the app without leaving the conversation.
+
+**Fix**:
+1. `src/lib/dataform-client.ts`: Implemented REST client for Dataform API with automatic repository (`studio-queries`) and workspace (`main`) discovery and initialization, query file listing (`queryDirectoryContents`), reading (`readFile` base64 decoding), and writing (`writeFile` base64 encoding).
+2. `src/components/SaveModal.tsx`: Added "Save to BigQuery Studio" option alongside BigQuery View option when SQL is present in the artifact.
+3. `src/hooks/useChatOrchestration.ts`: Wired BigQuery Studio options in `handleSaveConfirm`, syncing SQL to Dataform workspace and reporting created path in chat.
+4. `src/components/SavedPage.tsx`: Added "BigQuery Studio" tab, state loader, card and list renderers with Run, Copy SQL, and Console links.
+
+**Rule derived**: Modern BigQuery Studio query assets are powered by Dataform API. When persisting or loading code assets for BigQuery Studio, use `dataform.googleapis.com` workspaces and directory contents.
+
 ## 2026-08-28 -- Save queries directly to BigQuery as Views
 
 **What**: When users save a query or chart, provide direct persistence into BigQuery as a BigQuery View (`CREATE OR REPLACE VIEW \`project.dataset.viewName\` AS <sql>`).

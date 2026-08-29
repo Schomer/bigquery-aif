@@ -2,6 +2,14 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-08-28 -- BigQuery Studio (Dataform) saved query integration and two-way sync
+
+- Created `src/lib/dataform-client.ts` to manage BigQuery Studio code assets via the Google Cloud Dataform REST API (`dataform.googleapis.com`), including auto-discovery/initialization of `studio-queries` repository and `main` workspace.
+- Updated `SaveModal.tsx` to add "Save to BigQuery Studio" option with automatic query slugification (`queries/<name>.sql`).
+- Updated `useChatOrchestration.ts` to execute BigQuery Studio query writing and commit actions alongside Library and View persistence.
+- Added a dedicated "BigQuery Studio" tab to `SavedPage.tsx` with query cards/table rows, live execution in chat, SQL copying, and direct links to Google Cloud Console BigQuery Studio.
+- Passed 152 vitest unit tests and verified Next.js static build (`output: 'export'`).
+
 ## 2026-08-28 -- Save queries and charts directly to BigQuery as Views
 
 - Added `createBigQueryView()` in `src/lib/bigquery-client.ts` to execute `CREATE OR REPLACE VIEW \`project.dataset.viewName\` AS <sql>` directly in BigQuery.

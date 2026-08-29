@@ -16,6 +16,11 @@ export interface BigQuerySaveOptions {
   viewName: string;
 }
 
+export interface StudioSaveOptions {
+  saveToStudio: boolean;
+  queryFileName: string;
+}
+
 interface SaveModalProps {
   open: boolean;
   onClose: () => void;
@@ -25,6 +30,7 @@ interface SaveModalProps {
     tags: string[],
     parameters?: ParameterDef[],
     bqOptions?: BigQuerySaveOptions,
+    studioOptions?: StudioSaveOptions,
   ) => void;
   defaultName?: string;
   defaultDescription?: string;
@@ -42,6 +48,11 @@ function slugifyViewName(str: string): string {
     slug = 'v_' + slug;
   }
   return slug || 'my_view';
+}
+
+function slugifyFileName(str: string): string {
+  let slug = str.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  return slug || 'saved_query';
 }
 
 export function SaveModal({
@@ -62,9 +73,13 @@ export function SaveModal({
   const [tagsInput, setTagsInput] = useState('');
   const [showParams, setShowParams] = useState(false);
 
-  // BigQuery View destination state
+  // BigQuery Studio & View destination state
   const hasSql = Boolean(sql && sql.trim());
-  const [saveAsView, setSaveAsView] = useState(hasSql);
+  const [saveToStudio, setSaveToStudio] = useState(hasSql);
+  const [studioFileName, setStudioFileName] = useState(() => slugifyFileName(defaultName));
+  const [userEditedStudioName, setUserEditedStudioName] = useState(false);
+
+  const [saveAsView, setSaveAsView] = useState(false);
   const [dataset, setDataset] = useState(defaultDataset);
   const [viewName, setViewName] = useState(() => slugifyViewName(defaultName));
   const [userEditedViewName, setUserEditedViewName] = useState(false);
@@ -87,7 +102,10 @@ export function SaveModal({
     setDataset(defaultDataset);
     setViewName(slugifyViewName(defaultName));
     setUserEditedViewName(false);
-    setSaveAsView(Boolean(sql && sql.trim()));
+    setStudioFileName(slugifyFileName(defaultName));
+    setUserEditedStudioName(false);
+    setSaveToStudio(Boolean(sql && sql.trim()));
+    setSaveAsView(false);
 
     // Re-detect params when SQL changes
     const found = new Set<string>();
@@ -113,6 +131,9 @@ export function SaveModal({
     if (!userEditedViewName) {
       setViewName(slugifyViewName(newName));
     }
+    if (!userEditedStudioName) {
+      setStudioFileName(slugifyFileName(newName));
+    }
   }
 
   function handleSave() {
@@ -131,7 +152,14 @@ export function SaveModal({
         }
       : undefined;
 
-    onSave(trimmed, description.trim(), tags, parameters.length > 0 ? parameters : undefined, bqOptions);
+    const studioOptions: StudioSaveOptions | undefined = hasSql && saveToStudio
+      ? {
+          saveToStudio: true,
+          queryFileName: studioFileName.trim().replace(/[^a-zA-Z0-9_]/g, '_') || 'saved_query',
+        }
+      : undefined;
+
+    onSave(trimmed, description.trim(), tags, parameters.length > 0 ? parameters : undefined, bqOptions, studioOptions);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -143,7 +171,8 @@ export function SaveModal({
 
   const isFormValid =
     name.trim().length > 0 &&
-    (!saveAsView || (dataset.trim().length > 0 && viewName.trim().length > 0));
+    (!saveAsView || (dataset.trim().length > 0 && viewName.trim().length > 0)) &&
+    (!saveToStudio || studioFileName.trim().length > 0);
 
   return (
     <dialog
@@ -201,62 +230,39 @@ export function SaveModal({
             borderRadius: 10,
             padding: '14px 16px',
             marginBottom: 16,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
           }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: saveAsView ? 12 : 0 }}>
-              <input
-                type="checkbox"
-                checked={saveAsView}
-                onChange={(e) => setSaveAsView(e.target.checked)}
-                style={{ width: 16, height: 16, cursor: 'pointer' }}
-              />
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #1a1a1a)' }}>
-                Save as BigQuery View
-              </span>
-            </label>
+            {/* 1. BigQuery Studio Saved Query */}
+            <div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: saveToStudio ? 8 : 0 }}>
+                <input
+                  type="checkbox"
+                  checked={saveToStudio}
+                  onChange={(e) => setSaveToStudio(e.target.checked)}
+                  style={{ width: 16, height: 16, cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #1a1a1a)' }}>
+                  Save to BigQuery Studio
+                </span>
+                <span style={{ fontSize: 11, color: '#1967d2', background: '#e8f0fe', padding: '1px 6px', borderRadius: 4, fontWeight: 500 }}>
+                  Code Asset
+                </span>
+              </label>
 
-            {saveAsView && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {saveToStudio && (
+                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <label style={{ display: 'block' }}>
                     <span style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary, #5f6368)', marginBottom: 4 }}>
-                      BigQuery Dataset
+                      Query File Name
                     </span>
                     <input
                       type="text"
-                      list="save-modal-datasets"
-                      value={dataset}
-                      onChange={(e) => setDataset(e.target.value)}
-                      placeholder="e.g. analytics"
-                      style={{
-                        width: '100%',
-                        padding: '8px 10px',
-                        fontSize: 13,
-                        border: '1px solid var(--border, #dadce0)',
-                        borderRadius: 6,
-                        background: 'white',
-                        fontFamily: "'Google Sans', sans-serif",
-                        boxSizing: 'border-box',
-                      }}
-                    />
-                    {availableDatasets && availableDatasets.length > 0 && (
-                      <datalist id="save-modal-datasets">
-                        {availableDatasets.map((ds) => (
-                          <option key={ds} value={ds} />
-                        ))}
-                      </datalist>
-                    )}
-                  </label>
-
-                  <label style={{ display: 'block' }}>
-                    <span style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary, #5f6368)', marginBottom: 4 }}>
-                      View Name
-                    </span>
-                    <input
-                      type="text"
-                      value={viewName}
+                      value={studioFileName}
                       onChange={(e) => {
-                        setViewName(e.target.value);
-                        setUserEditedViewName(true);
+                        setStudioFileName(e.target.value);
+                        setUserEditedStudioName(true);
                       }}
                       placeholder="e.g. sales_summary"
                       style={{
@@ -271,24 +277,108 @@ export function SaveModal({
                       }}
                     />
                   </label>
+                  <div style={{
+                    fontSize: 11,
+                    color: 'var(--text-secondary, #5f6368)',
+                    background: 'white',
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    border: '1px solid var(--border, #dadce0)',
+                    fontFamily: 'monospace',
+                  }}>
+                    Path: queries/{studioFileName || 'query'}.sql
+                  </div>
                 </div>
+              )}
+            </div>
 
-                <div style={{
-                  fontSize: 11,
-                  color: 'var(--text-secondary, #5f6368)',
-                  background: 'white',
-                  padding: '6px 10px',
-                  borderRadius: 6,
-                  border: '1px solid var(--border, #dadce0)',
-                  fontFamily: 'monospace',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}>
-                  Target: {project || 'project'}.{dataset || 'dataset'}.{viewName || 'view_name'}
+            {/* 2. BigQuery View */}
+            <div style={{ borderTop: '1px solid var(--border, #dadce0)', paddingTop: 10 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: saveAsView ? 8 : 0 }}>
+                <input
+                  type="checkbox"
+                  checked={saveAsView}
+                  onChange={(e) => setSaveAsView(e.target.checked)}
+                  style={{ width: 16, height: 16, cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #1a1a1a)' }}>
+                  Save as BigQuery View
+                </span>
+              </label>
+
+              {saveAsView && (
+                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <label style={{ display: 'block' }}>
+                      <span style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary, #5f6368)', marginBottom: 4 }}>
+                        BigQuery Dataset
+                      </span>
+                      <input
+                        type="text"
+                        list="save-modal-datasets"
+                        value={dataset}
+                        onChange={(e) => setDataset(e.target.value)}
+                        placeholder="e.g. analytics"
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          fontSize: 13,
+                          border: '1px solid var(--border, #dadce0)',
+                          borderRadius: 6,
+                          background: 'white',
+                          fontFamily: "'Google Sans', sans-serif",
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                      {availableDatasets && availableDatasets.length > 0 && (
+                        <datalist id="save-modal-datasets">
+                          {availableDatasets.map((ds) => (
+                            <option key={ds} value={ds} />
+                          ))}
+                        </datalist>
+                      )}
+                    </label>
+
+                    <label style={{ display: 'block' }}>
+                      <span style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary, #5f6368)', marginBottom: 4 }}>
+                        View Name
+                      </span>
+                      <input
+                        type="text"
+                        value={viewName}
+                        onChange={(e) => {
+                          setViewName(e.target.value);
+                          setUserEditedViewName(true);
+                        }}
+                        placeholder="e.g. sales_summary"
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          fontSize: 13,
+                          border: '1px solid var(--border, #dadce0)',
+                          borderRadius: 6,
+                          background: 'white',
+                          fontFamily: "'Google Sans', monospace",
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={{
+                    fontSize: 11,
+                    color: 'var(--text-secondary, #5f6368)',
+                    background: 'white',
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    border: '1px solid var(--border, #dadce0)',
+                    fontFamily: 'monospace',
+                  }}>
+                    Target: {project || 'project'}.{dataset || 'dataset'}.{viewName || 'view_name'}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
 
