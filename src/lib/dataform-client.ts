@@ -460,17 +460,21 @@ export async function readStudioSavedQuery(
   workspaceId?: string,
   filePath?: string,
 ): Promise<string> {
-  // If workspaceId is not provided, discover it
+  // Always discover or verify the workspace in this specific repository
   let wsId = workspaceId;
-  if (!wsId) {
-    const workspaces = await listDataformWorkspaces(project, location, repositoryId);
-    if (workspaces.length > 0) wsId = workspaces[0].id;
+  const workspaces = await listDataformWorkspaces(project, location, repositoryId);
+  if (!wsId || !workspaces.some(w => w.id === wsId)) {
+    if (workspaces.length > 0) {
+      wsId = workspaces[0].id;
+    }
   }
-  if (!wsId) return '';
+  if (!wsId) {
+    throw new Error(`No development workspace found in repository ${repositoryId}`);
+  }
 
   // If filePath is not provided or is a repo resource path, discover the .sql file in workspace
   let path = filePath;
-  if (!path || path.startsWith('projects/')) {
+  if (!path || path.startsWith('projects/') || !path.includes('.')) {
     const dirUrl = `${DATAFORM_BASE}/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/repositories/${encodeURIComponent(repositoryId)}/workspaces/${encodeURIComponent(wsId)}:queryDirectoryContents?path=`;
     try {
       const data = await dataformFetch(dirUrl);
@@ -478,7 +482,9 @@ export async function readStudioSavedQuery(
       if (sqlEntry) path = sqlEntry.file;
     } catch {}
   }
-  if (!path) return '';
+  if (!path) {
+    throw new Error(`No SQL query file found in repository ${repositoryId}`);
+  }
 
   const url = `${DATAFORM_BASE}/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/repositories/${encodeURIComponent(repositoryId)}/workspaces/${encodeURIComponent(wsId)}:readFile?path=${encodeURIComponent(path)}`;
   const data = await dataformFetch(url);

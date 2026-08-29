@@ -1708,9 +1708,9 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
     if (!activeProject) return;
     setRunningStudioPath(query.path);
     try {
-      const loc = query.location || studioWorkspace?.location || 'us-west2';
-      const repoId = query.repositoryId || studioWorkspace?.repositoryId || '';
-      const wsId = query.workspaceId || studioWorkspace?.workspaceId;
+      const loc = query.location || 'us-west2';
+      const repoId = query.repositoryId || query.path.split('/')[5] || '';
+      const wsId = query.workspaceId;
       const sql = await readStudioSavedQuery(
         activeProject,
         loc,
@@ -1724,7 +1724,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
         userId,
         type: 'query',
         name: query.name,
-        description: `BigQuery Studio query: ${query.path}`,
+        description: `BigQuery Studio query: ${query.name}`,
         steps: [
           {
             id: `step-${query.name}`,
@@ -1754,9 +1754,9 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
   async function handleCopyStudioSql(query: StudioQueryItem) {
     if (!activeProject) return;
     try {
-      const loc = query.location || studioWorkspace?.location || 'us-west2';
-      const repoId = query.repositoryId || studioWorkspace?.repositoryId || '';
-      const wsId = query.workspaceId || studioWorkspace?.workspaceId;
+      const loc = query.location || 'us-west2';
+      const repoId = query.repositoryId || query.path.split('/')[5] || '';
+      const wsId = query.workspaceId;
       const sql = await readStudioSavedQuery(
         activeProject,
         loc,
