@@ -228,157 +228,26 @@ export function SaveModal({
             background: 'var(--bg-secondary, #f8f9fa)',
             border: '1px solid var(--border, #dadce0)',
             borderRadius: 10,
-            padding: '14px 16px',
+            padding: '12px 16px',
             marginBottom: 16,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
           }}>
-            {/* 1. BigQuery Studio Saved Query */}
-            <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: saveToStudio ? 8 : 0 }}>
-                <input
-                  type="checkbox"
-                  checked={saveToStudio}
-                  onChange={(e) => setSaveToStudio(e.target.checked)}
-                  style={{ width: 16, height: 16, cursor: 'pointer' }}
-                />
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #1a1a1a)' }}>
-                  Save to BigQuery Studio
-                </span>
-                <span style={{ fontSize: 11, color: '#1967d2', background: '#e8f0fe', padding: '1px 6px', borderRadius: 4, fontWeight: 500 }}>
-                  Code Asset
-                </span>
-              </label>
-
-              {saveToStudio && (
-                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ display: 'block' }}>
-                    <span style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary, #5f6368)', marginBottom: 4 }}>
-                      Query File Name
-                    </span>
-                    <input
-                      type="text"
-                      value={studioFileName}
-                      onChange={(e) => {
-                        setStudioFileName(e.target.value);
-                        setUserEditedStudioName(true);
-                      }}
-                      placeholder="e.g. sales_summary"
-                      style={{
-                        width: '100%',
-                        padding: '8px 10px',
-                        fontSize: 13,
-                        border: '1px solid var(--border, #dadce0)',
-                        borderRadius: 6,
-                        background: 'white',
-                        fontFamily: "'Google Sans', monospace",
-                        boxSizing: 'border-box',
-                      }}
-                    />
-                  </label>
-                  <div style={{
-                    fontSize: 11,
-                    color: 'var(--text-secondary, #5f6368)',
-                    background: 'white',
-                    padding: '4px 8px',
-                    borderRadius: 6,
-                    border: '1px solid var(--border, #dadce0)',
-                    fontFamily: 'monospace',
-                  }}>
-                    Path: queries/{studioFileName || 'query'}.sql
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* 2. BigQuery View */}
-            <div style={{ borderTop: '1px solid var(--border, #dadce0)', paddingTop: 10 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: saveAsView ? 8 : 0 }}>
-                <input
-                  type="checkbox"
-                  checked={saveAsView}
-                  onChange={(e) => setSaveAsView(e.target.checked)}
-                  style={{ width: 16, height: 16, cursor: 'pointer' }}
-                />
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text, #1a1a1a)' }}>
-                  Save as BigQuery View
-                </span>
-              </label>
-
-              {saveAsView && (
-                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <label style={{ display: 'block' }}>
-                      <span style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary, #5f6368)', marginBottom: 4 }}>
-                        BigQuery Dataset
-                      </span>
-                      <input
-                        type="text"
-                        list="save-modal-datasets"
-                        value={dataset}
-                        onChange={(e) => setDataset(e.target.value)}
-                        placeholder="e.g. analytics"
-                        style={{
-                          width: '100%',
-                          padding: '8px 10px',
-                          fontSize: 13,
-                          border: '1px solid var(--border, #dadce0)',
-                          borderRadius: 6,
-                          background: 'white',
-                          fontFamily: "'Google Sans', sans-serif",
-                          boxSizing: 'border-box',
-                        }}
-                      />
-                      {availableDatasets && availableDatasets.length > 0 && (
-                        <datalist id="save-modal-datasets">
-                          {availableDatasets.map((ds) => (
-                            <option key={ds} value={ds} />
-                          ))}
-                        </datalist>
-                      )}
-                    </label>
-
-                    <label style={{ display: 'block' }}>
-                      <span style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary, #5f6368)', marginBottom: 4 }}>
-                        View Name
-                      </span>
-                      <input
-                        type="text"
-                        value={viewName}
-                        onChange={(e) => {
-                          setViewName(e.target.value);
-                          setUserEditedViewName(true);
-                        }}
-                        placeholder="e.g. sales_summary"
-                        style={{
-                          width: '100%',
-                          padding: '8px 10px',
-                          fontSize: 13,
-                          border: '1px solid var(--border, #dadce0)',
-                          borderRadius: 6,
-                          background: 'white',
-                          fontFamily: "'Google Sans', monospace",
-                          boxSizing: 'border-box',
-                        }}
-                      />
-                    </label>
-                  </div>
-
-                  <div style={{
-                    fontSize: 11,
-                    color: 'var(--text-secondary, #5f6368)',
-                    background: 'white',
-                    padding: '4px 8px',
-                    borderRadius: 6,
-                    border: '1px solid var(--border, #dadce0)',
-                    fontFamily: 'monospace',
-                  }}>
-                    Target: {project || 'project'}.{dataset || 'dataset'}.{viewName || 'view_name'}
-                  </div>
-                </div>
-              )}
-            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={saveToStudio || saveAsView}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setSaveToStudio(checked);
+                  if (defaultDataset) {
+                    setSaveAsView(checked);
+                  }
+                }}
+                style={{ width: 16, height: 16, cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text, #1a1a1a)' }}>
+                Sync to Google Cloud BigQuery
+              </span>
+            </label>
           </div>
         )}
 

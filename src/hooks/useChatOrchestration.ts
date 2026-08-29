@@ -1545,27 +1545,9 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
 
       // Confirm in chat
       const now = new Date().toISOString();
-      const parts: string[] = [];
-      if (studioSavedPath) {
-        parts.push(`saved to BigQuery Studio as \`${studioSavedPath}\``);
-      }
-      if (bqViewCreated) {
-        parts.push(`created BigQuery view \`${bqViewCreated}\``);
-      }
-      if (parts.length > 0) {
-        parts.push('added to your Library');
-      }
-
-      let confirmMsg = parts.length > 0
-        ? `Saved "${name}": ${parts.join(', ')}.`
+      const confirmMsg = (studioSavedPath || bqViewCreated)
+        ? `Saved "${name}" to your Library and BigQuery.`
         : `Saved "${name}" to your Library.`;
-
-      if (studioError) {
-        confirmMsg += ` (BigQuery Studio note: ${studioError})`;
-      }
-      if (bqError) {
-        confirmMsg += ` (BigQuery view note: ${bqError})`;
-      }
 
       setMessages(prev => [
         ...prev,
