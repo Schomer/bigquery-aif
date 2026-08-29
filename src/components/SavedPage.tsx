@@ -820,10 +820,8 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
 
   useEffect(() => {
     loadData();
-    if (activeTab === 'studio' || activeTab === 'all') {
-      loadStudioData();
-    }
-  }, [loadData, loadStudioData, activeTab]);
+    loadStudioData();
+  }, [loadData, loadStudioData]);
 
   // Sync tab when parent navigation changes (e.g. clicking Content > Queries in sidebar)
   useEffect(() => {
