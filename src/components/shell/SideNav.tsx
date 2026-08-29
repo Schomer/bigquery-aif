@@ -17,6 +17,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'All', icon: 'home_storage', page: 'spaces:all' },
       { label: 'Queries', icon: 'query_stats', page: 'spaces:query' },
+      { label: 'BigQuery Studio', icon: 'code_blocks', page: 'spaces:studio' },
       { label: 'Workflows', icon: 'conversion_path', page: 'spaces:workflow' },
       { label: 'Pipelines', icon: 'schedule', page: 'spaces:pipeline' },
       { label: 'Apps', icon: 'apps', page: 'spaces:app' },

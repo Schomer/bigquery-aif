@@ -725,6 +725,13 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
   const [items, setItems] = useState<SavedArtifact[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab ?? 'all');
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab as TabKey);
+    }
+  }, [initialTab]);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortMode>('recent');
   const [viewMode, setViewMode] = useState<ViewMode>('card');
