@@ -6,9 +6,9 @@ Last updated: 2026-07-21
 
 ## Recent Changes
 
-### 2026-08-28: flash.ts -- multi-result display & table overview clarification
+### 2026-08-28: flash.ts -- 1-card budget on exploration & removed multi-query table recipe
 - **File**: `src/agent/prompts/flash.ts`
-- **Updated**: `MULTI-RESULT DISPLAY` and `TABLE OVERVIEW` sections to clarify that schema lookups are preparatory context-gathering steps when writing queries, and will not emit separate cards. Multiple data queries (e.g. data preview + profile) still produce their own cards.
+- **Updated**: Replaced multi-result display and 3-query table overview recipe with a clear 1-card budget instruction. Table and dataset exploration requests call `get_schema`, generating a single comprehensive card with schema, sample rows, and profile tabs. Auxiliary preview/profiling queries are eliminated.
 
 ### 2026-07-21: query.md -- anti-fabrication rule + WIDGET_SPEC concrete example
 - **File**: `public/skills/query.md`

@@ -1,16 +1,21 @@
 # Operations Ledger
 
-## 2026-08-28 -- Suppress preparatory schema cards when primary actions (queries/DML/exports) are executed
+## 2026-08-28 -- Single card for table exploration & suppressed preparatory schema cards
 
-**What broke**: For every analytical query prompt (e.g. "Top 20 Items by total sales", "by item_description"), the response displayed two result cards: a table schema card (`Schema: dataset.table`) and a query chart/table card (`Top 20 Items by Total Sales`).
+**What broke**:
+1. Analytical query prompts (e.g. "Top 20 Items by total sales", "by item_description") displayed two result cards: a table schema card (`Schema: dataset.table`) and a query chart/table card (`Top 20 Items by Total Sales`).
+2. Selecting/clicking a table in schema views triggered 3 cards (Schema view, Data Preview table, and Data Profile stats).
 
-**Root cause**: In `processWithAgentLoop` (`src/agent/index.ts`), envelope construction iterated through all successful tool events and generated a card for every tool call without distinguishing primary results from preparatory lookups. Since the agent always calls `get_schema` before writing SQL to verify table schemas, `get_schema` produced a `SCHEMA_VIEW` card alongside the `run_query` card on every turn.
+**Root cause**:
+1. In `processWithAgentLoop` (`src/agent/index.ts`), envelope construction iterated through all successful tool events and generated a card for every tool call without distinguishing primary results from preparatory lookups. Since the agent always calls `get_schema` before writing SQL to verify table schemas, `get_schema` produced a `SCHEMA_VIEW` card alongside the `run_query` card on every turn.
+2. In `SchemaView.tsx`, clicking a table sent "Give me an overview of the table", matching a legacy prompt recipe that instructed the AI to call `get_schema`, a preview query, and a profile query. In reality, the table view (`TableSchemaView`) already embeds schema, interactive sample data, and profile tabs in a single component.
 
 **Fix applied**:
 1. `src/agent/index.ts`: Added `hasPrimaryAction` check (`run_query`, `execute_dml`, `manage_pipeline`, `export_data`, `present_result`). When a primary action succeeds, preparatory `get_schema` and `list_resources` calls are skipped during envelope generation, producing only the primary result envelope(s). `SCHEMA_VIEW` envelopes are now only generated when schema inspection/exploration is the terminal action (e.g. "show schema for X", "list tables in Y").
-2. `src/agent/prompts/flash.ts`: Updated `MULTI-RESULT DISPLAY` and `TABLE OVERVIEW` sections to clarify that schema lookups used as preparatory steps before queries do not produce separate cards, while multiple data queries (preview + profile) continue to produce their respective cards.
+2. `src/agent/prompts/flash.ts`: Replaced the 3-query table overview recipe with a clear 1-card budget rule. When inspecting/exploring a table or dataset, calling `get_schema` produces the complete interactive view without extraneous preview/profile queries.
+3. `src/components/SchemaView.tsx`: Updated table click message to natural prompt `"Tell me more about the ${table} table in the ${dataset} dataset"`.
 
-**Rule derived**: Schema tool calls (`get_schema`, `list_resources`) executed alongside primary actions (`run_query`, `execute_dml`, `manage_pipeline`, `export_data`, `present_result`) are internal context-gathering steps and must not emit redundant `SCHEMA_VIEW` cards in the UI.
+**Rule derived**: Table exploration must produce a single comprehensive `SCHEMA_VIEW` card (which already provides Schema, Sample, and Profile tabs). Never execute auxiliary preview or profiling queries when inspecting a table.
 
 ## 2026-08-28 -- BigQuery Studio (Dataform) saved query integration and two-way sync
 
