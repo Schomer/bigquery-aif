@@ -99,13 +99,14 @@ export function SaveModal({
     setName(defaultName);
     setDescription(defaultDescription);
     setTagsInput('');
-    setDataset(defaultDataset);
+    const targetDataset = defaultDataset || (availableDatasets && availableDatasets.length > 0 ? availableDatasets[0] : '');
+    setDataset(targetDataset);
     setViewName(slugifyViewName(defaultName));
     setUserEditedViewName(false);
     setStudioFileName(slugifyFileName(defaultName));
     setUserEditedStudioName(false);
     setSaveToStudio(Boolean(sql && sql.trim()));
-    setSaveAsView(false);
+    setSaveAsView(Boolean(sql && sql.trim()));
 
     // Re-detect params when SQL changes
     const found = new Set<string>();
@@ -113,7 +114,7 @@ export function SaveModal({
     let m: RegExpExecArray | null;
     while ((m = re.exec(sql)) !== null) found.add(m[1]);
     setParameters(Array.from(found).map(n => ({ name: n, type: 'string' as const, description: '', required: false })));
-  }, [defaultName, defaultDescription, defaultDataset, open, sql]);
+  }, [defaultName, defaultDescription, defaultDataset, availableDatasets, open, sql]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -144,11 +145,12 @@ export function SaveModal({
       .map((t) => t.trim())
       .filter(Boolean);
 
-    const bqOptions: BigQuerySaveOptions | undefined = hasSql && saveAsView
+    const effectiveDataset = dataset.trim() || defaultDataset || (availableDatasets && availableDatasets.length > 0 ? availableDatasets[0] : '');
+    const bqOptions: BigQuerySaveOptions | undefined = hasSql && saveAsView && effectiveDataset
       ? {
           saveAsView: true,
-          dataset: dataset.trim(),
-          viewName: viewName.trim().replace(/[^a-zA-Z0-9_]/g, '_'),
+          dataset: effectiveDataset,
+          viewName: (viewName.trim() || slugifyViewName(trimmed)).replace(/[^a-zA-Z0-9_]/g, '_'),
         }
       : undefined;
 

@@ -171,21 +171,32 @@ export async function ensureStudioWorkspace(
     }
   }
 
-  let repoId = repos.length > 0 ? repos[0].id : '';
+  const defaultRepo = repos.find(r => r.id === 'default' || r.id === 'default-repository');
+  let repoId = defaultRepo ? defaultRepo.id : (repos.length > 0 ? repos[0].id : '');
 
-  // 2. If no repository exists, create default 'studio-queries'
+  // 2. If no repository exists, create 'default' (or 'studio-queries' fallback)
   if (!repoId) {
     try {
-      const newRepo = await createDataformRepository(project, location, 'studio-queries');
+      const newRepo = await createDataformRepository(project, location, 'default');
       repoId = newRepo.id;
-    } catch (err: any) {
-      // If creation failed in this location, try us-central1 as last resort
-      if (location !== 'us-central1') {
-        location = 'us-central1';
+    } catch {
+      try {
         const newRepo = await createDataformRepository(project, location, 'studio-queries');
         repoId = newRepo.id;
-      } else {
-        throw err;
+      } catch (err: any) {
+        // If creation failed in this location, try us-central1 as last resort
+        if (location !== 'us-central1') {
+          location = 'us-central1';
+          try {
+            const newRepo = await createDataformRepository(project, location, 'default');
+            repoId = newRepo.id;
+          } catch {
+            const newRepo = await createDataformRepository(project, location, 'studio-queries');
+            repoId = newRepo.id;
+          }
+        } else {
+          throw err;
+        }
       }
     }
   }
