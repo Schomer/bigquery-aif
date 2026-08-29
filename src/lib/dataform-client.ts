@@ -127,6 +127,24 @@ export async function createDataformWorkspace(
 }
 
 /**
+ * Normalizes BigQuery multi-region names (US, EU) to valid Dataform regional locations.
+ * Dataform is a regional service and does not accept multi-regions like 'us' or 'eu'.
+ */
+export function normalizeDataformLocation(bqLocation: string): string {
+  const loc = (bqLocation || '').toLowerCase().trim();
+  if (!loc || loc === 'us' || loc === 'us-multi' || loc === 'united states') {
+    return 'us-central1';
+  }
+  if (loc === 'eu' || loc === 'eu-multi' || loc === 'europe') {
+    return 'europe-west1';
+  }
+  if (loc === 'asia') {
+    return 'asia-northeast1';
+  }
+  return loc;
+}
+
+/**
  * Automatically discovers or initializes a Dataform repository and workspace
  * in the project to store and browse BigQuery Studio queries.
  */
@@ -134,19 +152,42 @@ export async function ensureStudioWorkspace(
   project: string,
   customLocation?: string,
 ): Promise<StudioWorkspaceContext> {
-  const loc = (customLocation || await detectBqRegion(project) || 'us').toLowerCase();
-  
-  // Normalize location for Dataform
-  const location = loc === 'us' ? 'us' : loc;
+  const rawLoc = customLocation || await detectBqRegion(project) || 'us-central1';
+  let location = normalizeDataformLocation(rawLoc);
 
   // 1. List existing repositories in this location
-  const repos = await listDataformRepositories(project, location);
+  let repos: Array<{ id: string; name: string }> = [];
+  try {
+    repos = await listDataformRepositories(project, location);
+  } catch {
+    // If the detected location fails, fallback to us-central1
+    if (location !== 'us-central1') {
+      try {
+        location = 'us-central1';
+        repos = await listDataformRepositories(project, location);
+      } catch {
+        repos = [];
+      }
+    }
+  }
+
   let repoId = repos.length > 0 ? repos[0].id : '';
 
   // 2. If no repository exists, create default 'studio-queries'
   if (!repoId) {
-    const newRepo = await createDataformRepository(project, location, 'studio-queries');
-    repoId = newRepo.id;
+    try {
+      const newRepo = await createDataformRepository(project, location, 'studio-queries');
+      repoId = newRepo.id;
+    } catch (err: any) {
+      // If creation failed in this location, try us-central1 as last resort
+      if (location !== 'us-central1') {
+        location = 'us-central1';
+        const newRepo = await createDataformRepository(project, location, 'studio-queries');
+        repoId = newRepo.id;
+      } else {
+        throw err;
+      }
+    }
   }
 
   // 3. List workspaces in this repository

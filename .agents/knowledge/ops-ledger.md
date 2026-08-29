@@ -8,11 +8,12 @@
 
 **Fix**:
 1. `src/lib/dataform-client.ts`: Implemented REST client for Dataform API with automatic repository (`studio-queries`) and workspace (`main`) discovery and initialization, query file listing (`queryDirectoryContents`), reading (`readFile` base64 decoding), and writing (`writeFile` base64 encoding).
-2. `src/components/SaveModal.tsx`: Added "Save to BigQuery Studio" option alongside BigQuery View option when SQL is present in the artifact.
-3. `src/hooks/useChatOrchestration.ts`: Wired BigQuery Studio options in `handleSaveConfirm`, syncing SQL to Dataform workspace and reporting created path in chat.
-4. `src/components/SavedPage.tsx`: Added "BigQuery Studio" tab, state loader, card and list renderers with Run, Copy SQL, and Console links.
+2. Added `normalizeDataformLocation()`: Dataform is a regional service (`us-central1`, `europe-west1`, etc.) and does not support multi-regions like `us` or `eu`. Normalizes multi-region BQ locations to regional endpoints and provides fallback discovery.
+3. `src/components/SaveModal.tsx`: Added "Save to BigQuery Studio" option alongside BigQuery View option when SQL is present in the artifact.
+4. `src/hooks/useChatOrchestration.ts`: Wired BigQuery Studio options in `handleSaveConfirm`, syncing SQL to Dataform workspace and reporting created path in chat.
+5. `src/components/SavedPage.tsx`: Added "BigQuery Studio" tab, state loader, card and list renderers with Run, Copy SQL, and Console links.
 
-**Rule derived**: Modern BigQuery Studio query assets are powered by Dataform API. When persisting or loading code assets for BigQuery Studio, use `dataform.googleapis.com` workspaces and directory contents.
+**Rule derived**: Modern BigQuery Studio query assets are powered by Dataform API. Dataform is regional; multi-region BigQuery locations (`us`, `eu`) must be normalized to valid regional endpoints (`us-central1`, `europe-west1`).
 
 ## 2026-08-28 -- Save queries directly to BigQuery as Views
 
