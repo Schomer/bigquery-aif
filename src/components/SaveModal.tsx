@@ -159,6 +159,8 @@ export function SaveModal({
         }
       : undefined;
 
+    dialogRef.current?.close();
+    onClose();
     onSave(trimmed, description.trim(), tags, parameters.length > 0 ? parameters : undefined, bqOptions, studioOptions);
   }
 

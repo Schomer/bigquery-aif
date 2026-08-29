@@ -1474,8 +1474,27 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     const modal = saveModalRef.current;
     if (!user || !modal?.envelope) {
       console.error('Save aborted: user or envelope missing', { user: !!user, envelope: !!modal?.envelope });
+      setSaveModalState(null);
       return;
     }
+
+    // 1. Dismiss dialog immediately
+    setSaveModalState(null);
+
+    // 2. Show in-progress saving status in chat
+    const saveMsgId = `save-${Date.now()}`;
+    const startTime = new Date().toISOString();
+    setMessages(prev => [
+      ...prev,
+      {
+        id: saveMsgId,
+        role: 'assistant',
+        content: `Saving "${name}" to your Library and BigQuery...`,
+        timestamp: startTime,
+        envelopes: [],
+      },
+    ]);
+
     const env = modal.envelope;
     const sql = env.provenance?.sql || (env.primaryArtifact?.data as any)?.sql || modal.sql || '';
     const step: ArtifactStep = {
@@ -1489,9 +1508,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     };
 
     let bqViewCreated: string | null = null;
-    let bqError: string | null = null;
     let studioSavedPath: string | null = null;
-    let studioError: string | null = null;
 
     if (studioOptions?.saveToStudio && sql && activeProject) {
       try {
@@ -1507,8 +1524,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
         );
         studioSavedPath = res.path;
       } catch (err) {
-        console.error('Failed to save query to BigQuery Studio:', err);
-        studioError = err instanceof Error ? err.message : String(err);
+        console.warn('Failed to save query to BigQuery Studio:', err);
       }
     }
 
@@ -1523,8 +1539,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
         );
         bqViewCreated = res.fullTableId;
       } catch (err) {
-        console.error('Failed to create BigQuery view:', err);
-        bqError = err instanceof Error ? err.message : String(err);
+        console.warn('Failed to create BigQuery view:', err);
       }
     }
 
@@ -1543,26 +1558,30 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       });
       setSaveCount(n => n + 1);
 
-      // Confirm in chat
+      // 3. Update chat message to confirmed
       const now = new Date().toISOString();
       const confirmMsg = (studioSavedPath || bqViewCreated)
         ? `Saved "${name}" to your Library and BigQuery.`
         : `Saved "${name}" to your Library.`;
 
-      setMessages(prev => [
-        ...prev,
-        { role: 'assistant', content: confirmMsg, timestamp: now, envelopes: [] },
-      ]);
-      setSaveModalState(null);
+      setMessages(prev =>
+        prev.map(m =>
+          (m as any).id === saveMsgId
+            ? { ...m, content: confirmMsg, timestamp: now }
+            : m
+        )
+      );
     } catch (err) {
       console.error('Failed to save artifact:', err);
       const errMsg = err instanceof Error ? err.message : String(err);
       const now = new Date().toISOString();
-      setMessages(prev => [
-        ...prev,
-        { role: 'assistant', content: `Failed to save "${name}": ${errMsg}`, timestamp: now, envelopes: [] },
-      ]);
-      setSaveModalState(null);
+      setMessages(prev =>
+        prev.map(m =>
+          (m as any).id === saveMsgId
+            ? { ...m, content: `Failed to save "${name}": ${errMsg}`, timestamp: now }
+            : m
+        )
+      );
     }
   }, [user, activeProject]);
 
