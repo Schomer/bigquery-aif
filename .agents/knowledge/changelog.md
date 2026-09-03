@@ -2,7 +2,13 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
-## 2026-08-28 -- Single card for table exploration & suppressed preparatory schema cards
+## 2026-09-03 -- Consolidate card header actions into kebab menu
+
+- Moved "Open in BigQuery", "Save to Library", and "Add to..." actions into the card kebab menu dropdown in `src/components/ArtifactCard.tsx`.
+- Organized the kebab menu into structured sections: primary actions (Open in BigQuery, Save to Library, Export results, Copy link) and a dedicated "Add to" section with "Add to new dashboard", "Add to new app", "Add to new report", "Add to new recipe", and open documents.
+- Cleaned up redundant `addToOpen` state and popup in `ArtifactCard.tsx`.
+- Updated `CardHeader` in `src/components/ui/CardParts.tsx` to move Save action into the kebab menu for consistency.
+- Verified test suite (152 vitest tests passing) and production static build.
 
 - Updated `processWithAgentLoop` in `src/agent/index.ts` to suppress preparatory `get_schema` and `list_resources` cards when primary actions (`run_query`, `execute_dml`, `manage_pipeline`, `export_data`, `present_result`) are executed in the same turn.
 - Updated `src/components/SchemaView.tsx` table click actions to use natural language `"Tell me more about the ${table} table in the ${dataset} dataset"`.

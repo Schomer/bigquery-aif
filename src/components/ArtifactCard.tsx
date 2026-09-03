@@ -76,8 +76,6 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
   const sqlTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [kebabOpen, setKebabOpen] = useState(false);
   const kebabRef = useRef<HTMLDivElement>(null);
-  const [addToOpen, setAddToOpen] = useState(false);
-  const addToRef = useRef<HTMLDivElement>(null);
   const builder = useBuilder();
   const { openBuilderTab } = usePage();
 
@@ -91,18 +89,6 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [kebabOpen]);
-
-  // Close addTo menu on outside click
-  useEffect(() => {
-    if (!addToOpen) return;
-    function handleClick(e: MouseEvent) {
-      if (addToRef.current && !addToRef.current.contains(e.target as Node)) {
-        setAddToOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [addToOpen]);
 
   const autoSizeTextarea = useCallback(() => {
     const ta = sqlTextareaRef.current;
@@ -199,6 +185,32 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
     return null;
   })();
 
+  const openDocs = builder.getOpenDocuments();
+
+  const handleCreateDoc = (type: DocumentType) => {
+    const existing = openDocs.filter((d) => d.type === type);
+    const base = `Untitled ${type}`;
+    const name = existing.length === 0 ? base : `${base} ${existing.length + 1}`;
+    const id = builder.createDocument(type, name, envelope);
+    openBuilderTab(id, name);
+    setKebabOpen(false);
+  };
+
+  const handleAddToExistingDoc = (docId: string) => {
+    builder.addTile(docId, envelope);
+    setKebabOpen(false);
+  };
+
+  const showActions = !envelope.requiresConfirmation
+    && envelope.primaryArtifact.type !== 'COMPLETION_CARD'
+    && envelope.primaryArtifact.type !== 'MULTISTEP_VIEW'
+    && envelope.primaryArtifact.type !== 'COST_CONFIRM_CARD';
+
+  const canAddTo = showActions
+    && envelope.primaryArtifact.type !== 'CLARIFICATION_CARD'
+    && envelope.primaryArtifact.type !== 'CONFIRMATION_CARD'
+    && envelope.primaryArtifact.type !== 'CONVERSATION';
+
   return (
     <div
       className={`fade-up ${toneClass}`}
@@ -223,29 +235,7 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
           }}>
             {typeof envelope.headline.text === 'string' ? envelope.headline.text : String(envelope.headline.text ?? '')}
           </p>
-          {bqUrl && !envelope.requiresConfirmation && envelope.primaryArtifact.type !== 'COMPLETION_CARD' && envelope.primaryArtifact.type !== 'MULTISTEP_VIEW' && envelope.primaryArtifact.type !== 'COST_CONFIRM_CARD' && (
-            <a
-              href={bqUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="context-action-btn"
-              title="Open in BigQuery"
-              style={{ flexShrink: 0, marginTop: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 16, opacity: 0.7 }}>open_in_new</span>
-            </a>
-          )}
-          {onSave && !envelope.requiresConfirmation && envelope.primaryArtifact.type !== 'COMPLETION_CARD' && envelope.primaryArtifact.type !== 'MULTISTEP_VIEW' && envelope.primaryArtifact.type !== 'COST_CONFIRM_CARD' && (
-            <button
-              className="context-action-btn"
-              onClick={() => onSave(envelope)}
-              title="Save to Library"
-              style={{ flexShrink: 0, marginTop: 1 }}
-            >
-              <img src="/icons/save.svg" alt="Save to Library" width={16} height={16} style={{ opacity: 0.7 }} />
-            </button>
-          )}
-          {onPin && !envelope.requiresConfirmation && envelope.primaryArtifact.type !== 'COMPLETION_CARD' && envelope.primaryArtifact.type !== 'MULTISTEP_VIEW' && envelope.primaryArtifact.type !== 'COST_CONFIRM_CARD' && (
+          {onPin && showActions && (
             <button
               className={`context-action-btn${isPinned ? ' is-active' : ''}`}
               onClick={() => onPin(envelope)}
@@ -255,27 +245,7 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
               <img src="/icons/add_to_context.svg" alt="Add to context" width={16} height={16} style={{ opacity: 0.7 }} />
             </button>
           )}
-          {/* Add to builder */}
-          {!envelope.requiresConfirmation && envelope.primaryArtifact.type !== 'COMPLETION_CARD' && envelope.primaryArtifact.type !== 'MULTISTEP_VIEW' && envelope.primaryArtifact.type !== 'COST_CONFIRM_CARD' && envelope.primaryArtifact.type !== 'CLARIFICATION_CARD' && envelope.primaryArtifact.type !== 'CONFIRMATION_CARD' && envelope.primaryArtifact.type !== 'CONVERSATION' && (
-            <div ref={addToRef} style={{ position: 'relative', flexShrink: 0, marginTop: 1 }}>
-              <button
-                className="context-action-btn"
-                onClick={() => setAddToOpen((v) => !v)}
-                title="Add to..."
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: 16, opacity: 0.7 }}>add_to_photos</span>
-              </button>
-              {addToOpen && (
-                <AddToBuilderMenu
-                  envelope={envelope}
-                  builder={builder}
-                  openBuilderTab={openBuilderTab}
-                  onClose={() => setAddToOpen(false)}
-                />
-              )}
-            </div>
-          )}
-          {hasExportableData && !envelope.requiresConfirmation && (
+          {showActions && (
             <div ref={kebabRef} style={{ position: 'relative', flexShrink: 0, marginTop: 1 }}>
               <button
                 className="context-action-btn"
@@ -295,44 +265,188 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
                   border: '1px solid var(--border)',
                   borderRadius: 8,
                   boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-                  minWidth: 160,
+                  minWidth: 210,
                   zIndex: 20,
                   overflow: 'hidden',
                 }}>
-                  <button
-                    onClick={() => {
-                      setKebabOpen(false);
-                      onChipClick?.({
-                        targetSkill: 'data-loading',
-                        label: 'Export results',
-                        context: { sql: envelope.provenance.sql },
-                        sourceSkill: envelope.skill,
-                        sourceResultRef: envelope.id,
-                      });
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '10px 14px',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      fontWeight: 400,
-                      color: 'var(--text)',
-                      fontFamily: 'inherit',
-                      textAlign: 'left',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f5f5f5)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>download</span>
-                    Export results
-                  </button>
-                  {/* W3-16: Copy shareable link */}
+                  {/* Open in BigQuery */}
+                  {bqUrl && (
+                    <a
+                      href={bqUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setKebabOpen(false)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        width: '100%',
+                        padding: '10px 14px',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        fontWeight: 400,
+                        color: 'var(--text)',
+                        fontFamily: 'inherit',
+                        textAlign: 'left',
+                        textDecoration: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f5f5f5)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>open_in_new</span>
+                      Open in BigQuery
+                    </a>
+                  )}
+
+                  {/* Save to Library */}
+                  {onSave && (
+                    <button
+                      onClick={() => {
+                        setKebabOpen(false);
+                        onSave(envelope);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        width: '100%',
+                        padding: '10px 14px',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        fontWeight: 400,
+                        color: 'var(--text)',
+                        fontFamily: 'inherit',
+                        textAlign: 'left',
+                        boxSizing: 'border-box',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f5f5f5)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>save</span>
+                      Save to Library
+                    </button>
+                  )}
+
+                  {/* Export results */}
+                  {hasExportableData && (
+                    <button
+                      onClick={() => {
+                        setKebabOpen(false);
+                        onChipClick?.({
+                          targetSkill: 'data-loading',
+                          label: 'Export results',
+                          context: { sql: envelope.provenance.sql },
+                          sourceSkill: envelope.skill,
+                          sourceResultRef: envelope.id,
+                        });
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        width: '100%',
+                        padding: '10px 14px',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        fontWeight: 400,
+                        color: 'var(--text)',
+                        fontFamily: 'inherit',
+                        textAlign: 'left',
+                        boxSizing: 'border-box',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f5f5f5)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>download</span>
+                      Export results
+                    </button>
+                  )}
+
+                  {/* Copy link */}
                   <ShareLinkButton envelope={envelope} onClose={() => setKebabOpen(false)} />
+
+                  {/* Add to builder section */}
+                  {canAddTo && (
+                    <>
+                      <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+                      <div style={{ padding: '6px 14px 4px', fontSize: 10, fontWeight: 600, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Add to
+                      </div>
+                      {ADD_TO_TYPES.map(({ type, label, icon }) => (
+                        <button
+                          key={type}
+                          onClick={() => handleCreateDoc(type)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            width: '100%',
+                            padding: '9px 14px',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: 13,
+                            fontWeight: 400,
+                            color: 'var(--text)',
+                            fontFamily: 'inherit',
+                            textAlign: 'left',
+                            boxSizing: 'border-box',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f5f5f5)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>{icon}</span>
+                          {label}
+                        </button>
+                      ))}
+
+                      {openDocs.length > 0 && (
+                        <>
+                          <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+                          <div style={{ padding: '6px 14px 4px', fontSize: 10, fontWeight: 600, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Open documents
+                          </div>
+                          {openDocs.map((doc) => (
+                            <button
+                              key={doc.id}
+                              onClick={() => handleAddToExistingDoc(doc.id)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                width: '100%',
+                                padding: '9px 14px',
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: 13,
+                                fontWeight: 400,
+                                color: 'var(--text)',
+                                fontFamily: 'inherit',
+                                textAlign: 'left',
+                                boxSizing: 'border-box',
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f5f5f5)'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>
+                                {doc.type === 'dashboard' ? 'dashboard' : doc.type === 'app' ? 'widgets' : doc.type === 'report' ? 'description' : 'receipt_long'}
+                              </span>
+                              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.name}</span>
+                              <span style={{ fontSize: 11, color: 'var(--text-dim)', flexShrink: 0 }}>{doc.tiles.length}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -997,116 +1111,13 @@ function CustomArtifact(props: import('@/lib/types').CustomViewProps) {
 }
 
 // W3-16: Share link button — writes to sharedArtifacts/{id} and copies URL
-// ── Add to Builder menu ──
+// ── Add to Builder options ──
 const ADD_TO_TYPES: Array<{ type: DocumentType; label: string; icon: string }> = [
-  { type: 'dashboard', label: 'New Dashboard', icon: 'dashboard' },
-  { type: 'app', label: 'New App', icon: 'widgets' },
-  { type: 'report', label: 'New Report', icon: 'description' },
-  { type: 'recipe', label: 'New Recipe', icon: 'receipt_long' },
+  { type: 'dashboard', label: 'Add to new dashboard', icon: 'dashboard' },
+  { type: 'app', label: 'Add to new app', icon: 'widgets' },
+  { type: 'report', label: 'Add to new report', icon: 'description' },
+  { type: 'recipe', label: 'Add to new recipe', icon: 'receipt_long' },
 ];
-
-function AddToBuilderMenu({
-  envelope,
-  builder,
-  openBuilderTab,
-  onClose,
-}: {
-  envelope: CompositionEnvelope;
-  builder: ReturnType<typeof import('@/lib/builder-context').useBuilder>;
-  openBuilderTab: (id: string, label: string) => void;
-  onClose: () => void;
-}) {
-  const openDocs = builder.getOpenDocuments();
-
-  const handleCreate = (type: DocumentType) => {
-    const existing = openDocs.filter((d) => d.type === type);
-    const base = `Untitled ${type}`;
-    const name = existing.length === 0 ? base : `${base} ${existing.length + 1}`;
-    const id = builder.createDocument(type, name, envelope);
-    openBuilderTab(id, name);
-    onClose();
-  };
-
-  const handleAddToExisting = (docId: string) => {
-    builder.addTile(docId, envelope);
-    onClose();
-  };
-
-  const menuStyle: React.CSSProperties = {
-    position: 'absolute',
-    top: '100%',
-    right: 0,
-    marginTop: 4,
-    background: '#fff',
-    border: '1px solid var(--border)',
-    borderRadius: 8,
-    boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-    minWidth: 200,
-    zIndex: 20,
-    overflow: 'hidden',
-  };
-
-  const itemStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    width: '100%',
-    padding: '10px 14px',
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: 13,
-    fontWeight: 400,
-    color: 'var(--text)',
-    fontFamily: 'inherit',
-    textAlign: 'left',
-  };
-
-
-
-  return (
-    <div style={menuStyle}>
-      {/* New document options */}
-      {ADD_TO_TYPES.map(({ type, label, icon }) => (
-        <button
-          key={type}
-          onClick={() => handleCreate(type)}
-          style={itemStyle}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f5f5f5)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>{icon}</span>
-          {label}
-        </button>
-      ))}
-
-      {/* Existing open documents */}
-      {openDocs.length > 0 && (
-        <>
-          <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-          <div style={{ padding: '6px 14px 4px', fontSize: 10, fontWeight: 600, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Open documents
-          </div>
-          {openDocs.map((doc) => (
-            <button
-              key={doc.id}
-              onClick={() => handleAddToExisting(doc.id)}
-              style={itemStyle}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f5f5f5)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>
-                {doc.type === 'dashboard' ? 'dashboard' : doc.type === 'app' ? 'widgets' : doc.type === 'report' ? 'description' : 'receipt_long'}
-              </span>
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.name}</span>
-              <span style={{ fontSize: 11, color: 'var(--text-dim)', flexShrink: 0 }}>{doc.tiles.length}</span>
-            </button>
-          ))}
-        </>
-      )}
-    </div>
-  );
-}
 
 function ShareLinkButton({ envelope, onClose }: { envelope: CompositionEnvelope; onClose: () => void }) {
   const [state, setState] = useState<'idle' | 'loading' | 'copied' | 'error'>('idle');

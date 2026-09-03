@@ -1,6 +1,16 @@
 # Operations Ledger
 
-## 2026-08-28 -- Single card for table exploration & suppressed preparatory schema cards
+## 2026-09-03 -- Consolidate card header actions into kebab menu
+
+**What**: Moved "Open in BigQuery", "Save to Library", and "Add to" actions into the kebab (`more_vert`) dropdown menu on artifact cards. Structured the "Add to" items into a dedicated section with explicit options ("Add to new dashboard", "Add to new app", "Add to new report", "Add to new recipe") and open documents list.
+
+**Why**: Having 5 action buttons next to the card headline cluttered the card header row. Consolidating into the kebab menu provides a cleaner header while keeping all actions accessible in one organized popup.
+
+**Fix**:
+1. `src/components/ArtifactCard.tsx`: Removed standalone buttons for Open in BigQuery, Save to Library, and Add to... from the card headline bar. Consolidated them into the kebab menu popup with clear action items and an "Add to" sub-section. Cleaned up obsolete `addToOpen` state and `AddToBuilderMenu` component.
+2. `src/components/ui/CardParts.tsx`: Updated `CardHeader` to place Save inside the kebab menu.
+
+**Rule derived**: Action items on artifact cards (except active context / pin toggle) should be consolidated within the kebab menu dropdown to keep the card headline row focused and uncluttered.
 
 **What broke**:
 1. Analytical query prompts (e.g. "Top 20 Items by total sales", "by item_description") displayed two result cards: a table schema card (`Schema: dataset.table`) and a query chart/table card (`Top 20 Items by Total Sales`).

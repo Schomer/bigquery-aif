@@ -41,6 +41,8 @@ export function CardHeader({ envelope, onSave, onPin, onChipClick, isPinned }: C
     && envelope.primaryArtifact.type !== 'MULTISTEP_VIEW'
     && envelope.primaryArtifact.type !== 'COST_CONFIRM_CARD';
 
+  const hasKebabActions = showActions && (onSave || hasExportableData);
+
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
       <p style={{
@@ -53,16 +55,6 @@ export function CardHeader({ envelope, onSave, onPin, onChipClick, isPinned }: C
       }}>
         {typeof envelope.headline.text === 'string' ? envelope.headline.text : String(envelope.headline.text ?? '')}
       </p>
-      {onSave && showActions && (
-        <button
-          className="context-action-btn"
-          onClick={() => onSave(envelope)}
-          title="Save"
-          style={{ flexShrink: 0, marginTop: 1 }}
-        >
-          <img src="/icons/save.svg" alt="Save" width={16} height={16} style={{ opacity: 0.7 }} />
-        </button>
-      )}
       {onPin && showActions && (
         <button
           className={`context-action-btn${isPinned ? ' is-active' : ''}`}
@@ -73,7 +65,7 @@ export function CardHeader({ envelope, onSave, onPin, onChipClick, isPinned }: C
           <img src="/icons/add_to_context.svg" alt="Add to context" width={16} height={16} style={{ opacity: 0.7 }} />
         </button>
       )}
-      {hasExportableData && !envelope.requiresConfirmation && (
+      {hasKebabActions && (
         <div ref={kebabRef} style={{ position: 'relative', flexShrink: 0, marginTop: 1 }}>
           <button
             className="context-action-btn"
@@ -93,42 +85,74 @@ export function CardHeader({ envelope, onSave, onPin, onChipClick, isPinned }: C
               border: '1px solid var(--border)',
               borderRadius: 8,
               boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-              minWidth: 160,
+              minWidth: 180,
               zIndex: 20,
               overflow: 'hidden',
             }}>
-              <button
-                onClick={() => {
-                  setKebabOpen(false);
-                  onChipClick?.({
-                    targetSkill: 'data-loading',
-                    label: 'Export results',
-                    context: { sql: envelope.provenance.sql },
-                    sourceSkill: envelope.skill,
-                    sourceResultRef: envelope.id,
-                  });
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  width: '100%',
-                  padding: '10px 14px',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: 400,
-                  color: 'var(--text)',
-                  fontFamily: 'inherit',
-                  textAlign: 'left',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f5f5f5)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>download</span>
-                Export results
-              </button>
+              {onSave && (
+                <button
+                  onClick={() => {
+                    setKebabOpen(false);
+                    onSave(envelope);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: 400,
+                    color: 'var(--text)',
+                    fontFamily: 'inherit',
+                    textAlign: 'left',
+                    boxSizing: 'border-box',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f5f5f5)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>save</span>
+                  Save to Library
+                </button>
+              )}
+              {hasExportableData && (
+                <button
+                  onClick={() => {
+                    setKebabOpen(false);
+                    onChipClick?.({
+                      targetSkill: 'data-loading',
+                      label: 'Export results',
+                      context: { sql: envelope.provenance.sql },
+                      sourceSkill: envelope.skill,
+                      sourceResultRef: envelope.id,
+                    });
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: 400,
+                    color: 'var(--text)',
+                    fontFamily: 'inherit',
+                    textAlign: 'left',
+                    boxSizing: 'border-box',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f5f5f5)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>download</span>
+                  Export results
+                </button>
+              )}
             </div>
           )}
         </div>
