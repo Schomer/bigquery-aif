@@ -3,6 +3,7 @@
 
 import { getAccessToken, setAccessToken } from './gis-auth';
 import type { CostEstimate, CostTier } from './types';
+import { invalidateCache } from './schema-cache';
 
 const BQ_BASE = 'https://bigquery.googleapis.com/bigquery/v2/projects';
 
@@ -165,6 +166,31 @@ export async function createDataset(
     datasetId: data.datasetReference?.datasetId || datasetId,
     location: data.location || loc,
   };
+}
+
+/**
+ * Ensure a dataset exists in BigQuery. Creates it if missing.
+ * If the dataset already exists (409 Conflict), this is a no-op.
+ */
+export async function ensureDatasetExists(
+  project: string,
+  datasetId: string,
+  location?: string,
+): Promise<{ datasetId: string; location: string }> {
+  try {
+    return await createDataset(project, datasetId, undefined, location);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (
+      msg.includes('Already Exists') ||
+      msg.includes('already exists') ||
+      msg.includes('duplicate') ||
+      msg.includes('409')
+    ) {
+      return { datasetId, location: location || 'us' };
+    }
+    throw err;
+  }
 }
 
 // ─── Parse BigQuery query response into flat rows ─────────────────────────────
@@ -666,20 +692,32 @@ export async function loadCsvToTable(
   const token = getAccessToken();
   if (!token) throw new Error('Not authenticated. Please sign in again.');
 
+  const cleanProject = project.trim();
+  const cleanDataset = datasetId.trim();
+  const cleanTable = tableId.trim();
+
+  if (!cleanProject) throw new Error('Project ID is required for CSV upload.');
+  if (!cleanDataset) throw new Error('Dataset ID is required for CSV upload.');
+  if (!cleanTable) throw new Error('Table ID is required for CSV upload.');
+
+  // Ensure dataset exists in BigQuery before creating load job
+  await ensureDatasetExists(cleanProject, cleanDataset);
+
   const boundary = '=====bigqueryaif_upload_boundary=====';
 
   const jobConfig = {
     configuration: {
       load: {
         destinationTable: {
-          projectId: project,
-          datasetId,
-          tableId,
+          projectId: cleanProject,
+          datasetId: cleanDataset,
+          tableId: cleanTable,
         },
         sourceFormat: 'CSV',
         autodetect: true,
         skipLeadingRows: 1,
         writeDisposition,
+        createDisposition: 'CREATE_IF_NEEDED',
         allowQuotedNewlines: true,
         allowJaggedRows: true,
       },
@@ -699,7 +737,7 @@ export async function loadCsvToTable(
     `--${boundary}--`,
   ].join('\r\n');
 
-  const uploadUrl = `https://bigquery.googleapis.com/upload/bigquery/v2/projects/${encodeURIComponent(project)}/jobs?uploadType=multipart`;
+  const uploadUrl = `https://bigquery.googleapis.com/upload/bigquery/v2/projects/${encodeURIComponent(cleanProject)}/jobs?uploadType=multipart`;
 
   const res = await fetch(uploadUrl, {
     method: 'POST',
@@ -720,14 +758,26 @@ export async function loadCsvToTable(
   // Poll for completion (same pattern as executeDml)
   let job = data;
   const jobId = job.jobReference?.jobId ?? '';
+  const jobLocation = job.jobReference?.location;
+  const locationParam = jobLocation ? `?location=${encodeURIComponent(jobLocation)}` : '';
+  const startTime = Date.now();
+  const timeoutMs = 60000;
+
   while (job.status?.state !== 'DONE') {
+    if (Date.now() - startTime > timeoutMs) {
+      throw new Error(`BigQuery upload job timed out after ${timeoutMs / 1000}s`);
+    }
     await new Promise((r) => setTimeout(r, 1500));
     job = await bqFetch(
-      `${BQ_BASE}/${encodeURIComponent(project)}/jobs/${encodeURIComponent(jobId)}`
+      `${BQ_BASE}/${encodeURIComponent(cleanProject)}/jobs/${encodeURIComponent(jobId)}${locationParam}`
     );
   }
   if (job.status?.errors?.length) {
-    throw new Error(job.status.errors[0].message);
+    const errorDetails = job.status.errors.map((e: any) => e.message).join('; ');
+    throw new Error(errorDetails || job.status.errorResult?.message || 'BigQuery load job failed');
+  }
+  if (job.status?.errorResult) {
+    throw new Error(job.status.errorResult.message || 'BigQuery load job failed');
   }
 
   const outputRows = parseInt(
@@ -735,9 +785,12 @@ export async function loadCsvToTable(
     10,
   );
 
+  // Invalidate schema cache so the new table is recognized
+  invalidateCache(`${cleanProject}.${cleanDataset}.${cleanTable}`);
+
   return {
     jobId,
     rowCount: outputRows,
-    tableRef: `${project}.${datasetId}.${tableId}`,
+    tableRef: `${cleanProject}.${cleanDataset}.${cleanTable}`,
   };
 }

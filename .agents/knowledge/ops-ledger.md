@@ -1,16 +1,16 @@
 # Operations Ledger
 
-## 2026-09-03 -- Consolidate card header actions into kebab menu
+## 2026-09-03 -- Consolidate card header actions into kebab menu & fix menu overlay
 
-**What**: Moved "Open in BigQuery", "Save to Library", and "Add to" actions into the kebab (`more_vert`) dropdown menu on artifact cards. Structured the "Add to" items into a dedicated section with explicit options ("Add to new dashboard", "Add to new app", "Add to new report", "Add to new recipe") and open documents list.
+**What**: Moved "Open in BigQuery", "Save to Library", and "Add to" actions into the kebab (`more_vert`) dropdown menu on artifact cards. Structured the "Add to" items into a dedicated section with concise options ("New dashboard", "New app", "New report", "New recipe") and open documents list. Fixed dropdown clipping on short cards by removing `overflow: hidden` on the card container and elevating the card's `z-index` when open.
 
-**Why**: Having 5 action buttons next to the card headline cluttered the card header row. Consolidating into the kebab menu provides a cleaner header while keeping all actions accessible in one organized popup.
+**Why**: Having 5 action buttons next to the card headline cluttered the card header row. Consolidating into the kebab menu provides a cleaner header. On short cards (e.g. single-row dataset details), `overflow: hidden` on the card wrapper clipped the menu dropdown.
 
 **Fix**:
-1. `src/components/ArtifactCard.tsx`: Removed standalone buttons for Open in BigQuery, Save to Library, and Add to... from the card headline bar. Consolidated them into the kebab menu popup with clear action items and an "Add to" sub-section. Cleaned up obsolete `addToOpen` state and `AddToBuilderMenu` component.
+1. `src/components/ArtifactCard.tsx`: Removed standalone buttons for Open in BigQuery, Save to Library, and Add to... from the card headline bar. Consolidated them into the kebab menu popup with clear action items and an "Add to" sub-section with labels ("New dashboard", "New app", etc.). Removed `overflow: hidden` on card wrappers and added dynamic `zIndex: kebabOpen ? 30 : 'auto'` on the card container.
 2. `src/components/ui/CardParts.tsx`: Updated `CardHeader` to place Save inside the kebab menu.
 
-**Rule derived**: Action items on artifact cards (except active context / pin toggle) should be consolidated within the kebab menu dropdown to keep the card headline row focused and uncluttered.
+**Rule derived**: Action items on artifact cards (except active context / pin toggle) should be consolidated within the kebab menu dropdown to keep the card headline row focused and uncluttered. Containers hosting absolute dropdowns must not specify `overflow: hidden` and should manage stacking context (`z-index`) when opened.
 
 **What broke**:
 1. Analytical query prompts (e.g. "Top 20 Items by total sales", "by item_description") displayed two result cards: a table schema card (`Schema: dataset.table`) and a query chart/table card (`Top 20 Items by Total Sales`).

@@ -2,10 +2,11 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
-## 2026-09-03 -- Consolidate card header actions into kebab menu
+## 2026-09-03 -- Consolidate card header actions into kebab menu & fix menu overlay
 
 - Moved "Open in BigQuery", "Save to Library", and "Add to..." actions into the card kebab menu dropdown in `src/components/ArtifactCard.tsx`.
-- Organized the kebab menu into structured sections: primary actions (Open in BigQuery, Save to Library, Export results, Copy link) and a dedicated "Add to" section with "Add to new dashboard", "Add to new app", "Add to new report", "Add to new recipe", and open documents.
+- Updated "Add to" item labels to `'New dashboard'`, `'New app'`, `'New report'`, `'New recipe'` under the "ADD TO" section header.
+- Fixed kebab menu clipping by removing `overflow: hidden` on the card container and setting `position: relative; zIndex: 30` when the kebab menu is open so it renders above surrounding cards and content.
 - Cleaned up redundant `addToOpen` state and popup in `ArtifactCard.tsx`.
 - Updated `CardHeader` in `src/components/ui/CardParts.tsx` to move Save action into the kebab menu for consistency.
 - Verified test suite (152 vitest tests passing) and production static build.

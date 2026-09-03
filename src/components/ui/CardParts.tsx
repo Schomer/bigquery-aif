@@ -86,7 +86,7 @@ export function CardHeader({ envelope, onSave, onPin, onChipClick, isPinned }: C
               borderRadius: 8,
               boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
               minWidth: 180,
-              zIndex: 20,
+              zIndex: 100,
               overflow: 'hidden',
             }}>
               {onSave && (

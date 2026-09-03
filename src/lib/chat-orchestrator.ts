@@ -120,13 +120,31 @@ export class ChatOrchestrator {
           fileSize,
         };
 
-        // Derive a suggested table name from the file name
-        const suggestedTable = fileName
+        // Extract a suggested dataset from user message or context
+        let suggestedDataset = context?.dataset || '';
+        if (!suggestedDataset && message) {
+          const dsMatch = message.match(/\bdataset\s+(?:named\s+|table\s+for\s+me\s+named\s+)?["'`]?([a-zA-Z0-9_]+)["'`]?/i)
+            || message.match(/\binto\s+(?:a\s+)?(?:new\s+)?["'`]?([a-zA-Z0-9_]+)["'`]?\s+dataset/i)
+            || message.match(/\bnamed\s+["'`]?([a-zA-Z0-9_]+)["'`]?/i);
+          if (dsMatch) {
+            suggestedDataset = dsMatch[1];
+          }
+        }
+
+        // Derive a suggested table name from the file name or message
+        let suggestedTable = fileName
           .replace(/\.csv$/i, '')
           .replace(/[^a-zA-Z0-9_]/g, '_')
           .replace(/^_+|_+$/g, '')
           .toLowerCase()
           || 'uploaded_data';
+
+        if (message) {
+          const tblMatch = message.match(/\btable\s+(?:for\s+me\s+)?(?:named\s+)?["'`]?([a-zA-Z0-9_]+)["'`]?/i);
+          if (tblMatch) {
+            suggestedTable = tblMatch[1];
+          }
+        }
 
         const result: DataLoadingResult = {
           skill: 'data-loading',
@@ -135,7 +153,7 @@ export class ChatOrchestrator {
           uploadPreview: preview,
           csvContent,
           targetTable: suggestedTable,
-          targetDataset: context?.dataset || '',
+          targetDataset: suggestedDataset,
           needsFile: false,
         };
 

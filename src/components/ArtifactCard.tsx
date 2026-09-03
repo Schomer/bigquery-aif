@@ -123,7 +123,6 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
           background: '#ffffff',
           border: '1px solid #ECF1FA',
           borderRadius: 12,
-          overflow: 'hidden',
         }}
       >
         <div style={{ padding: '16px 20px' }}>
@@ -219,7 +218,8 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
         background: '#ffffff',
         border: '1px solid #ECF1FA',
         borderRadius: 12,
-        overflow: 'hidden',
+        position: 'relative',
+        zIndex: kebabOpen ? 30 : 'auto',
       }}
     >
       {/* Headline */}
@@ -265,8 +265,8 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
                   border: '1px solid var(--border)',
                   borderRadius: 8,
                   boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-                  minWidth: 210,
-                  zIndex: 20,
+                  minWidth: 200,
+                  zIndex: 100,
                   overflow: 'hidden',
                 }}>
                   {/* Open in BigQuery */}
@@ -1113,10 +1113,10 @@ function CustomArtifact(props: import('@/lib/types').CustomViewProps) {
 // W3-16: Share link button — writes to sharedArtifacts/{id} and copies URL
 // ── Add to Builder options ──
 const ADD_TO_TYPES: Array<{ type: DocumentType; label: string; icon: string }> = [
-  { type: 'dashboard', label: 'Add to new dashboard', icon: 'dashboard' },
-  { type: 'app', label: 'Add to new app', icon: 'widgets' },
-  { type: 'report', label: 'Add to new report', icon: 'description' },
-  { type: 'recipe', label: 'Add to new recipe', icon: 'receipt_long' },
+  { type: 'dashboard', label: 'New dashboard', icon: 'dashboard' },
+  { type: 'app', label: 'New app', icon: 'widgets' },
+  { type: 'report', label: 'New report', icon: 'description' },
+  { type: 'recipe', label: 'New recipe', icon: 'receipt_long' },
 ];
 
 function ShareLinkButton({ envelope, onClose }: { envelope: CompositionEnvelope; onClose: () => void }) {
