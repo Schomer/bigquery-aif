@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import type { DataLoadingResult, CsvUploadPreview } from '@/lib/types';
 
 interface Props {
@@ -116,6 +116,18 @@ function PreviewCard({ result, onSendMessage }: Props) {
   const [datasetName, setDatasetName] = useState(result.targetDataset || '');
   const [writeMode, setWriteMode] = useState<'WRITE_APPEND' | 'WRITE_TRUNCATE'>('WRITE_APPEND');
   const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    function handleDone() {
+      setUploading(false);
+    }
+    document.addEventListener('csv-upload-done', handleDone);
+    document.addEventListener('csv-upload-error', handleDone);
+    return () => {
+      document.removeEventListener('csv-upload-done', handleDone);
+      document.removeEventListener('csv-upload-error', handleDone);
+    };
+  }, []);
 
   function handleUpload() {
     if (!tableName.trim() || !datasetName.trim()) return;

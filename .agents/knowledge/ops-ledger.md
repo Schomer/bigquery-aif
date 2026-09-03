@@ -1,5 +1,27 @@
 # Operations Ledger
 
+## 2026-09-03 -- Fix CSV upload dataset creation, multipart load polling, and button hanging
+
+**What**: Fixed CSV upload into new datasets and tables hanging with the button stuck on "Uploading...". Added automatic dataset creation in `ensureDatasetExists()` prior to multipart load jobs, region-aware job polling with timeout, error handling in `useChatOrchestration.ts` and `CsvUploadView.tsx`, dedicated success card in `DataLoadingView.tsx`, and Firestore payload dehydration for `CSV_UPLOAD_VIEW` envelopes.
+
+**Why**: 
+1. BigQuery's multipart load jobs API fails if the target dataset does not exist (`Not found: Dataset project:dataset was not found`). When a user asked to upload into a new dataset, `loadCsvToTable` attempted to load directly without creating the dataset first.
+2. If `loadCsvToTable` threw an error or BigQuery job polling failed, `handleUploadConfirm` caught the error and set `lastError`, but did not append an assistant message to `messages` (so `ErrorCard` was never rendered) and never notified `CsvUploadView` to reset `uploading` from `true` back to `false`.
+3. `DataLoadingView` lacked a handler for `operationType: 'UPLOAD_CSV'`, defaulting to `NotSupportedCard`.
+4. Storing the un-dehydrated 2MB+ raw CSV string on `CSV_UPLOAD_VIEW` envelopes exceeded Firestore's 1MB document size limit during conversation persistence.
+
+**Fix**:
+1. `src/lib/bigquery-client.ts`: Added `ensureDatasetExists()` which calls `createDataset()` and ignores 409 Conflict / duplicate dataset errors. In `loadCsvToTable()`, calls `ensureDatasetExists()`, sets `createDisposition: 'CREATE_IF_NEEDED'`, includes `?location=` query param during job polling, adds a 60-second timeout to prevent infinite loops, checks detailed error messages, and invalidates the schema cache for the new table.
+2. `src/lib/chat-orchestrator.ts`: In `UPLOAD_CSV`, extracts suggested dataset and table names from the user's prompt (e.g. `into a new dataset table named "breweries"`).
+3. `src/hooks/useChatOrchestration.ts`: In `handleUploadConfirm`, dispatches `csv-upload-done` on success and `csv-upload-error` on failure. Appends an assistant error placeholder on failure so `ErrorCard` displays the error message.
+4. `src/components/CsvUploadView.tsx`: Listens for `csv-upload-done` and `csv-upload-error` events to reset the `uploading` state so the button does not get stuck.
+5. `src/components/DataLoadingView.tsx`: Added `UploadCsvSuccessCard` displaying rows loaded, target dataset/table, status, and message for `UPLOAD_CSV` results.
+6. `src/lib/firestore-service.ts`: Dehydrates `CSV_UPLOAD_VIEW` envelopes by stripping `csvContent` before saving to Firestore, preventing 1MB document limit violations.
+7. `src/lib/composer.ts`: Threaded `dataset` and `table` context into the "Query table" next action chip.
+
+**Rule derived**: Data loading operations that target potentially new datasets must always ensure the dataset exists before running BigQuery load jobs. UI upload states must always handle both success and error events to prevent stuck loading indicators, and large raw file payloads must be dehydrated before writing to Firestore.
+
+
 ## 2026-09-03 -- Consolidate card header actions into kebab menu & fix menu overlay
 
 **What**: Moved "Open in BigQuery", "Save to Library", and "Add to" actions into the kebab (`more_vert`) dropdown menu on artifact cards. Structured the "Add to" items into a dedicated section with concise options ("New dashboard", "New app", "New report", "New recipe") and open documents list. Fixed dropdown clipping on short cards by removing `overflow: hidden` on the card container and elevating the card's `z-index` when open.

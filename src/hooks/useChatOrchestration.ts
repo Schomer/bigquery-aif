@@ -1098,9 +1098,15 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
           updateContextFromEnvelopes(envelopes);
           persistConversation(finalMsgs);
           setLastError(null);
+          document.dispatchEvent(new CustomEvent('csv-upload-done'));
         } catch (err: unknown) {
           const errMsg = err instanceof Error ? err.message : String(err);
           setLastError({ message: errMsg, type: 'file_upload' });
+          setMessages((prev) => [
+            ...prev,
+            { role: 'assistant', content: '', timestamp: new Date().toISOString() },
+          ]);
+          document.dispatchEvent(new CustomEvent('csv-upload-error', { detail: { error: errMsg } }));
         } finally {
           setLoading(false);
           setRunning(null);

@@ -1848,7 +1848,7 @@ function composeDataLoading(result: DataLoadingResult): CompositionEnvelope {
         {
           targetSkill: 'query',
           label: `Query ${result.targetTable}`,
-          context: {},
+          context: { table: result.targetTable, dataset: result.targetDataset },
           sourceSkill: 'data-loading',
           sourceResultRef: id,
         },

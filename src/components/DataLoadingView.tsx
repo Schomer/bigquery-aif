@@ -7,6 +7,8 @@ interface Props { result: DataLoadingResult }
 
 export function DataLoadingView({ result }: Props) {
   switch (result.operationType) {
+    case 'UPLOAD_CSV':
+      return <UploadCsvSuccessCard result={result} />;
     case 'EXPORT_CSV':
       return <CsvCard result={result} />;
     case 'EXPORT_SHEETS':
@@ -22,6 +24,39 @@ export function DataLoadingView({ result }: Props) {
     default:
       return <NotSupportedCard result={result} />;
   }
+}
+
+// ---- Upload CSV Success Card ------------------------------------------------
+
+function UploadCsvSuccessCard({ result }: Props) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+        <Stat label="Status" value="Uploaded" />
+        {result.rowCount !== undefined && (
+          <Stat label="Rows" value={result.rowCount.toLocaleString()} />
+        )}
+        {result.targetDataset && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Dataset</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-mono)' }}>{result.targetDataset}</span>
+          </div>
+        )}
+        {result.targetTable && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Table</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-mono)' }}>{result.targetTable}</span>
+          </div>
+        )}
+      </div>
+
+      {result.message && (
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          {result.message}
+        </p>
+      )}
+    </div>
+  );
 }
 
 // ---- CSV Export Card ---------------------------------------------------------

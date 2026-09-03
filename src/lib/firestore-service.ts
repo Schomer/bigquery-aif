@@ -103,6 +103,14 @@ async function dehydrateMessages(messages: ChatMessage[]): Promise<ChatMessage[]
             bytes: rowsJson.length,
           })
         );
+      } else if (type === 'CSV_UPLOAD_VIEW' && data && typeof data.csvContent === 'string' && data.csvContent.length > 0) {
+        // Strip large raw CSV string before writing to Firestore
+        const slimData = { ...data, csvContent: '' };
+        const slimEnv: CompositionEnvelope = {
+          ...env,
+          primaryArtifact: { ...env.primaryArtifact, data: slimData },
+        };
+        newEnvelopes.push(slimEnv);
       } else {
         newEnvelopes.push(env);
       }

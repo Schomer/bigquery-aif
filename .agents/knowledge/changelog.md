@@ -2,6 +2,17 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-03 -- Fix CSV upload into new datasets/tables and button loading hang
+
+- Added `ensureDatasetExists()` in `src/lib/bigquery-client.ts` to automatically create BigQuery datasets before executing multipart CSV load jobs.
+- Updated `loadCsvToTable()` with `createDisposition: 'CREATE_IF_NEEDED'`, region location query param for job polling, 60s timeout against infinite loops, detailed error result extraction, and schema cache invalidation.
+- Updated `src/hooks/useChatOrchestration.ts` to append error assistant messages so `ErrorCard` is rendered on failure, and dispatch `csv-upload-done` / `csv-upload-error` events.
+- Updated `src/components/CsvUploadView.tsx` to listen for upload completion/error events and reset button loading state.
+- Added `UploadCsvSuccessCard` in `src/components/DataLoadingView.tsx` for `UPLOAD_CSV` results.
+- Added `CSV_UPLOAD_VIEW` envelope dehydration in `src/lib/firestore-service.ts` to strip raw CSV strings before persisting to Firestore.
+- Enhanced dataset and table name extraction from user prompt in `src/lib/chat-orchestrator.ts`.
+
+
 ## 2026-09-03 -- Consolidate card header actions into kebab menu & fix menu overlay
 
 - Moved "Open in BigQuery", "Save to Library", and "Add to..." actions into the card kebab menu dropdown in `src/components/ArtifactCard.tsx`.
