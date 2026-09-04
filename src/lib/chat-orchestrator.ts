@@ -98,31 +98,23 @@ export class ChatOrchestrator {
     if (context?.forcedSkill === 'data-loading' && handoff) {
       const opType = handoff.operationType as string;
 
-      // Phase 1: Parse CSV and show upload preview
+      // Phase 1 & 2: Process CSV upload
       if (opType === 'UPLOAD_CSV' && typeof handoff.csvContent === 'string') {
-        onStatus?.('Parsing CSV...');
         const csvContent = handoff.csvContent as string;
         const fileName = (handoff.csvFileName as string) || 'file.csv';
-        const fileSize = (handoff.csvFileSize as number) || csvContent.length;
+        const project = context?.project || (typeof window !== 'undefined' ? localStorage.getItem('bqaif_activeProject') || '' : '');
 
-        // Parse CSV: extract columns from header, sample rows, and total row count
-        const lines = csvContent.split('\n').filter(l => l.trim());
-        const headerLine = lines[0] || '';
-        const columns = parseCsvLine(headerLine);
-        const dataLines = lines.slice(1);
-        const sampleRows = dataLines.slice(0, 10).map(l => parseCsvLine(l));
+        // Derive clean base identifier from filename
+        const baseName = fileName
+          .replace(/\.csv$/i, '')
+          .replace(/[^a-zA-Z0-9_]/g, '_')
+          .replace(/^_+|_+$/g, '')
+          .toLowerCase()
+          || 'uploaded_data';
 
-        const preview: CsvUploadPreview = {
-          columns,
-          sampleRows,
-          totalRows: dataLines.length,
-          fileName,
-          fileSize,
-        };
-
-        // Extract a suggested dataset from user message or context
+        // Extract suggested dataset
         let suggestedDataset = context?.dataset || '';
-        if (!suggestedDataset && message) {
+        if (message) {
           const dsMatch = message.match(/\bdataset\s+(?:named\s+|table\s+for\s+me\s+named\s+)?["'`]?([a-zA-Z0-9_]+)["'`]?/i)
             || message.match(/\binto\s+(?:a\s+)?(?:new\s+)?["'`]?([a-zA-Z0-9_]+)["'`]?\s+dataset/i)
             || message.match(/\bnamed\s+["'`]?([a-zA-Z0-9_]+)["'`]?/i);
@@ -130,15 +122,12 @@ export class ChatOrchestrator {
             suggestedDataset = dsMatch[1];
           }
         }
+        if (!suggestedDataset) {
+          suggestedDataset = baseName;
+        }
 
-        // Derive a suggested table name from the file name or message
-        let suggestedTable = fileName
-          .replace(/\.csv$/i, '')
-          .replace(/[^a-zA-Z0-9_]/g, '_')
-          .replace(/^_+|_+$/g, '')
-          .toLowerCase()
-          || 'uploaded_data';
-
+        // Extract suggested table
+        let suggestedTable = baseName;
         if (message) {
           const tblMatch = message.match(/\btable\s+(?:for\s+me\s+)?(?:named\s+)?["'`]?([a-zA-Z0-9_]+)["'`]?/i);
           if (tblMatch) {
@@ -146,29 +135,70 @@ export class ChatOrchestrator {
           }
         }
 
+        const isExplicitPreview = /\b(?:preview|inspect)\b/i.test(message || '') && !/\b(?:upload|import|create|make|load)\b/i.test(message || '');
+
+        if (isExplicitPreview) {
+          // Parse CSV: extract columns from header, sample rows, and total row count
+          const lines = csvContent.split('\n').filter(l => l.trim());
+          const headerLine = lines[0] || '';
+          const columns = parseCsvLine(headerLine);
+          const dataLines = lines.slice(1);
+          const sampleRows = dataLines.slice(0, 10).map(l => parseCsvLine(l));
+
+          const preview: CsvUploadPreview = {
+            columns,
+            sampleRows,
+            totalRows: dataLines.length,
+            fileName,
+            fileSize: (handoff.csvFileSize as number) || csvContent.length,
+          };
+
+          const result: DataLoadingResult = {
+            skill: 'data-loading',
+            operationType: 'UPLOAD_PREVIEW',
+            message: `${preview.totalRows.toLocaleString()} rows ready to upload`,
+            uploadPreview: preview,
+            csvContent,
+            targetTable: suggestedTable,
+            targetDataset: suggestedDataset,
+            needsFile: false,
+          };
+
+          const envelope = compose('data-loading', result);
+          return { envelopes: [envelope], skill: 'data-loading' };
+        }
+
+        // Direct upload execution
+        onStatus?.(`Uploading CSV data into \`${suggestedDataset}.${suggestedTable}\`...`);
+        const loadResult = await loadCsvToTable(
+          project,
+          suggestedDataset,
+          suggestedTable,
+          csvContent,
+          'WRITE_TRUNCATE',
+        );
+
         const result: DataLoadingResult = {
           skill: 'data-loading',
-          operationType: 'UPLOAD_PREVIEW',
-          message: `${preview.totalRows.toLocaleString()} rows ready to upload`,
-          uploadPreview: preview,
-          csvContent,
+          operationType: 'UPLOAD_CSV',
+          message: `Created dataset \`${suggestedDataset}\`, table \`${suggestedTable}\`, and loaded ${loadResult.rowCount.toLocaleString()} rows.`,
+          rowCount: loadResult.rowCount,
           targetTable: suggestedTable,
           targetDataset: suggestedDataset,
-          needsFile: false,
         };
 
         const envelope = compose('data-loading', result);
         return { envelopes: [envelope], skill: 'data-loading' };
       }
 
-      // Phase 2: Execute the actual BigQuery load job
+      // Phase 2: Execute the actual BigQuery load job from preview confirmation
       if (opType === 'UPLOAD_CSV_EXECUTE' && typeof handoff.csvContent === 'string') {
-        const project = context?.project || '';
-        const dataset = handoff.dataset as string;
-        const tableName = handoff.tableName as string;
-        const writeDisposition = (handoff.writeDisposition as 'WRITE_APPEND' | 'WRITE_TRUNCATE') || 'WRITE_APPEND';
+        const project = context?.project || (typeof window !== 'undefined' ? localStorage.getItem('bqaif_activeProject') || '' : '');
+        const dataset = (handoff.dataset as string) || 'data';
+        const tableName = (handoff.tableName as string) || 'data';
+        const writeDisposition = (handoff.writeDisposition as 'WRITE_APPEND' | 'WRITE_TRUNCATE') || 'WRITE_TRUNCATE';
 
-        onStatus?.('Uploading to BigQuery...');
+        onStatus?.(`Uploading CSV data to \`${dataset}.${tableName}\`...`);
         const loadResult = await loadCsvToTable(
           project, dataset, tableName,
           handoff.csvContent as string,
@@ -178,7 +208,7 @@ export class ChatOrchestrator {
         const result: DataLoadingResult = {
           skill: 'data-loading',
           operationType: 'UPLOAD_CSV',
-          message: `Uploaded ${loadResult.rowCount.toLocaleString()} rows to \`${dataset}.${tableName}\``,
+          message: `Loaded ${loadResult.rowCount.toLocaleString()} rows to \`${dataset}.${tableName}\``,
           rowCount: loadResult.rowCount,
           targetTable: tableName,
           targetDataset: dataset,

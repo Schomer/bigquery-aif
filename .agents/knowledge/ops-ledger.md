@@ -1,5 +1,18 @@
 # Operations Ledger
 
+## 2026-09-04 -- Streamline CSV upload to 1-step automated dataset, table, and data import
+
+**What**: Simplified the CSV upload flow so that attaching or dropping a CSV and asking to create a table automatically creates the dataset, creates the table with auto-detected schema, and streams all CSV rows into the table in one shot without requiring intermediate preview card clicks.
+
+**Why**: Requiring the user to configure settings and click a separate "Upload to BigQuery" button on an intermediate card added unnecessary friction and confusion when the user's intent was to directly upload the file.
+
+**Fix**:
+1. `src/lib/chat-orchestrator.ts`: In `UPLOAD_CSV`, automatically extract or default dataset and table names from the filename or prompt, ensure the dataset exists, and directly call `loadCsvToTable` with `WRITE_TRUNCATE`. Only return `UPLOAD_PREVIEW` if the user explicitly asks to "preview" or "inspect" the CSV.
+2. `src/hooks/useChatOrchestration.ts`: Resolved `effectiveProject` to ensure active project is passed seamlessly into the upload context.
+
+**Rule derived**: User commands that provide an input asset (like a CSV file) with an action intent (upload, create table, import) should execute end-to-end immediately without introducing unnecessary intermediate confirmation barriers.
+
+
 ## 2026-09-04 -- Fix disabled CSV Upload button and persist CSV content in IndexedDB
 
 **What**: Fixed the "Upload to BigQuery" button being disabled in `PreviewCard`. Root causes included: (1) missing default dataset names when `targetDataset` was empty, (2) raw `csvContent` being stripped during conversation save to Firestore without being preserved in IndexedDB (`persistentResultCache`), causing reloaded preview cards to have empty CSV payloads, and (3) missing UI feedback for validation states. Added IndexedDB persistence and rehydration for `csvContent` on `CSV_UPLOAD_VIEW` envelopes, default dataset fallbacks, in-card file re-attachment fallback, and inline validation hints.

@@ -2,6 +2,13 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-04 -- Streamline CSV upload to 1-step automated dataset, table, and data import
+
+- Streamlined CSV upload in `src/lib/chat-orchestrator.ts` to automatically create the dataset, create the table, and stream all CSV rows directly into BigQuery in one shot when a CSV is attached.
+- Inferred dataset and table names automatically from the CSV file name or user prompt (e.g. `breweries.csv` -> dataset `breweries`, table `breweries`).
+- Added immediate success card with loaded row counts, dataset/table identifiers, and instant "Query" / "Describe" action chips.
+
+
 ## 2026-09-04 -- Fix disabled CSV Upload button and persist CSV content in IndexedDB
 
 - Updated `src/agent/result-cache.ts` and `src/lib/firestore-service.ts` to store raw `csvContent` in IndexedDB during dehydration and restore it during conversation rehydration, allowing preview cards to remain uploadable after page reload.

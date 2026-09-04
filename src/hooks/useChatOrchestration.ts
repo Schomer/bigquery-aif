@@ -965,10 +965,13 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       lastSkill: 'data-loading' as SkillName,
     }));
 
+    const derivedCtx = deriveContextFromItems();
+    const effectiveProject = activeProject || derivedCtx.project || context.project || (typeof window !== 'undefined' ? localStorage.getItem('bqaif_activeProject') || '' : '');
+
     // Build a synthetic handoff context with the file data and force the data-loading skill
     const forcedContext = {
-      ...deriveContextFromItems(),
-      project: activeProject || '',
+      ...derivedCtx,
+      project: effectiveProject,
       uid: user?.uid,
       forcedSkill: 'data-loading' as SkillName,
       handoffContext: {
