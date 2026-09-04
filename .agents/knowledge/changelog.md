@@ -2,6 +2,13 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-04 -- Sanitize CSV headers and enable Character Map V2 for BigQuery loads
+
+- Added `sanitizeCsvHeaders()` to `src/lib/bigquery-client.ts` to normalize special characters in CSV header rows (e.g. `Fatal (Y/N)` -> `Fatal_Y_N`).
+- Enabled `columnNameCharacterMap: 'V2'` in `loadCsvToTable` BigQuery load job configuration.
+- Added unit tests in `src/lib/__tests__/format.test.ts`.
+
+
 ## 2026-09-04 -- Fix BigQuery load job schemaUpdateOptions with WRITE_TRUNCATE
 
 - Made `schemaUpdateOptions` in `loadCsvToTable` (`src/lib/bigquery-client.ts`) conditional only on `writeDisposition === 'WRITE_APPEND'` to prevent BigQuery API rejection on standard table replacement.

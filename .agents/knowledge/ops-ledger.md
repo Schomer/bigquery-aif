@@ -1,5 +1,18 @@
 # Operations Ledger
 
+## 2026-09-04 -- Sanitize CSV headers and enable Character Map V2 for BigQuery loads
+
+**What**: Fixed BigQuery error `"Field name '...' is not supported by the current character map"` when loading CSV files with column headers containing parentheses, slashes, spaces, or symbols (e.g. `'Fatal (Y/N)'`, `'Price ($)'`). Added `sanitizeCsvHeaders()` to convert invalid header characters into valid BigQuery column identifiers and enabled `columnNameCharacterMap: 'V2'` in BigQuery load job configurations.
+
+**Why**: BigQuery autodetect rejects CSV headers with characters outside standard alphanumeric/underscore identifiers unless character map V2 is enabled or headers are sanitized.
+
+**Fix**:
+1. `src/lib/bigquery-client.ts`: Added `sanitizeCsvHeaders()` to normalize column names in the first line of CSV payloads (replacing special characters with underscores, trimming, deduping, and handling quotes). Added `columnNameCharacterMap: 'V2'` to `loadCsvToTable` load job configuration.
+2. `src/lib/__tests__/format.test.ts`: Added unit test suite covering header sanitization with parentheses, slashes, quotes, and duplicate names.
+
+**Rule derived**: All client-side CSV load pipelines into BigQuery should sanitize header rows prior to multipart upload and set `columnNameCharacterMap: 'V2'` to ensure robustness against arbitrary spreadsheet header formats.
+
+
 ## 2026-09-04 -- Fix BigQuery load job schemaUpdateOptions with WRITE_TRUNCATE disposition
 
 **What**: Fixed BigQuery API rejection: `"Schema update options should only be specified with WRITE_APPEND disposition, or with WRITE_TRUNCATE disposition on a table partition."` by making `schemaUpdateOptions` conditionally included only when `writeDisposition === 'WRITE_APPEND'`.

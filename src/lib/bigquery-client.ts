@@ -678,6 +678,69 @@ export interface LoadCsvResult {
 }
 
 /**
+ * Sanitize CSV header line to ensure valid BigQuery column identifiers:
+ * - Replace special characters like (), /, %, $, #, @, spaces, dashes with underscores
+ * - Deduplicate consecutive underscores
+ * - Trim leading/trailing underscores
+ * - Prefix with 'col_' if header starts with a number or is empty
+ * - Ensure unique column names by appending _2, _3 if duplicates exist
+ */
+export function sanitizeCsvHeaders(csv: string): string {
+  if (!csv) return csv;
+  const firstNewlineIndex = csv.indexOf('\n');
+  const headerLine = firstNewlineIndex === -1 ? csv : csv.slice(0, firstNewlineIndex);
+  const remaining = firstNewlineIndex === -1 ? '' : csv.slice(firstNewlineIndex);
+
+  // Parse header columns respecting quotes
+  const cols: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < headerLine.length; i++) {
+    const ch = headerLine[i];
+    if (inQuotes) {
+      if (ch === '"' && headerLine[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        current += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ',') {
+      cols.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  cols.push(current.trim());
+
+  const seen = new Map<string, number>();
+  const sanitized = cols.map((col, i) => {
+    let clean = col
+      .replace(/^[\s"']+|[\s"']+$/g, '')
+      .replace(/[^a-zA-Z0-9_]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
+    if (!clean || /^[0-9]/.test(clean)) {
+      clean = `col_${clean || i + 1}`;
+    }
+
+    const count = seen.get(clean) || 0;
+    seen.set(clean, count + 1);
+    if (count > 0) {
+      clean = `${clean}_${count + 1}`;
+    }
+    return clean;
+  });
+
+  return sanitized.join(',') + remaining;
+}
+
+/**
  * Upload CSV content to a BigQuery table via the Jobs API multipart upload.
  * Creates the table if it doesn't exist (autodetect schema).
  * Runs entirely client-side using the user's OAuth token.
@@ -703,6 +766,7 @@ export async function loadCsvToTable(
   // Ensure dataset exists in BigQuery before creating load job
   await ensureDatasetExists(cleanProject, cleanDataset);
 
+  const cleanedCsv = sanitizeCsvHeaders(csvContent);
   const boundary = '=====bigqueryaif_upload_boundary=====';
 
   const jobConfig = {
@@ -718,6 +782,7 @@ export async function loadCsvToTable(
         skipLeadingRows: 1,
         writeDisposition,
         createDisposition: 'CREATE_IF_NEEDED',
+        columnNameCharacterMap: 'V2',
         ...(writeDisposition === 'WRITE_APPEND'
           ? { schemaUpdateOptions: ['ALLOW_FIELD_ADDITION', 'ALLOW_FIELD_RELAXATION'] }
           : {}),
@@ -738,7 +803,7 @@ export async function loadCsvToTable(
     `--${boundary}`,
     'Content-Type: application/octet-stream',
     '',
-    csvContent,
+    cleanedCsv,
     `--${boundary}--`,
   ].join('\r\n');
 

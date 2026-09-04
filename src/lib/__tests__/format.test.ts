@@ -1,6 +1,7 @@
 // src/lib/__tests__/format.test.ts
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { formatBytes, truncateLabel, truncateEmail, relativeTime } from '../format';
+import { sanitizeCsvHeaders } from '../bigquery-client';
 
 // ---------------------------------------------------------------------------
 // formatBytes
@@ -166,3 +167,32 @@ describe('relativeTime', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// sanitizeCsvHeaders
+// ---------------------------------------------------------------------------
+
+describe('sanitizeCsvHeaders', () => {
+  it('sanitizes headers with parentheses, slashes, and special characters', () => {
+    const csv = 'id,name,Fatal (Y/N),Price ($),Rate %,123col\n1,abc,Y,10.5,50,val';
+    const result = sanitizeCsvHeaders(csv);
+    const firstLine = result.split('\n')[0];
+    expect(firstLine).toBe('id,name,Fatal_Y_N,Price,Rate,col_123col');
+    expect(result.split('\n')[1]).toBe('1,abc,Y,10.5,50,val');
+  });
+
+  it('handles quoted header fields with spaces and commas', () => {
+    const csv = '"Item ID","Fatal (Y/N)","Address 1, Apt 2"\n1,Y,Test';
+    const result = sanitizeCsvHeaders(csv);
+    const firstLine = result.split('\n')[0];
+    expect(firstLine).toBe('Item_ID,Fatal_Y_N,Address_1_Apt_2');
+  });
+
+  it('deduplicates duplicate header names', () => {
+    const csv = 'count,count,count\n1,2,3';
+    const result = sanitizeCsvHeaders(csv);
+    const firstLine = result.split('\n')[0];
+    expect(firstLine).toBe('count,count_2,count_3');
+  });
+});
+
