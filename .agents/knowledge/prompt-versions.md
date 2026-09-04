@@ -6,6 +6,10 @@ Last updated: 2026-07-21
 
 ## Recent Changes
 
+### 2026-09-04: flash.ts -- CSV & file upload guidance
+- **File**: `src/agent/prompts/flash.ts`
+- **Added**: Decision rule 8: When the user asks to upload, import, or load CSV files/spreadsheets, the agent must never run `CREATE TABLE` DDL with placeholder columns. Instead, it must use `present_result` to guide the user to attach or drop the CSV file so the data upload pipeline streams the actual rows into BigQuery.
+
 ### 2026-08-28: flash.ts -- 1-card budget on exploration & removed multi-query table recipe
 - **File**: `src/agent/prompts/flash.ts`
 - **Updated**: Replaced multi-result display and 3-query table overview recipe with a clear 1-card budget instruction. Table and dataset exploration requests call `get_schema`, generating a single comprehensive card with schema, sample rows, and profile tabs. Auxiliary preview/profiling queries are eliminated.

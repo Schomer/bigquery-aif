@@ -2,6 +2,13 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-04 -- Prevent empty DDL table creation on unattached CSV requests & enhance load config
+
+- Updated `src/agent/prompts/flash.ts` with Decision Rule 8 forbidding `CREATE TABLE` DDL for CSV upload prompts and directing the assistant to guide the user to attach the file.
+- Added `schemaUpdateOptions: ['ALLOW_FIELD_ADDITION', 'ALLOW_FIELD_RELAXATION']`, `ignoreUnknownValues: true`, and `maxBadRecords: 100` to `loadCsvToTable` in `src/lib/bigquery-client.ts`.
+- Updated prompt version tracking in `.agents/knowledge/prompt-versions.md`.
+
+
 ## 2026-09-03 -- Fix CSV upload into new datasets/tables and button loading hang
 
 - Added `ensureDatasetExists()` in `src/lib/bigquery-client.ts` to automatically create BigQuery datasets before executing multipart CSV load jobs.

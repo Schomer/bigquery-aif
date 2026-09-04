@@ -1,5 +1,18 @@
 # Operations Ledger
 
+## 2026-09-04 -- Prevent empty DDL table creation on unattached CSV requests & enhance load config
+
+**What**: Fixed the agent creating an empty BigQuery table with synthetic columns and 0 rows when a user asks to upload or import CSV data without an attached file. Instructed the model in `src/agent/prompts/flash.ts` to never execute DDL (`CREATE TABLE`) for CSV upload requests and instead guide the user to attach or drop the file. Added `schemaUpdateOptions` (`ALLOW_FIELD_ADDITION`, `ALLOW_FIELD_RELAXATION`), `ignoreUnknownValues: true`, and `maxBadRecords: 100` to `loadCsvToTable` so that existing tables can be cleanly overwritten or appended with CSV data.
+
+**Why**: When a user sent a message like "upload this CSV into a new dataset table for me named 'breweries'" without the file actively attached to the message, the LLM inferred Rule 5 (create table on request) and ran `CREATE TABLE` via `execute_dml`, creating an empty table schema with 0 rows because SQL queries cannot access local files. Furthermore, if a table was previously created empty with slightly differing column definitions, subsequent CSV uploads without `schemaUpdateOptions` or error tolerance would fail.
+
+**Fix**:
+1. `src/agent/prompts/flash.ts`: Added Decision Rule 8 forbidding `CREATE TABLE` DDL for CSV/file upload requests and directing the model to explain how to attach or drop the file to trigger the multipart streaming upload.
+2. `src/lib/bigquery-client.ts`: Added `schemaUpdateOptions: ['ALLOW_FIELD_ADDITION', 'ALLOW_FIELD_RELAXATION']`, `ignoreUnknownValues: true`, and `maxBadRecords: 100` to BigQuery load job configuration in `loadCsvToTable`.
+
+**Rule derived**: Language models must never fabricate SQL DDL statements in response to file upload or file import prompts. The system must guide the user to attach the actual file to initiate the multipart data streaming pipeline.
+
+
 ## 2026-09-03 -- Fix CSV upload dataset creation, multipart load polling, and button hanging
 
 **What**: Fixed CSV upload into new datasets and tables hanging with the button stuck on "Uploading...". Added automatic dataset creation in `ensureDatasetExists()` prior to multipart load jobs, region-aware job polling with timeout, error handling in `useChatOrchestration.ts` and `CsvUploadView.tsx`, dedicated success card in `DataLoadingView.tsx`, and Firestore payload dehydration for `CSV_UPLOAD_VIEW` envelopes.
