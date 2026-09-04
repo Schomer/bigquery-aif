@@ -1,5 +1,22 @@
 # Operations Ledger
 
+## 2026-09-04 -- Automated self-healing error recovery loop for BigQuery CSV loads
+
+**What**: Implemented an automated self-healing error recovery loop in `loadCsvToTable` (`src/lib/bigquery-client.ts`) that intercepts BigQuery job rejection errors and applies targeted remediation before retrying:
+1. *Missing Dataset*: Auto-creates dataset via `ensureDatasetExists()` and retries.
+2. *Schema Update Options on Truncate*: Strips `schemaUpdateOptions` and retries.
+3. *Character Map / Header Names*: Sanitizes headers and sets `columnNameCharacterMap: 'V2'` and retries.
+4. *Delimiter Mismatches*: Analyzes the CSV lines to detect the actual delimiter (`;`, `\t`, `|`, `,`), sets `fieldDelimiter`, and retries.
+5. *Ragged / Malformed Lines*: Automatically relaxes parsing constraints (`allowJaggedRows: true`, `ignoreUnknownValues: true`, `maxBadRecords: 5000`) and retries.
+
+**Why**: Rather than failing and surfacing technical BigQuery REST API errors to the user, the application should automatically diagnose the failure mode and self-heal in real time.
+
+**Fix**:
+1. `src/lib/bigquery-client.ts`: Added `detectCsvDelimiter()`, `executeLoadAttempt()`, and a multi-pass self-healing retry loop inside `loadCsvToTable`.
+
+**Rule derived**: Client-side data loading operations should incorporate autonomous error pattern matching and remediation strategies so standard CSV variations (delimiters, symbols in headers, trailing lines, disposition flags) resolve without user intervention.
+
+
 ## 2026-09-04 -- Sanitize CSV headers and enable Character Map V2 for BigQuery loads
 
 **What**: Fixed BigQuery error `"Field name '...' is not supported by the current character map"` when loading CSV files with column headers containing parentheses, slashes, spaces, or symbols (e.g. `'Fatal (Y/N)'`, `'Price ($)'`). Added `sanitizeCsvHeaders()` to convert invalid header characters into valid BigQuery column identifiers and enabled `columnNameCharacterMap: 'V2'` in BigQuery load job configurations.

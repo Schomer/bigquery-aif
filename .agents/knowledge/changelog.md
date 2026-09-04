@@ -2,6 +2,11 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-04 -- Automated self-healing error recovery loop for BigQuery CSV loads
+
+- Implemented an automated self-repair loop in `loadCsvToTable` (`src/lib/bigquery-client.ts`) that diagnoses BigQuery errors (missing datasets, disposition flags, character map/header names, delimiter mismatches, ragged rows) and automatically repairs configurations on retry.
+
+
 ## 2026-09-04 -- Sanitize CSV headers and enable Character Map V2 for BigQuery loads
 
 - Added `sanitizeCsvHeaders()` to `src/lib/bigquery-client.ts` to normalize special characters in CSV header rows (e.g. `Fatal (Y/N)` -> `Fatal_Y_N`).

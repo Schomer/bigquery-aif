@@ -745,6 +745,151 @@ export function sanitizeCsvHeaders(csv: string): string {
  * Creates the table if it doesn't exist (autodetect schema).
  * Runs entirely client-side using the user's OAuth token.
  */
+interface LoadOptions {
+  writeDisposition: 'WRITE_APPEND' | 'WRITE_TRUNCATE' | 'WRITE_EMPTY';
+  columnNameCharacterMap?: string;
+  schemaUpdateOptions?: string[];
+  fieldDelimiter?: string;
+  allowQuotedNewlines?: boolean;
+  allowJaggedRows?: boolean;
+  ignoreUnknownValues?: boolean;
+  maxBadRecords?: number;
+  skipLeadingRows?: number;
+}
+
+function detectCsvDelimiter(csv: string): string {
+  const lines = csv.split('\n').filter(l => l.trim()).slice(0, 5);
+  if (!lines.length) return ',';
+
+  const counts: Record<string, number> = { ',': 0, ';': 0, '\t': 0, '|': 0 };
+  for (const line of lines) {
+    for (const d of Object.keys(counts)) {
+      counts[d] += (line.split(d).length - 1);
+    }
+  }
+
+  let best = ',';
+  let max = 0;
+  for (const [d, count] of Object.entries(counts)) {
+    if (count > max) {
+      max = count;
+      best = d;
+    }
+  }
+  return best;
+}
+
+async function executeLoadAttempt(
+  project: string,
+  datasetId: string,
+  tableId: string,
+  csv: string,
+  options: LoadOptions,
+  token: string,
+): Promise<LoadCsvResult> {
+  const boundary = '=====bigqueryaif_upload_boundary=====';
+
+  const jobConfig = {
+    configuration: {
+      load: {
+        destinationTable: {
+          projectId: project,
+          datasetId: datasetId,
+          tableId: tableId,
+        },
+        sourceFormat: 'CSV',
+        autodetect: true,
+        skipLeadingRows: options.skipLeadingRows ?? 1,
+        writeDisposition: options.writeDisposition,
+        createDisposition: 'CREATE_IF_NEEDED',
+        ...(options.columnNameCharacterMap ? { columnNameCharacterMap: options.columnNameCharacterMap } : {}),
+        ...(options.schemaUpdateOptions ? { schemaUpdateOptions: options.schemaUpdateOptions } : {}),
+        ...(options.fieldDelimiter ? { fieldDelimiter: options.fieldDelimiter } : {}),
+        allowQuotedNewlines: options.allowQuotedNewlines ?? true,
+        allowJaggedRows: options.allowJaggedRows ?? true,
+        ignoreUnknownValues: options.ignoreUnknownValues ?? true,
+        maxBadRecords: options.maxBadRecords ?? 100,
+      },
+    },
+  };
+
+  const body = [
+    `--${boundary}`,
+    'Content-Type: application/json; charset=UTF-8',
+    '',
+    JSON.stringify(jobConfig),
+    `--${boundary}`,
+    'Content-Type: application/octet-stream',
+    '',
+    csv,
+    `--${boundary}--`,
+  ].join('\r\n');
+
+  const uploadUrl = `https://bigquery.googleapis.com/upload/bigquery/v2/projects/${encodeURIComponent(project)}/jobs?uploadType=multipart`;
+
+  const res = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': `multipart/related; boundary=${boundary}`,
+    },
+    body,
+  });
+
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    const msg = data?.error?.message || data?.error || `HTTP ${res.status}`;
+    checkAuthError(res.status, data);
+    throw new Error(String(msg));
+  }
+
+  let job = data;
+  const jobId = job.jobReference?.jobId ?? '';
+  const jobLocation = job.jobReference?.location;
+  const locationParam = jobLocation ? `?location=${encodeURIComponent(jobLocation)}` : '';
+  const startTime = Date.now();
+  const timeoutMs = 60000;
+
+  while (job.status?.state !== 'DONE') {
+    if (Date.now() - startTime > timeoutMs) {
+      throw new Error(`BigQuery upload job timed out after ${timeoutMs / 1000}s`);
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+    job = await bqFetch(
+      `${BQ_BASE}/${encodeURIComponent(project)}/jobs/${encodeURIComponent(jobId)}${locationParam}`
+    );
+  }
+  if (job.status?.errors?.length) {
+    const errorDetails = job.status.errors.map((e: any) => e.message).join('; ');
+    throw new Error(errorDetails || job.status.errorResult?.message || 'BigQuery load job failed');
+  }
+  if (job.status?.errorResult) {
+    throw new Error(job.status.errorResult.message || 'BigQuery load job failed');
+  }
+
+  const outputRows = parseInt(
+    job.statistics?.load?.outputRows ?? job.statistics?.query?.numDmlAffectedRows ?? '0',
+    10,
+  );
+
+  invalidateCache(`${project}.${datasetId}.${tableId}`);
+
+  return {
+    jobId,
+    rowCount: outputRows,
+    tableRef: `${project}.${datasetId}.${tableId}`,
+  };
+}
+
+/**
+ * Upload CSV content to a BigQuery table via the Jobs API multipart upload.
+ * Automatically self-heals common BigQuery ingestion issues:
+ * - Creates missing dataset automatically
+ * - Sanitizes invalid header names and enables Character Map V2
+ * - Adjusts disposition schema update options
+ * - Auto-detects delimiters (semicolon, tab, pipe)
+ * - Tolerates malformed rows and relaxed schemas
+ */
 export async function loadCsvToTable(
   project: string,
   datasetId: string,
@@ -763,104 +908,83 @@ export async function loadCsvToTable(
   if (!cleanDataset) throw new Error('Dataset ID is required for CSV upload.');
   if (!cleanTable) throw new Error('Table ID is required for CSV upload.');
 
-  // Ensure dataset exists in BigQuery before creating load job
+  // Pre-emptively ensure dataset exists
   await ensureDatasetExists(cleanProject, cleanDataset);
 
-  const cleanedCsv = sanitizeCsvHeaders(csvContent);
-  const boundary = '=====bigqueryaif_upload_boundary=====';
-
-  const jobConfig = {
-    configuration: {
-      load: {
-        destinationTable: {
-          projectId: cleanProject,
-          datasetId: cleanDataset,
-          tableId: cleanTable,
-        },
-        sourceFormat: 'CSV',
-        autodetect: true,
-        skipLeadingRows: 1,
-        writeDisposition,
-        createDisposition: 'CREATE_IF_NEEDED',
-        columnNameCharacterMap: 'V2',
-        ...(writeDisposition === 'WRITE_APPEND'
-          ? { schemaUpdateOptions: ['ALLOW_FIELD_ADDITION', 'ALLOW_FIELD_RELAXATION'] }
-          : {}),
-        allowQuotedNewlines: true,
-        allowJaggedRows: true,
-        ignoreUnknownValues: true,
-        maxBadRecords: 100,
-      },
-    },
+  let currentCsv = sanitizeCsvHeaders(csvContent);
+  const currentOptions: LoadOptions = {
+    writeDisposition,
+    columnNameCharacterMap: 'V2',
+    allowQuotedNewlines: true,
+    allowJaggedRows: true,
+    ignoreUnknownValues: true,
+    maxBadRecords: 100,
+    skipLeadingRows: 1,
+    ...(writeDisposition === 'WRITE_APPEND'
+      ? { schemaUpdateOptions: ['ALLOW_FIELD_ADDITION', 'ALLOW_FIELD_RELAXATION'] }
+      : {}),
   };
 
-  // Build multipart/related body per BigQuery upload API spec
-  const body = [
-    `--${boundary}`,
-    'Content-Type: application/json; charset=UTF-8',
-    '',
-    JSON.stringify(jobConfig),
-    `--${boundary}`,
-    'Content-Type: application/octet-stream',
-    '',
-    cleanedCsv,
-    `--${boundary}--`,
-  ].join('\r\n');
+  let lastError: Error | null = null;
+  const maxRetries = 3;
 
-  const uploadUrl = `https://bigquery.googleapis.com/upload/bigquery/v2/projects/${encodeURIComponent(cleanProject)}/jobs?uploadType=multipart`;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await executeLoadAttempt(
+        cleanProject,
+        cleanDataset,
+        cleanTable,
+        currentCsv,
+        currentOptions,
+        token,
+      );
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      lastError = err instanceof Error ? err : new Error(errMsg);
 
-  const res = await fetch(uploadUrl, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': `multipart/related; boundary=${boundary}`,
-    },
-    body,
-  });
+      // Self-repair 1: Missing dataset
+      if (/not found.*dataset|dataset.*not found/i.test(errMsg)) {
+        await ensureDatasetExists(cleanProject, cleanDataset);
+        continue;
+      }
 
-  const data = await res.json();
-  if (!res.ok || data.error) {
-    const msg = data?.error?.message || data?.error || `HTTP ${res.status}`;
-    checkAuthError(res.status, data);
-    throw new Error(String(msg));
-  }
+      // Self-repair 2: Schema update options on WRITE_TRUNCATE
+      if (/schema update options should only be specified/i.test(errMsg)) {
+        delete currentOptions.schemaUpdateOptions;
+        continue;
+      }
 
-  // Poll for completion (same pattern as executeDml)
-  let job = data;
-  const jobId = job.jobReference?.jobId ?? '';
-  const jobLocation = job.jobReference?.location;
-  const locationParam = jobLocation ? `?location=${encodeURIComponent(jobLocation)}` : '';
-  const startTime = Date.now();
-  const timeoutMs = 60000;
+      // Self-repair 3: Character map or header name issue
+      if (/character map|field name.*not supported/i.test(errMsg)) {
+        currentOptions.columnNameCharacterMap = 'V2';
+        currentCsv = sanitizeCsvHeaders(currentCsv);
+        continue;
+      }
 
-  while (job.status?.state !== 'DONE') {
-    if (Date.now() - startTime > timeoutMs) {
-      throw new Error(`BigQuery upload job timed out after ${timeoutMs / 1000}s`);
+      // Self-repair 4: Delimiter mismatch or too many values in line
+      if (/too many values|could not parse as csv|unparseable/i.test(errMsg)) {
+        const detected = detectCsvDelimiter(csvContent);
+        if (detected !== ',') {
+          currentOptions.fieldDelimiter = detected;
+        }
+        currentOptions.maxBadRecords = 1000;
+        currentOptions.allowJaggedRows = true;
+        currentOptions.ignoreUnknownValues = true;
+        continue;
+      }
+
+      // Self-repair 5: Bad records / ragged lines
+      if (/too many errors|bad records/i.test(errMsg)) {
+        currentOptions.maxBadRecords = 5000;
+        currentOptions.allowJaggedRows = true;
+        currentOptions.ignoreUnknownValues = true;
+        continue;
+      }
+
+      // If no known repair strategy matches, break out
+      break;
     }
-    await new Promise((r) => setTimeout(r, 1500));
-    job = await bqFetch(
-      `${BQ_BASE}/${encodeURIComponent(cleanProject)}/jobs/${encodeURIComponent(jobId)}${locationParam}`
-    );
-  }
-  if (job.status?.errors?.length) {
-    const errorDetails = job.status.errors.map((e: any) => e.message).join('; ');
-    throw new Error(errorDetails || job.status.errorResult?.message || 'BigQuery load job failed');
-  }
-  if (job.status?.errorResult) {
-    throw new Error(job.status.errorResult.message || 'BigQuery load job failed');
   }
 
-  const outputRows = parseInt(
-    job.statistics?.load?.outputRows ?? job.statistics?.query?.numDmlAffectedRows ?? '0',
-    10,
-  );
-
-  // Invalidate schema cache so the new table is recognized
-  invalidateCache(`${cleanProject}.${cleanDataset}.${cleanTable}`);
-
-  return {
-    jobId,
-    rowCount: outputRows,
-    tableRef: `${cleanProject}.${cleanDataset}.${cleanTable}`,
-  };
+  throw lastError || new Error('BigQuery load job failed after self-repair attempts');
 }
