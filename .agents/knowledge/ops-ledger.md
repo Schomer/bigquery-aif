@@ -1,5 +1,19 @@
 # Operations Ledger
 
+## 2026-09-04 -- Fix disabled CSV Upload button and persist CSV content in IndexedDB
+
+**What**: Fixed the "Upload to BigQuery" button being disabled in `PreviewCard`. Root causes included: (1) missing default dataset names when `targetDataset` was empty, (2) raw `csvContent` being stripped during conversation save to Firestore without being preserved in IndexedDB (`persistentResultCache`), causing reloaded preview cards to have empty CSV payloads, and (3) missing UI feedback for validation states. Added IndexedDB persistence and rehydration for `csvContent` on `CSV_UPLOAD_VIEW` envelopes, default dataset fallbacks, in-card file re-attachment fallback, and inline validation hints.
+
+**Why**: If `targetDataset` was empty, the dataset input was empty, disabling the upload button without explanatory feedback. If a user refreshed the page or loaded saved history, Firestore dehydration had stripped the 2MB raw CSV string, leaving `result.csvContent` as `''`.
+
+**Fix**:
+1. `src/agent/result-cache.ts`: Added `csvContent?: string` to `PersistedResult`.
+2. `src/lib/firestore-service.ts`: Updated `dehydrateMessages()` to store `csvContent` in IndexedDB and `rehydrateMessages()` to restore `csvContent` into `CSV_UPLOAD_VIEW` envelopes.
+3. `src/components/CsvUploadView.tsx`: In `PreviewCard`, defaulted `datasetName` to `result.targetDataset || result.targetTable || ''`, added local CSV re-attach picker when content is missing, added 60s timeout on `uploading` state, and added validation text indicators.
+
+**Rule derived**: Any artifact payload stripped during Firestore dehydration to meet document size limits must be stored in IndexedDB (`persistentResultCache`) and restored during rehydration so that interactive action cards remain functional after page reloads.
+
+
 ## 2026-09-04 -- Prevent empty DDL table creation on unattached CSV requests & enhance load config
 
 **What**: Fixed the agent creating an empty BigQuery table with synthetic columns and 0 rows when a user asks to upload or import CSV data without an attached file. Instructed the model in `src/agent/prompts/flash.ts` to never execute DDL (`CREATE TABLE`) for CSV upload requests and instead guide the user to attach or drop the file. Added `schemaUpdateOptions` (`ALLOW_FIELD_ADDITION`, `ALLOW_FIELD_RELAXATION`), `ignoreUnknownValues: true`, and `maxBadRecords: 100` to `loadCsvToTable` so that existing tables can be cleanly overwritten or appended with CSV data.

@@ -2,6 +2,12 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-04 -- Fix disabled CSV Upload button and persist CSV content in IndexedDB
+
+- Updated `src/agent/result-cache.ts` and `src/lib/firestore-service.ts` to store raw `csvContent` in IndexedDB during dehydration and restore it during conversation rehydration, allowing preview cards to remain uploadable after page reload.
+- Enhanced `PreviewCard` in `src/components/CsvUploadView.tsx` with automatic dataset name defaulting, local file re-attachment button if cache is empty, 60-second uploading timeout, and validation error indicators.
+
+
 ## 2026-09-04 -- Prevent empty DDL table creation on unattached CSV requests & enhance load config
 
 - Updated `src/agent/prompts/flash.ts` with Decision Rule 8 forbidding `CREATE TABLE` DDL for CSV upload prompts and directing the assistant to guide the user to attach the file.

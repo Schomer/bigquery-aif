@@ -21,6 +21,7 @@ export interface PersistedResult {
   rows: unknown[][];
   columns: string[];
   columnTypes?: string[];
+  csvContent?: string;
   created: number;
   bytes: number;
 }

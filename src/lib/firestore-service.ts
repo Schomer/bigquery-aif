@@ -104,13 +104,24 @@ async function dehydrateMessages(messages: ChatMessage[]): Promise<ChatMessage[]
           })
         );
       } else if (type === 'CSV_UPLOAD_VIEW' && data && typeof data.csvContent === 'string' && data.csvContent.length > 0) {
-        // Strip large raw CSV string before writing to Firestore
-        const slimData = { ...data, csvContent: '' };
+        // Strip large raw CSV string before writing to Firestore, but save to IndexedDB
+        const slimData = { ...data, csvContent: '', _resultCacheId: env.id };
         const slimEnv: CompositionEnvelope = {
           ...env,
           primaryArtifact: { ...env.primaryArtifact, data: slimData },
         };
         newEnvelopes.push(slimEnv);
+
+        persistPromises.push(
+          persistentResultCache.put({
+            id: env.id,
+            rows: [],
+            columns: data.uploadPreview ? ((data.uploadPreview as Record<string, unknown>).columns as string[] ?? []) : [],
+            csvContent: data.csvContent,
+            created: Date.now(),
+            bytes: data.csvContent.length,
+          })
+        );
       } else {
         newEnvelopes.push(env);
       }
@@ -136,7 +147,7 @@ async function rehydrateMessages(messages: ChatMessage[]): Promise<ChatMessage[]
     if (msg.role !== 'assistant' || !msg.envelopes) continue;
     for (const env of msg.envelopes) {
       const data = env.primaryArtifact?.data as Record<string, unknown> | null;
-      if (data?._resultCacheId && Array.isArray(data.rows) && data.rows.length === 0) {
+      if (data?._resultCacheId) {
         idsToFetch.push(data._resultCacheId as string);
       }
     }
@@ -157,14 +168,19 @@ async function rehydrateMessages(messages: ChatMessage[]): Promise<ChatMessage[]
 
     const newEnvelopes: CompositionEnvelope[] = [];
     for (const env of msg.envelopes) {
+      const type = env.primaryArtifact?.type;
       const data = env.primaryArtifact?.data as Record<string, unknown> | null;
       const cacheId = data?._resultCacheId as string | undefined;
 
-      if (cacheId && Array.isArray(data?.rows) && (data?.rows as unknown[]).length === 0) {
+      if (cacheId) {
         const persisted = cached.get(cacheId);
         if (persisted) {
-          // Restore rows from IndexedDB
-          const restoredData = { ...data, rows: persisted.rows };
+          // Restore rows or csvContent from IndexedDB
+          const restoredData = {
+            ...data,
+            ...(persisted.rows?.length ? { rows: persisted.rows } : {}),
+            ...(persisted.csvContent ? { csvContent: persisted.csvContent } : {}),
+          };
           delete (restoredData as Record<string, unknown>)._resultCacheId;
           newEnvelopes.push({
             ...env,

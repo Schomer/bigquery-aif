@@ -112,10 +112,22 @@ function FileDropZone({ result, onSendMessage }: Props) {
 
 function PreviewCard({ result, onSendMessage }: Props) {
   const preview = result.uploadPreview!;
-  const [tableName, setTableName] = useState(result.targetTable || '');
-  const [datasetName, setDatasetName] = useState(result.targetDataset || '');
-  const [writeMode, setWriteMode] = useState<'WRITE_APPEND' | 'WRITE_TRUNCATE'>('WRITE_APPEND');
+  const [tableName, setTableName] = useState(result.targetTable || 'uploaded_data');
+  const [datasetName, setDatasetName] = useState(result.targetDataset || result.targetTable || '');
+  const [writeMode, setWriteMode] = useState<'WRITE_APPEND' | 'WRITE_TRUNCATE'>('WRITE_TRUNCATE');
   const [uploading, setUploading] = useState(false);
+  const [localCsv, setLocalCsv] = useState<string>(result.csvContent || '');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (result.targetTable && !tableName) setTableName(result.targetTable);
+    if ((result.targetDataset || result.targetTable) && !datasetName) {
+      setDatasetName(result.targetDataset || result.targetTable || '');
+    }
+    if (result.csvContent && !localCsv) {
+      setLocalCsv(result.csvContent);
+    }
+  }, [result]);
 
   useEffect(() => {
     function handleDone() {
@@ -129,13 +141,25 @@ function PreviewCard({ result, onSendMessage }: Props) {
     };
   }, []);
 
+  // Safety timeout in case no event was received within 60s
+  useEffect(() => {
+    if (!uploading) return;
+    const timer = setTimeout(() => setUploading(false), 60000);
+    return () => clearTimeout(timer);
+  }, [uploading]);
+
+  const activeCsv = localCsv || result.csvContent || '';
+  const hasContent = Boolean(activeCsv);
+  const hasTarget = Boolean(tableName.trim() && datasetName.trim());
+  const isDisabled = !hasTarget || !hasContent || uploading;
+
   function handleUpload() {
-    if (!tableName.trim() || !datasetName.trim()) return;
+    if (!hasTarget || !hasContent) return;
     setUploading(true);
     // Dispatch upload execution via custom event
     const event = new CustomEvent('csv-upload-confirm', {
       detail: {
-        csvContent: result.csvContent,
+        csvContent: activeCsv,
         tableName: tableName.trim(),
         dataset: datasetName.trim(),
         writeDisposition: writeMode,
@@ -143,6 +167,16 @@ function PreviewCard({ result, onSendMessage }: Props) {
       bubbles: true,
     });
     document.dispatchEvent(event);
+  }
+
+  function handleReattachFile(file: File) {
+    if (!file.name.toLowerCase().endsWith('.csv')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const content = reader.result as string;
+      setLocalCsv(content);
+    };
+    reader.readAsText(file);
   }
 
   function formatSize(bytes: number): string {
@@ -181,11 +215,54 @@ function PreviewCard({ result, onSendMessage }: Props) {
               cursor: 'pointer',
             }}
           >
-            <option value="WRITE_APPEND">Append rows</option>
             <option value="WRITE_TRUNCATE">Replace table</option>
+            <option value="WRITE_APPEND">Append rows</option>
           </select>
         </div>
       </div>
+
+      {/* Re-attach file notice if content was stripped on page refresh */}
+      {!hasContent && (
+        <div style={{
+          padding: '10px 14px',
+          background: 'var(--surface-dim)',
+          borderRadius: 8,
+          border: '1px dashed var(--border)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            CSV file content was cleared. Select <strong>{preview.fileName}</strong> to upload.
+          </span>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleReattachFile(file);
+            }}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              padding: '4px 10px',
+              fontSize: 11,
+              fontWeight: 500,
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              cursor: 'pointer',
+              color: 'var(--text)',
+            }}
+          >
+            Browse File
+          </button>
+        </div>
+      )}
 
       {/* Data preview table */}
       <div style={{ overflow: 'auto', maxHeight: 260, borderRadius: 8, border: '1px solid var(--border)' }}>
@@ -237,11 +314,11 @@ function PreviewCard({ result, onSendMessage }: Props) {
         </p>
       )}
 
-      {/* Action buttons */}
-      <div style={{ display: 'flex', gap: 8 }}>
+      {/* Action buttons & validation hint */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <button
           onClick={handleUpload}
-          disabled={!tableName.trim() || !datasetName.trim() || uploading}
+          disabled={isDisabled}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -251,11 +328,11 @@ function PreviewCard({ result, onSendMessage }: Props) {
             fontWeight: 600,
             fontFamily: 'inherit',
             color: '#fff',
-            background: uploading ? '#93c5fd' : '#2563eb',
+            background: uploading ? '#93c5fd' : isDisabled ? '#94a3b8' : '#2563eb',
             border: 'none',
             borderRadius: 8,
-            cursor: uploading ? 'wait' : (!tableName.trim() || !datasetName.trim()) ? 'not-allowed' : 'pointer',
-            opacity: (!tableName.trim() || !datasetName.trim()) ? 0.5 : 1,
+            cursor: uploading ? 'wait' : isDisabled ? 'not-allowed' : 'pointer',
+            opacity: isDisabled && !uploading ? 0.6 : 1,
             transition: 'all 0.15s',
           }}
         >
@@ -264,6 +341,12 @@ function PreviewCard({ result, onSendMessage }: Props) {
           </span>
           {uploading ? 'Uploading...' : 'Upload to BigQuery'}
         </button>
+
+        {!uploading && !hasTarget && (
+          <span style={{ fontSize: 11, color: '#ef4444' }}>
+            {!datasetName.trim() ? 'Enter a dataset name' : 'Enter a table name'}
+          </span>
+        )}
       </div>
     </div>
   );
