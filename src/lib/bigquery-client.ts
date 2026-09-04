@@ -718,7 +718,9 @@ export async function loadCsvToTable(
         skipLeadingRows: 1,
         writeDisposition,
         createDisposition: 'CREATE_IF_NEEDED',
-        schemaUpdateOptions: ['ALLOW_FIELD_ADDITION', 'ALLOW_FIELD_RELAXATION'],
+        ...(writeDisposition === 'WRITE_APPEND'
+          ? { schemaUpdateOptions: ['ALLOW_FIELD_ADDITION', 'ALLOW_FIELD_RELAXATION'] }
+          : {}),
         allowQuotedNewlines: true,
         allowJaggedRows: true,
         ignoreUnknownValues: true,

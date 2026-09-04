@@ -1,5 +1,17 @@
 # Operations Ledger
 
+## 2026-09-04 -- Fix BigQuery load job schemaUpdateOptions with WRITE_TRUNCATE disposition
+
+**What**: Fixed BigQuery API rejection: `"Schema update options should only be specified with WRITE_APPEND disposition, or with WRITE_TRUNCATE disposition on a table partition."` by making `schemaUpdateOptions` conditionally included only when `writeDisposition === 'WRITE_APPEND'`.
+
+**Why**: BigQuery API strictly forbids `schemaUpdateOptions` on non-partitioned tables when `writeDisposition` is `WRITE_TRUNCATE` (replace table).
+
+**Fix**:
+1. `src/lib/bigquery-client.ts`: Conditionally spread `schemaUpdateOptions` only if `writeDisposition === 'WRITE_APPEND'`.
+
+**Rule derived**: In BigQuery Jobs API load configurations, never specify `schemaUpdateOptions` when `writeDisposition` is `WRITE_TRUNCATE` on standard (unpartitioned) tables.
+
+
 ## 2026-09-04 -- Streamline CSV upload to 1-step automated dataset, table, and data import
 
 **What**: Simplified the CSV upload flow so that attaching or dropping a CSV and asking to create a table automatically creates the dataset, creates the table with auto-detected schema, and streams all CSV rows into the table in one shot without requiring intermediate preview card clicks.

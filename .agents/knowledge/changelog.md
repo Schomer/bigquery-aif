@@ -2,6 +2,11 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-04 -- Fix BigQuery load job schemaUpdateOptions with WRITE_TRUNCATE
+
+- Made `schemaUpdateOptions` in `loadCsvToTable` (`src/lib/bigquery-client.ts`) conditional only on `writeDisposition === 'WRITE_APPEND'` to prevent BigQuery API rejection on standard table replacement.
+
+
 ## 2026-09-04 -- Streamline CSV upload to 1-step automated dataset, table, and data import
 
 - Streamlined CSV upload in `src/lib/chat-orchestrator.ts` to automatically create the dataset, create the table, and stream all CSV rows directly into BigQuery in one shot when a CSV is attached.
