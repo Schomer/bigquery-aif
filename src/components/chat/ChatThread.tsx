@@ -312,6 +312,7 @@ export interface ChatThreadProps {
   onSave?: (envelope: CompositionEnvelope) => void;
   onReplan?: (envelopeId: string, amendedQuery: string) => Promise<void>;
   onExecutePlan?: (query: string) => Promise<void>;
+  onRerunQuery?: (envelopeId: string, sql: string, project?: string) => Promise<void>;
 }
 
 // ---- ChatThread Component ---------------------------------------------------
@@ -345,6 +346,7 @@ export function ChatThread({
   onSave,
   onReplan,
   onExecutePlan,
+  onRerunQuery,
 }: ChatThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -596,6 +598,7 @@ export function ChatThread({
                       onPin={extractContextItems(env).length > 0 ? onPinContext : undefined}
                       onReplan={onReplan}
                       onExecutePlan={onExecutePlan}
+                      onRerunQuery={onRerunQuery}
                       isPinned={pinnedEnvelopeId === env.id}
                     />
                   </div>

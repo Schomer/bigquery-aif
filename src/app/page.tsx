@@ -553,6 +553,7 @@ export default function Home() {
               onSave={chat.saveEnvelopeAsArtifact}
               onReplan={chat.replanEnvelope}
               onExecutePlan={chat.executePlan}
+              onRerunQuery={chat.rerunEnvelopeQuery}
             />
           )}
 
@@ -633,6 +634,9 @@ export default function Home() {
               onInlineClick={chat.handleInlineClick}
               onPinContext={handlePinContext}
               onRerun={chat.rerunMessage}
+              onRerunQuery={chat.rerunEnvelopeQuery}
+              onReplan={chat.replanEnvelope}
+              onExecutePlan={chat.executePlan}
               extractContextItems={chat.extractContextItems}
               favoriteProjectIds={favoriteProjectIds}
               recentProjectIds={recentProjectIds}

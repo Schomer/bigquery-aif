@@ -1,5 +1,16 @@
 # Operations Ledger
 
+## 2026-09-08 -- In-place query re-run in existing tile
+
+**What**:
+1. *In-place Re-run Execution*: Added `rerunEnvelopeQuery` in `useChatOrchestration.ts` to re-execute BigQuery queries directly for a target envelope, re-populate the persistent IndexedDB cache with the fresh rows, and update the existing envelope in `messages` state in place (preserving the existing card and removing `_dataMissing`).
+2. *Tile Loading & Error Feedback*: Updated `ArtifactCard.tsx` and the `_dataMissing` fallback UI in `Artifact` to show an in-place `SparkSpinner` while re-running, catch and display any query errors in the card with a "Try again" button, and render the restored chart, table, or KPI directly in the existing tile once completed.
+3. *Prop Threading & Kebab Re-run Action*: Threaded `onRerunQuery` through `page.tsx`, `ChatThread.tsx`, `ResultsSidebar.tsx`, and `ArtifactCard.tsx`. Added a "Re-run query" item in the `ArtifactCard` kebab menu for all query envelopes to allow instant in-place data refresh.
+
+**Why**: Previously, clicking "Re-run query" on a dehydrated tile called `onSendMessage(sql)`, which created a brand new user message bubble and generated a new envelope at the bottom of the chat, leaving the original card in a broken/missing-data state.
+
+**Rule derived**: Re-running or refreshing queries on existing cards/tiles must always execute and update the card in-place, updating persistent IndexedDB result cache and React message state without appending new chat turns.
+
 ## 2026-09-08 -- Add row height drag adjustment to dashboard builder
 
 **What**:

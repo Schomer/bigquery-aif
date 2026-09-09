@@ -98,6 +98,7 @@ export interface ChatOrchestrationReturn {
   cancelEdit: () => void;
   submitEdit: (userIdx: number) => Promise<void>;
   rerunMessage: (assistantIdx: number) => Promise<void>;
+  rerunEnvelopeQuery: (envelopeId: string, sql?: string, project?: string) => Promise<void>;
   handleKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
 
   // Queued prompt
@@ -1403,6 +1404,76 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     }
   }
 
+  async function rerunEnvelopeQuery(envelopeId: string, sql?: string, project?: string): Promise<void> {
+    const targetEnvelope = messages
+      .flatMap((m) => m.envelopes || [])
+      .find((e) => e.id === envelopeId);
+
+    const querySql = sql || targetEnvelope?.provenance?.sql;
+    if (!querySql) throw new Error('No SQL query found for this tile');
+
+    const queryProject = project || targetEnvelope?.provenance?.project || activeProject || context.project || '';
+
+    const { executeQuery } = await import('@/lib/bigquery-client');
+    const { persistentResultCache } = await import('@/agent/result-cache');
+
+    const result = await withAuthRetry(() => executeQuery(querySql, queryProject));
+
+    // Save restored rows to persistent IndexedDB cache
+    await persistentResultCache.put({
+      id: envelopeId,
+      rows: result.rows,
+      columns: result.columns,
+      columnTypes: result.columnTypes ?? [],
+      created: Date.now(),
+      bytes: JSON.stringify(result.rows).length,
+    });
+
+    // Update the matching envelope in-place in messages
+    setMessages((prev) => {
+      const updated = prev.map((msg) => {
+        if (!msg.envelopes) return msg;
+        const idx = msg.envelopes.findIndex((e) => e.id === envelopeId);
+        if (idx === -1) return msg;
+
+        const existingEnv = msg.envelopes[idx];
+        const existingData = (existingEnv.primaryArtifact.data || {}) as Record<string, unknown>;
+        const updatedData = {
+          ...existingData,
+          rows: result.rows,
+          columns: result.columns,
+          columnTypes: result.columnTypes ?? existingData.columnTypes,
+          rowCount: result.rowCount ?? result.rows.length,
+          jobId: result.jobId,
+          sql: querySql,
+        };
+        delete (updatedData as Record<string, unknown>)._dataMissing;
+        delete (updatedData as Record<string, unknown>)._resultCacheId;
+
+        const updatedEnv: CompositionEnvelope = {
+          ...existingEnv,
+          primaryArtifact: {
+            ...existingEnv.primaryArtifact,
+            data: updatedData,
+          },
+          provenance: {
+            ...existingEnv.provenance,
+            sql: querySql,
+            jobId: result.jobId,
+            project: queryProject || existingEnv.provenance?.project,
+          },
+        };
+
+        const updatedEnvelopes = [...msg.envelopes];
+        updatedEnvelopes[idx] = updatedEnv;
+        return { ...msg, envelopes: updatedEnvelopes };
+      });
+
+      persistConversation(updated).catch((e) => console.warn('[persist]', e));
+      return updated;
+    });
+  }
+
   // ---- Saved work functions -----------------------------------------------
 
   const saveEnvelopeAsArtifact = useCallback((envelope: CompositionEnvelope) => {
@@ -1705,6 +1776,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     cancelEdit,
     submitEdit,
     rerunMessage,
+    rerunEnvelopeQuery,
     handleKeyDown,
 
     titleSetRef,

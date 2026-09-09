@@ -37,6 +37,7 @@ import { DashboardArtifactCard } from './DashboardArtifactCard';
 
 import { PlanCard } from './chat/PlanCard';
 import type { PlanCardData } from './chat/PlanCard';
+import { SparkSpinner } from './SparkSpinner';
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { usePreferences } from '@/lib/preferences-context';
 import { useBuilder } from '@/lib/builder-context';
@@ -54,6 +55,7 @@ interface Props {
   onRunSql?: (sql: string) => void;
   onReplan?: (envelopeId: string, amendedQuery: string) => Promise<void>;
   onExecutePlan?: (query: string) => Promise<void>;
+  onRerunQuery?: (envelopeId: string, sql: string, project?: string) => Promise<void>;
   isPinned?: boolean;
 }
 
@@ -63,7 +65,69 @@ const TONE_CLASSES: Record<string, string> = {
   ATTENTION: 'tone-attention',
 };
 
-export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInlineClick, onSave, onPin, onRunSql, onReplan, onExecutePlan, isPinned }: Props) {
+export function ArtifactCard({ envelope: propEnvelope, onConfirm, onCancel, onChipClick, onInlineClick, onSave, onPin, onRunSql, onReplan, onExecutePlan, onRerunQuery, isPinned }: Props) {
+  const [localEnvelope, setLocalEnvelope] = useState<CompositionEnvelope | null>(null);
+  const envelope = localEnvelope && localEnvelope.id === propEnvelope.id ? localEnvelope : propEnvelope;
+  const [isRerunning, setIsRerunning] = useState(false);
+  const [rerunError, setRerunError] = useState<string | null>(null);
+
+  const handleRerun = useCallback(async () => {
+    const sql = envelope.provenance?.sql;
+    if (!sql || isRerunning) return;
+    setIsRerunning(true);
+    setRerunError(null);
+    try {
+      if (onRerunQuery) {
+        await onRerunQuery(envelope.id, sql, envelope.provenance?.project);
+      } else {
+        const { executeQuery } = await import('@/lib/bigquery-client');
+        const { persistentResultCache } = await import('@/agent/result-cache');
+        const project = envelope.provenance?.project || '';
+        const result = await executeQuery(sql, project);
+
+        await persistentResultCache.put({
+          id: envelope.id,
+          rows: result.rows,
+          columns: result.columns,
+          columnTypes: result.columnTypes ?? [],
+          created: Date.now(),
+          bytes: JSON.stringify(result.rows).length,
+        });
+
+        const existingData = (envelope.primaryArtifact.data || {}) as Record<string, unknown>;
+        const updatedData = {
+          ...existingData,
+          rows: result.rows,
+          columns: result.columns,
+          columnTypes: result.columnTypes ?? existingData.columnTypes,
+          rowCount: result.rowCount ?? result.rows.length,
+          jobId: result.jobId,
+          sql,
+        };
+        delete (updatedData as Record<string, unknown>)._dataMissing;
+        delete (updatedData as Record<string, unknown>)._resultCacheId;
+
+        const updatedEnv: CompositionEnvelope = {
+          ...envelope,
+          primaryArtifact: {
+            ...envelope.primaryArtifact,
+            data: updatedData,
+          },
+          provenance: {
+            ...envelope.provenance,
+            sql,
+            jobId: result.jobId,
+          },
+        };
+        setLocalEnvelope(updatedEnv);
+      }
+    } catch (err: any) {
+      console.error('Failed to re-run query:', err);
+      setRerunError(err?.message || 'Failed to re-run query');
+    } finally {
+      setIsRerunning(false);
+    }
+  }, [envelope, isRerunning, onRerunQuery]);
 
   const toneClass = TONE_CLASSES[envelope.headline.tone] ?? 'tone-neutral';
 
@@ -301,6 +365,38 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
                     </a>
                   )}
 
+                  {/* Re-run query */}
+                  {envelope.provenance?.sql && (
+                    <button
+                      onClick={() => {
+                        setKebabOpen(false);
+                        handleRerun();
+                      }}
+                      disabled={isRerunning}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        width: '100%',
+                        padding: '10px 14px',
+                        background: 'none',
+                        border: 'none',
+                        cursor: isRerunning ? 'wait' : 'pointer',
+                        fontSize: 13,
+                        fontWeight: 400,
+                        color: 'var(--text)',
+                        fontFamily: 'inherit',
+                        textAlign: 'left',
+                        boxSizing: 'border-box',
+                      }}
+                      onMouseEnter={(e) => { if (!isRerunning) e.currentTarget.style.background = 'var(--surface-2, #f5f5f5)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>refresh</span>
+                      {isRerunning ? 'Re-running query...' : 'Re-run query'}
+                    </button>
+                  )}
+
                   {/* Save to Library */}
                   {onSave && (
                     <button
@@ -470,6 +566,9 @@ export function ArtifactCard({ envelope, onConfirm, onCancel, onChipClick, onInl
           onSendMessage={handleInlineClick}
           onReplan={onReplan}
           onExecutePlan={onExecutePlan}
+          onRerun={handleRerun}
+          isRerunning={isRerunning}
+          rerunError={rerunError}
         />
 
 
@@ -823,6 +922,9 @@ function Artifact({
   onSendMessage,
   onReplan,
   onExecutePlan,
+  onRerun,
+  isRerunning,
+  rerunError,
 }: {
   envelope: CompositionEnvelope;
   onConfirm?: () => void;
@@ -830,6 +932,9 @@ function Artifact({
   onSendMessage: (msg: string) => void;
   onReplan?: (envelopeId: string, amendedQuery: string) => Promise<void>;
   onExecutePlan?: (query: string) => Promise<void>;
+  onRerun?: () => void;
+  isRerunning?: boolean;
+  rerunError?: string | null;
 }) {
   const { type, data } = envelope.primaryArtifact;
 
@@ -837,6 +942,27 @@ function Artifact({
   // (browser data cleared, different device), show a re-run fallback.
   const dataRecord = data as Record<string, unknown> | null;
   if (dataRecord?._dataMissing && envelope.provenance?.sql) {
+    if (isRerunning) {
+      return (
+        <div style={{
+          padding: '28px 20px',
+          border: '1px solid var(--border-subtle, #e0e0e0)',
+          borderRadius: 10,
+          background: 'var(--surface-secondary, #f8f9fa)',
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 12,
+        }}>
+          <SparkSpinner size={24} color="var(--accent, #4285f4)" />
+          <div style={{ fontSize: 13, color: 'var(--text-muted, #666)', fontFamily: "'Google Sans', sans-serif" }}>
+            Re-running query in BigQuery...
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div style={{
         padding: '24px 20px',
@@ -848,11 +974,16 @@ function Artifact({
         <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--text-muted, #999)', display: 'block', marginBottom: 8 }}>
           cached
         </span>
-        <div style={{ fontSize: 13, color: 'var(--text-muted, #666)', marginBottom: 12 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-muted, #666)', marginBottom: 12, fontFamily: "'Google Sans', sans-serif" }}>
           Result data is stored locally and was not found. Click to re-run the query.
         </div>
+        {rerunError && (
+          <div style={{ fontSize: 12, color: '#dc2626', marginBottom: 12, fontFamily: "'Google Sans', sans-serif" }}>
+            {rerunError}
+          </div>
+        )}
         <button
-          onClick={() => onSendMessage(envelope.provenance.sql!)}
+          onClick={onRerun ?? (() => onSendMessage(envelope.provenance.sql!))}
           style={{
             padding: '8px 20px',
             fontSize: 13,
@@ -864,7 +995,7 @@ function Artifact({
             cursor: 'pointer',
           }}
         >
-          Re-run query
+          {rerunError ? 'Try again' : 'Re-run query'}
         </button>
       </div>
     );

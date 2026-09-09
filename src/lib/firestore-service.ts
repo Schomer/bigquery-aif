@@ -5,6 +5,7 @@ import { doc, getDoc, setDoc, deleteField, updateDoc } from 'firebase/firestore'
 import { db } from './firebase';
 import type { ChatMessage, CompositionEnvelope, ArtifactType, SavedCheck } from './types';
 import { persistentResultCache } from '../agent/result-cache';
+export { persistentResultCache };
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

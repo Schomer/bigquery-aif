@@ -2,6 +2,14 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-08 -- In-place query re-run in existing tile
+
+- Implemented `rerunEnvelopeQuery` in `useChatOrchestration.ts` to execute BigQuery queries for target envelopes in-place and save results to `persistentResultCache` IndexedDB.
+- Updated `ArtifactCard.tsx` and `Artifact` so clicking "Re-run query" runs the query in-place inside the existing tile, displaying an inline loading spinner and error recovery without generating new chat messages or tiles.
+- Added a "Re-run query" action to `ArtifactCard` kebab menu for quick in-place data refresh.
+- Threaded `onRerunQuery` through `page.tsx`, `ChatThread.tsx`, and `ResultsSidebar.tsx`.
+- Verified test suite (163 passing tests) and Next.js static export build.
+
 ## 2026-09-08 -- Add row height drag adjustment to dashboard builder
 
 - Added dedicated `RowHeightResizeHandle` below each row in edit mode with full-width guide line, centered drag indicator pill (`Row height: Nx`), and fluid vertical dragging.

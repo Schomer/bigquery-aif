@@ -185,6 +185,9 @@ export interface ResultsSidebarProps {
   onInlineClick: (message: string) => void;
   onPinContext: (env: CompositionEnvelope) => void;
   onRerun: (assistantIdx: number) => Promise<void>;
+  onRerunQuery?: (envelopeId: string, sql: string, project?: string) => Promise<void>;
+  onReplan?: (envelopeId: string, amendedQuery: string) => Promise<void>;
+  onExecutePlan?: (query: string) => Promise<void>;
   extractContextItems: (env: CompositionEnvelope) => ContextItem[];
   onSave?: (envelope: CompositionEnvelope) => void;
   /** When provided, renders a "back to chats" button at the top for hierarchical navigation. */
@@ -231,6 +234,9 @@ export function ResultsSidebar({
   onInlineClick,
   onPinContext,
   onRerun,
+  onRerunQuery,
+  onReplan,
+  onExecutePlan,
   extractContextItems,
   onSave,
   onBackToChats,
@@ -782,6 +788,9 @@ export function ResultsSidebar({
                   onRunSql={onRunSql}
                   onSave={onSave}
                   onPin={extractContextItems(env).length > 0 ? onPinContext : undefined}
+                  onReplan={onReplan}
+                  onExecutePlan={onExecutePlan}
+                  onRerunQuery={onRerunQuery}
                   isPinned={pinnedEnvelopeId === env.id}
                 />
               </div>
