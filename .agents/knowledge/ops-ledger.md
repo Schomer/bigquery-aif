@@ -1,5 +1,17 @@
 # Operations Ledger
 
+## 2026-09-08 -- Vertical line insertion indicator when dragging tiles on dashboard
+
+**What**:
+1. *Precision Drop Target Tracking*: Updated `BuilderPage.tsx` and `TileCard` to compute directional drop insertion (`position: 'left' | 'right'`) based on cursor X position relative to the target tile (`e.clientX < midX`).
+2. *Vertical Insertion Line Indicator*: Rendered a vertical indicator line (`width: 4px`, `background: #1a73e8`, glow shadow, top and bottom dot pins) on the exact insertion boundary (left edge or right edge in the grid gap) showing precisely where the dragged tile will be dropped.
+3. *Position-Aware Tile Reordering*: Updated `handleDrop(targetId, position)` in `BuilderPage.tsx` to insert the dragged tile before (`position === 'left'`) or after (`position === 'right'`) the target tile in the document's sequential grid layout.
+4. *Row Empty Space Drop Support*: Added row-level drag-over and drop handlers so dragging into the open space of a partially filled row indicators insertion after the row's final tile.
+
+**Why**: Replaced ambiguous card highlights with a visual insertion guide showing exactly where a tile will land when dropped into a row.
+
+**Rule derived**: Visual canvas drag-and-drop reordering should use edge-relative directional indicators (vertical guide lines for horizontal rows) to convey exact drop insertion points.
+
 ## 2026-09-08 -- Open dashboard on artifact click in chat
 
 **What**:

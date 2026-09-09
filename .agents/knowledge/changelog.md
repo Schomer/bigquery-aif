@@ -2,6 +2,14 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-08 -- Vertical line insertion indicator when dragging tiles on dashboard
+
+- Added directional cursor position tracking (`left` / `right`) in `TileCard` drag-over events.
+- Rendered a vertical indicator line (`width: 4px`, `background: #1a73e8`, glow shadow, top/bottom circular pins) along tile boundaries during drag-and-drop to clearly show insertion location.
+- Updated `handleDrop` in `BuilderPage.tsx` to insert tiles before or after target tiles based on insertion position.
+- Added row container drag-over and drop handlers to support dropping tiles into open areas in rows.
+- Verified test suite (163 passing tests) and Next.js static build.
+
 ## 2026-09-08 -- Open dashboard on artifact click in chat
 
 - Updated `DashboardArtifactCard.tsx` so clicking anywhere on the card header, body, or the "Open Dashboard" button opens the dashboard workspace tab with keyboard navigation support.

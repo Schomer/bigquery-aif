@@ -72,7 +72,7 @@ export function BuilderPage({ documentId }: Props) {
 
   // Drag-and-drop state
   const [dragId, setDragId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ tileId: string; position: 'left' | 'right' } | null>(null);
 
   // Fetch saved artifacts for the Add Tile modal
   useEffect(() => {
@@ -265,15 +265,22 @@ export function BuilderPage({ documentId }: Props) {
   }, [builder, documentId, activeProject]);
 
   const handleDrop = useCallback(
-    (targetId: string) => {
-      if (!dragId || dragId === targetId || !document) return;
+    (targetId: string, position: 'left' | 'right' = 'left') => {
+      if (!dragId || !document) return;
+      if (dragId === targetId) {
+        setDragId(null);
+        setDropTarget(null);
+        return;
+      }
       const tiles = [...document.tiles];
       const fromIdx = tiles.findIndex((t) => t.id === dragId);
       const toIdx = tiles.findIndex((t) => t.id === targetId);
       if (fromIdx === -1 || toIdx === -1) return;
 
       const [removed] = tiles.splice(fromIdx, 1);
-      tiles.splice(toIdx, 0, removed);
+      const newTargetIdx = tiles.findIndex((t) => t.id === targetId);
+      const insertIdx = position === 'left' ? newTargetIdx : newTargetIdx + 1;
+      tiles.splice(insertIdx, 0, removed);
 
       let currentRow = 0;
       const reordered = tiles.map((t) => {
@@ -284,7 +291,7 @@ export function BuilderPage({ documentId }: Props) {
 
       builder.reorderTiles(documentId, reordered);
       setDragId(null);
-      setDragOverId(null);
+      setDropTarget(null);
     },
     [dragId, document, builder, documentId],
   );
@@ -629,6 +636,23 @@ export function BuilderPage({ documentId }: Props) {
                       gridTemplateColumns: 'repeat(12, 1fr)',
                       gap: 16,
                       alignItems: 'stretch',
+                      position: 'relative',
+                    }}
+                    onDragOver={(e) => {
+                      if (!dragId) return;
+                      e.preventDefault();
+                      const lastTile = rowTiles[rowTiles.length - 1];
+                      if (lastTile && lastTile.id !== dragId) {
+                        setDropTarget({ tileId: lastTile.id, position: 'right' });
+                      }
+                    }}
+                    onDrop={(e) => {
+                      if (!dragId) return;
+                      e.preventDefault();
+                      const lastTile = rowTiles[rowTiles.length - 1];
+                      if (lastTile && lastTile.id !== dragId) {
+                        handleDrop(lastTile.id, 'right');
+                      }
                     }}
                   >
                     {rowTiles.map((tile) => (
@@ -639,11 +663,13 @@ export function BuilderPage({ documentId }: Props) {
                         editMode={editMode}
                         isLoading={loadingTiles.has(tile.id)}
                         isDragging={dragId === tile.id}
-                        isDragOver={dragOverId === tile.id}
-                        onDragStart={() => setDragId(tile.id)}
-                        onDragEnd={() => { setDragId(null); setDragOverId(null); }}
-                        onDragOver={(e) => { e.preventDefault(); setDragOverId(tile.id); }}
-                        onDrop={() => handleDrop(tile.id)}
+                        dropPosition={dropTarget?.tileId === tile.id ? dropTarget.position : null}
+                        onDragStart={() => { setDragId(tile.id); setDropTarget(null); }}
+                        onDragEnd={() => { setDragId(null); setDropTarget(null); }}
+                        onDragOverPosition={(e, position) => {
+                          setDropTarget({ tileId: tile.id, position });
+                        }}
+                        onDropPosition={(position) => handleDrop(tile.id, position)}
                         onRemove={() => builder.removeTile(documentId, tile.id)}
                         onDuplicate={() => builder.duplicateTile(documentId, tile.id)}
                         onRename={(name) => builder.updateTile(documentId, tile.id, { title: name })}
@@ -825,11 +851,11 @@ function TileCard({
   editMode,
   isLoading,
   isDragging,
-  isDragOver,
+  dropPosition,
   onDragStart,
   onDragEnd,
-  onDragOver,
-  onDrop,
+  onDragOverPosition,
+  onDropPosition,
   onRemove,
   onDuplicate,
   onRename,
@@ -842,11 +868,11 @@ function TileCard({
   editMode: boolean;
   isLoading: boolean;
   isDragging: boolean;
-  isDragOver: boolean;
+  dropPosition?: 'left' | 'right' | null;
   onDragStart: () => void;
   onDragEnd: () => void;
-  onDragOver: (e: React.DragEvent) => void;
-  onDrop: () => void;
+  onDragOverPosition: (e: React.DragEvent, position: 'left' | 'right') => void;
+  onDropPosition: (position: 'left' | 'right') => void;
   onRemove: () => void;
   onDuplicate: () => void;
   onRename: (name: string) => void;
@@ -870,6 +896,26 @@ function TileCard({
     window.addEventListener('mousedown', handleClickOutside);
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, [menuOpen]);
+
+  const handleCardDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isDragging || !cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const midX = rect.left + rect.width / 2;
+    const position: 'left' | 'right' = e.clientX < midX ? 'left' : 'right';
+    onDragOverPosition(e, position);
+  };
+
+  const handleCardDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isDragging || !cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const midX = rect.left + rect.width / 2;
+    const position: 'left' | 'right' = e.clientX < midX ? 'left' : 'right';
+    onDropPosition(position);
+  };
 
   // Drag-to-resize handlers
   const handleWidthResizeStart = (e: React.MouseEvent, direction: 'right' | 'left' = 'right') => {
@@ -994,29 +1040,66 @@ function TileCard({
       draggable={editMode}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
+      onDragOver={handleCardDragOver}
+      onDrop={handleCardDrop}
       style={{
         gridColumn: `span ${tile.colSpan}`,
         height: calculatedMinHeight,
         minHeight: calculatedMinHeight,
-        background: isDragOver ? '#f0f6ff' : '#fff',
-        border: isDragOver ? '2px solid #1a73e8' : editMode ? '1px solid #c2dbff' : '1px solid var(--border)',
         borderRadius: 10,
-        overflow: 'hidden',
+        overflow: 'visible',
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
-        opacity: isDragging ? 0.45 : 1,
-        transition: 'box-shadow 0.15s, border-color 0.15s, background 0.15s',
-        boxShadow: isDragOver ? '0 0 0 2px rgba(26,115,232,0.2)' : hovered ? '0 4px 16px rgba(0,0,0,0.08)' : 'none',
+        opacity: isDragging ? 0.35 : 1,
         cursor: editMode ? 'grab' : 'default',
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Tile Header */}
+      {/* Drop insertion indicator vertical line */}
+      {dropPosition && !isDragging && (
+        <div
+          style={{
+            position: 'absolute',
+            ...(dropPosition === 'left' ? { left: -10 } : { right: -10 }),
+            top: -3,
+            bottom: -3,
+            width: 4,
+            borderRadius: 4,
+            background: '#1a73e8',
+            boxShadow: '0 0 10px rgba(26, 115, 232, 0.8), 0 0 2px #1a73e8',
+            zIndex: 100,
+            pointerEvents: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#1a73e8', marginTop: -2 }} />
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#1a73e8', marginBottom: -2 }} />
+        </div>
+      )}
+
+      {/* Card Content Shell */}
       <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          width: '100%',
+          height: '100%',
+          overflow: 'hidden',
+          borderRadius: 10,
+          background: '#fff',
+          border: editMode ? '1px solid #c2dbff' : '1px solid var(--border)',
+          boxShadow: hovered ? '0 4px 16px rgba(0,0,0,0.08)' : 'none',
+          transition: 'box-shadow 0.15s, border-color 0.15s',
+          position: 'relative',
+        }}
+      >
+        {/* Tile Header */}
+        <div
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -1165,6 +1248,7 @@ function TileCard({
       {/* Tile Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: '6px 10px', position: 'relative' }}>
         <TileContent tile={tile} isLoading={isLoading} onRunQuery={onRefresh} onEditSql={onEditSql} />
+      </div>
       </div>
 
       {/* ── Interactive Invisible Drag Resize Handles (Edges & Corners) ── */}
