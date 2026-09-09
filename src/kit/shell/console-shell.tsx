@@ -87,6 +87,8 @@ export interface ConsoleShellProps extends Omit<ConsoleTopNavProps, "className">
   onNavSelect?: (id: string) => void;
   /** Start with the rail open. It is closed in the console by default. */
   defaultNavExpanded?: boolean;
+  isNavExpanded?: boolean;
+  onNavExpandedChange?: (expanded: boolean) => void;
   onProductClick?: (e: React.MouseEvent) => void;
   /** Skip the white content well and hand `children` the bare box. */
   bare?: boolean;
@@ -104,6 +106,8 @@ export function ConsoleShell({
   defaultActiveNavId,
   onNavSelect,
   defaultNavExpanded = false,
+  isNavExpanded: controlledNavExpanded,
+  onNavExpandedChange,
   onProductClick,
   bare = false,
   className,
@@ -112,11 +116,27 @@ export function ConsoleShell({
   productName,
   ...topNavProps
 }: ConsoleShellProps) {
-  const [navExpanded, setNavExpanded] = React.useState(defaultNavExpanded);
+  const [uncontrolledNavExpanded, setUncontrolledNavExpanded] = React.useState(defaultNavExpanded);
+  const navExpanded = controlledNavExpanded ?? uncontrolledNavExpanded;
+
+  const handleNavExpandedChange = (expanded: boolean) => {
+    if (controlledNavExpanded === undefined) {
+      setUncontrolledNavExpanded(expanded);
+    }
+    onNavExpandedChange?.(expanded);
+  };
+
+  const handleToggleNav = () => {
+    if (topNavProps.onToggleNav) {
+      topNavProps.onToggleNav();
+    } else {
+      handleNavExpandedChange(!navExpanded);
+    }
+  };
 
   return (
     <div className={cn("bg-cm-backdrop relative flex h-screen w-full flex-col overflow-hidden", className)}>
-      <ConsoleTopNav {...topNavProps} />
+      <ConsoleTopNav {...topNavProps} onToggleNav={handleToggleNav} />
       {breadcrumb && breadcrumb.length > 0 && <ConsoleBreadcrumb items={breadcrumb} />}
       <div className="relative flex flex-1 overflow-hidden">
         {nav && nav.length > 0 && (
@@ -125,7 +145,7 @@ export function ConsoleShell({
             productName={productName}
             productIcon={navIcon}
             isExpanded={navExpanded}
-            onExpandedChange={setNavExpanded}
+            onExpandedChange={handleNavExpandedChange}
             onProductClick={onProductClick}
             activeId={activeNavId}
             defaultActiveId={defaultActiveNavId}

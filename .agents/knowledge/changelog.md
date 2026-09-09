@@ -2,6 +2,11 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-08 -- Wire ConsoleTopNav hamburger button to toggle sidebar expansion
+
+- Connected `onToggleNav` callback in `ConsoleShell` (`src/kit/shell/console-shell.tsx`) to toggle sidebar expansion state (`navExpanded`) and support optional controlled `isNavExpanded` / `onNavExpandedChange` props.
+- Enabled the top navigation hamburger button (title "Navigation menu") in `ConsoleTopNav` to expand and collapse the console navigation side rail seamlessly.
+
 ## 2026-09-08 -- Conversational & Direct Manipulation Interactive Data App and Dashboard Creator
 
 - Implemented conversational dashboard and interactive data app creator supporting prompt-driven creation ("make a new dashboard", "add this to dashboard", "add a country filter") and direct visual manipulation (drag-to-reorder, column/row span controls, in-tile SQL editing, visualization type switching).

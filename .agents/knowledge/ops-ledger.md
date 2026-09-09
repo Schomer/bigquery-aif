@@ -1,5 +1,17 @@
 # Operations Ledger
 
+## 2026-09-08 -- Wire ConsoleTopNav hamburger button to toggle sidebar expansion
+
+**What**: Connected `onToggleNav` in `ConsoleShell` (`src/kit/shell/console-shell.tsx`) to toggle `navExpanded` and handle controlled/uncontrolled state updates.
+
+**Why**: Clicking the hamburger button in `ConsoleTopNav` previously had no effect because `ConsoleShell` passed through `topNavProps` without wiring `onToggleNav` to the side rail's expansion handler.
+
+**Fix**:
+1. Added `handleToggleNav` in `ConsoleShell` to invoke custom `onToggleNav` if provided or toggle `handleNavExpandedChange(!navExpanded)`.
+2. Added `isNavExpanded` and `onNavExpandedChange` to `ConsoleShellProps` for controlled rail expansion support.
+
+**Rule derived**: Shell containers must wire top-bar navigation actions to component sub-state (such as sidebar expansion) by default while maintaining custom prop override flexibility.
+
 ## 2026-09-08 -- Conversational & Direct Manipulation Interactive Data App and Dashboard Creator
 
 **What**: Built an end-to-end interactive data app and dashboard creator that unifies conversational AI orchestration with direct visual manipulation and BigQuery/Firestore persistence.
