@@ -1,5 +1,17 @@
 # Operations Ledger
 
+## 2026-09-08 -- Update dashboard toolbar: + Add button on left, attached Save menu (Save, Save As, BigQuery), and Edit/Done on far right
+
+**What**:
+1. *Left Action Button*: Added a clean text button `+ Add` on the left of the dashboard toolbar to open tile creation directly.
+2. *Top Bar Cleanup*: Removed the "Equalize All Rows" button and the compact/standard/spacious segmented density control from the top bar.
+3. *Split Save Button & Menu*: Converted the Save button into a split button with an attached dropdown menu (`expand_more` trigger). Clicking the main button executes `handleSave()` directly; clicking the menu trigger presents "Save", "Save As..." (prompts for new name, duplicates document, saves, and opens new tab), and "Save to BigQuery".
+4. *Far Right Edit/Done Toggle*: Added an `Edit` / `Done` primary toggle button on the far right of the toolbar.
+
+**Why**: Provides a streamlined, modern toolbar layout matching user expectations: fast tile creation on the left, consolidated save options in a single menu, and a clear Edit/Done mode switcher on the far right.
+
+**Rule derived**: In document editors and builders, place creation actions on the far left, save and secondary export actions in an attached split menu, and mode switching (Edit/Done) on the far right.
+
 ## 2026-09-08 -- Clean up dashboard tile UI: remove bottom controls bar, remove row header banner, add tile kebab menu
 
 **What**:

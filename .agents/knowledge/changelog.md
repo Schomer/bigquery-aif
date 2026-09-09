@@ -2,6 +2,14 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-08 -- Update dashboard toolbar: + Add button on left, attached Save menu (Save, Save As, BigQuery), and Edit/Done on far right
+
+- Added text button `+ Add` on the left of the dashboard builder top toolbar for fast tile/text insertion.
+- Removed "Equalize All Rows" button and compact/standard/spacious segmented control from the top bar.
+- Converted the Save button into a split button with an attached dropdown menu: clicking the button directly Saves to Library; clicking the menu dropdown trigger provides "Save", "Save As..." (with copy creation and tab opening), and "Save to BigQuery".
+- Added `Edit` toggle button on the far right of the toolbar that dynamically changes to `Done` when in edit mode.
+- Verified test suite (163 passing tests) and Next.js static build.
+
 ## 2026-09-08 -- Clean up dashboard tile UI: remove bottom controls bar, remove row header banner, add tile kebab menu
 
 - Removed the bottom controls bar inside dashboard tiles (Width/Height steppers and Equalize Row button). Drag handles on borders remain for intuitive visual resizing.

@@ -59,7 +59,7 @@ interface Props {
 
 export function BuilderPage({ documentId }: Props) {
   const builder = useBuilder();
-  const { closeTab } = usePage();
+  const { closeTab, openBuilderTab } = usePage();
   const { activeProject, user } = useAuth();
   const document = builder.getDocument(documentId);
 
@@ -69,6 +69,8 @@ export function BuilderPage({ documentId }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ text: string; error?: boolean } | null>(null);
   const [loadingTiles, setLoadingTiles] = useState<Set<string>>(new Set());
+  const [saveMenuOpen, setSaveMenuOpen] = useState(false);
+  const saveMenuRef = useRef<HTMLDivElement>(null);
 
   // Modals
   const [addTileOpen, setAddTileOpen] = useState(false);
@@ -164,6 +166,48 @@ export function BuilderPage({ documentId }: Props) {
       setSavingBq(false);
     }
   }, [builder, documentId, activeProject]);
+
+  const handleSaveAs = useCallback(async () => {
+    if (!document) return;
+    const defaultName = `${document.name} (Copy)`;
+    const newName = window.prompt('Save as copy:', defaultName);
+    if (!newName || !newName.trim()) return;
+
+    setSaving(true);
+    setStatusMsg(null);
+    try {
+      const newDocId = builder.createDocumentDirect(
+        document.type,
+        newName.trim(),
+        document.description,
+        document.tiles.map((t) => ({
+          ...t,
+          id: `tile_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+        })),
+        document.globalFilters,
+      );
+      await builder.saveDocument(newDocId);
+      openBuilderTab(newDocId, newName.trim());
+      setStatusMsg({ text: 'Saved copy to Library' });
+      setTimeout(() => setStatusMsg(null), 2500);
+    } catch {
+      setStatusMsg({ text: 'Save As failed', error: true });
+    } finally {
+      setSaving(false);
+    }
+  }, [builder, document, openBuilderTab]);
+
+  // Close save menu when clicking outside
+  useEffect(() => {
+    if (!saveMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (saveMenuRef.current && !saveMenuRef.current.contains(e.target as Node)) {
+        setSaveMenuOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, [saveMenuOpen]);
 
   const handleRefreshAll = useCallback(async () => {
     if (!activeProject) {
@@ -335,11 +379,9 @@ export function BuilderPage({ documentId }: Props) {
           />
         )}
 
-        <div style={{ width: 8 }} />
-
-        {/* Edit mode toggle */}
+        {/* "+ Add" text button on the left */}
         <button
-          onClick={() => setEditMode((v) => !v)}
+          onClick={() => setAddTileOpen(true)}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -347,92 +389,18 @@ export function BuilderPage({ documentId }: Props) {
             padding: '5px 12px',
             borderRadius: 8,
             border: '1px solid var(--border)',
-            background: editMode ? '#e8f0fe' : 'none',
-            color: editMode ? '#1967d2' : 'var(--text)',
+            background: 'none',
+            color: 'var(--text)',
             fontSize: 12,
-            fontWeight: editMode ? 600 : 400,
+            fontWeight: 500,
             cursor: 'pointer',
             fontFamily: "'Google Sans', sans-serif",
           }}
+          title="Add tile or text"
         >
-          <span className="material-symbols-outlined" style={{ fontSize: 15 }}>
-            {editMode ? 'edit' : 'edit_note'}
-          </span>
-          {editMode ? 'Editing Canvas' : 'Edit Canvas'}
+          <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#1a73e8' }}>add</span>
+          + Add
         </button>
-
-        {/* Edit Mode Controls */}
-        {editMode && (
-          <>
-            {/* Add Tile Button */}
-            <button
-              onClick={() => setAddTileOpen(true)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '5px 12px',
-                borderRadius: 8,
-                border: '1px solid #1a73e8',
-                background: '#eff6ff',
-                color: '#1a73e8',
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: 'pointer',
-                fontFamily: "'Google Sans', sans-serif",
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 15 }}>add</span>
-              Add Tile
-            </button>
-
-            {/* Equalize All Rows */}
-            <button
-              onClick={() => builder.equalizeAllRows(documentId)}
-              title="Equalize column widths across all rows on canvas"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '5px 10px',
-                borderRadius: 8,
-                border: '1px solid var(--border)',
-                background: 'none',
-                color: 'var(--text)',
-                fontSize: 12,
-                cursor: 'pointer',
-                fontFamily: "'Google Sans', sans-serif",
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 15 }}>view_week</span>
-              Equalize All Rows
-            </button>
-
-            {/* Density Selector */}
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2, background: 'var(--surface-2, #f1f3f4)', padding: '2px', borderRadius: 8 }}>
-              {(['compact', 'standard', 'spacious'] as const).map((d) => (
-                <button
-                  key={d}
-                  onClick={() => builder.setDocumentDensity(documentId, d)}
-                  style={{
-                    padding: '3px 8px',
-                    borderRadius: 6,
-                    border: 'none',
-                    background: densityKey === d ? '#fff' : 'transparent',
-                    color: densityKey === d ? '#1a73e8' : 'var(--text-muted)',
-                    boxShadow: densityKey === d ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
-                    fontSize: 11,
-                    fontWeight: densityKey === d ? 600 : 400,
-                    cursor: 'pointer',
-                    fontFamily: "'Google Sans', sans-serif",
-                  }}
-                >
-                  {DENSITY_CONFIG[d].label}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
 
         {/* Refresh All */}
         <button
@@ -473,64 +441,169 @@ export function BuilderPage({ documentId }: Props) {
           </span>
         )}
 
-        {/* Save to BigQuery */}
-        <button
-          onClick={handleSaveToBigQuery}
-          disabled={savingBq}
-          title="Save definition to BigQuery metadata table"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            padding: '6px 12px',
-            borderRadius: 8,
-            border: '1px solid var(--border)',
-            background: 'none',
-            color: 'var(--text)',
-            fontSize: 12,
-            fontWeight: 500,
-            cursor: savingBq ? 'wait' : 'pointer',
-            fontFamily: "'Google Sans', sans-serif",
-          }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#1a73e8' }}>
-            cloud_upload
-          </span>
-          {savingBq ? 'Saving to BQ...' : 'Save to BigQuery'}
-        </button>
+        {/* Save button with attached menu */}
+        <div ref={saveMenuRef} style={{ position: 'relative', display: 'inline-flex', alignItems: 'stretch' }}>
+          {/* Main Save action */}
+          <button
+            onClick={handleSave}
+            disabled={saving || savingBq}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '6px 14px',
+              borderTopLeftRadius: 8,
+              borderBottomLeftRadius: 8,
+              border: 'none',
+              background: unsaved ? '#1a73e8' : 'var(--surface-2, #e8eaed)',
+              color: unsaved ? '#fff' : 'var(--text)',
+              fontSize: 13,
+              fontWeight: 500,
+              fontFamily: "'Google Sans', sans-serif",
+              cursor: (saving || savingBq) ? 'wait' : 'pointer',
+              transition: 'background 0.15s',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>save</span>
+            {saving ? 'Saving...' : 'Save'}
+          </button>
 
-        {/* Save Button */}
+          {/* Attached dropdown menu trigger */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSaveMenuOpen((v) => !v);
+            }}
+            disabled={saving || savingBq}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '6px 6px',
+              borderTopRightRadius: 8,
+              borderBottomRightRadius: 8,
+              border: 'none',
+              borderLeft: unsaved ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid var(--border)',
+              background: unsaved ? '#1765cc' : 'var(--surface-2, #e8eaed)',
+              color: unsaved ? '#fff' : 'var(--text-muted)',
+              cursor: 'pointer',
+            }}
+            title="More save options"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+              expand_more
+            </span>
+          </button>
+
+          {/* Dropdown Menu */}
+          {saveMenuOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: 4,
+                minWidth: 190,
+                background: '#fff',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+                padding: '4px 0',
+                zIndex: 50,
+                display: 'flex',
+                flexDirection: 'column',
+                fontFamily: "'Google Sans', sans-serif",
+              }}
+            >
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSaveMenuOpen(false);
+                  handleSave();
+                }}
+                style={menuItemStyle}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f3f4f6)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#1a73e8' }}>
+                  save
+                </span>
+                Save
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSaveMenuOpen(false);
+                  handleSaveAs();
+                }}
+                style={menuItemStyle}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f3f4f6)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>
+                  content_copy
+                </span>
+                Save As...
+              </button>
+
+              <div style={{ height: 1, background: 'var(--border-subtle, #f0f0f0)', margin: '4px 0' }} />
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSaveMenuOpen(false);
+                  handleSaveToBigQuery();
+                }}
+                style={menuItemStyle}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f3f4f6)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#1a73e8' }}>
+                  cloud_upload
+                </span>
+                Save to BigQuery
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Edit / Done button on the far right */}
         <button
-          onClick={handleSave}
-          disabled={saving}
+          onClick={() => setEditMode((v) => !v)}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: 5,
             padding: '6px 16px',
             borderRadius: 8,
-            border: 'none',
-            background: unsaved ? '#1a73e8' : 'var(--surface-2, #e8eaed)',
-            color: unsaved ? '#fff' : 'var(--text-muted)',
+            border: editMode ? '1px solid #1a73e8' : '1px solid var(--border)',
+            background: editMode ? '#1a73e8' : 'var(--surface)',
+            color: editMode ? '#ffffff' : 'var(--text)',
             fontSize: 13,
             fontWeight: 500,
+            cursor: 'pointer',
             fontFamily: "'Google Sans', sans-serif",
-            cursor: saving ? 'wait' : 'pointer',
-            transition: 'background 0.15s',
+            transition: 'all 0.15s',
           }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: 15 }}>save</span>
-          {saving ? 'Saving...' : 'Save'}
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+            {editMode ? 'check' : 'edit'}
+          </span>
+          {editMode ? 'Done' : 'Edit'}
         </button>
 
         {/* Close Button */}
         <button
           onClick={handleDiscard}
+          title="Close tab"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 4,
-            padding: '6px 10px',
+            justifyContent: 'center',
+            width: 32,
+            height: 32,
+            padding: 0,
             borderRadius: 8,
             border: '1px solid var(--border)',
             background: 'none',
@@ -773,8 +846,8 @@ function TileCard({
         setMenuOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
   }, [menuOpen]);
 
   // Drag-to-resize handlers
