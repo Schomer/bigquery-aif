@@ -1,5 +1,18 @@
 # Operations Ledger
 
+## 2026-09-09 -- Natural Language Dashboard AI Editing, Card Selection Context, Advanced Multi-Filters, Cross-Filtering & Auto-Save
+
+**What**:
+1. *Edit Mode AI Chat Sidebar*: Integrated an AI assistant sidebar inside `BuilderPage` when in edit mode (`BuilderChatSidebar.tsx`), with live conversation history, status updates, suggestion chips, and stop execution controls.
+2. *Card Selection Focus*: Clicking any card in edit mode selects it with a highlighted border (`#1a73e8`), focus ring, and "Selected" badge in the card header, automatically attaching its context (`[Card: Title (vizType)]`) to the AI assistant for card-level updates (e.g. changing chart type, color palette, SQL query, or tile title).
+3. *Advanced Interactive Filter System*: Implemented full support for all 7 filter types (`DATE_RANGE` with quick presets, `DATE_PICKER`, `DROPDOWN`, `MULTI_SELECT`, `NUMBER_RANGE`, `SEARCH_INPUT`, `BUTTON_GROUP`) with column binding, curated static or dynamic BigQuery SQL options, and target tile scoping.
+4. *Cross-Filtering Engine*: Enabled interactive point selection on maps (`USA_MAP`, `WORLD_MAP`) and recharts charts (`BAR_CHART`, `COLUMN_CHART`, `LINE_CHART`, `PIE_CHART`, etc.) to trigger reactive cross-filtering across target tiles via `setActiveSelection`. Added an active cross-filter pill bar with individual removal and 1-click "Reset All".
+5. *Automatic Firestore Persistence*: Automatically saves newly created dashboards and subsequent modifications directly to Firestore so users never lose work when navigating between views.
+
+**Why**: Allows users to build, modify, and explore data apps and dashboards completely via natural language or direct visual interaction, providing full cross-filtering, dynamic parameters, and zero-data-loss auto-save.
+
+**Rule derived**: Interactive dashboard modifications should support both whole-dashboard and card-specific context scopes, with reactive parameter substitutions safely evaluating empty parameters in SQL clauses so unselected filters do not break queries.
+
 ## 2026-09-09 -- Output view mode setting in top-level kebab menu (scrolling list vs single output)
 
 **What**:

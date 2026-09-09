@@ -2,6 +2,16 @@
  
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-09 -- Natural Language Dashboard AI Editing, Card Selection Context, Advanced Multi-Filters, Cross-Filtering & Auto-Save
+
+- Implemented `BuilderChatSidebar.tsx` for natural language dashboard and app updates when in Edit mode.
+- Added visual card selection (`isSelected` border highlight, focus ring, and header badge) in `BuilderPage.tsx` and `TileCard`, attaching selected card context to the AI Assistant prompt loop.
+- Added support for all 7 filter types (`DATE_RANGE` with quick presets, `DATE_PICKER`, `DROPDOWN`, `MULTI_SELECT`, `NUMBER_RANGE`, `SEARCH_INPUT`, `BUTTON_GROUP`) with column binding and dynamic BigQuery SQL query options in `AppFilterBar.tsx` and `app-executor.ts`.
+- Implemented cross-filtering engine with click event emission from maps (`USA_MAP`, `WORLD_MAP`) and recharts charts, `activeSelections` state management, reactive SQL query parameter substitution, and an active filter pill bar with 1-click reset.
+- Added automatic Firestore persistence upon dashboard creation and updates to ensure zero data loss when navigating away.
+- Updated `manage_app` agent tool with `SET_INTERACTION`, `UPDATE_TILE`, `ADD_FILTER`, `UPDATE_FILTER`, `DELETE_FILTER`, and `UPDATE_DASHBOARD` actions.
+- Verified all 172 vitest unit tests pass and Next.js static export build succeeds cleanly.
+
 ## 2026-09-09 -- Output view mode setting in top-level kebab menu (scrolling list vs single output)
 
 - Added `outputViewMode` preference (`'all' | 'single'`) in `src/lib/preferences-context.tsx` with localStorage persistence (`hdn_output_view_mode`).
