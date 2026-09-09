@@ -6,6 +6,7 @@
 // that adds a tab to the main view.
 
 import { usePage } from '@/lib/page-context';
+import { useBuilder } from '@/lib/builder-context';
 import type { CustomViewProps } from '@/lib/types';
 
 interface DashboardCardData {
@@ -16,7 +17,8 @@ interface DashboardCardData {
 }
 
 export function DashboardArtifactCard({ envelope }: CustomViewProps) {
-  const { openDashboardTab } = usePage();
+  const { openDashboardTab, openBuilderTab } = usePage();
+  const builder = useBuilder();
   const data = envelope.primaryArtifact.data as DashboardCardData;
 
   if (!data.dashboardId) {
@@ -28,7 +30,12 @@ export function DashboardArtifactCard({ envelope }: CustomViewProps) {
   }
 
   function handleOpen() {
-    openDashboardTab(data.dashboardId, data.name);
+    const isBuilderDoc = builder.getDocument(data.dashboardId);
+    if (isBuilderDoc || data.dashboardId.startsWith('doc_')) {
+      openBuilderTab(data.dashboardId, data.name);
+    } else {
+      openDashboardTab(data.dashboardId, data.name);
+    }
   }
 
   return (

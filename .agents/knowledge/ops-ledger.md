@@ -1,5 +1,17 @@
 # Operations Ledger
 
+## 2026-09-08 -- Conversational & Direct Manipulation Interactive Data App and Dashboard Creator
+
+**What**: Built an end-to-end interactive data app and dashboard creator that unifies conversational AI orchestration with direct visual manipulation and BigQuery/Firestore persistence.
+1. *Agent Tooling*: Created `manage_app` tool (`src/agent/tools/manage-app.ts`) and system prompt instructions in `src/agent/prompts/flash.ts` to handle natural language instructions for app creation, tile attachment, filter binding, layout adjustment, and BigQuery table export.
+2. *Reactive Parameter Engine*: Created `src/lib/app-executor.ts` to substitute reactive filter values into SQL templates (`{{param}}`, `{{start_date}}`, `{{end_date}}`, unquoted numeric/boolean values, multi-select SQL IN lists) and execute live BigQuery queries.
+3. *Interactive UI Canvas*: Enhanced `src/components/BuilderPage.tsx`, added `AppFilterBar.tsx` (DateRange, Dropdown, MultiSelect, Search), `TileSqlEditor.tsx` (in-tile SQL editing, viz type switching, test execution), and `AddTileModal.tsx` (custom SQL, saved artifacts, markdown cards).
+4. *BigQuery Persistence*: Implemented `saveDocumentToBigQuery` to write full application configuration JSON into `_aif_dashboards` table using BigQuery SQL MERGE.
+
+**Why**: Allows users to dynamically compose, customize, and run live interactive data applications and dashboards from natural language prompts, tweak visuals directly in the canvas, and persist dashboard setups in BigQuery warehouse tables.
+
+**Rule derived**: Interactive data app execution engines should decouple parameter definition from SQL query templates using reactive parameter substitution (`{{param}}`), ensuring typed substitution (bare numbers/booleans vs quoted strings vs IN-lists) to prevent BigQuery SQL syntax and coercion errors.
+
 ## 2026-09-08 -- Adopt Google Cloud Console CM3 design system kit on feature branch cm3-visual-updates
 
 **What**: Updated the application user interface to adopt the Google Cloud Console CM3 design system (`data-cloud-design-system-cm3`). Integrated the ConsoleShell top navigation, navigation rail, ProjectPickerDialog, AvatarMenu, SnackbarHost, and CM3 token foundation (42 colors, 16 typography tokens, elevation). Wired all navigation pages (`HomeScreen`, `WorkspaceChatScreen`, `AiInboxScreen`, `AutomationScreen`, `CatalogScreen`, `SecurityScreen`, `ObservabilityScreen`, `InfrastructureScreen`, `SkillsScreen`).

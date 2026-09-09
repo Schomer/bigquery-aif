@@ -15,6 +15,7 @@ import { managePipelineTool } from './tools/manage-pipeline';
 import { exportDataTool } from './tools/export-data';
 import { presentResultTool } from './tools/present-result';
 import { planAnalysisTool } from './tools/plan-tool';
+import { manageAppTool } from './tools/manage-app';
 import type { ToolDef } from './tools/types';
 import type { StatusCallback, CompositionEnvelope, HandoffEnvelope, SkillName, ChatMessage, TaskIntent, VisualizationType, ExecutionTraceEntry } from '../lib/types';
 import { compose } from '../lib/composer';
@@ -71,6 +72,7 @@ const PHASE_0_TOOLS: ToolDef[] = [
   managePipelineTool,
   exportDataTool,
   presentResultTool,
+  manageAppTool,
 ];
 
 // ── Process message with the agent loop ───────────────────────────────────────
@@ -295,7 +297,7 @@ export async function processWithAgentLoop({
     // priority: present_result > query (see invariants.md).
     const hasPresentResult = successEvents.some(e => e.tool_name === 'present_result');
 
-    // When a primary action occurred (query, DML, pipeline, export, present_result),
+    // When a primary action occurred (query, DML, pipeline, export, present_result, manage_app),
     // schema lookups (get_schema, list_resources) were preparatory steps and
     // should not produce redundant SCHEMA_VIEW cards.
     // Only build a SCHEMA_VIEW when schema inspection was the terminal action.
@@ -304,7 +306,8 @@ export async function processWithAgentLoop({
       e.tool_name === 'execute_dml' ||
       e.tool_name === 'manage_pipeline' ||
       e.tool_name === 'export_data' ||
-      e.tool_name === 'present_result'
+      e.tool_name === 'present_result' ||
+      e.tool_name === 'manage_app'
     );
 
     // Track which schema scopes we've already rendered to avoid duplicates.
@@ -344,6 +347,53 @@ export async function processWithAgentLoop({
 
     for (const event of successEvents) {
       const tool = event.tool_name;
+
+      // ── App & Dashboard result ──────────────────────────────────────────
+      if (tool === 'manage_app') {
+        let appData: Record<string, unknown> = {};
+        try {
+          if (event.detail) appData = JSON.parse(event.detail);
+        } catch { /* non-fatal */ }
+
+        const docId = (appData.document_id as string) || '';
+        const docName = (appData.name as string) || 'Data App';
+        const tileCount = (appData.tile_count as number) ?? (appData.tiles ? (appData.tiles as any[]).length : 0);
+        const tileNames = (appData.tile_names as string[]) || (appData.tiles ? (appData.tiles as any[]).map((t: any) => t.title) : []);
+        const action = (appData.action as string) || 'CREATE';
+
+        let headline = `${docName} -- ${tileCount} tile${tileCount !== 1 ? 's' : ''} ready`;
+        if (action === 'ADD_FILTER') {
+          headline = `Added filter to ${docName}`;
+        } else if (action === 'ADD_TILE') {
+          headline = `Added tile to ${docName}`;
+        } else if (action === 'EXPORT_BIGQUERY') {
+          headline = (appData.message as string) || `Saved ${docName} to BigQuery`;
+        }
+
+        envelopes.push({
+          id: 'app_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+          skill: 'dashboard' as SkillName,
+          headline: {
+            text: headline,
+            tone: 'POSITIVE',
+            basis: 'STATUS',
+          },
+          primaryArtifact: {
+            type: 'DASHBOARD_VIEW',
+            data: {
+              dashboardId: docId,
+              name: docName,
+              tileCount,
+              tileNames,
+            },
+          },
+          provenance: { visibility: 'COLLAPSED', executionTrace },
+          skipSelfReview: true,
+          nextActions: [],
+        });
+        builtStructured = true;
+        continue;
+      }
 
       // ── DML/DDL result ──────────────────────────────────────────────────
       if (tool === 'execute_dml') {

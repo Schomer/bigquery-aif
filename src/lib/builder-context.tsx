@@ -14,22 +14,64 @@ import {
   type ReactNode,
 } from 'react';
 import type { CompositionEnvelope } from './types';
-import type { BuilderDocument, BuilderTile, DocumentType } from './builder-types';
+import type { BuilderDocument, BuilderTile, DocumentType, AppFilterControl } from './builder-types';
 import { envelopeToTile } from './builder-types';
 import { saveBuilderDocument, getBuilderDocuments } from './builder-persistence';
+import { executeTileQuery, saveDocumentToBigQuery } from './app-executor';
 import { useAuth } from './auth-context';
+
+// Global document cache accessible by agent tools
+let globalDocumentsRef: BuilderDocument[] = [];
+let globalActiveDocIdRef: string | null = null;
+let globalSetDocumentsCallback: ((docs: BuilderDocument[]) => void) | null = null;
+
+export function getGlobalBuilderDocuments(): BuilderDocument[] {
+  return globalDocumentsRef;
+}
+
+export function getGlobalActiveDocument(): BuilderDocument | undefined {
+  if (globalActiveDocIdRef) {
+    const found = globalDocumentsRef.find((d) => d.id === globalActiveDocIdRef);
+    if (found) return found;
+  }
+  return globalDocumentsRef[0];
+}
+
+export function setGlobalBuilderDocuments(docs: BuilderDocument[]) {
+  globalDocumentsRef = docs;
+  if (globalSetDocumentsCallback) {
+    globalSetDocumentsCallback(docs);
+  }
+}
 
 interface BuilderContextValue {
   // Document lifecycle
-  createDocument: (type: DocumentType, name: string, firstEnvelope: CompositionEnvelope) => string;
+  createDocument: (type: DocumentType, name: string, firstEnvelope?: CompositionEnvelope) => string;
+  createDocumentDirect: (type: DocumentType, name: string, description?: string, initialTiles?: BuilderTile[], initialFilters?: AppFilterControl[]) => string;
   saveDocument: (docId: string) => Promise<void>;
   discardDocument: (docId: string) => void;
   loadDocument: (doc: BuilderDocument) => void;
 
   // Tile operations
   addTile: (docId: string, envelope: CompositionEnvelope) => void;
+  addCustomTile: (docId: string, tile: Partial<BuilderTile>) => void;
   removeTile: (docId: string, tileId: string) => void;
   updateTile: (docId: string, tileId: string, updates: Partial<BuilderTile>) => void;
+  reorderTiles: (docId: string, tiles: BuilderTile[]) => void;
+
+  // Filter operations
+  addFilter: (docId: string, filter: AppFilterControl) => void;
+  removeFilter: (docId: string, filterId: string) => void;
+  updateFilter: (docId: string, filterId: string, updates: Partial<AppFilterControl>) => void;
+  setFilterValue: (docId: string, paramName: string, value: unknown) => void;
+  clearFilters: (docId: string) => void;
+
+  // Reactive execution
+  reRunTile: (docId: string, tileId: string, project: string) => Promise<void>;
+  reRunAllTiles: (docId: string, project: string) => Promise<void>;
+
+  // BigQuery persistence
+  saveToBigQuery: (docId: string, project: string, datasetName?: string) => Promise<{ success: boolean; table: string; message: string }>;
 
   // Document metadata
   renameDocument: (docId: string, name: string) => void;
@@ -57,17 +99,14 @@ function findNextRow(tiles: BuilderTile[]): number {
 function findNextPosition(tiles: BuilderTile[]): { col: number; row: number } {
   if (tiles.length === 0) return { col: 0, row: 0 };
 
-  // Find the last tile (by row, then col)
   const sorted = [...tiles].sort((a, b) => a.row - b.row || a.col - b.col);
   const last = sorted[sorted.length - 1];
 
-  // Try to place beside the last tile on the same row
   const nextCol = last.col + last.colSpan;
   if (nextCol + 6 <= 12) {
     return { col: nextCol, row: last.row };
   }
 
-  // New row
   return { col: 0, row: findNextRow(tiles) };
 }
 
@@ -78,8 +117,13 @@ function generateId(): string {
 export function BuilderProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [documents, setDocuments] = useState<BuilderDocument[]>([]);
-  // Snapshots of the last-saved state, keyed by document ID
   const savedSnapshots = useRef<Map<string, string>>(new Map());
+
+  // Keep global references updated
+  useEffect(() => {
+    globalDocumentsRef = documents;
+    globalSetDocumentsCallback = setDocuments;
+  }, [documents]);
 
   const getDocument = useCallback(
     (docId: string) => documents.find((d) => d.id === docId),
@@ -93,18 +137,21 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
       const doc = documents.find((d) => d.id === docId);
       if (!doc) return false;
       const snapshot = savedSnapshots.current.get(docId);
-      if (!snapshot) return true; // never saved
+      if (!snapshot) return true;
       return JSON.stringify(doc) !== snapshot;
     },
     [documents],
   );
 
   const createDocument = useCallback(
-    (type: DocumentType, name: string, firstEnvelope: CompositionEnvelope): string => {
+    (type: DocumentType, name: string, firstEnvelope?: CompositionEnvelope): string => {
       const id = generateId();
       const now = new Date().toISOString();
-      const { col, row } = findNextPosition([]);
-      const tile = envelopeToTile(firstEnvelope, col, row);
+      let tiles: BuilderTile[] = [];
+      if (firstEnvelope) {
+        const { col, row } = findNextPosition([]);
+        tiles = [envelopeToTile(firstEnvelope, col, row)];
+      }
 
       const newDoc: BuilderDocument = {
         id,
@@ -112,12 +159,39 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
         type,
         name,
         description: '',
-        tiles: [tile],
+        tiles,
+        globalFilters: [],
+        filterValues: {},
         createdAt: now,
         updatedAt: now,
         tags: [],
       };
       setDocuments((prev) => [...prev, newDoc]);
+      globalActiveDocIdRef = id;
+      return id;
+    },
+    [user?.uid],
+  );
+
+  const createDocumentDirect = useCallback(
+    (type: DocumentType, name: string, description = '', initialTiles: BuilderTile[] = [], initialFilters: AppFilterControl[] = []): string => {
+      const id = generateId();
+      const now = new Date().toISOString();
+      const newDoc: BuilderDocument = {
+        id,
+        userId: user?.uid ?? '',
+        type,
+        name,
+        description,
+        tiles: initialTiles,
+        globalFilters: initialFilters,
+        filterValues: {},
+        createdAt: now,
+        updatedAt: now,
+        tags: [],
+      };
+      setDocuments((prev) => [...prev, newDoc]);
+      globalActiveDocIdRef = id;
       return id;
     },
     [user?.uid],
@@ -129,7 +203,6 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
       if (exists) return prev;
       return [...prev, doc];
     });
-    // Mark as "saved" since it came from Firestore
     savedSnapshots.current.set(doc.id, JSON.stringify(doc));
   }, []);
 
@@ -175,6 +248,33 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const addCustomTile = useCallback(
+    (docId: string, partialTile: Partial<BuilderTile>) => {
+      setDocuments((prev) =>
+        prev.map((d) => {
+          if (d.id !== docId) return d;
+          const pos = findNextPosition(d.tiles);
+          const tile: BuilderTile = {
+            id: `tile_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+            title: partialTile.title || 'New Tile',
+            col: pos.col,
+            row: pos.row,
+            colSpan: partialTile.colSpan || 6,
+            rowSpan: partialTile.rowSpan || 2,
+            tileType: partialTile.tileType || 'query',
+            vizType: partialTile.vizType || 'TABLE',
+            cachedSql: partialTile.cachedSql,
+            parameterizedSql: partialTile.parameterizedSql,
+            textContent: partialTile.textContent,
+            lastSnapshot: partialTile.lastSnapshot,
+          };
+          return { ...d, tiles: [...d.tiles, tile], updatedAt: new Date().toISOString() };
+        }),
+      );
+    },
+    [],
+  );
+
   const removeTile = useCallback((docId: string, tileId: string) => {
     setDocuments((prev) =>
       prev.map((d) => {
@@ -197,6 +297,146 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const reorderTiles = useCallback((docId: string, tiles: BuilderTile[]) => {
+    setDocuments((prev) =>
+      prev.map((d) => (d.id === docId ? { ...d, tiles, updatedAt: new Date().toISOString() } : d)),
+    );
+  }, []);
+
+  // Filter management
+  const addFilter = useCallback((docId: string, filter: AppFilterControl) => {
+    setDocuments((prev) =>
+      prev.map((d) => {
+        if (d.id !== docId) return d;
+        const currentFilters = d.globalFilters || [];
+        const exists = currentFilters.some((f) => f.id === filter.id || f.paramName === filter.paramName);
+        if (exists) return d;
+        return {
+          ...d,
+          globalFilters: [...currentFilters, filter],
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    );
+  }, []);
+
+  const removeFilter = useCallback((docId: string, filterId: string) => {
+    setDocuments((prev) =>
+      prev.map((d) => {
+        if (d.id !== docId) return d;
+        const currentFilters = d.globalFilters || [];
+        const nextFilters = currentFilters.filter((f) => f.id !== filterId);
+        const nextValues = { ...(d.filterValues || {}) };
+        delete nextValues[filterId];
+        return {
+          ...d,
+          globalFilters: nextFilters,
+          filterValues: nextValues,
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    );
+  }, []);
+
+  const updateFilter = useCallback((docId: string, filterId: string, updates: Partial<AppFilterControl>) => {
+    setDocuments((prev) =>
+      prev.map((d) => {
+        if (d.id !== docId) return d;
+        const currentFilters = d.globalFilters || [];
+        return {
+          ...d,
+          globalFilters: currentFilters.map((f) => (f.id === filterId ? { ...f, ...updates } : f)),
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    );
+  }, []);
+
+  const setFilterValue = useCallback((docId: string, paramName: string, value: unknown) => {
+    setDocuments((prev) =>
+      prev.map((d) => {
+        if (d.id !== docId) return d;
+        return {
+          ...d,
+          filterValues: { ...(d.filterValues || {}), [paramName]: value },
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    );
+  }, []);
+
+  const clearFilters = useCallback((docId: string) => {
+    setDocuments((prev) =>
+      prev.map((d) => {
+        if (d.id !== docId) return d;
+        return {
+          ...d,
+          filterValues: {},
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    );
+  }, []);
+
+  // Reactive re-execution
+  const reRunTile = useCallback(async (docId: string, tileId: string, project: string) => {
+    const doc = documents.find((d) => d.id === docId);
+    if (!doc) return;
+    const tile = doc.tiles.find((t) => t.id === tileId);
+    if (!tile || (!tile.cachedSql && !tile.parameterizedSql) || tile.tileType === 'text') return;
+
+    try {
+      const snapshot = await executeTileQuery(tile, doc.filterValues || {}, doc.globalFilters || [], project);
+      setDocuments((prev) =>
+        prev.map((d) => {
+          if (d.id !== docId) return d;
+          return {
+            ...d,
+            tiles: d.tiles.map((t) =>
+              t.id === tileId ? { ...t, lastSnapshot: snapshot, artifactData: snapshot } : t
+            ),
+          };
+        }),
+      );
+    } catch (err) {
+      console.error(`Failed to re-run tile ${tileId}:`, err);
+      throw err;
+    }
+  }, [documents]);
+
+  const reRunAllTiles = useCallback(async (docId: string, project: string) => {
+    const doc = documents.find((d) => d.id === docId);
+    if (!doc || !project) return;
+    const queryTiles = doc.tiles.filter((t) => (t.cachedSql || t.parameterizedSql) && t.tileType !== 'text');
+
+    await Promise.allSettled(
+      queryTiles.map(async (tile) => {
+        try {
+          const snapshot = await executeTileQuery(tile, doc.filterValues || {}, doc.globalFilters || [], project);
+          setDocuments((prev) =>
+            prev.map((d) => {
+              if (d.id !== docId) return d;
+              return {
+                ...d,
+                tiles: d.tiles.map((t) =>
+                  t.id === tile.id ? { ...t, lastSnapshot: snapshot, artifactData: snapshot } : t
+                ),
+              };
+            }),
+          );
+        } catch (err) {
+          console.warn(`Tile ${tile.id} re-run failed:`, err);
+        }
+      })
+    );
+  }, [documents]);
+
+  const saveToBigQuery = useCallback(async (docId: string, project: string, datasetName = '_metadata') => {
+    const doc = documents.find((d) => d.id === docId);
+    if (!doc) throw new Error('Document not found');
+    return saveDocumentToBigQuery(doc, project, datasetName);
+  }, [documents]);
+
   const renameDocument = useCallback((docId: string, name: string) => {
     setDocuments((prev) =>
       prev.map((d) => (d.id === docId ? { ...d, name, updatedAt: new Date().toISOString() } : d)),
@@ -207,12 +447,23 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
     <BuilderContext.Provider
       value={{
         createDocument,
+        createDocumentDirect,
         saveDocument,
         discardDocument,
         loadDocument,
         addTile,
+        addCustomTile,
         removeTile,
         updateTile,
+        reorderTiles,
+        addFilter,
+        removeFilter,
+        updateFilter,
+        setFilterValue,
+        clearFilters,
+        reRunTile,
+        reRunAllTiles,
+        saveToBigQuery,
         renameDocument,
         getDocument,
         getOpenDocuments,
@@ -229,3 +480,4 @@ export function useBuilder() {
   if (!ctx) throw new Error('useBuilder must be used inside BuilderProvider');
   return ctx;
 }
+

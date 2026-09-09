@@ -2,6 +2,17 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-08 -- Conversational & Direct Manipulation Interactive Data App and Dashboard Creator
+
+- Implemented conversational dashboard and interactive data app creator supporting prompt-driven creation ("make a new dashboard", "add this to dashboard", "add a country filter") and direct visual manipulation (drag-to-reorder, column/row span controls, in-tile SQL editing, visualization type switching).
+- Added `manage_app` agent tool (`src/agent/tools/manage-app.ts`) enabling the Gemini AI agent to create apps, attach queries, inject interactive filter controls, adjust layout, and export definitions.
+- Created `src/lib/app-executor.ts` for reactive parameter substitution (`{{country}}`, `{{start_date}}`, `{{end_date}}`, unquoted numbers, booleans, and SQL IN lists), dynamic filter options fetching from BigQuery, and BigQuery table persistence (`MERGE INTO ... _aif_dashboards`).
+- Created `src/components/builder/AppFilterBar.tsx` for reactive global filter controls (Date Range, single Select, searchable Multi-Select, Text Search) with live re-execution across dependent tiles.
+- Created `src/components/builder/TileSqlEditor.tsx` and `src/components/builder/AddTileModal.tsx` for in-place SQL editing, query testing, and tile creation.
+- Enhanced `BuilderPage.tsx` with reactive filter bar, edit mode canvas, tile span resizing, drag-and-drop reordering, and BigQuery persistence.
+- Added comprehensive unit tests in `src/lib/__tests__/app-executor.test.ts` (160 vitest unit tests passing).
+- Verified Next.js static export build and Turbopack compilation.
+
 ## 2026-09-08 -- Adopt Google Cloud Console CM3 design system kit on feature branch cm3-visual-updates
 
 - Integrated the full Google Cloud Console CM3 design system (`data-cloud-design-system-cm3`) into `bigquery-aif`.
