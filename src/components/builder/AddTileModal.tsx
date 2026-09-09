@@ -130,7 +130,7 @@ export function AddTileModal({ project, savedArtifacts, onAdd, onClose }: Props)
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>Add Tile</div>
+          <div style={{ fontSize: 16, fontWeight: 500, color: 'var(--text)' }}>Add Tile</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)' }}>
             <span className="material-symbols-outlined" style={{ fontSize: 20 }}>close</span>
           </button>

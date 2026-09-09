@@ -164,7 +164,7 @@ function ArtifactPicker({ artifacts, onAdd, onClose }: { artifacts: SavedArtifac
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
       <div style={{ background: 'var(--surface)', borderRadius: 14, width: 440, maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden', fontFamily: "'Google Sans', sans-serif" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ padding: '16px 18px 10px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: 'var(--text)' }}>Add a tile</div>
+          <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 10, color: 'var(--text)' }}>Add a tile</div>
           <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search saved queries..." style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: '8px 10px' }}>
@@ -438,7 +438,7 @@ export default function DashboardPage({ initialDashboardId }: DashboardPageProps
 
           {/* Dashboard dropdown */}
           <div style={{ position: 'relative' }}>
-            <button onClick={() => setDropdownOpen((v) => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+            <button onClick={() => setDropdownOpen((v) => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>
               <span className="material-symbols-outlined" style={{ fontSize: 16 }}>dashboard</span>
               {activeDashboard?.name ?? 'Select dashboard'}
               <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--text-muted)' }}>expand_more</span>
@@ -465,7 +465,7 @@ export default function DashboardPage({ initialDashboardId }: DashboardPageProps
             <>
               <button
                 onClick={() => setEditMode((v) => !v)}
-                style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', border: '1px solid var(--border)', borderRadius: 8, background: editMode ? '#e8f0fe' : 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', color: editMode ? '#1967d2' : 'var(--text)', fontWeight: editMode ? 600 : 400 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', border: '1px solid var(--border)', borderRadius: 8, background: editMode ? '#e8f0fe' : 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', color: editMode ? '#1967d2' : 'var(--text)', fontWeight: editMode ? 500 : 400 }}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span>
                 {editMode ? 'Editing' : 'Edit'}
@@ -564,7 +564,7 @@ export default function DashboardPage({ initialDashboardId }: DashboardPageProps
                       {editMode && (
                         <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--text-dim)', cursor: 'grab', flexShrink: 0 }}>drag_indicator</span>
                       )}
-                      <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {tile.title}
                       </span>
                       {status === 'loading' && <span style={{ fontSize: 10, color: '#1967d2' }}>Refreshing...</span>}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { envelopeToTile, groupTilesIntoRows, computeEqualizedSpans } from '../builder-types';
+import { envelopeToTile, groupTilesIntoRows, computeEqualizedSpans, equalizeRowTiles } from '../builder-types';
 import type { CompositionEnvelope, SchemaResult } from '../types';
 import type { BuilderTile } from '../builder-types';
 
@@ -94,6 +94,41 @@ describe('builder layout & tile hydration', () => {
       expect(computeEqualizedSpans(4)).toEqual([3, 3, 3, 3]);
       expect(computeEqualizedSpans(5)).toEqual([3, 3, 2, 2, 2]);
       expect(computeEqualizedSpans(6)).toEqual([2, 2, 2, 2, 2, 2]);
+    });
+  });
+
+  describe('equalizeRowTiles', () => {
+    it('distributes 100% width across tiles in a row', () => {
+      const t1 = { id: '1', title: 'Tile 1', col: 0, row: 0, colSpan: 12, rowSpan: 2 };
+      const t2 = { id: '2', title: 'Tile 2', col: 0, row: 0, colSpan: 12, rowSpan: 2 };
+      const t3 = { id: '3', title: 'Tile 3', col: 0, row: 0, colSpan: 12, rowSpan: 2 };
+
+      const eq1 = equalizeRowTiles([t1], 0);
+      expect(eq1[0].widthPercent).toBe(100);
+      expect(eq1[0].row).toBe(0);
+
+      const eq2 = equalizeRowTiles([t1, t2], 1);
+      expect(eq2[0].widthPercent).toBe(50);
+      expect(eq2[1].widthPercent).toBe(50);
+      expect(eq2[0].row).toBe(1);
+
+      const eq3 = equalizeRowTiles([t1, t2, t3], 2);
+      expect(eq3[0].widthPercent).toBeCloseTo(33.333, 2);
+      expect(eq3[1].widthPercent).toBeCloseTo(33.333, 2);
+      expect(eq3[2].widthPercent).toBeCloseTo(33.333, 2);
+    });
+  });
+
+  describe('groupTilesIntoRows', () => {
+    it('groups tiles by explicit rowIndex when present', () => {
+      const t1 = { id: '1', title: 'Tile 1', col: 0, row: 0, rowIndex: 0, colSpan: 6, rowSpan: 2 };
+      const t2 = { id: '2', title: 'Tile 2', col: 1, row: 0, rowIndex: 0, colSpan: 6, rowSpan: 2 };
+      const t3 = { id: '3', title: 'Tile 3', col: 0, row: 1, rowIndex: 1, colSpan: 12, rowSpan: 2 };
+
+      const rows = groupTilesIntoRows([t1, t2, t3]);
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toHaveLength(2);
+      expect(rows[1]).toHaveLength(1);
     });
   });
 });

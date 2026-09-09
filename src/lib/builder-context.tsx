@@ -15,8 +15,8 @@ import {
 } from 'react';
 import type { CompositionEnvelope } from './types';
 import type { BuilderDocument, BuilderTile, DocumentType, AppFilterControl } from './builder-types';
-import { envelopeToTile, groupTilesIntoRows, computeEqualizedSpans } from './builder-types';
-export { groupTilesIntoRows, computeEqualizedSpans } from './builder-types';
+import { envelopeToTile, groupTilesIntoRows, computeEqualizedSpans, equalizeRowTiles } from './builder-types';
+export { groupTilesIntoRows, computeEqualizedSpans, equalizeRowTiles } from './builder-types';
 import { saveBuilderDocument, getBuilderDocuments } from './builder-persistence';
 import { executeTileQuery, saveDocumentToBigQuery } from './app-executor';
 import { useAuth } from './auth-context';
@@ -60,12 +60,14 @@ interface BuilderContextValue {
   updateTile: (docId: string, tileId: string, updates: Partial<BuilderTile>) => void;
   duplicateTile: (docId: string, tileId: string) => void;
   moveTile: (docId: string, tileId: string, direction: 'left' | 'right' | 'up' | 'down') => void;
+  moveTileToRow: (docId: string, tileId: string, targetRowIndex: number, targetTileIndex: number, createNewRow?: boolean) => void;
   reorderTiles: (docId: string, tiles: BuilderTile[]) => void;
 
   // Layout & Row operations
+  setTileWidthPercent: (docId: string, tileId: string, widthPercent: number, adjacentTileId?: string, adjacentWidthPercent?: number) => void;
   equalizeRowWidths: (docId: string, targetTileId: string) => void;
   equalizeAllRows: (docId: string) => void;
-  setRowHeight: (docId: string, targetTileId: string, rowSpan: number) => void;
+  setRowHeight: (docId: string, targetTileIdOrRowIdx: string | number, heightOrSpan: number) => void;
   applyRowPreset: (docId: string, targetTileId: string, presetSpans: number[]) => void;
   setDocumentDensity: (docId: string, density: 'compact' | 'standard' | 'spacious') => void;
 
@@ -250,9 +252,33 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
       setDocuments((prev) =>
         prev.map((d) => {
           if (d.id !== docId) return d;
-          const pos = findNextPosition(d.tiles);
-          const tile = envelopeToTile(envelope, pos.col, pos.row);
-          return { ...d, tiles: [...d.tiles, tile], updatedAt: new Date().toISOString() };
+          const rows = groupTilesIntoRows(d.tiles);
+          const lastRow = rows.length > 0 ? rows[rows.length - 1] : null;
+
+          const newTile = envelopeToTile(envelope, 0, rows.length);
+          newTile.rowHeight = lastRow?.[0]?.rowHeight || 220;
+
+          let nextRows: BuilderTile[][];
+          if (!lastRow || lastRow.length >= 3) {
+            nextRows = [...rows, equalizeRowTiles([newTile], rows.length)];
+          } else {
+            const updatedLastRow = equalizeRowTiles([...lastRow, newTile], rows.length - 1);
+            nextRows = [...rows.slice(0, rows.length - 1), updatedLastRow];
+          }
+
+          const flattenedTiles: BuilderTile[] = [];
+          nextRows.forEach((row, rIdx) => {
+            row.forEach((tile, cIdx) => {
+              flattenedTiles.push({
+                ...tile,
+                row: rIdx,
+                rowIndex: rIdx,
+                col: cIdx,
+              });
+            });
+          });
+
+          return { ...d, tiles: flattenedTiles, updatedAt: new Date().toISOString() };
         }),
       );
     },
@@ -264,14 +290,19 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
       setDocuments((prev) =>
         prev.map((d) => {
           if (d.id !== docId) return d;
-          const pos = findNextPosition(d.tiles);
+          const rows = groupTilesIntoRows(d.tiles);
+          const lastRow = rows.length > 0 ? rows[rows.length - 1] : null;
+
           const tile: BuilderTile = {
             id: `tile_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
             title: partialTile.title || 'New Tile',
-            col: pos.col,
-            row: pos.row,
-            colSpan: partialTile.colSpan || 6,
+            col: 0,
+            row: rows.length,
+            rowIndex: rows.length,
+            colSpan: partialTile.colSpan || 12,
             rowSpan: partialTile.rowSpan || 2,
+            rowHeight: partialTile.rowHeight || lastRow?.[0]?.rowHeight || 220,
+            widthPercent: 100,
             tileType: partialTile.tileType || 'query',
             vizType: partialTile.vizType || 'TABLE',
             cachedSql: partialTile.cachedSql,
@@ -279,7 +310,28 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
             textContent: partialTile.textContent,
             lastSnapshot: partialTile.lastSnapshot,
           };
-          return { ...d, tiles: [...d.tiles, tile], updatedAt: new Date().toISOString() };
+
+          let nextRows: BuilderTile[][];
+          if (!lastRow || lastRow.length >= 3) {
+            nextRows = [...rows, equalizeRowTiles([tile], rows.length)];
+          } else {
+            const updatedLastRow = equalizeRowTiles([...lastRow, tile], rows.length - 1);
+            nextRows = [...rows.slice(0, rows.length - 1), updatedLastRow];
+          }
+
+          const flattenedTiles: BuilderTile[] = [];
+          nextRows.forEach((row, rIdx) => {
+            row.forEach((t, cIdx) => {
+              flattenedTiles.push({
+                ...t,
+                row: rIdx,
+                rowIndex: rIdx,
+                col: cIdx,
+              });
+            });
+          });
+
+          return { ...d, tiles: flattenedTiles, updatedAt: new Date().toISOString() };
         }),
       );
     },
@@ -290,7 +342,27 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
     setDocuments((prev) =>
       prev.map((d) => {
         if (d.id !== docId) return d;
-        return { ...d, tiles: d.tiles.filter((t) => t.id !== tileId), updatedAt: new Date().toISOString() };
+        const currentRows = groupTilesIntoRows(d.tiles);
+        const nextRows = currentRows
+          .map((row, rIdx) => {
+            const filtered = row.filter((t) => t.id !== tileId);
+            return filtered.length > 0 ? equalizeRowTiles(filtered, rIdx) : [];
+          })
+          .filter((row) => row.length > 0);
+
+        const flattenedTiles: BuilderTile[] = [];
+        nextRows.forEach((row, rIdx) => {
+          row.forEach((tile, cIdx) => {
+            flattenedTiles.push({
+              ...tile,
+              row: rIdx,
+              rowIndex: rIdx,
+              col: cIdx,
+            });
+          });
+        });
+
+        return { ...d, tiles: flattenedTiles, updatedAt: new Date().toISOString() };
       }),
     );
   }, []);
@@ -446,21 +518,40 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
     setDocuments((prev) =>
       prev.map((d) => {
         if (d.id !== docId) return d;
-        const idx = d.tiles.findIndex((t) => t.id === tileId);
-        if (idx === -1) return d;
-        const source = d.tiles[idx];
-        const newTile: BuilderTile = {
-          ...source,
-          id: `tile_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
-          title: `${source.title} (Copy)`,
-          col: Math.min(6, (source.col + source.colSpan) % 12),
-          row: source.row,
-        };
-        const nextTiles = [...d.tiles];
-        nextTiles.splice(idx + 1, 0, newTile);
+        const currentRows = groupTilesIntoRows(d.tiles);
+        let foundSource: BuilderTile | null = null;
+
+        const nextRows = currentRows.map((row, rIdx) => {
+          const idx = row.findIndex((t) => t.id === tileId);
+          if (idx === -1) return row;
+          foundSource = row[idx];
+          const newTile: BuilderTile = {
+            ...foundSource,
+            id: `tile_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+            title: `${foundSource.title} (Copy)`,
+          };
+          const updatedRow = [...row];
+          updatedRow.splice(idx + 1, 0, newTile);
+          return equalizeRowTiles(updatedRow, rIdx);
+        });
+
+        if (!foundSource) return d;
+
+        const flattenedTiles: BuilderTile[] = [];
+        nextRows.forEach((row, rIdx) => {
+          row.forEach((tile, cIdx) => {
+            flattenedTiles.push({
+              ...tile,
+              row: rIdx,
+              rowIndex: rIdx,
+              col: cIdx,
+            });
+          });
+        });
+
         return {
           ...d,
-          tiles: nextTiles,
+          tiles: flattenedTiles,
           updatedAt: new Date().toISOString(),
         };
       }),
@@ -471,61 +562,186 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
     setDocuments((prev) =>
       prev.map((d) => {
         if (d.id !== docId) return d;
-        const tiles = [...d.tiles];
-        const idx = tiles.findIndex((t) => t.id === tileId);
-        if (idx === -1) return d;
+        const currentRows = groupTilesIntoRows(d.tiles);
+        let sourceRowIdx = -1;
+        let sourceTileIdx = -1;
 
-        if (direction === 'left' && idx > 0) {
-          const temp = tiles[idx - 1];
-          tiles[idx - 1] = tiles[idx];
-          tiles[idx] = temp;
-        } else if (direction === 'right' && idx < tiles.length - 1) {
-          const temp = tiles[idx + 1];
-          tiles[idx + 1] = tiles[idx];
-          tiles[idx] = temp;
-        } else if (direction === 'up') {
-          const rows = groupTilesIntoRows(tiles);
-          const rowIdx = rows.findIndex((r) => r.some((t) => t.id === tileId));
-          if (rowIdx > 0) {
-            const prevRow = rows[rowIdx - 1];
-            const targetIdx = tiles.findIndex((t) => t.id === prevRow[0].id);
-            const [item] = tiles.splice(idx, 1);
-            tiles.splice(targetIdx, 0, item);
+        currentRows.forEach((row, rIdx) => {
+          const tIdx = row.findIndex((t) => t.id === tileId);
+          if (tIdx !== -1) {
+            sourceRowIdx = rIdx;
+            sourceTileIdx = tIdx;
           }
-        } else if (direction === 'down') {
-          const rows = groupTilesIntoRows(tiles);
-          const rowIdx = rows.findIndex((r) => r.some((t) => t.id === tileId));
-          if (rowIdx < rows.length - 1 && rowIdx !== -1) {
-            const nextRow = rows[rowIdx + 1];
-            const targetIdx = tiles.findIndex((t) => t.id === nextRow[nextRow.length - 1].id);
-            const [item] = tiles.splice(idx, 1);
-            tiles.splice(targetIdx, 0, item);
-          }
+        });
+
+        if (sourceRowIdx === -1 || sourceTileIdx === -1) return d;
+
+        const currentRow = currentRows[sourceRowIdx];
+
+        if (direction === 'left' && sourceTileIdx > 0) {
+          const updated = [...currentRow];
+          const temp = updated[sourceTileIdx - 1];
+          updated[sourceTileIdx - 1] = updated[sourceTileIdx];
+          updated[sourceTileIdx] = temp;
+          currentRows[sourceRowIdx] = updated;
+        } else if (direction === 'right' && sourceTileIdx < currentRow.length - 1) {
+          const updated = [...currentRow];
+          const temp = updated[sourceTileIdx + 1];
+          updated[sourceTileIdx + 1] = updated[sourceTileIdx];
+          updated[sourceTileIdx] = temp;
+          currentRows[sourceRowIdx] = updated;
+        } else if (direction === 'up' && sourceRowIdx > 0) {
+          const [movedTile] = currentRows[sourceRowIdx].splice(sourceTileIdx, 1);
+          currentRows[sourceRowIdx - 1].push(movedTile);
+          currentRows[sourceRowIdx] = equalizeRowTiles(currentRows[sourceRowIdx], sourceRowIdx);
+          currentRows[sourceRowIdx - 1] = equalizeRowTiles(currentRows[sourceRowIdx - 1], sourceRowIdx - 1);
+        } else if (direction === 'down' && sourceRowIdx < currentRows.length - 1) {
+          const [movedTile] = currentRows[sourceRowIdx].splice(sourceTileIdx, 1);
+          currentRows[sourceRowIdx + 1].push(movedTile);
+          currentRows[sourceRowIdx] = equalizeRowTiles(currentRows[sourceRowIdx], sourceRowIdx);
+          currentRows[sourceRowIdx + 1] = equalizeRowTiles(currentRows[sourceRowIdx + 1], sourceRowIdx + 1);
         }
 
-        return { ...d, tiles, updatedAt: new Date().toISOString() };
+        const validRows = currentRows.filter((r) => r.length > 0);
+        const flattenedTiles: BuilderTile[] = [];
+        validRows.forEach((row, rIdx) => {
+          row.forEach((tile, cIdx) => {
+            flattenedTiles.push({
+              ...tile,
+              row: rIdx,
+              rowIndex: rIdx,
+              col: cIdx,
+            });
+          });
+        });
+
+        return { ...d, tiles: flattenedTiles, updatedAt: new Date().toISOString() };
       }),
     );
   }, []);
+
+  const moveTileToRow = useCallback(
+    (
+      docId: string,
+      tileId: string,
+      targetRowIdx: number,
+      targetTileIdx: number,
+      createNewRow = false,
+    ) => {
+      setDocuments((prev) =>
+        prev.map((d) => {
+          if (d.id !== docId) return d;
+          const currentRows = groupTilesIntoRows(d.tiles);
+          let sourceTile: BuilderTile | null = null;
+
+          const filteredRows = currentRows.map((row) => {
+            const found = row.find((t) => t.id === tileId);
+            if (found) {
+              sourceTile = found;
+              return row.filter((t) => t.id !== tileId);
+            }
+            return row;
+          });
+
+          if (!sourceTile) return d;
+
+          const adjustedRows = filteredRows
+            .map((row) => (row.length > 0 ? equalizeRowTiles(row) : []))
+            .filter((row) => row.length > 0);
+
+          const movedTile: BuilderTile = sourceTile;
+
+          if (createNewRow) {
+            const clampedTargetRow = Math.max(0, Math.min(adjustedRows.length, targetRowIdx));
+            const newRow = equalizeRowTiles([{ ...movedTile, widthPercent: 100 }], clampedTargetRow);
+            adjustedRows.splice(clampedTargetRow, 0, newRow);
+          } else {
+            const clampedTargetRow = Math.max(0, Math.min(adjustedRows.length - 1, targetRowIdx));
+            if (adjustedRows.length === 0) {
+              adjustedRows.push(equalizeRowTiles([{ ...movedTile, widthPercent: 100 }], 0));
+            } else {
+              const targetRow = [...adjustedRows[clampedTargetRow]];
+              const clampedTileIdx = Math.max(0, Math.min(targetRow.length, targetTileIdx));
+              targetRow.splice(clampedTileIdx, 0, movedTile);
+              adjustedRows[clampedTargetRow] = equalizeRowTiles(targetRow, clampedTargetRow);
+            }
+          }
+
+          const flattenedTiles: BuilderTile[] = [];
+          adjustedRows.forEach((row, rIdx) => {
+            row.forEach((tile, cIdx) => {
+              flattenedTiles.push({
+                ...tile,
+                row: rIdx,
+                rowIndex: rIdx,
+                col: cIdx,
+              });
+            });
+          });
+
+          return {
+            ...d,
+            tiles: flattenedTiles,
+            updatedAt: new Date().toISOString(),
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const setTileWidthPercent = useCallback(
+    (
+      docId: string,
+      tileId: string,
+      widthPercent: number,
+      adjacentTileId?: string,
+      adjacentWidthPercent?: number,
+    ) => {
+      setDocuments((prev) =>
+        prev.map((d) => {
+          if (d.id !== docId) return d;
+          const updatedTiles = d.tiles.map((t) => {
+            if (t.id === tileId) {
+              return { ...t, widthPercent };
+            }
+            if (adjacentTileId && t.id === adjacentTileId && adjacentWidthPercent !== undefined) {
+              return { ...t, widthPercent: adjacentWidthPercent };
+            }
+            return t;
+          });
+          return { ...d, tiles: updatedTiles, updatedAt: new Date().toISOString() };
+        }),
+      );
+    },
+    [],
+  );
 
   const equalizeRowWidths = useCallback((docId: string, targetTileId: string) => {
     setDocuments((prev) =>
       prev.map((d) => {
         if (d.id !== docId) return d;
         const rows = groupTilesIntoRows(d.tiles);
-        const targetRow = rows.find((r) => r.some((t) => t.id === targetTileId));
-        if (!targetRow || targetRow.length === 0) return d;
-
-        const equalSpans = computeEqualizedSpans(targetRow.length);
-        const updatedTiles = d.tiles.map((t) => {
-          const rowPos = targetRow.findIndex((rt) => rt.id === t.id);
-          if (rowPos !== -1) {
-            return { ...t, colSpan: equalSpans[rowPos] };
+        const nextRows = rows.map((row, rIdx) => {
+          if (row.some((t) => t.id === targetTileId)) {
+            return equalizeRowTiles(row, rIdx);
           }
-          return t;
+          return row;
         });
 
-        return { ...d, tiles: updatedTiles, updatedAt: new Date().toISOString() };
+        const flattenedTiles: BuilderTile[] = [];
+        nextRows.forEach((row, rIdx) => {
+          row.forEach((tile, cIdx) => {
+            flattenedTiles.push({
+              ...tile,
+              row: rIdx,
+              rowIndex: rIdx,
+              col: cIdx,
+            });
+          });
+        });
+
+        return { ...d, tiles: flattenedTiles, updatedAt: new Date().toISOString() };
       }),
     );
   }, []);
@@ -535,40 +751,55 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
       prev.map((d) => {
         if (d.id !== docId) return d;
         const rows = groupTilesIntoRows(d.tiles);
-        const tileSpanMap = new Map<string, number>();
+        const nextRows = rows.map((row, rIdx) => equalizeRowTiles(row, rIdx));
 
-        for (const row of rows) {
-          const equalSpans = computeEqualizedSpans(row.length);
-          row.forEach((t, i) => {
-            tileSpanMap.set(t.id, equalSpans[i]);
+        const flattenedTiles: BuilderTile[] = [];
+        nextRows.forEach((row, rIdx) => {
+          row.forEach((tile, cIdx) => {
+            flattenedTiles.push({
+              ...tile,
+              row: rIdx,
+              rowIndex: rIdx,
+              col: cIdx,
+            });
           });
-        }
+        });
 
-        const updatedTiles = d.tiles.map((t) => ({
-          ...t,
-          colSpan: tileSpanMap.get(t.id) ?? t.colSpan,
-        }));
-
-        return { ...d, tiles: updatedTiles, updatedAt: new Date().toISOString() };
+        return { ...d, tiles: flattenedTiles, updatedAt: new Date().toISOString() };
       }),
     );
   }, []);
 
-  const setRowHeight = useCallback((docId: string, targetTileId: string, rowSpan: number) => {
-    setDocuments((prev) =>
-      prev.map((d) => {
-        if (d.id !== docId) return d;
-        const rows = groupTilesIntoRows(d.tiles);
-        const targetRow = rows.find((r) => r.some((t) => t.id === targetTileId));
-        if (!targetRow) return d;
+  const setRowHeight = useCallback(
+    (docId: string, targetTileIdOrRowIdx: string | number, heightOrSpan: number) => {
+      setDocuments((prev) =>
+        prev.map((d) => {
+          if (d.id !== docId) return d;
+          const rows = groupTilesIntoRows(d.tiles);
+          let targetRow: BuilderTile[] | undefined;
 
-        const rowIds = new Set(targetRow.map((t) => t.id));
-        const updatedTiles = d.tiles.map((t) => (rowIds.has(t.id) ? { ...t, rowSpan } : t));
+          if (typeof targetTileIdOrRowIdx === 'number') {
+            targetRow = rows[targetTileIdOrRowIdx];
+          } else {
+            targetRow = rows.find((r) => r.some((t) => t.id === targetTileIdOrRowIdx));
+          }
+          if (!targetRow || targetRow.length === 0) return d;
 
-        return { ...d, tiles: updatedTiles, updatedAt: new Date().toISOString() };
-      }),
-    );
-  }, []);
+          const rowIds = new Set(targetRow.map((t) => t.id));
+          const isPixelHeight = heightOrSpan > 20;
+          const pixelHeight = isPixelHeight ? heightOrSpan : heightOrSpan * 110;
+          const rowSpan = isPixelHeight ? Math.max(1, Math.round(heightOrSpan / 110)) : heightOrSpan;
+
+          const updatedTiles = d.tiles.map((t) =>
+            rowIds.has(t.id) ? { ...t, rowHeight: pixelHeight, rowSpan } : t,
+          );
+
+          return { ...d, tiles: updatedTiles, updatedAt: new Date().toISOString() };
+        }),
+      );
+    },
+    [],
+  );
 
   const applyRowPreset = useCallback((docId: string, targetTileId: string, presetSpans: number[]) => {
     setDocuments((prev) =>
@@ -623,7 +854,9 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
         updateTile,
         duplicateTile,
         moveTile,
+        moveTileToRow,
         reorderTiles,
+        setTileWidthPercent,
         equalizeRowWidths,
         equalizeAllRows,
         setRowHeight,

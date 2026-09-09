@@ -1,5 +1,19 @@
 # Operations Ledger
 
+## 2026-09-08 -- Align title and header font weights with design system (500)
+
+**What**:
+1. *Google Sans Weight Alignment*: Google Sans is loaded with weights `400` (Regular) and `500` (Medium) across the application. When elements used `fontWeight: 600` or `700`, browsers applied synthetic/faux bolding that caused text to appear heavy, blurry, and inconsistent with Google Material 3 design tokens.
+2. *Tab Strip*: Updated `TabBar.tsx` active tab font weight from `600` to `500`.
+3. *Dashboard & Canvas Titles*: Updated `BuilderPage.tsx` `EditableName` component default font weight from `600` to `500`, setting document title (`16px`, `500`) and tile titles (`14px`, `500`).
+4. *Filter Bar & Dialogs*: Updated `AppFilterBar.tsx` ("Filters:" label, modal header), `AddTileModal.tsx`, and `TileSqlEditor.tsx` modal headers to `500`.
+5. *Artifact Cards & Dashboard Page*: Updated `DashboardArtifactCard.tsx` and `src/app/dashboard/page.tsx` tile/header font weights from `600` to `500`.
+
+**Why**: Solved the issue where dashboard tabs, top headers, filter labels, and tile headers appeared overly bold and discordant with the rest of the Material 3 / Google Sans design system.
+
+**Rule derived**: In this application, Google Sans text elements requiring emphasis, titles, and headers must use `fontWeight: 500` (Medium). Never use `600` or `700` with Google Sans as it triggers browser faux bolding.
+
+
 ## 2026-09-08 -- Auto-create BigQuery dataset and sanitize undefined fields on dashboard persistence
 
 **What**:

@@ -38,6 +38,9 @@ export interface BuilderTile {
   row: number;       // 0-based row
   colSpan: number;   // 1-12
   rowSpan: number;   // 1-4
+  widthPercent?: number; // Fluid percentage width within row (e.g. 50 for 50%, 33.333, 100)
+  rowHeight?: number;    // Fluid pixel height of the row (e.g. 240, 80, 450)
+  rowIndex?: number;     // 0-based explicit visual row index
   sourceEnvelopeId?: string;
   // App-specific: maps filter control IDs or paramNames to SQL template variables
   parameterBindings?: Record<string, string>;
@@ -177,21 +180,42 @@ export function envelopeToTile(
   };
 }
 
-/** Groups tiles sequentially into visual rows according to a 12-column grid. */
+/** Groups tiles sequentially into visual rows according to explicit row index or 12-col flow. */
 export function groupTilesIntoRows(tiles: BuilderTile[]): BuilderTile[][] {
+  if (!tiles || tiles.length === 0) return [];
+
+  // If tiles have explicit rowIndex set, group by rowIndex
+  const hasRowIndex = tiles.some((t) => t.rowIndex !== undefined);
+  if (hasRowIndex) {
+    const rowMap = new Map<number, BuilderTile[]>();
+    for (const tile of tiles) {
+      const r = tile.rowIndex ?? 0;
+      if (!rowMap.has(r)) rowMap.set(r, []);
+      rowMap.get(r)!.push(tile);
+    }
+    return Array.from(rowMap.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([, rTiles]) => rTiles);
+  }
+
   const rows: BuilderTile[][] = [];
   let currentRow: BuilderTile[] = [];
   let currentWidth = 0;
+  let lastRowIndex: number | null = null;
 
   for (const tile of tiles) {
     const span = Math.min(12, Math.max(1, tile.colSpan || 6));
-    if (currentWidth + span > 12 && currentRow.length > 0) {
+    const isExplicitRowBreak = tile.row !== undefined && lastRowIndex !== null && tile.row !== lastRowIndex;
+
+    if ((isExplicitRowBreak || (currentWidth + span > 12 && tile.widthPercent === undefined)) && currentRow.length > 0) {
       rows.push(currentRow);
       currentRow = [tile];
       currentWidth = span;
+      lastRowIndex = tile.row ?? null;
     } else {
       currentRow.push(tile);
       currentWidth += span;
+      lastRowIndex = tile.row ?? null;
     }
   }
   if (currentRow.length > 0) {
@@ -217,3 +241,19 @@ export function computeEqualizedSpans(count: number): number[] {
   }
   return result;
 }
+
+/** Distributes width percentage and colSpan equally across all tiles in a row. */
+export function equalizeRowTiles(tiles: BuilderTile[], targetRowIndex?: number): BuilderTile[] {
+  if (!tiles || tiles.length === 0) return [];
+  const count = tiles.length;
+  const equalPercent = Number((100 / count).toFixed(3));
+  const equalSpans = computeEqualizedSpans(count);
+
+  return tiles.map((tile, idx) => ({
+    ...tile,
+    widthPercent: equalPercent,
+    colSpan: equalSpans[idx] ?? Math.max(1, Math.floor(12 / count)),
+    ...(targetRowIndex !== undefined ? { row: targetRowIndex, rowIndex: targetRowIndex } : {}),
+  }));
+}
+

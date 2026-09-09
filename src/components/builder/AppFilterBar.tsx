@@ -88,7 +88,7 @@ export function AppFilterBar({
       <span
         style={{
           fontSize: 12,
-          fontWeight: 600,
+          fontWeight: 500,
           color: 'var(--text-muted)',
           display: 'flex',
           alignItems: 'center',
@@ -285,7 +285,7 @@ export function AppFilterBar({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, color: 'var(--text)' }}>
+            <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 16, color: 'var(--text)' }}>
               Add Interactive Filter
             </div>
 

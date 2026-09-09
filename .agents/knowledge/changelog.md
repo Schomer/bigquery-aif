@@ -2,6 +2,16 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-08 -- Align title and header font weights with design system (500)
+
+- Updated `TabBar.tsx` tab label font weight from `600` to `500` for active tabs to prevent synthetic/faux bolding on Google Sans (which only loads 400/500 weights).
+- Updated `BuilderPage.tsx` `EditableName` component default font weight from `600` to `500`, and updated document title and tile card title call sites.
+- Updated `AppFilterBar.tsx` "Filters:" label and modal header font weights from `600` to `500`.
+- Updated `AddTileModal.tsx` and `TileSqlEditor.tsx` modal header font weights from `600` to `500`.
+- Updated `DashboardArtifactCard.tsx` dashboard name font weight from `600` to `500`.
+- Updated `dashboard/page.tsx` toolbar, modal, and tile title font weights from `600` to `500`.
+- Verified all 167 unit tests pass and Next.js static build succeeds.
+
 ## 2026-09-08 -- Auto-create BigQuery dataset and sanitize undefined fields on dashboard persistence
 
 - Added `ensureDatasetExists` and dataset fallback resolution to `saveDocumentToBigQuery` in `src/lib/app-executor.ts` before creating `_aif_dashboards` table and running MERGE SQL.

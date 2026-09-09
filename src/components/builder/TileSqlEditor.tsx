@@ -99,7 +99,7 @@ export function TileSqlEditor({ tile, project, onSave, onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>
+          <div style={{ fontSize: 16, fontWeight: 500, color: 'var(--text)' }}>
             Edit Tile: {tile.title}
           </div>
           <button

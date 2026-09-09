@@ -67,7 +67,7 @@ export function DashboardArtifactCard({ envelope }: CustomViewProps) {
           <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#fff' }}>dashboard</span>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>{data.name || 'Dashboard'}</div>
+          <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>{data.name || 'Dashboard'}</div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>
             {data.tileCount ?? (data.tileNames ? data.tileNames.length : 0)} tile{(data.tileCount !== 1) ? 's' : ''}
           </div>

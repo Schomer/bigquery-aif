@@ -95,7 +95,7 @@ export function TabBar() {
             <span
               style={{
                 fontSize: 12,
-                fontWeight: isActive ? 600 : 400,
+                fontWeight: isActive ? 500 : 400,
                 color: isActive ? 'var(--text)' : 'var(--text-muted)',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',

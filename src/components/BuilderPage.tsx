@@ -72,7 +72,11 @@ export function BuilderPage({ documentId }: Props) {
 
   // Drag-and-drop state
   const [dragId, setDragId] = useState<string | null>(null);
-  const [dropTarget, setDropTarget] = useState<{ tileId: string; position: 'left' | 'right' } | null>(null);
+  const [dropTarget, setDropTarget] = useState<
+    | { type: 'in-row'; tileId: string; rowIdx: number; tileIdx: number; position: 'left' | 'right' }
+    | { type: 'new-row'; rowIdx: number }
+    | null
+  >(null);
 
   // Fetch saved artifacts for the Add Tile modal
   useEffect(() => {
@@ -264,36 +268,28 @@ export function BuilderPage({ documentId }: Props) {
     }
   }, [builder, documentId, activeProject]);
 
-  const handleDrop = useCallback(
-    (targetId: string, position: 'left' | 'right' = 'left') => {
+  const handleDropAction = useCallback(
+    (
+      target:
+        | { type: 'in-row'; tileId: string; rowIdx: number; tileIdx: number; position: 'left' | 'right' }
+        | { type: 'new-row'; rowIdx: number }
+    ) => {
       if (!dragId || !document) return;
-      if (dragId === targetId) {
-        setDragId(null);
-        setDropTarget(null);
-        return;
+      if (target.type === 'in-row') {
+        if (dragId === target.tileId) {
+          setDragId(null);
+          setDropTarget(null);
+          return;
+        }
+        const insertTileIdx = target.position === 'left' ? target.tileIdx : target.tileIdx + 1;
+        builder.moveTileToRow(documentId, dragId, target.rowIdx, insertTileIdx, false);
+      } else if (target.type === 'new-row') {
+        builder.moveTileToRow(documentId, dragId, target.rowIdx, 0, true);
       }
-      const tiles = [...document.tiles];
-      const fromIdx = tiles.findIndex((t) => t.id === dragId);
-      const toIdx = tiles.findIndex((t) => t.id === targetId);
-      if (fromIdx === -1 || toIdx === -1) return;
-
-      const [removed] = tiles.splice(fromIdx, 1);
-      const newTargetIdx = tiles.findIndex((t) => t.id === targetId);
-      const insertIdx = position === 'left' ? newTargetIdx : newTargetIdx + 1;
-      tiles.splice(insertIdx, 0, removed);
-
-      let currentRow = 0;
-      const reordered = tiles.map((t) => {
-        const tile = { ...t, row: currentRow };
-        currentRow += t.rowSpan;
-        return tile;
-      });
-
-      builder.reorderTiles(documentId, reordered);
       setDragId(null);
       setDropTarget(null);
     },
-    [dragId, document, builder, documentId],
+    [dragId, document, builder, documentId]
   );
 
   if (!document) {
@@ -330,6 +326,8 @@ export function BuilderPage({ documentId }: Props) {
         <EditableName
           value={document.name}
           onChange={(name) => builder.renameDocument(documentId, name)}
+          fontSize={16}
+          fontWeight={500}
         />
 
         {/* Unsaved indicator */}
@@ -623,80 +621,135 @@ export function BuilderPage({ documentId }: Props) {
             </button>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Top New Row Drop Zone */}
+            {editMode && dragId && (
+              <NewRowDropZone
+                active={dropTarget?.type === 'new-row' && dropTarget.rowIdx === 0}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDropTarget({ type: 'new-row', rowIdx: 0 });
+                }}
+                onDragLeave={() => {
+                  if (dropTarget?.type === 'new-row' && dropTarget.rowIdx === 0) setDropTarget(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  handleDropAction({ type: 'new-row', rowIdx: 0 });
+                }}
+              />
+            )}
+
             {tileRows.map((rowTiles, rIdx) => {
               const rowId = `row_${rIdx}`;
-              const currentRowSpan = rowTiles[0]?.rowSpan || 2;
+              const currentRowHeight =
+                rowTiles[0]?.rowHeight ||
+                (rowTiles[0]?.rowSpan ? rowTiles[0].rowSpan * densityCfg.baseHeight + (rowTiles[0].rowSpan - 1) * 12 : 220);
 
               return (
                 <div key={rowId} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {/* Row Flex Container */}
                   <div
                     style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(12, 1fr)',
-                      gap: 16,
+                      display: 'flex',
+                      gap: 12,
                       alignItems: 'stretch',
+                      width: '100%',
+                      height: currentRowHeight,
+                      minHeight: 50,
                       position: 'relative',
                     }}
-                    onDragOver={(e) => {
-                      if (!dragId) return;
-                      e.preventDefault();
-                      const lastTile = rowTiles[rowTiles.length - 1];
-                      if (lastTile && lastTile.id !== dragId) {
-                        setDropTarget({ tileId: lastTile.id, position: 'right' });
-                      }
-                    }}
-                    onDrop={(e) => {
-                      if (!dragId) return;
-                      e.preventDefault();
-                      const lastTile = rowTiles[rowTiles.length - 1];
-                      if (lastTile && lastTile.id !== dragId) {
-                        handleDrop(lastTile.id, 'right');
-                      }
-                    }}
                   >
-                    {rowTiles.map((tile) => (
-                      <TileCard
-                        key={tile.id}
-                        tile={tile}
-                        baseHeight={densityCfg.baseHeight}
-                        editMode={editMode}
-                        isLoading={loadingTiles.has(tile.id)}
-                        isDragging={dragId === tile.id}
-                        dropPosition={dropTarget?.tileId === tile.id ? dropTarget.position : null}
-                        onDragStart={() => { setDragId(tile.id); setDropTarget(null); }}
-                        onDragEnd={() => { setDragId(null); setDropTarget(null); }}
-                        onDragOverPosition={(e, position) => {
-                          setDropTarget({ tileId: tile.id, position });
-                        }}
-                        onDropPosition={(position) => handleDrop(tile.id, position)}
-                        onRemove={() => builder.removeTile(documentId, tile.id)}
-                        onDuplicate={() => builder.duplicateTile(documentId, tile.id)}
-                        onRename={(name) => builder.updateTile(documentId, tile.id, { title: name })}
-                        onEditSql={() => setEditingTile(tile)}
-                        onUpdateSpan={(colSpan, rowSpan) => {
-                          if (rowSpan !== tile.rowSpan) {
-                            builder.setRowHeight(documentId, tile.id, rowSpan);
+                    {rowTiles.map((tile, tIdx) => {
+                      const widthPercent = tile.widthPercent ?? Number((100 / rowTiles.length).toFixed(3));
+                      return (
+                        <TileCard
+                          key={tile.id}
+                          tile={tile}
+                          widthPercent={widthPercent}
+                          rowIndex={rIdx}
+                          tileIndex={tIdx}
+                          rowTiles={rowTiles}
+                          rowHeight={currentRowHeight}
+                          editMode={editMode}
+                          isLoading={loadingTiles.has(tile.id)}
+                          isDragging={dragId === tile.id}
+                          dropPosition={
+                            dropTarget?.type === 'in-row' && dropTarget.tileId === tile.id
+                              ? dropTarget.position
+                              : null
                           }
-                          if (colSpan !== tile.colSpan) {
-                            builder.updateTile(documentId, tile.id, { colSpan });
+                          onDragStart={() => {
+                            setDragId(tile.id);
+                            setDropTarget(null);
+                          }}
+                          onDragEnd={() => {
+                            setDragId(null);
+                            setDropTarget(null);
+                          }}
+                          onDragOverPosition={(e, position) => {
+                            setDropTarget({
+                              type: 'in-row',
+                              tileId: tile.id,
+                              rowIdx: rIdx,
+                              tileIdx: tIdx,
+                              position,
+                            });
+                          }}
+                          onDropPosition={(position) =>
+                            handleDropAction({
+                              type: 'in-row',
+                              tileId: tile.id,
+                              rowIdx: rIdx,
+                              tileIdx: tIdx,
+                              position,
+                            })
                           }
-                        }}
-                        onRefresh={() => handleRefreshSingleTile(tile.id)}
-                      />
-                    ))}
+                          onRemove={() => builder.removeTile(documentId, tile.id)}
+                          onDuplicate={() => builder.duplicateTile(documentId, tile.id)}
+                          onRename={(name) => builder.updateTile(documentId, tile.id, { title: name })}
+                          onEditSql={() => setEditingTile(tile)}
+                          onResizeWidthPercent={(newPercentA, adjacentTileId, newPercentB) => {
+                            builder.setTileWidthPercent(documentId, tile.id, newPercentA, adjacentTileId, newPercentB);
+                          }}
+                          onResizeHeight={(newHeight) => {
+                            builder.setRowHeight(documentId, rowTiles[0].id, newHeight);
+                          }}
+                          onRefresh={() => handleRefreshSingleTile(tile.id)}
+                        />
+                      );
+                    })}
                   </div>
 
                   {/* Row Height Resize Handle */}
-                  <RowHeightResizeHandle
-                    currentRowSpan={currentRowSpan}
-                    baseHeight={densityCfg.baseHeight}
-                    onResize={(newRowSpan) => {
-                      if (rowTiles[0]) {
-                        builder.setRowHeight(documentId, rowTiles[0].id, newRowSpan);
-                      }
-                    }}
-                  />
+                  {editMode && (
+                    <RowHeightResizeHandle
+                      currentRowHeight={currentRowHeight}
+                      onResize={(newHeight) => {
+                        if (rowTiles[0]) {
+                          builder.setRowHeight(documentId, rowTiles[0].id, newHeight);
+                        }
+                      }}
+                    />
+                  )}
+
+                  {/* Inter-Row New Row Drop Zone */}
+                  {editMode && dragId && (
+                    <NewRowDropZone
+                      active={dropTarget?.type === 'new-row' && dropTarget.rowIdx === rIdx + 1}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDropTarget({ type: 'new-row', rowIdx: rIdx + 1 });
+                      }}
+                      onDragLeave={() => {
+                        if (dropTarget?.type === 'new-row' && dropTarget.rowIdx === rIdx + 1) setDropTarget(null);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        handleDropAction({ type: 'new-row', rowIdx: rIdx + 1 });
+                      }}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -733,7 +786,17 @@ export function BuilderPage({ documentId }: Props) {
 
 // ── Editable Name Component ──
 
-function EditableName({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function EditableName({
+  value,
+  onChange,
+  fontSize = 15,
+  fontWeight = 500,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  fontSize?: number;
+  fontWeight?: number | string;
+}) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 
@@ -742,8 +805,8 @@ function EditableName({ value, onChange }: { value: string; onChange: (v: string
       <span
         onClick={() => { setDraft(value); setEditing(true); }}
         style={{
-          fontSize: 15,
-          fontWeight: 600,
+          fontSize,
+          fontWeight,
           color: 'var(--text)',
           fontFamily: "'Google Sans', sans-serif",
           cursor: 'text',
@@ -769,8 +832,8 @@ function EditableName({ value, onChange }: { value: string; onChange: (v: string
         if (e.key === 'Escape') { setDraft(value); setEditing(false); }
       }}
       style={{
-        fontSize: 15,
-        fontWeight: 600,
+        fontSize,
+        fontWeight,
         color: 'var(--text)',
         fontFamily: "'Google Sans', sans-serif",
         border: '1px solid var(--border)',
@@ -784,35 +847,78 @@ function EditableName({ value, onChange }: { value: string; onChange: (v: string
   );
 }
 
+// ── New Row Drop Zone Component ──
+
+function NewRowDropZone({
+  active,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+}: {
+  active: boolean;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent) => void;
+}) {
+  return (
+    <div
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      style={{
+        height: active ? 18 : 10,
+        margin: '-4px 0',
+        position: 'relative',
+        zIndex: 35,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transition: 'all 0.15s ease',
+      }}
+    >
+      {active && (
+        <div
+          style={{
+            width: '100%',
+            height: 4,
+            borderRadius: 4,
+            background: '#1a73e8',
+            boxShadow: '0 0 10px rgba(26, 115, 232, 0.85), 0 0 2px #1a73e8',
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#1a73e8', marginLeft: -2 }} />
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#1a73e8', marginRight: -2 }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Row Height Resize Handle Component ──
 
 function RowHeightResizeHandle({
-  currentRowSpan,
-  baseHeight,
+  currentRowHeight,
   onResize,
 }: {
-  currentRowSpan: number;
-  baseHeight: number;
-  onResize: (newRowSpan: number) => void;
+  currentRowHeight: number;
+  onResize: (newHeight: number) => void;
 }) {
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const startY = e.clientY;
-    const initialSpan = currentRowSpan;
+    const initialHeight = currentRowHeight;
     window.document.body.style.cursor = 'row-resize';
     window.document.body.style.userSelect = 'none';
 
-    let lastSpan = initialSpan;
-
     const onMouseMove = (moveEvent: MouseEvent) => {
       const deltaY = moveEvent.clientY - startY;
-      const deltaRows = Math.round(deltaY / (baseHeight * 0.6));
-      const nextSpan = Math.max(1, Math.min(12, initialSpan + deltaRows));
-      if (nextSpan !== lastSpan) {
-        lastSpan = nextSpan;
-        onResize(nextSpan);
-      }
+      const nextHeight = Math.max(50, Math.min(1200, Math.round(initialHeight + deltaY)));
+      onResize(nextHeight);
     };
 
     const onMouseUp = () => {
@@ -830,12 +936,12 @@ function RowHeightResizeHandle({
     <div
       onMouseDown={handleMouseDown}
       style={{
-        height: 14,
-        margin: '-5px 0 -5px 0',
+        height: 12,
+        margin: '-3px 0 -3px 0',
         cursor: 'row-resize',
         position: 'relative',
         userSelect: 'none',
-        zIndex: 10,
+        zIndex: 15,
         background: 'transparent',
       }}
       title="Drag to adjust row height"
@@ -847,7 +953,11 @@ function RowHeightResizeHandle({
 
 function TileCard({
   tile,
-  baseHeight,
+  widthPercent,
+  rowIndex,
+  tileIndex,
+  rowTiles,
+  rowHeight,
   editMode,
   isLoading,
   isDragging,
@@ -860,11 +970,16 @@ function TileCard({
   onDuplicate,
   onRename,
   onEditSql,
-  onUpdateSpan,
+  onResizeWidthPercent,
+  onResizeHeight,
   onRefresh,
 }: {
   tile: BuilderTile;
-  baseHeight: number;
+  widthPercent: number;
+  rowIndex: number;
+  tileIndex: number;
+  rowTiles: BuilderTile[];
+  rowHeight: number;
   editMode: boolean;
   isLoading: boolean;
   isDragging: boolean;
@@ -877,7 +992,8 @@ function TileCard({
   onDuplicate: () => void;
   onRename: (name: string) => void;
   onEditSql: () => void;
-  onUpdateSpan: (colSpan: number, rowSpan: number) => void;
+  onResizeWidthPercent: (newPercentA: number, adjacentTileId?: string, newPercentB?: number) => void;
+  onResizeHeight: (newHeight: number) => void;
   onRefresh: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -917,27 +1033,46 @@ function TileCard({
     onDropPosition(position);
   };
 
-  // Drag-to-resize handlers
+  // Fluid width resize handler
   const handleWidthResizeStart = (e: React.MouseEvent, direction: 'right' | 'left' = 'right') => {
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
-    const initialColSpan = tile.colSpan;
-    const parentWidth = cardRef.current?.parentElement?.getBoundingClientRect().width || 1200;
-    const singleColWidth = parentWidth / 12;
+    const parentWidth = cardRef.current?.parentElement?.getBoundingClientRect().width || 1000;
+
+    let targetTileA: BuilderTile = tile;
+    let targetTileB: BuilderTile | undefined;
+    let initialPercentA = widthPercent;
+    let initialPercentB = 0;
+
+    if (direction === 'right' && tileIndex < rowTiles.length - 1) {
+      targetTileB = rowTiles[tileIndex + 1];
+      initialPercentB = targetTileB.widthPercent ?? (100 / rowTiles.length);
+    } else if (direction === 'left' && tileIndex > 0) {
+      targetTileA = rowTiles[tileIndex - 1];
+      targetTileB = tile;
+      initialPercentA = targetTileA.widthPercent ?? (100 / rowTiles.length);
+      initialPercentB = widthPercent;
+    } else {
+      return;
+    }
+
+    const totalCombinedPercent = initialPercentA + initialPercentB;
     window.document.body.style.cursor = 'col-resize';
     window.document.body.style.userSelect = 'none';
 
-    let lastCol = initialColSpan;
-
     const onMouseMove = (moveEvent: MouseEvent) => {
-      const rawDeltaX = moveEvent.clientX - startX;
-      const deltaX = direction === 'right' ? rawDeltaX : -rawDeltaX;
-      const deltaCols = Math.round(deltaX / singleColWidth);
-      const newColSpan = Math.max(1, Math.min(12, initialColSpan + deltaCols));
-      if (newColSpan !== lastCol) {
-        lastCol = newColSpan;
-        onUpdateSpan(newColSpan, tile.rowSpan);
+      const deltaX = moveEvent.clientX - startX;
+      const deltaPercent = (deltaX / parentWidth) * 100;
+
+      const rawA = direction === 'right' ? initialPercentA + deltaPercent : initialPercentA + deltaPercent;
+      const clampedA = Math.max(8, Math.min(totalCombinedPercent - 8, rawA));
+      const clampedB = totalCombinedPercent - clampedA;
+
+      if (targetTileA.id === tile.id) {
+        onResizeWidthPercent(Number(clampedA.toFixed(2)), targetTileB?.id, Number(clampedB.toFixed(2)));
+      } else {
+        onResizeWidthPercent(Number(clampedB.toFixed(2)), targetTileA.id, Number(clampedA.toFixed(2)));
       }
     };
 
@@ -952,25 +1087,20 @@ function TileCard({
     window.addEventListener('mouseup', onMouseUp);
   };
 
+  // Fluid height resize handler
   const handleHeightResizeStart = (e: React.MouseEvent, direction: 'bottom' | 'top' = 'bottom') => {
     e.preventDefault();
     e.stopPropagation();
     const startY = e.clientY;
-    const initialRowSpan = tile.rowSpan;
+    const initialHeight = rowHeight;
     window.document.body.style.cursor = 'row-resize';
     window.document.body.style.userSelect = 'none';
-
-    let lastRow = initialRowSpan;
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const rawDeltaY = moveEvent.clientY - startY;
       const deltaY = direction === 'bottom' ? rawDeltaY : -rawDeltaY;
-      const deltaRows = Math.round(deltaY / (baseHeight * 0.6));
-      const newRowSpan = Math.max(1, Math.min(12, initialRowSpan + deltaRows));
-      if (newRowSpan !== lastRow) {
-        lastRow = newRowSpan;
-        onUpdateSpan(tile.colSpan, newRowSpan);
-      }
+      const newHeight = Math.max(50, Math.min(1200, Math.round(initialHeight + deltaY)));
+      onResizeHeight(newHeight);
     };
 
     const onMouseUp = () => {
@@ -984,40 +1114,53 @@ function TileCard({
     window.addEventListener('mouseup', onMouseUp);
   };
 
+  // Corner resize handler
   const handleCornerResizeStart = (
     e: React.MouseEvent,
-    corner: 'tl' | 'tr' | 'bl' | 'br' = 'br'
+    corner: 'tl' | 'tr' | 'bl' | 'br' = 'br',
   ) => {
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
     const startY = e.clientY;
-    const initialColSpan = tile.colSpan;
-    const initialRowSpan = tile.rowSpan;
-    const parentWidth = cardRef.current?.parentElement?.getBoundingClientRect().width || 1200;
-    const singleColWidth = parentWidth / 12;
+    const initialHeight = rowHeight;
+    const parentWidth = cardRef.current?.parentElement?.getBoundingClientRect().width || 1000;
     const cursorStyle = corner === 'tl' || corner === 'br' ? 'nwse-resize' : 'nesw-resize';
     window.document.body.style.cursor = cursorStyle;
     window.document.body.style.userSelect = 'none';
 
-    let lastCol = initialColSpan;
-    let lastRow = initialRowSpan;
+    const canResizeWidth =
+      (corner === 'tr' || corner === 'br')
+        ? tileIndex < rowTiles.length - 1
+        : tileIndex > 0;
+
+    const targetTileA = (corner === 'tr' || corner === 'br') ? tile : rowTiles[tileIndex - 1];
+    const targetTileB = (corner === 'tr' || corner === 'br') ? rowTiles[tileIndex + 1] : tile;
+    const initialPercentA = targetTileA ? (targetTileA.widthPercent ?? (100 / rowTiles.length)) : 0;
+    const initialPercentB = targetTileB ? (targetTileB.widthPercent ?? (100 / rowTiles.length)) : 0;
+    const totalCombinedPercent = initialPercentA + initialPercentB;
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const rawDeltaX = moveEvent.clientX - startX;
       const rawDeltaY = moveEvent.clientY - startY;
 
-      const deltaX = corner === 'br' || corner === 'tr' ? rawDeltaX : -rawDeltaX;
+      // Handle height
       const deltaY = corner === 'br' || corner === 'bl' ? rawDeltaY : -rawDeltaY;
+      const newHeight = Math.max(50, Math.min(1200, Math.round(initialHeight + deltaY)));
+      onResizeHeight(newHeight);
 
-      const deltaCols = Math.round(deltaX / singleColWidth);
-      const deltaRows = Math.round(deltaY / (baseHeight * 0.6));
-      const newColSpan = Math.max(1, Math.min(12, initialColSpan + deltaCols));
-      const newRowSpan = Math.max(1, Math.min(12, initialRowSpan + deltaRows));
-      if (newColSpan !== lastCol || newRowSpan !== lastRow) {
-        lastCol = newColSpan;
-        lastRow = newRowSpan;
-        onUpdateSpan(newColSpan, newRowSpan);
+      // Handle width if adjacent tile exists
+      if (canResizeWidth && targetTileA && targetTileB) {
+        const deltaPercent = (rawDeltaX / parentWidth) * 100;
+        const rawA = initialPercentA + deltaPercent;
+        const clampedA = Math.max(8, Math.min(totalCombinedPercent - 8, rawA));
+        const clampedB = totalCombinedPercent - clampedA;
+
+        if (targetTileA.id === tile.id) {
+          onResizeWidthPercent(Number(clampedA.toFixed(2)), targetTileB.id, Number(clampedB.toFixed(2)));
+        } else {
+          onResizeWidthPercent(Number(clampedB.toFixed(2)), targetTileA.id, Number(clampedA.toFixed(2)));
+        }
       }
     };
 
@@ -1032,7 +1175,7 @@ function TileCard({
     window.addEventListener('mouseup', onMouseUp);
   };
 
-  const calculatedMinHeight = tile.rowSpan * baseHeight + (tile.rowSpan - 1) * 12;
+  const gapOffset = rowTiles.length > 1 ? ((rowTiles.length - 1) * 12 * (widthPercent / 100)) : 0;
 
   return (
     <div
@@ -1043,9 +1186,10 @@ function TileCard({
       onDragOver={handleCardDragOver}
       onDrop={handleCardDrop}
       style={{
-        gridColumn: `span ${tile.colSpan}`,
-        height: calculatedMinHeight,
-        minHeight: calculatedMinHeight,
+        width: `calc(${widthPercent}% - ${gapOffset.toFixed(2)}px)`,
+        flex: `0 0 calc(${widthPercent}% - ${gapOffset.toFixed(2)}px)`,
+        height: '100%',
+        minHeight: 50,
         borderRadius: 10,
         overflow: 'visible',
         display: 'flex',
@@ -1053,6 +1197,7 @@ function TileCard({
         position: 'relative',
         opacity: isDragging ? 0.35 : 1,
         cursor: editMode ? 'grab' : 'default',
+        boxSizing: 'border-box',
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -1062,13 +1207,13 @@ function TileCard({
         <div
           style={{
             position: 'absolute',
-            ...(dropPosition === 'left' ? { left: -10 } : { right: -10 }),
+            ...(dropPosition === 'left' ? { left: -8 } : { right: -8}),
             top: -3,
             bottom: -3,
             width: 4,
             borderRadius: 4,
             background: '#1a73e8',
-            boxShadow: '0 0 10px rgba(26, 115, 232, 0.8), 0 0 2px #1a73e8',
+            boxShadow: '0 0 10px rgba(26, 115, 232, 0.85), 0 0 2px #1a73e8',
             zIndex: 100,
             pointerEvents: 'none',
             display: 'flex',
@@ -1100,155 +1245,155 @@ function TileCard({
       >
         {/* Tile Header */}
         <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '6px 10px',
-          borderBottom: '1px solid var(--border-subtle, #f0f0f0)',
-          flexShrink: 0,
-        }}
-      >
-        {editMode && (
-          <span
-            className="material-symbols-outlined"
-            style={{ fontSize: 14, color: 'var(--text-dim)', cursor: 'grab' }}
-            title="Drag to rearrange"
-          >
-            drag_indicator
-          </span>
-        )}
-
-        <EditableName value={tile.title} onChange={onRename} />
-
-        {/* Span badge in edit mode */}
-        {editMode && (
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 500,
-              padding: '1px 5px',
-              borderRadius: 4,
-              background: '#f1f3f4',
-              color: 'var(--text-muted)',
-              fontFamily: "'Google Sans', sans-serif",
-            }}
-          >
-            {tile.colSpan}/12 col &middot; {tile.rowSpan}x
-          </span>
-        )}
-
-        <div style={{ flex: 1 }} />
-
-        {/* Refresh Tile */}
-        {tile.cachedSql && (
-          <button
-            onClick={onRefresh}
-            disabled={isLoading}
-            style={actionIconBtn}
-            title="Refresh tile"
-          >
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '6px 10px',
+            borderBottom: '1px solid var(--border-subtle, #f0f0f0)',
+            flexShrink: 0,
+          }}
+        >
+          {editMode && (
             <span
               className="material-symbols-outlined"
-              style={{ fontSize: 14, animation: isLoading ? 'spin 1s linear infinite' : 'none' }}
+              style={{ fontSize: 14, color: 'var(--text-dim)', cursor: 'grab' }}
+              title="Drag to rearrange"
             >
-              refresh
+              drag_indicator
             </span>
-          </button>
-        )}
+          )}
 
-        {/* Kebab menu */}
-        <div ref={menuRef} style={{ position: 'relative' }}>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setMenuOpen((v) => !v);
-            }}
-            style={actionIconBtn}
-            title="Tile options"
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
-              more_vert
-            </span>
-          </button>
+          <EditableName value={tile.title} onChange={onRename} fontSize={14} fontWeight={500} />
 
-          {menuOpen && (
-            <div
+          {/* Span badge in edit mode */}
+          {editMode && (
+            <span
               style={{
-                position: 'absolute',
-                top: '100%',
-                right: 0,
-                marginTop: 4,
-                minWidth: 140,
-                background: '#fff',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
-                padding: '4px 0',
-                zIndex: 50,
-                display: 'flex',
-                flexDirection: 'column',
+                fontSize: 10,
+                fontWeight: 500,
+                padding: '1px 5px',
+                borderRadius: 4,
+                background: '#f1f3f4',
+                color: 'var(--text-muted)',
                 fontFamily: "'Google Sans', sans-serif",
               }}
             >
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setMenuOpen(false);
-                  onEditSql();
-                }}
-                style={menuItemStyle}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f3f4f6)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: 15, color: 'var(--text-muted)' }}>
-                  code
-                </span>
-                SQL
-              </button>
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setMenuOpen(false);
-                  onDuplicate();
-                }}
-                style={menuItemStyle}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f3f4f6)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: 15, color: 'var(--text-muted)' }}>
-                  content_copy
-                </span>
-                Duplicate
-              </button>
-
-              <div style={{ height: 1, background: 'var(--border-subtle, #f0f0f0)', margin: '4px 0' }} />
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setMenuOpen(false);
-                  onRemove();
-                }}
-                style={{ ...menuItemStyle, color: '#dc2626' }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = '#fef2f2'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#dc2626' }}>
-                  delete
-                </span>
-                Delete
-              </button>
-            </div>
+              {Math.round(widthPercent)}% &middot; {rowHeight}px
+            </span>
           )}
-        </div>
-      </div>
 
-      {/* Tile Content */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '6px 10px', position: 'relative' }}>
-        <TileContent tile={tile} isLoading={isLoading} onRunQuery={onRefresh} onEditSql={onEditSql} />
-      </div>
+          <div style={{ flex: 1 }} />
+
+          {/* Refresh Tile */}
+          {tile.cachedSql && (
+            <button
+              onClick={onRefresh}
+              disabled={isLoading}
+              style={actionIconBtn}
+              title="Refresh tile"
+            >
+              <span
+                className="material-symbols-outlined"
+                style={{ fontSize: 14, animation: isLoading ? 'spin 1s linear infinite' : 'none' }}
+              >
+                refresh
+              </span>
+            </button>
+          )}
+
+          {/* Kebab menu */}
+          <div ref={menuRef} style={{ position: 'relative' }}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen((v) => !v);
+              }}
+              style={actionIconBtn}
+              title="Tile options"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                more_vert
+              </span>
+            </button>
+
+            {menuOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: 4,
+                  minWidth: 140,
+                  background: '#fff',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+                  padding: '4px 0',
+                  zIndex: 50,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  fontFamily: "'Google Sans', sans-serif",
+                }}
+              >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    onEditSql();
+                  }}
+                  style={menuItemStyle}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f3f4f6)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 15, color: 'var(--text-muted)' }}>
+                    code
+                  </span>
+                  SQL
+                </button>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    onDuplicate();
+                  }}
+                  style={menuItemStyle}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f3f4f6)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 15, color: 'var(--text-muted)' }}>
+                    content_copy
+                  </span>
+                  Duplicate
+                </button>
+
+                <div style={{ height: 1, background: 'var(--border-subtle, #f0f0f0)', margin: '4px 0' }} />
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    onRemove();
+                  }}
+                  style={{ ...menuItemStyle, color: '#dc2626' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#fef2f2'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#dc2626' }}>
+                    delete
+                  </span>
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Tile Content */}
+        <div style={{ flex: 1, overflow: 'auto', padding: '6px 10px', position: 'relative' }}>
+          <TileContent tile={tile} isLoading={isLoading} onRunQuery={onRefresh} onEditSql={onEditSql} />
+        </div>
       </div>
 
       {/* ── Interactive Invisible Drag Resize Handles (Edges & Corners) ── */}
@@ -1286,7 +1431,7 @@ function TileCard({
             title="Drag to resize height"
           />
 
-          {/* Left Edge */}
+          {/* Left Edge (Resizes width against left neighbour) */}
           <div
             onMouseDown={(e) => handleWidthResizeStart(e, 'left')}
             style={{
@@ -1295,14 +1440,14 @@ function TileCard({
               bottom: 12,
               left: 0,
               width: 6,
-              cursor: 'col-resize',
+              cursor: tileIndex > 0 ? 'col-resize' : 'default',
               background: 'transparent',
               zIndex: 20,
             }}
-            title="Drag to resize width"
+            title={tileIndex > 0 ? 'Drag to resize width' : undefined}
           />
 
-          {/* Right Edge */}
+          {/* Right Edge (Resizes width against right neighbour) */}
           <div
             onMouseDown={(e) => handleWidthResizeStart(e, 'right')}
             style={{
@@ -1311,11 +1456,11 @@ function TileCard({
               bottom: 12,
               right: 0,
               width: 6,
-              cursor: 'col-resize',
+              cursor: tileIndex < rowTiles.length - 1 ? 'col-resize' : 'default',
               background: 'transparent',
               zIndex: 20,
             }}
-            title="Drag to resize width"
+            title={tileIndex < rowTiles.length - 1 ? 'Drag to resize width' : undefined}
           />
 
           {/* Top-Left Corner */}
@@ -1366,7 +1511,7 @@ function TileCard({
             title="Drag to resize"
           />
 
-          {/* Bottom-Right Corner (completely invisible, no bracket) */}
+          {/* Bottom-Right Corner */}
           <div
             onMouseDown={(e) => handleCornerResizeStart(e, 'br')}
             style={{
