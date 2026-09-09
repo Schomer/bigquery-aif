@@ -6,9 +6,7 @@
 // Uses the same persistent Chrome profile as visual-test.mjs so auth is preserved.
 // Output file is printed to stdout for easy reading with view_file.
 
-import { createRequire } from 'module';
-const require = createRequire('/tmp/puppeteer-runner/');
-const puppeteer = require('puppeteer');
+import puppeteer from 'puppeteer-core';
 import { mkdirSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -48,7 +46,7 @@ async function main() {
 
   console.log(`[screenshot] Launching Chrome...`);
   const browser = await puppeteer.launch({
-    headless: false,
+    headless: true,
     executablePath: chromePath,
     userDataDir: USER_DATA_DIR,
     defaultViewport: { width: 1440, height: 900 },
