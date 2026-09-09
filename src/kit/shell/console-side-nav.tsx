@@ -145,6 +145,42 @@ function RowSnowmanMenu({ itemName }: { itemName: string }) {
   );
 }
 
+const SIDEBAR_EXPANDED_KEY = "bqaif_sidebar_expanded";
+const SIDEBAR_SECTIONS_KEY = "bqaif_sidebar_sections";
+
+function getSavedSidebarExpanded(defaultVal: boolean): boolean {
+  if (typeof window === "undefined") return defaultVal;
+  try {
+    const stored = localStorage.getItem(SIDEBAR_EXPANDED_KEY);
+    if (stored !== null) return stored === "true";
+  } catch {}
+  return defaultVal;
+}
+
+function getSavedSectionOpen(sectionId: string, defaultOpen: boolean): boolean {
+  if (typeof window === "undefined") return defaultOpen;
+  try {
+    const stored = localStorage.getItem(SIDEBAR_SECTIONS_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (typeof parsed[sectionId] === "boolean") {
+        return parsed[sectionId];
+      }
+    }
+  } catch {}
+  return defaultOpen;
+}
+
+function setSavedSectionOpen(sectionId: string, open: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    const stored = localStorage.getItem(SIDEBAR_SECTIONS_KEY);
+    const parsed = stored ? JSON.parse(stored) : {};
+    parsed[sectionId] = open;
+    localStorage.setItem(SIDEBAR_SECTIONS_KEY, JSON.stringify(parsed));
+  } catch {}
+}
+
 function NavRow({
   item,
   active,
@@ -160,6 +196,20 @@ function NavRow({
   showSnowman?: boolean;
   onSelect: (id: string) => void;
 }) {
+  const hasChildren = Boolean(item.children && item.children.length > 0);
+  const [folderOpen, setFolderOpen] = React.useState<boolean>(() =>
+    getSavedSectionOpen(item.id, item.defaultOpen ?? true)
+  );
+
+  const toggleFolder = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setFolderOpen((prev) => {
+      const next = !prev;
+      setSavedSectionOpen(item.id, next);
+      return next;
+    });
+  };
+
   return (
     <div className="flex w-full flex-col">
       <div
@@ -167,12 +217,18 @@ function NavRow({
         tabIndex={0}
         title={item.label}
         onClick={() => {
+          if (hasChildren) {
+            toggleFolder();
+          }
           item.onClick?.();
           onSelect(item.id);
         }}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
+            if (hasChildren) {
+              toggleFolder();
+            }
             item.onClick?.();
             onSelect(item.id);
           }
@@ -209,30 +265,49 @@ function NavRow({
             {item.label}
           </span>
         </div>
-        {isExpanded && showSnowman && (
+        {isExpanded && (
           <div className="flex items-center">
-            <button
-              type="button"
-              title="Create new untitled chat"
-              aria-label="Create new untitled chat"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (item.onAddChat) {
-                  item.onAddChat();
-                } else {
-                  snackbar(`New untitled chat created in "${item.label}"`);
-                }
-              }}
-              className="hover:bg-cm-container-high text-cm-on-surface-variant hover:text-cm-on-surface flex size-6 shrink-0 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
-            >
-              <Add className="size-4" />
-            </button>
-            <RowSnowmanMenu itemName={item.label} />
+            {hasChildren && (
+              <button
+                type="button"
+                title={folderOpen ? `Collapse ${item.label}` : `Expand ${item.label}`}
+                aria-label={folderOpen ? `Collapse ${item.label}` : `Expand ${item.label}`}
+                onClick={toggleFolder}
+                className="hover:bg-cm-container-high text-cm-on-surface-variant hover:text-cm-on-surface mr-0.5 flex size-6 shrink-0 items-center justify-center rounded-full transition-colors"
+              >
+                {folderOpen ? (
+                  <KeyboardArrowUp className="size-4 shrink-0" />
+                ) : (
+                  <KeyboardArrowDown className="size-4 shrink-0" />
+                )}
+              </button>
+            )}
+            {showSnowman && (
+              <>
+                <button
+                  type="button"
+                  title="Create new untitled chat"
+                  aria-label="Create new untitled chat"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (item.onAddChat) {
+                      item.onAddChat();
+                    } else {
+                      snackbar(`New untitled chat created in "${item.label}"`);
+                    }
+                  }}
+                  className="hover:bg-cm-container-high text-cm-on-surface-variant hover:text-cm-on-surface flex size-6 shrink-0 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+                >
+                  <Add className="size-4" />
+                </button>
+                <RowSnowmanMenu itemName={item.label} />
+              </>
+            )}
           </div>
         )}
       </div>
 
-      {isExpanded && item.children && item.children.length > 0 && (
+      {isExpanded && item.children && item.children.length > 0 && folderOpen && (
         <div className="flex w-full flex-col">
           {item.children.map((subItem) => {
             const subActive = subItem.id === activeId;
@@ -292,7 +367,18 @@ function NavSection({
   isExpanded: boolean;
   onSelect: (id: string) => void;
 }) {
-  const [open, setOpen] = React.useState(section.defaultOpen ?? true);
+  const [open, setOpen] = React.useState<boolean>(() =>
+    getSavedSectionOpen(section.id, section.defaultOpen ?? true)
+  );
+
+  const toggleOpen = () => {
+    setOpen((prev) => {
+      const next = !prev;
+      setSavedSectionOpen(section.id, next);
+      return next;
+    });
+  };
+
   const isWorkspaceSection =
     Boolean(section.id && section.id.toLowerCase().includes("workspace")) ||
     Boolean(section.label && section.label.toLowerCase().includes("workspace"));
@@ -321,11 +407,11 @@ function NavSection({
       <div
         role="button"
         tabIndex={0}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={toggleOpen}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            setOpen((prev) => !prev);
+            toggleOpen();
           }
         }}
         className="group text-cm-label-medium text-cm-on-surface hover:bg-cm-container flex h-8 w-full cursor-pointer items-center justify-between rounded-r-[12px] pl-4 pr-1 text-left transition-colors"
@@ -395,7 +481,9 @@ export function ConsoleSideNav({
   const [uncontrolledActive, setUncontrolledActive] = React.useState(defaultActiveId ?? main[0]?.id ?? "");
   const activeId = controlledActiveId ?? uncontrolledActive;
 
-  const [uncontrolledExpanded, setUncontrolledExpanded] = React.useState(defaultExpanded);
+  const [uncontrolledExpanded, setUncontrolledExpanded] = React.useState(() =>
+    getSavedSidebarExpanded(defaultExpanded)
+  );
   const isExpanded = controlledExpanded ?? uncontrolledExpanded;
 
   const handleSelect = (id: string) => {
@@ -405,6 +493,11 @@ export function ConsoleSideNav({
 
   const setExpanded = (next: boolean) => {
     if (controlledExpanded === undefined) setUncontrolledExpanded(next);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(SIDEBAR_EXPANDED_KEY, String(next));
+      } catch {}
+    }
     onExpandedChange?.(next);
   };
 

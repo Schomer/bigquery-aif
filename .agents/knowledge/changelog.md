@@ -2,6 +2,16 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-08 -- Fix sidebar icons and persist sidebar collapsed/expanded state
+
+- Updated `ShellLayout.tsx` nav items to replace missing mask-based icons for `AI inbox / Tasks`, `Automation`, `Catalog`, and `Workspaces` folders with proper monochrome SVGs (`MaterialSymbols.Inbox`, `ConsoleIcons.Automation`, `MaterialSymbols.MenuBook`, and `MaterialSymbols.FolderOpen`).
+- Updated `src/kit/ui/icons.tsx` to provide crisp, inline SVG definitions for `AiInbox`, `Automation`, `Catalog`, and `FolderOpen` instead of referencing missing PNG assets.
+- Implemented localStorage state persistence for sidebar navigation in `ConsoleSideNav` and `ConsoleShell`:
+  - Persists overall rail expansion (`bqaif_sidebar_expanded`) between sessions.
+  - Persists section open/collapse states (`bqaif_sidebar_sections`) for "Manage", "Library", "Workspaces", "Open Tabs", and custom sections.
+  - Added collapsible toggle support and localStorage state persistence for folder items with child items (such as workspace folders).
+- Verified with vitest unit test suite (163 passing tests) and Next.js static export build.
+
 ## 2026-09-08 -- Fix table data in dashboard tiles, add advanced layout controls and blank dashboard creation
 
 - Enhanced `envelopeToTile` in `src/lib/builder-types.ts` to detect `SCHEMA_VIEW` envelopes and tables, synthesize query SQL (`SELECT * FROM \`project.dataset.table\` LIMIT 100`), extract available sample columns and rows into `lastSnapshot`, and set `vizType: 'TABLE'`.

@@ -97,6 +97,17 @@ export interface ConsoleShellProps extends Omit<ConsoleTopNavProps, "className">
   contentClassName?: string;
 }
 
+const SIDEBAR_EXPANDED_KEY = "bqaif_sidebar_expanded";
+
+function getSavedSidebarExpanded(defaultVal: boolean): boolean {
+  if (typeof window === "undefined") return defaultVal;
+  try {
+    const stored = localStorage.getItem(SIDEBAR_EXPANDED_KEY);
+    if (stored !== null) return stored === "true";
+  } catch {}
+  return defaultVal;
+}
+
 export function ConsoleShell({
   children,
   nav,
@@ -116,12 +127,19 @@ export function ConsoleShell({
   productName,
   ...topNavProps
 }: ConsoleShellProps) {
-  const [uncontrolledNavExpanded, setUncontrolledNavExpanded] = React.useState(defaultNavExpanded);
+  const [uncontrolledNavExpanded, setUncontrolledNavExpanded] = React.useState(() =>
+    getSavedSidebarExpanded(defaultNavExpanded)
+  );
   const navExpanded = controlledNavExpanded ?? uncontrolledNavExpanded;
 
   const handleNavExpandedChange = (expanded: boolean) => {
     if (controlledNavExpanded === undefined) {
       setUncontrolledNavExpanded(expanded);
+    }
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(SIDEBAR_EXPANDED_KEY, String(expanded));
+      } catch {}
     }
     onNavExpandedChange?.(expanded);
   };

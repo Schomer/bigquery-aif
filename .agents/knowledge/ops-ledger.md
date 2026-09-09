@@ -1,5 +1,18 @@
 # Operations Ledger
 
+## 2026-09-08 -- Fix sidebar icons and persist sidebar collapsed/expanded state
+
+**What**:
+1. *Sidebar Navigation Icons*: Replaced missing mask-based icon references for `AI inbox / Tasks`, `Automation`, `Catalog`, and `Workspaces` folders with monochrome SVGs (`MaterialSymbols.Inbox`, `ConsoleIcons.Automation`, `MaterialSymbols.MenuBook`, `MaterialSymbols.FolderOpen`). Updated `src/kit/ui/icons.tsx` to provide standard SVG definitions for `AiInbox`, `Automation`, `Catalog`, and `FolderOpen`.
+2. *Sidebar Expansion State Persistence*: Added `bqaif_sidebar_expanded` localStorage hydration and persistence in `ConsoleShell` and `ConsoleSideNav`.
+3. *Section & Folder Collapse State Persistence*: Added `bqaif_sidebar_sections` localStorage hydration and persistence in `NavSection` and `NavRow` so collapsed/expanded states for "Manage", "Library", "Workspaces", "Open Tabs", and workspace folders survive page refreshes.
+
+**Why**:
+1. Three items in the sidebar ("AI inbox / Tasks", "Automation", "Catalog") along with workspace folders had no visible icon because `Icons.*` used CSS mask-images pointing to non-existent `/icons/icon-*.png` assets.
+2. The sidebar navigation rail and all collapsible groups previously maintained only ephemeral component-level state that reset on every page load or navigation.
+
+**Rule derived**: All shell navigation icons must be pure inline SVG marks adhering to `MaterialSymbols` or `ConsoleIcons` standards with `currentColor` support. Sidebar expansion and section collapse states must be hydrated and persisted to localStorage.
+
 ## 2026-09-08 -- Fix table data in dashboard tiles, add advanced layout controls and blank dashboard creation
 
 **What**:

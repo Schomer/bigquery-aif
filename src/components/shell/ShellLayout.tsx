@@ -17,6 +17,7 @@ import {
   type ConsoleSideNavItem,
   Icons,
   MaterialSymbols,
+  ConsoleIcons,
   SnackbarHost,
   snackbar,
 } from '@/kit';
@@ -52,17 +53,17 @@ function ConsoleShellContent({ children }: { children: React.ReactNode }) {
     {
       id: 'ai-inbox',
       label: 'AI inbox / Tasks',
-      icon: <Icons.AiInbox className="size-[18px]" />,
+      icon: <MaterialSymbols.Inbox className="size-[18px]" />,
     },
     {
       id: 'automation',
       label: 'Automation',
-      icon: <Icons.Automation className="size-[18px]" />,
+      icon: <ConsoleIcons.Automation className="size-[18px]" />,
     },
     {
       id: 'catalog',
       label: 'Catalog',
-      icon: <Icons.Catalog className="size-[18px]" />,
+      icon: <MaterialSymbols.MenuBook className="size-[18px]" />,
     },
     {
       id: 'manage-section',
@@ -124,7 +125,7 @@ function ConsoleShellContent({ children }: { children: React.ReactNode }) {
         {
           id: 'workspace-churn',
           label: 'Customer churn analysis',
-          icon: <Icons.FolderOpen className="size-[18px]" />,
+          icon: <MaterialSymbols.FolderOpen className="size-[18px]" />,
           onAddChat: () => {
             newConversation();
             setActivePage('chat');
@@ -139,7 +140,7 @@ function ConsoleShellContent({ children }: { children: React.ReactNode }) {
         {
           id: 'workspace-ecommerce',
           label: 'E-Commerce Analytics',
-          icon: <Icons.FolderOpen className="size-[18px]" />,
+          icon: <MaterialSymbols.FolderOpen className="size-[18px]" />,
           onAddChat: () => {
             newConversation();
             setActivePage('chat');
