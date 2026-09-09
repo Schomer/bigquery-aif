@@ -14,9 +14,10 @@ interface Props {
   result: QueryResult;
   emphasis?: { highlight: string[]; deemphasize: string[] };
   onSendMessage?: (msg: string) => void;
+  fillParent?: boolean;
 }
 
-export function DataTable({ result, emphasis, onSendMessage }: Props) {
+export function DataTable({ result, emphasis, onSendMessage, fillParent }: Props) {
   const [sortCol, setSortCol] = useState<number | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(0);
@@ -81,7 +82,14 @@ export function DataTable({ result, emphasis, onSendMessage }: Props) {
   const useScrollArea = rows.length > SCROLL_THRESHOLD;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: fillParent ? '100%' : undefined,
+      minHeight: 0,
+      flex: fillParent ? 1 : undefined,
+      gap: 0,
+    }}>
 
       {/* Toolbar: filter + rows-per-page */}
       <div style={{
@@ -89,7 +97,8 @@ export function DataTable({ result, emphasis, onSendMessage }: Props) {
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: 8,
-        padding: '6px 0 8px 0',
+        padding: '2px 0 6px 0',
+        flexShrink: 0,
       }}>
         {/* Search filter */}
         <div style={{ position: 'relative', flex: '1 1 auto', maxWidth: 280 }}>
@@ -160,21 +169,25 @@ export function DataTable({ result, emphasis, onSendMessage }: Props) {
 
       {/* Table wrapper */}
       <div style={{
-        borderRadius: totalPages > 1 ? '8px 8px 0 0' : 8,
+        borderRadius: '8px 8px 0 0',
         border: '1px solid var(--border)',
-        borderBottom: totalPages > 1 ? 'none' : undefined,
+        borderBottom: 'none',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
+        flex: fillParent ? 1 : undefined,
+        minHeight: 0,
       }}>
         {/* Sticky header + scrollable body */}
-        <div style={useScrollArea ? {
-          maxHeight: 440,
+        <div style={{
+          flex: fillParent ? 1 : undefined,
+          minHeight: 0,
           overflowY: 'auto',
           overflowX: 'auto',
-        } : { overflowX: 'auto' }}>
+          maxHeight: fillParent ? undefined : (useScrollArea ? 440 : undefined),
+        }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead style={{ position: useScrollArea ? 'sticky' : undefined, top: 0, zIndex: 1 }}>
+            <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
               <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
                 {columns.map((col, i) => {
                   const isHighlighted = emphasis?.highlight?.includes(col);
@@ -300,6 +313,7 @@ export function DataTable({ result, emphasis, onSendMessage }: Props) {
         fontSize: 11,
         color: 'var(--text-muted)',
         gap: 8,
+        flexShrink: 0,
       }}>
         {/* Left: rows-per-page select + row count */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

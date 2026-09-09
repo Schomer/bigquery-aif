@@ -1,5 +1,16 @@
 # Operations Ledger
 
+## 2026-09-09 -- Attach DataTable bottom and pagination footer cleanly to dashboard tile containers
+
+**What**:
+1. *Dashboard Tile Content Flex Container*: Updated `TileCard` content wrapper in `src/components/BuilderPage.tsx` to use `display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden'` so children can flex dynamically without clipping or outer scroll blowout.
+2. *DataTable Flexible Height & Footer Pinning*: Added `fillParent?: boolean` prop to `src/components/DataTable.tsx`. When `fillParent` is enabled (used in `BuilderPage.tsx`), `DataTable` fills 100% of the tile height with `flex: 1, minHeight: 0`. The search toolbar stays at the top (`flexShrink: 0`), the table body scrolls vertically with sticky header (`thead zIndex: 2`), and the pagination footer (`flexShrink: 0`) is pinned and cleanly attached to the bottom of the dashboard tile.
+3. *Consistent Table Wrapper Borders*: Updated `DataTable.tsx` table wrapper to use `borderRadius: '8px 8px 0 0'` and `borderBottom: 'none'`, seamlessly connecting the table body with the pagination footer (`borderRadius: '0 0 8px 8px'`) across all single-page and multi-page configurations without orphan margins.
+
+**Why**: Tables inside dashboard tiles previously used fixed scroll thresholds or natural content height without flex height bounding, causing tables with many rows to push their pagination footer below the bottom edge of the tile and get clipped, while tables with few rows left detached whitespace under the footer.
+
+**Rule derived**: Data tables rendered inside fixed-height or resizable dashboard tiles must use flexbox column layouts with `flex: 1`, `minHeight: 0`, and inner scrollable body containers so the table header stays sticky at the top and the pagination footer remains attached to the bottom of the tile container.
+
 ## 2026-09-09 -- Serialize Builder Documents to docJson for Firestore Nested Array Safety
 
 **What**:

@@ -1391,7 +1391,15 @@ function TileCard({
         </div>
 
         {/* Tile Content */}
-        <div style={{ flex: 1, overflow: 'auto', padding: '6px 10px', position: 'relative' }}>
+        <div style={{
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '6px 10px',
+          position: 'relative',
+          overflow: 'hidden',
+        }}>
           <TileContent tile={tile} isLoading={isLoading} onRunQuery={onRefresh} onEditSql={onEditSql} />
         </div>
       </div>
@@ -1567,7 +1575,7 @@ function TileContent({
 
   if (tile.tileType === 'text') {
     return (
-      <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>
+      <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text)', whiteSpace: 'pre-wrap', overflowY: 'auto', flex: 1, minHeight: 0 }}>
         {tile.textContent}
       </div>
     );
@@ -1599,7 +1607,7 @@ function TileContent({
 
   if (!queryResult || !queryResult.rows || queryResult.rows.length === 0) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 40, gap: 6, color: 'var(--text-dim)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 40, gap: 6, color: 'var(--text-dim)', flex: 1 }}>
         <span className="material-symbols-outlined" style={{ fontSize: 24, opacity: 0.35 }}>
           {vizType === 'TABLE' ? 'table_rows' : 'bar_chart'}
         </span>
@@ -1672,7 +1680,7 @@ function TileContent({
   }
 
   // Default DataTable
-  return <DataTable result={queryResult} onSendMessage={() => {}} />;
+  return <DataTable result={queryResult} onSendMessage={() => {}} fillParent />;
 }
 
 // ── Tile Loading Skeleton ──

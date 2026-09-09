@@ -2,6 +2,13 @@
  
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-09 -- Attach DataTable bottom and pagination footer cleanly to dashboard tile containers
+
+- Updated `src/components/BuilderPage.tsx` `TileCard` content container to use a flex column with `flex: 1, minHeight: 0, overflow: 'hidden'`.
+- Added `fillParent?: boolean` support to `src/components/DataTable.tsx` and enabled it in `BuilderPage.tsx`, allowing the table wrapper and scrollable body to flex to available tile height while pinning the toolbar at the top and the pagination footer at the bottom.
+- Resolved bottom row clipping on tall datasets and eliminated orphan whitespace below the table footer on short datasets.
+- Verified test suite (168 tests pass) and Next.js static export build.
+
 ## 2026-09-09 -- Serialize Builder Documents to docJson for Firestore Nested Array Safety
 
 - Updated `saveBuilderDocument` in `src/lib/builder-persistence.ts` and `saveDashboard` in `src/app/dashboard/page.tsx` to serialize complete document and tile trees to `docJson` / `dashboardJson`, preventing `FirebaseError: Function setDoc() called with invalid data. Nested arrays are not supported` from 2D query result snapshots, filter option arrays, or complex artifact data.
