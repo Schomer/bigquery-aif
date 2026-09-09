@@ -2,6 +2,13 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-08 -- Clean up dashboard tile UI: remove bottom controls bar, remove row header banner, add tile kebab menu
+
+- Removed the bottom controls bar inside dashboard tiles (Width/Height steppers and Equalize Row button). Drag handles on borders remain for intuitive visual resizing.
+- Removed the `RowLayoutHeader` banner above each row in the dashboard canvas.
+- Replaced header action buttons (Move Left, Move Right, Duplicate, SQL, Delete) with a clean kebab menu (`more_vert` icon) containing SQL (`code`), Duplicate (`content_copy`), and Delete (`delete` in red), while preserving the single-click Refresh button.
+- Verified test suite (163 passing tests) and Next.js static export build.
+
 ## 2026-09-08 -- Fix data app / dashboard tile icon to match Library icon
 
 - Updated `ResultsSidebar.tsx` `artifactIcon` helper to map `DASHBOARD_VIEW` to the `dashboard` icon, matching the icon used across Library dashboards (`SavedPage.tsx`), `ShellLayout.tsx` (`MaterialSymbols.Dashboard`), and `DashboardArtifactCard.tsx`.

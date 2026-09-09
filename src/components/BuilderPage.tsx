@@ -601,57 +601,41 @@ export function BuilderPage({ documentId }: Props) {
             </button>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {tileRows.map((rowTiles, rIdx) => {
               const rowId = `row_${rIdx}`;
-              const firstTileId = rowTiles[0]?.id;
 
               return (
-                <div key={rowId} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {/* Row layout header in edit mode */}
-                  {editMode && (
-                    <RowLayoutHeader
-                      rowNumber={rIdx + 1}
-                      tiles={rowTiles}
-                      onEqualizeWidths={() => firstTileId && builder.equalizeRowWidths(documentId, firstTileId)}
-                      onMatchHeight={(h) => firstTileId && builder.setRowHeight(documentId, firstTileId, h)}
-                      onApplyPreset={(spans) => firstTileId && builder.applyRowPreset(documentId, firstTileId, spans)}
+                <div
+                  key={rowId}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(12, 1fr)',
+                    gap: 16,
+                    alignItems: 'start',
+                  }}
+                >
+                  {rowTiles.map((tile) => (
+                    <TileCard
+                      key={tile.id}
+                      tile={tile}
+                      baseHeight={densityCfg.baseHeight}
+                      editMode={editMode}
+                      isLoading={loadingTiles.has(tile.id)}
+                      isDragging={dragId === tile.id}
+                      isDragOver={dragOverId === tile.id}
+                      onDragStart={() => setDragId(tile.id)}
+                      onDragEnd={() => { setDragId(null); setDragOverId(null); }}
+                      onDragOver={(e) => { e.preventDefault(); setDragOverId(tile.id); }}
+                      onDrop={() => handleDrop(tile.id)}
+                      onRemove={() => builder.removeTile(documentId, tile.id)}
+                      onDuplicate={() => builder.duplicateTile(documentId, tile.id)}
+                      onRename={(name) => builder.updateTile(documentId, tile.id, { title: name })}
+                      onEditSql={() => setEditingTile(tile)}
+                      onUpdateSpan={(colSpan, rowSpan) => builder.updateTile(documentId, tile.id, { colSpan, rowSpan })}
+                      onRefresh={() => handleRefreshSingleTile(tile.id)}
                     />
-                  )}
-
-                  {/* Row Tiles CSS Grid */}
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(12, 1fr)',
-                      gap: 16,
-                      alignItems: 'start',
-                    }}
-                  >
-                    {rowTiles.map((tile) => (
-                      <TileCard
-                        key={tile.id}
-                        tile={tile}
-                        baseHeight={densityCfg.baseHeight}
-                        editMode={editMode}
-                        isLoading={loadingTiles.has(tile.id)}
-                        isDragging={dragId === tile.id}
-                        isDragOver={dragOverId === tile.id}
-                        onDragStart={() => setDragId(tile.id)}
-                        onDragEnd={() => { setDragId(null); setDragOverId(null); }}
-                        onDragOver={(e) => { e.preventDefault(); setDragOverId(tile.id); }}
-                        onDrop={() => handleDrop(tile.id)}
-                        onRemove={() => builder.removeTile(documentId, tile.id)}
-                        onDuplicate={() => builder.duplicateTile(documentId, tile.id)}
-                        onMove={(dir) => builder.moveTile(documentId, tile.id, dir)}
-                        onEqualizeRow={() => builder.equalizeRowWidths(documentId, tile.id)}
-                        onRename={(name) => builder.updateTile(documentId, tile.id, { title: name })}
-                        onEditSql={() => setEditingTile(tile)}
-                        onUpdateSpan={(colSpan, rowSpan) => builder.updateTile(documentId, tile.id, { colSpan, rowSpan })}
-                        onRefresh={() => handleRefreshSingleTile(tile.id)}
-                      />
-                    ))}
-                  </div>
+                  ))}
                 </div>
               );
             })}
@@ -685,175 +669,6 @@ export function BuilderPage({ documentId }: Props) {
     </div>
   );
 }
-
-// ── Row Layout Header Bar ──
-
-function RowLayoutHeader({
-  rowNumber,
-  tiles,
-  onEqualizeWidths,
-  onMatchHeight,
-  onApplyPreset,
-}: {
-  rowNumber: number;
-  tiles: BuilderTile[];
-  onEqualizeWidths: () => void;
-  onMatchHeight: (rowSpan: number) => void;
-  onApplyPreset: (spans: number[]) => void;
-}) {
-  const count = tiles.length;
-
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '4px 10px',
-        background: 'rgba(235, 242, 255, 0.8)',
-        borderRadius: 8,
-        border: '1px solid rgba(200, 220, 250, 0.9)',
-        fontSize: 11,
-        color: 'var(--text-muted)',
-        fontFamily: "'Google Sans', sans-serif",
-      }}
-    >
-      <span style={{ fontWeight: 600, color: '#1a73e8' }}>
-        Row {rowNumber}
-      </span>
-      <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>
-        ({count} {count === 1 ? 'tile' : 'tiles'})
-      </span>
-
-      <div style={{ width: 4 }} />
-
-      {/* Equalize Row button */}
-      <button
-        onClick={onEqualizeWidths}
-        title="Equalize tile widths across this row"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 3,
-          padding: '2px 8px',
-          borderRadius: 4,
-          border: '1px solid #c2dbff',
-          background: '#fff',
-          color: '#1a73e8',
-          fontSize: 10,
-          fontWeight: 500,
-          cursor: 'pointer',
-        }}
-      >
-        <span className="material-symbols-outlined" style={{ fontSize: 12 }}>view_week</span>
-        Equalize Row
-      </button>
-
-      {/* Row Layout Presets */}
-      {count === 2 && (
-        <div style={{ display: 'inline-flex', gap: 3, alignItems: 'center' }}>
-          <button
-            onClick={() => onApplyPreset([6, 6])}
-            style={presetMiniBtn}
-            title="50% / 50%"
-          >
-            50/50
-          </button>
-          <button
-            onClick={() => onApplyPreset([8, 4])}
-            style={presetMiniBtn}
-            title="66% / 33%"
-          >
-            66/33
-          </button>
-          <button
-            onClick={() => onApplyPreset([4, 8])}
-            style={presetMiniBtn}
-            title="33% / 66%"
-          >
-            33/66
-          </button>
-          <button
-            onClick={() => onApplyPreset([9, 3])}
-            style={presetMiniBtn}
-            title="75% / 25%"
-          >
-            75/25
-          </button>
-        </div>
-      )}
-
-      {count === 3 && (
-        <div style={{ display: 'inline-flex', gap: 3, alignItems: 'center' }}>
-          <button
-            onClick={() => onApplyPreset([4, 4, 4])}
-            style={presetMiniBtn}
-            title="33% / 33% / 33%"
-          >
-            33/33/33
-          </button>
-          <button
-            onClick={() => onApplyPreset([6, 3, 3])}
-            style={presetMiniBtn}
-            title="50% / 25% / 25%"
-          >
-            50/25/25
-          </button>
-          <button
-            onClick={() => onApplyPreset([3, 6, 3])}
-            style={presetMiniBtn}
-            title="25% / 50% / 25%"
-          >
-            25/50/25
-          </button>
-        </div>
-      )}
-
-      {count === 4 && (
-        <button
-          onClick={() => onApplyPreset([3, 3, 3, 3])}
-          style={presetMiniBtn}
-          title="25% / 25% / 25% / 25%"
-        >
-          25/25/25/25
-        </button>
-      )}
-
-      <div style={{ flex: 1 }} />
-
-      {/* Row Height Match */}
-      <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>Row Height:</span>
-      {[1, 2, 3, 4].map((h) => (
-        <button
-          key={h}
-          onClick={() => onMatchHeight(h)}
-          style={{
-            fontSize: 9,
-            padding: '1px 5px',
-            borderRadius: 3,
-            border: '1px solid var(--border)',
-            background: '#fff',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-          }}
-          title={`Set all tiles in row to ${h}x height`}
-        >
-          {h}x
-        </button>
-      ))}
-    </div>
-  );
-}
-
-const presetMiniBtn: React.CSSProperties = {
-  fontSize: 9,
-  padding: '1px 5px',
-  borderRadius: 3,
-  border: '1px solid #c2dbff',
-  background: '#fff',
-  color: '#1a73e8',
-  cursor: 'pointer',
-};
 
 // ── Editable Name Component ──
 
@@ -923,8 +738,6 @@ function TileCard({
   onDrop,
   onRemove,
   onDuplicate,
-  onMove,
-  onEqualizeRow,
   onRename,
   onEditSql,
   onUpdateSpan,
@@ -942,15 +755,27 @@ function TileCard({
   onDrop: () => void;
   onRemove: () => void;
   onDuplicate: () => void;
-  onMove: (direction: 'left' | 'right' | 'up' | 'down') => void;
-  onEqualizeRow: () => void;
   onRename: (name: string) => void;
   onEditSql: () => void;
   onUpdateSpan: (colSpan: number, rowSpan: number) => void;
   onRefresh: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close kebab menu when clicking outside
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
 
   // Drag-to-resize handlers
   const handleWidthResizeStart = (e: React.MouseEvent) => {
@@ -1104,27 +929,7 @@ function TileCard({
 
         <div style={{ flex: 1 }} />
 
-        {/* Move Left / Right in edit mode */}
-        {editMode && (
-          <div style={{ display: 'inline-flex', gap: 2, alignItems: 'center' }}>
-            <button
-              onClick={() => onMove('left')}
-              style={actionIconBtn}
-              title="Move tile left"
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 13 }}>arrow_back</span>
-            </button>
-            <button
-              onClick={() => onMove('right')}
-              style={actionIconBtn}
-              title="Move tile right"
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 13 }}>arrow_forward</span>
-            </button>
-          </div>
-        )}
-
-        {/* Tile Actions */}
+        {/* Refresh Tile */}
         {tile.cachedSql && (
           <button
             onClick={onRefresh}
@@ -1141,32 +946,93 @@ function TileCard({
           </button>
         )}
 
+        {/* Kebab menu in edit mode */}
         {editMode && (
-          <>
+          <div ref={menuRef} style={{ position: 'relative' }}>
             <button
-              onClick={onDuplicate}
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen((v) => !v);
+              }}
               style={actionIconBtn}
-              title="Duplicate tile"
+              title="Tile options"
             >
-              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>content_copy</span>
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                more_vert
+              </span>
             </button>
 
-            <button
-              onClick={onEditSql}
-              style={actionIconBtn}
-              title="Edit SQL / visualization"
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>tune</span>
-            </button>
+            {menuOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: 4,
+                  minWidth: 140,
+                  background: '#fff',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+                  padding: '4px 0',
+                  zIndex: 50,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  fontFamily: "'Google Sans', sans-serif",
+                }}
+              >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    onEditSql();
+                  }}
+                  style={menuItemStyle}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f3f4f6)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 15, color: 'var(--text-muted)' }}>
+                    code
+                  </span>
+                  SQL
+                </button>
 
-            <button
-              onClick={onRemove}
-              style={{ ...actionIconBtn, color: '#dc2626' }}
-              title="Remove tile"
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
-            </button>
-          </>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    onDuplicate();
+                  }}
+                  style={menuItemStyle}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f3f4f6)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 15, color: 'var(--text-muted)' }}>
+                    content_copy
+                  </span>
+                  Duplicate
+                </button>
+
+                <div style={{ height: 1, background: 'var(--border-subtle, #f0f0f0)', margin: '4px 0' }} />
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    onRemove();
+                  }}
+                  style={{ ...menuItemStyle, color: '#dc2626' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#fef2f2'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#dc2626' }}>
+                    delete
+                  </span>
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -1174,144 +1040,6 @@ function TileCard({
       <div style={{ flex: 1, overflow: 'auto', padding: '10px 14px', position: 'relative' }}>
         <TileContent tile={tile} isLoading={isLoading} onRunQuery={onRefresh} onEditSql={onEditSql} />
       </div>
-
-      {/* Span & Equalize Controls (in edit mode) */}
-      {editMode && (
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 6,
-            padding: '6px 12px',
-            alignItems: 'center',
-            borderTop: '1px solid var(--border-subtle, #f0f0f0)',
-            background: 'var(--surface-2, #fafafa)',
-          }}
-        >
-          {/* Width Section */}
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-            <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 500 }}>Width:</span>
-            <button
-              onClick={() => onUpdateSpan(Math.max(1, tile.colSpan - 1), tile.rowSpan)}
-              disabled={tile.colSpan <= 1}
-              style={stepBtn}
-              title="Shrink width"
-            >
-              -
-            </button>
-            <span style={{ fontSize: 10, fontWeight: 600, minWidth: 14, textAlign: 'center' }}>
-              {tile.colSpan}
-            </span>
-            <button
-              onClick={() => onUpdateSpan(Math.min(12, tile.colSpan + 1), tile.rowSpan)}
-              disabled={tile.colSpan >= 12}
-              style={stepBtn}
-              title="Expand width"
-            >
-              +
-            </button>
-
-            {/* Quick width presets */}
-            <div style={{ display: 'inline-flex', gap: 2, marginLeft: 2 }}>
-              {[
-                { label: '1/4', span: 3 },
-                { label: '1/3', span: 4 },
-                { label: '1/2', span: 6 },
-                { label: '2/3', span: 8 },
-                { label: '3/4', span: 9 },
-                { label: 'Full', span: 12 },
-              ].map(({ label, span }) => (
-                <button
-                  key={label}
-                  onClick={() => onUpdateSpan(span, tile.rowSpan)}
-                  style={{
-                    fontSize: 9,
-                    padding: '2px 4px',
-                    borderRadius: 3,
-                    background: tile.colSpan === span ? '#1a73e8' : 'var(--border)',
-                    color: tile.colSpan === span ? '#fff' : 'var(--text-muted)',
-                    border: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ width: 1, height: 14, background: 'var(--border)' }} />
-
-          {/* Height Section */}
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-            <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 500 }}>Height:</span>
-            <button
-              onClick={() => onUpdateSpan(tile.colSpan, Math.max(1, tile.rowSpan - 1))}
-              disabled={tile.rowSpan <= 1}
-              style={stepBtn}
-              title="Shrink height"
-            >
-              -
-            </button>
-            <span style={{ fontSize: 10, fontWeight: 600, minWidth: 14, textAlign: 'center' }}>
-              {tile.rowSpan}x
-            </span>
-            <button
-              onClick={() => onUpdateSpan(tile.colSpan, Math.min(6, tile.rowSpan + 1))}
-              disabled={tile.rowSpan >= 6}
-              style={stepBtn}
-              title="Expand height"
-            >
-              +
-            </button>
-
-            {/* Quick height presets */}
-            <div style={{ display: 'inline-flex', gap: 2, marginLeft: 2 }}>
-              {[1, 2, 3, 4].map((h) => (
-                <button
-                  key={h}
-                  onClick={() => onUpdateSpan(tile.colSpan, h)}
-                  style={{
-                    fontSize: 9,
-                    padding: '2px 5px',
-                    borderRadius: 3,
-                    background: tile.rowSpan === h ? '#1a73e8' : 'var(--border)',
-                    color: tile.rowSpan === h ? '#fff' : 'var(--text-muted)',
-                    border: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {h}x
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ flex: 1 }} />
-
-          {/* Equalize Row button on tile */}
-          <button
-            onClick={onEqualizeRow}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 3,
-              padding: '2px 6px',
-              borderRadius: 4,
-              border: '1px solid var(--border)',
-              background: '#fff',
-              color: '#1a73e8',
-              fontSize: 9,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-            title="Equalize all tiles in this row"
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 11 }}>view_week</span>
-            Equalize Row
-          </button>
-        </div>
-      )}
 
       {/* ── Interactive Drag Resize Handles ── */}
       {editMode && (
@@ -1377,20 +1105,20 @@ function TileCard({
   );
 }
 
-const stepBtn: React.CSSProperties = {
-  width: 16,
-  height: 16,
-  borderRadius: 3,
-  border: '1px solid var(--border)',
-  background: '#fff',
-  fontSize: 10,
-  fontWeight: 700,
-  display: 'inline-flex',
+const menuItemStyle: React.CSSProperties = {
+  display: 'flex',
   alignItems: 'center',
-  justifyContent: 'center',
+  gap: 8,
+  width: '100%',
+  padding: '6px 12px',
+  border: 'none',
+  background: 'none',
+  fontSize: 12,
+  fontWeight: 400,
+  color: 'var(--text)',
   cursor: 'pointer',
-  padding: 0,
-  lineHeight: 1,
+  textAlign: 'left',
+  fontFamily: 'inherit',
 };
 
 // ── Tile Content Renderer ──

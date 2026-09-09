@@ -1,5 +1,16 @@
 # Operations Ledger
 
+## 2026-09-08 -- Clean up dashboard tile UI: remove bottom controls bar, remove row header banner, add tile kebab menu
+
+**What**:
+1. *Bottom Controls Bar Removed*: Removed the inner tile footer containing width steppers, height steppers, quick presets, and in-tile equalize buttons from `TileCard` in `src/components/BuilderPage.tsx`. Interactive border drag handles (right edge, bottom edge, corner) remain active for fluid visual resizing.
+2. *Row Header Banner Removed*: Removed the `RowLayoutHeader` component ("Row X (N tiles) Equalize Row ...") from above each row in `BuilderPage.tsx`.
+3. *Tile Header Action Cleanup & Kebab Menu*: Replaced the top-right button row in `TileCard` (Move Left, Move Right, Duplicate, SQL, Delete) with a single kebab menu button (`more_vert` icon) that opens a dropdown containing "SQL", "Duplicate", and "Delete" (with outside-click dismissal), while retaining the direct Refresh button for SQL tiles.
+
+**Why**: Simplifies dashboard and interactive data app tile chrome by removing busy button rows and banners from the canvas while consolidating tile actions into a clean, standard kebab menu.
+
+**Rule derived**: In dashboard builder canvas views, avoid redundant button toolbars inside tiles and between rows; visual border drag handles and a single kebab menu per tile provide cleaner usability without visual clutter.
+
 ## 2026-09-08 -- Fix data app / dashboard tile icon to match Library icon
 
 **What**: In `src/components/chat/ResultsSidebar.tsx`, updated `artifactIcon` to map `DASHBOARD_VIEW` to the `dashboard` icon (and added `envelopeName` / `envelopeStats` handlers), aligning the icon used on chat sidebar artifact card tiles with the `dashboard` icon used in the Library (`SavedPage.tsx`, `ShellLayout.tsx`, `DashboardArtifactCard.tsx`).
