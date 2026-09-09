@@ -100,8 +100,8 @@ function ConsoleShellContent({ children }: { children: React.ReactNode }) {
       defaultOpen: true,
       children: [
         { id: 'spaces:all', label: 'All', icon: <MaterialSymbols.Storage className="size-[18px]" /> },
-        { id: 'spaces:dashboards', label: 'Dashboards', icon: <MaterialSymbols.QueryStats className="size-[18px]" /> },
-        { id: 'spaces:apps', label: 'Apps', icon: <MaterialSymbols.Dashboard className="size-[18px]" /> },
+        { id: 'spaces:dashboards', label: 'Dashboards', icon: <MaterialSymbols.Dashboard className="size-[18px]" /> },
+        { id: 'spaces:apps', label: 'Apps', icon: <MaterialSymbols.DashboardCustomize className="size-[18px]" /> },
         { id: 'spaces:reports', label: 'Reports', icon: <MaterialSymbols.Description className="size-[18px]" /> },
         { id: 'spaces:recipes', label: 'Recipes', icon: <MaterialSymbols.DashboardCustomize className="size-[18px]" /> },
         { id: 'favorites', label: 'Favorites', icon: <MaterialSymbols.Star className="size-[18px]" /> },

@@ -1,5 +1,13 @@
 # Operations Ledger
 
+## 2026-09-08 -- Fix data app / dashboard tile icon to match Library icon
+
+**What**: In `src/components/chat/ResultsSidebar.tsx`, updated `artifactIcon` to map `DASHBOARD_VIEW` to the `dashboard` icon (and added `envelopeName` / `envelopeStats` handlers), aligning the icon used on chat sidebar artifact card tiles with the `dashboard` icon used in the Library (`SavedPage.tsx`, `ShellLayout.tsx`, `DashboardArtifactCard.tsx`).
+
+**Why**: `artifactIcon` previously lacked a case for `DASHBOARD_VIEW`, causing dashboard and data app cards in the chat results sidebar to fall back to the generic `bar_chart` icon instead of the standard `dashboard` icon used across the Library.
+
+**Rule derived**: Any new artifact envelope type added to the agent system must be explicitly registered in `artifactIcon`, `envelopeName`, and `envelopeStats` in `ResultsSidebar.tsx` to maintain icon and label consistency with Library views.
+
 ## 2026-09-08 -- Fix sidebar icons and persist sidebar collapsed/expanded state
 
 **What**:

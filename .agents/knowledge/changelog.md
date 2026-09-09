@@ -2,6 +2,13 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-08 -- Fix data app / dashboard tile icon to match Library icon
+
+- Updated `ResultsSidebar.tsx` `artifactIcon` helper to map `DASHBOARD_VIEW` to the `dashboard` icon, matching the icon used across Library dashboards (`SavedPage.tsx`), `ShellLayout.tsx` (`MaterialSymbols.Dashboard`), and `DashboardArtifactCard.tsx`.
+- Added name and tile count stats derivation for `DASHBOARD_VIEW` envelopes in `ResultsSidebar.tsx`.
+- Updated `ShellLayout.tsx` `spaces:dashboards` navigation item to use `MaterialSymbols.Dashboard`.
+- Verified test suite (163 passing tests) and Next.js static build.
+
 ## 2026-09-08 -- Fix sidebar icons and persist sidebar collapsed/expanded state
 
 - Updated `ShellLayout.tsx` nav items to replace missing mask-based icons for `AI inbox / Tasks`, `Automation`, `Catalog`, and `Workspaces` folders with proper monochrome SVGs (`MaterialSymbols.Inbox`, `ConsoleIcons.Automation`, `MaterialSymbols.MenuBook`, and `MaterialSymbols.FolderOpen`).

@@ -39,6 +39,7 @@ function artifactIcon(type: string, data?: any): string {
   if (type === 'DATA_LOADING_VIEW') return 'download';
   if (type === 'PIPELINE_VIEW') return 'schedule';
   if (type === 'MULTISTEP_VIEW') return 'account_tree';
+  if (type === 'DASHBOARD_VIEW') return 'dashboard';
   return 'bar_chart';
 }
 
@@ -76,6 +77,7 @@ function envelopeName(env: CompositionEnvelope): string {
     const col = d?.yKey || d?.metric || d?.valueKey;
     return col || CHART_LABELS[type] || 'Chart';
   }
+  if (type === 'DASHBOARD_VIEW') return d?.name || 'Dashboard';
   if (type === 'DATA_QUALITY_VIEW') return d?.table || 'Data Quality';
   if (type === 'MONITORING_VIEW') return d?.monitorType?.toLowerCase().replace(/_/g, ' ') || 'Monitoring';
   if (type === 'PIPELINE_VIEW') return 'Pipelines';
@@ -118,6 +120,10 @@ function envelopeStats(env: CompositionEnvelope): string {
       return count !== undefined ? `${count} dataset${count !== 1 ? 's' : ''}` : '';
     }
     return '';
+  }
+  if (type === 'DASHBOARD_VIEW') {
+    const count = typeof d?.tileCount === 'number' ? d.tileCount : (d?.tiles ? d.tiles.length : 0);
+    return `${count} tile${count !== 1 ? 's' : ''}`;
   }
   if (CHART_TYPES.has(type)) {
     const rows = d?.rows?.length;
