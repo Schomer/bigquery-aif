@@ -14,7 +14,7 @@ import { cn } from "./utils";
  *   Checklist   the *system* ticks it. Read-only status.
  *   Stepper     one step at a time, with the form for the current step inside.
  *
- * So this is for "enable the API ✓, grant the role ✗, create a bucket ○" — a
+ * So this is for "enable the API (complete), grant the role (failed), create a bucket (pending)" — a
  * list the page updates as things complete.
  *
  * ### Sequential or not

@@ -2,6 +2,16 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-08 -- Fix table data in dashboard tiles, add advanced layout controls and blank dashboard creation
+
+- Enhanced `envelopeToTile` in `src/lib/builder-types.ts` to detect `SCHEMA_VIEW` envelopes and tables, synthesize query SQL (`SELECT * FROM \`project.dataset.table\` LIMIT 100`), extract available sample columns and rows into `lastSnapshot`, and set `vizType: 'TABLE'`.
+- Added auto-query execution on canvas mount in `src/components/BuilderPage.tsx` so unhydrated tiles with pending SQL automatically query BigQuery in the background with animated shimmer skeletons.
+- Added visual drag-to-resize handles on tile borders (right edge for width 1-12 columns, bottom edge for height 1-6 rows, bottom-right corner for 2D resize) in `BuilderPage.tsx`.
+- Added row equalization algorithms (`groupTilesIntoRows`, `computeEqualizedSpans`) and row header controls with presets (`50/50`, `66/33`, `33/66`, `75/25`, `33/33/33`, `50/25/25`, `25/50/25`, `25/25/25/25`), row height multipliers (`1x`, `2x`, `3x`, `4x`), "Equalize All Rows", and canvas density switcher (Compact, Standard, Spacious).
+- Added in-tile arrangement controls: Move Left/Right, Duplicate Tile, Width steppers/presets, Height steppers, and Edit SQL drawer.
+- Added "New Blank Dashboard" (and App/Report/Recipe) creation actions in `src/components/SavedPage.tsx` top header and empty states.
+- Verified test suite (163 passing tests) and Next.js static export build.
+
 ## 2026-09-08 -- Save and view created dashboards in Library Dashboards category
 
 - Connected `manage_app` agent tool (`src/agent/tools/manage-app.ts`) to authenticated user ID (`auth.currentUser?.uid`) for automatic Firestore persistence (`saveBuilderDocument`) on document creation, tile additions, filter additions, and deletion.

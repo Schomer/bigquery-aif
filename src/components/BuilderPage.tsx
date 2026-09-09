@@ -7,8 +7,8 @@
 // 3. Tile SQL editing, query testing, and visualization type switching.
 // 4. Persistence to Firestore and direct export to BigQuery metadata tables.
 
-import { useState, useCallback, useEffect } from 'react';
-import { useBuilder } from '@/lib/builder-context';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { useBuilder, groupTilesIntoRows, computeEqualizedSpans } from '@/lib/builder-context';
 import { usePage } from '@/lib/page-context';
 import { useAuth } from '@/lib/auth-context';
 import { getArtifacts } from '@/lib/saved-work';
@@ -47,6 +47,12 @@ const CHART_TYPES = new Set<string>([
   'GEO_POINT_MAP', 'USA_MAP', 'WORLD_MAP',
 ]);
 
+const DENSITY_CONFIG: Record<string, { label: string; baseHeight: number }> = {
+  compact: { label: 'Compact', baseHeight: 120 },
+  standard: { label: 'Standard', baseHeight: 155 },
+  spacious: { label: 'Spacious', baseHeight: 195 },
+};
+
 interface Props {
   documentId: string;
 }
@@ -62,6 +68,7 @@ export function BuilderPage({ documentId }: Props) {
   const [savingBq, setSavingBq] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ text: string; error?: boolean } | null>(null);
+  const [loadingTiles, setLoadingTiles] = useState<Set<string>>(new Set());
 
   // Modals
   const [addTileOpen, setAddTileOpen] = useState(false);
@@ -94,6 +101,37 @@ export function BuilderPage({ documentId }: Props) {
         .catch((err) => console.warn('Failed to load document:', err));
     }
   }, [document, documentId, user?.uid, builder]);
+
+  // Auto-execute tiles on canvas mount if they have SQL but no rows loaded yet
+  const autoExecutedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!document || !activeProject) return;
+    const unhydrated = document.tiles.filter(
+      (t) =>
+        (t.cachedSql || t.parameterizedSql) &&
+        t.tileType !== 'text' &&
+        (!t.lastSnapshot || !t.lastSnapshot.rows || t.lastSnapshot.rows.length === 0) &&
+        !autoExecutedRef.current.has(t.id)
+    );
+
+    if (unhydrated.length > 0) {
+      unhydrated.forEach(async (tile) => {
+        autoExecutedRef.current.add(tile.id);
+        setLoadingTiles((prev) => new Set(prev).add(tile.id));
+        try {
+          await builder.reRunTile(documentId, tile.id, activeProject);
+        } catch (err) {
+          console.warn(`Auto-executing query for tile "${tile.title}" failed:`, err);
+        } finally {
+          setLoadingTiles((prev) => {
+            const next = new Set(prev);
+            next.delete(tile.id);
+            return next;
+          });
+        }
+      });
+    }
+  }, [document, documentId, activeProject, builder]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -128,7 +166,10 @@ export function BuilderPage({ documentId }: Props) {
   }, [builder, documentId, activeProject]);
 
   const handleRefreshAll = useCallback(async () => {
-    if (!activeProject) return;
+    if (!activeProject) {
+      setStatusMsg({ text: 'Select a GCP project first', error: true });
+      return;
+    }
     setRefreshing(true);
     try {
       await builder.reRunAllTiles(documentId, activeProject);
@@ -136,6 +177,28 @@ export function BuilderPage({ documentId }: Props) {
       setRefreshing(false);
     }
   }, [builder, documentId, activeProject]);
+
+  const handleRefreshSingleTile = useCallback(
+    async (tileId: string) => {
+      if (!activeProject) {
+        setStatusMsg({ text: 'Select a GCP project first', error: true });
+        return;
+      }
+      setLoadingTiles((prev) => new Set(prev).add(tileId));
+      try {
+        await builder.reRunTile(documentId, tileId, activeProject);
+      } catch (err) {
+        setStatusMsg({ text: err instanceof Error ? err.message : 'Tile query failed', error: true });
+      } finally {
+        setLoadingTiles((prev) => {
+          const next = new Set(prev);
+          next.delete(tileId);
+          return next;
+        });
+      }
+    },
+    [builder, documentId, activeProject]
+  );
 
   const handleFilterChange = useCallback(
     async (paramName: string, value: unknown) => {
@@ -208,6 +271,9 @@ export function BuilderPage({ documentId }: Props) {
   }
 
   const unsaved = builder.hasUnsavedChanges(documentId);
+  const densityKey = document.density || 'standard';
+  const densityCfg = DENSITY_CONFIG[densityKey] || DENSITY_CONFIG.standard;
+  const tileRows = groupTilesIntoRows(document.tiles);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--chat-bg, #f8f9fa)', overflow: 'hidden' }}>
@@ -295,28 +361,77 @@ export function BuilderPage({ documentId }: Props) {
           {editMode ? 'Editing Canvas' : 'Edit Canvas'}
         </button>
 
-        {/* Add Tile Button (in edit mode) */}
+        {/* Edit Mode Controls */}
         {editMode && (
-          <button
-            onClick={() => setAddTileOpen(true)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '5px 12px',
-              borderRadius: 8,
-              border: '1px solid #1a73e8',
-              background: '#eff6ff',
-              color: '#1a73e8',
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: 'pointer',
-              fontFamily: "'Google Sans', sans-serif",
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>add</span>
-            Add Tile
-          </button>
+          <>
+            {/* Add Tile Button */}
+            <button
+              onClick={() => setAddTileOpen(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '5px 12px',
+                borderRadius: 8,
+                border: '1px solid #1a73e8',
+                background: '#eff6ff',
+                color: '#1a73e8',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+                fontFamily: "'Google Sans', sans-serif",
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 15 }}>add</span>
+              Add Tile
+            </button>
+
+            {/* Equalize All Rows */}
+            <button
+              onClick={() => builder.equalizeAllRows(documentId)}
+              title="Equalize column widths across all rows on canvas"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '5px 10px',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'none',
+                color: 'var(--text)',
+                fontSize: 12,
+                cursor: 'pointer',
+                fontFamily: "'Google Sans', sans-serif",
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 15 }}>view_week</span>
+              Equalize All Rows
+            </button>
+
+            {/* Density Selector */}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2, background: 'var(--surface-2, #f1f3f4)', padding: '2px', borderRadius: 8 }}>
+              {(['compact', 'standard', 'spacious'] as const).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => builder.setDocumentDensity(documentId, d)}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: 6,
+                    border: 'none',
+                    background: densityKey === d ? '#fff' : 'transparent',
+                    color: densityKey === d ? '#1a73e8' : 'var(--text-muted)',
+                    boxShadow: densityKey === d ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                    fontSize: 11,
+                    fontWeight: densityKey === d ? 600 : 400,
+                    cursor: 'pointer',
+                    fontFamily: "'Google Sans', sans-serif",
+                  }}
+                >
+                  {DENSITY_CONFIG[d].label}
+                </button>
+              ))}
+            </div>
+          </>
         )}
 
         {/* Refresh All */}
@@ -486,32 +601,60 @@ export function BuilderPage({ documentId }: Props) {
             </button>
           </div>
         ) : (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(12, 1fr)',
-              gap: 16,
-              alignItems: 'start',
-            }}
-          >
-            {document.tiles.map((tile) => (
-              <TileCard
-                key={tile.id}
-                tile={tile}
-                editMode={editMode}
-                isDragging={dragId === tile.id}
-                isDragOver={dragOverId === tile.id}
-                onDragStart={() => setDragId(tile.id)}
-                onDragEnd={() => { setDragId(null); setDragOverId(null); }}
-                onDragOver={(e) => { e.preventDefault(); setDragOverId(tile.id); }}
-                onDrop={() => handleDrop(tile.id)}
-                onRemove={() => builder.removeTile(documentId, tile.id)}
-                onRename={(name) => builder.updateTile(documentId, tile.id, { title: name })}
-                onEditSql={() => setEditingTile(tile)}
-                onUpdateSpan={(colSpan, rowSpan) => builder.updateTile(documentId, tile.id, { colSpan, rowSpan })}
-                onRefresh={() => activeProject && builder.reRunTile(documentId, tile.id, activeProject)}
-              />
-            ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {tileRows.map((rowTiles, rIdx) => {
+              const rowId = `row_${rIdx}`;
+              const firstTileId = rowTiles[0]?.id;
+
+              return (
+                <div key={rowId} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {/* Row layout header in edit mode */}
+                  {editMode && (
+                    <RowLayoutHeader
+                      rowNumber={rIdx + 1}
+                      tiles={rowTiles}
+                      onEqualizeWidths={() => firstTileId && builder.equalizeRowWidths(documentId, firstTileId)}
+                      onMatchHeight={(h) => firstTileId && builder.setRowHeight(documentId, firstTileId, h)}
+                      onApplyPreset={(spans) => firstTileId && builder.applyRowPreset(documentId, firstTileId, spans)}
+                    />
+                  )}
+
+                  {/* Row Tiles CSS Grid */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(12, 1fr)',
+                      gap: 16,
+                      alignItems: 'start',
+                    }}
+                  >
+                    {rowTiles.map((tile) => (
+                      <TileCard
+                        key={tile.id}
+                        tile={tile}
+                        baseHeight={densityCfg.baseHeight}
+                        editMode={editMode}
+                        isLoading={loadingTiles.has(tile.id)}
+                        isDragging={dragId === tile.id}
+                        isDragOver={dragOverId === tile.id}
+                        onDragStart={() => setDragId(tile.id)}
+                        onDragEnd={() => { setDragId(null); setDragOverId(null); }}
+                        onDragOver={(e) => { e.preventDefault(); setDragOverId(tile.id); }}
+                        onDrop={() => handleDrop(tile.id)}
+                        onRemove={() => builder.removeTile(documentId, tile.id)}
+                        onDuplicate={() => builder.duplicateTile(documentId, tile.id)}
+                        onMove={(dir) => builder.moveTile(documentId, tile.id, dir)}
+                        onEqualizeRow={() => builder.equalizeRowWidths(documentId, tile.id)}
+                        onRename={(name) => builder.updateTile(documentId, tile.id, { title: name })}
+                        onEditSql={() => setEditingTile(tile)}
+                        onUpdateSpan={(colSpan, rowSpan) => builder.updateTile(documentId, tile.id, { colSpan, rowSpan })}
+                        onRefresh={() => handleRefreshSingleTile(tile.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -533,7 +676,7 @@ export function BuilderPage({ documentId }: Props) {
           onSave={(updates) => {
             builder.updateTile(documentId, editingTile.id, updates);
             if (activeProject && (updates.cachedSql || updates.parameterizedSql)) {
-              builder.reRunTile(documentId, editingTile.id, activeProject);
+              handleRefreshSingleTile(editingTile.id);
             }
           }}
           onClose={() => setEditingTile(null)}
@@ -542,6 +685,175 @@ export function BuilderPage({ documentId }: Props) {
     </div>
   );
 }
+
+// ── Row Layout Header Bar ──
+
+function RowLayoutHeader({
+  rowNumber,
+  tiles,
+  onEqualizeWidths,
+  onMatchHeight,
+  onApplyPreset,
+}: {
+  rowNumber: number;
+  tiles: BuilderTile[];
+  onEqualizeWidths: () => void;
+  onMatchHeight: (rowSpan: number) => void;
+  onApplyPreset: (spans: number[]) => void;
+}) {
+  const count = tiles.length;
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '4px 10px',
+        background: 'rgba(235, 242, 255, 0.8)',
+        borderRadius: 8,
+        border: '1px solid rgba(200, 220, 250, 0.9)',
+        fontSize: 11,
+        color: 'var(--text-muted)',
+        fontFamily: "'Google Sans', sans-serif",
+      }}
+    >
+      <span style={{ fontWeight: 600, color: '#1a73e8' }}>
+        Row {rowNumber}
+      </span>
+      <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>
+        ({count} {count === 1 ? 'tile' : 'tiles'})
+      </span>
+
+      <div style={{ width: 4 }} />
+
+      {/* Equalize Row button */}
+      <button
+        onClick={onEqualizeWidths}
+        title="Equalize tile widths across this row"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 3,
+          padding: '2px 8px',
+          borderRadius: 4,
+          border: '1px solid #c2dbff',
+          background: '#fff',
+          color: '#1a73e8',
+          fontSize: 10,
+          fontWeight: 500,
+          cursor: 'pointer',
+        }}
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: 12 }}>view_week</span>
+        Equalize Row
+      </button>
+
+      {/* Row Layout Presets */}
+      {count === 2 && (
+        <div style={{ display: 'inline-flex', gap: 3, alignItems: 'center' }}>
+          <button
+            onClick={() => onApplyPreset([6, 6])}
+            style={presetMiniBtn}
+            title="50% / 50%"
+          >
+            50/50
+          </button>
+          <button
+            onClick={() => onApplyPreset([8, 4])}
+            style={presetMiniBtn}
+            title="66% / 33%"
+          >
+            66/33
+          </button>
+          <button
+            onClick={() => onApplyPreset([4, 8])}
+            style={presetMiniBtn}
+            title="33% / 66%"
+          >
+            33/66
+          </button>
+          <button
+            onClick={() => onApplyPreset([9, 3])}
+            style={presetMiniBtn}
+            title="75% / 25%"
+          >
+            75/25
+          </button>
+        </div>
+      )}
+
+      {count === 3 && (
+        <div style={{ display: 'inline-flex', gap: 3, alignItems: 'center' }}>
+          <button
+            onClick={() => onApplyPreset([4, 4, 4])}
+            style={presetMiniBtn}
+            title="33% / 33% / 33%"
+          >
+            33/33/33
+          </button>
+          <button
+            onClick={() => onApplyPreset([6, 3, 3])}
+            style={presetMiniBtn}
+            title="50% / 25% / 25%"
+          >
+            50/25/25
+          </button>
+          <button
+            onClick={() => onApplyPreset([3, 6, 3])}
+            style={presetMiniBtn}
+            title="25% / 50% / 25%"
+          >
+            25/50/25
+          </button>
+        </div>
+      )}
+
+      {count === 4 && (
+        <button
+          onClick={() => onApplyPreset([3, 3, 3, 3])}
+          style={presetMiniBtn}
+          title="25% / 25% / 25% / 25%"
+        >
+          25/25/25/25
+        </button>
+      )}
+
+      <div style={{ flex: 1 }} />
+
+      {/* Row Height Match */}
+      <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>Row Height:</span>
+      {[1, 2, 3, 4].map((h) => (
+        <button
+          key={h}
+          onClick={() => onMatchHeight(h)}
+          style={{
+            fontSize: 9,
+            padding: '1px 5px',
+            borderRadius: 3,
+            border: '1px solid var(--border)',
+            background: '#fff',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+          }}
+          title={`Set all tiles in row to ${h}x height`}
+        >
+          {h}x
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const presetMiniBtn: React.CSSProperties = {
+  fontSize: 9,
+  padding: '1px 5px',
+  borderRadius: 3,
+  border: '1px solid #c2dbff',
+  background: '#fff',
+  color: '#1a73e8',
+  cursor: 'pointer',
+};
 
 // ── Editable Name Component ──
 
@@ -600,7 +912,9 @@ function EditableName({ value, onChange }: { value: string; onChange: (v: string
 
 function TileCard({
   tile,
+  baseHeight,
   editMode,
+  isLoading,
   isDragging,
   isDragOver,
   onDragStart,
@@ -608,13 +922,18 @@ function TileCard({
   onDragOver,
   onDrop,
   onRemove,
+  onDuplicate,
+  onMove,
+  onEqualizeRow,
   onRename,
   onEditSql,
   onUpdateSpan,
   onRefresh,
 }: {
   tile: BuilderTile;
+  baseHeight: number;
   editMode: boolean;
+  isLoading: boolean;
   isDragging: boolean;
   isDragOver: boolean;
   onDragStart: () => void;
@@ -622,15 +941,104 @@ function TileCard({
   onDragOver: (e: React.DragEvent) => void;
   onDrop: () => void;
   onRemove: () => void;
+  onDuplicate: () => void;
+  onMove: (direction: 'left' | 'right' | 'up' | 'down') => void;
+  onEqualizeRow: () => void;
   onRename: (name: string) => void;
   onEditSql: () => void;
   onUpdateSpan: (colSpan: number, rowSpan: number) => void;
   onRefresh: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Drag-to-resize handlers
+  const handleWidthResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const initialColSpan = tile.colSpan;
+    const parentWidth = cardRef.current?.parentElement?.getBoundingClientRect().width || 1200;
+    const singleColWidth = parentWidth / 12;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaCols = Math.round(deltaX / singleColWidth);
+      const newColSpan = Math.max(1, Math.min(12, initialColSpan + deltaCols));
+      if (newColSpan !== tile.colSpan) {
+        onUpdateSpan(newColSpan, tile.rowSpan);
+      }
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const handleHeightResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startY = e.clientY;
+    const initialRowSpan = tile.rowSpan;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaY = moveEvent.clientY - startY;
+      const deltaRows = Math.round(deltaY / (baseHeight * 0.75));
+      const newRowSpan = Math.max(1, Math.min(6, initialRowSpan + deltaRows));
+      if (newRowSpan !== tile.rowSpan) {
+        onUpdateSpan(tile.colSpan, newRowSpan);
+      }
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const handleCornerResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const initialColSpan = tile.colSpan;
+    const initialRowSpan = tile.rowSpan;
+    const parentWidth = cardRef.current?.parentElement?.getBoundingClientRect().width || 1200;
+    const singleColWidth = parentWidth / 12;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+      const deltaCols = Math.round(deltaX / singleColWidth);
+      const deltaRows = Math.round(deltaY / (baseHeight * 0.75));
+      const newColSpan = Math.max(1, Math.min(12, initialColSpan + deltaCols));
+      const newRowSpan = Math.max(1, Math.min(6, initialRowSpan + deltaRows));
+      if (newColSpan !== tile.colSpan || newRowSpan !== tile.rowSpan) {
+        onUpdateSpan(newColSpan, newRowSpan);
+      }
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const calculatedMinHeight = tile.rowSpan * baseHeight + (tile.rowSpan - 1) * 16;
 
   return (
     <div
+      ref={cardRef}
       draggable={editMode}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
@@ -638,9 +1046,9 @@ function TileCard({
       onDrop={onDrop}
       style={{
         gridColumn: `span ${tile.colSpan}`,
-        minHeight: tile.rowSpan * 110,
+        minHeight: calculatedMinHeight,
         background: '#fff',
-        border: isDragOver ? '2px solid #1a73e8' : '1px solid var(--border)',
+        border: isDragOver ? '2px solid #1a73e8' : editMode ? '1px solid #c2dbff' : '1px solid var(--border)',
         borderRadius: 12,
         overflow: 'hidden',
         display: 'flex',
@@ -674,103 +1082,334 @@ function TileCard({
             drag_indicator
           </span>
         )}
+
         <EditableName value={tile.title} onChange={onRename} />
+
+        {/* Span badge in edit mode */}
+        {editMode && (
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 500,
+              padding: '1px 5px',
+              borderRadius: 4,
+              background: '#f1f3f4',
+              color: 'var(--text-muted)',
+              fontFamily: "'Google Sans', sans-serif",
+            }}
+          >
+            {tile.colSpan}/12 col &middot; {tile.rowSpan}x
+          </span>
+        )}
+
         <div style={{ flex: 1 }} />
+
+        {/* Move Left / Right in edit mode */}
+        {editMode && (
+          <div style={{ display: 'inline-flex', gap: 2, alignItems: 'center' }}>
+            <button
+              onClick={() => onMove('left')}
+              style={actionIconBtn}
+              title="Move tile left"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 13 }}>arrow_back</span>
+            </button>
+            <button
+              onClick={() => onMove('right')}
+              style={actionIconBtn}
+              title="Move tile right"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 13 }}>arrow_forward</span>
+            </button>
+          </div>
+        )}
 
         {/* Tile Actions */}
         {tile.cachedSql && (
           <button
             onClick={onRefresh}
+            disabled={isLoading}
             style={actionIconBtn}
             title="Refresh tile"
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>refresh</span>
+            <span
+              className="material-symbols-outlined"
+              style={{ fontSize: 14, animation: isLoading ? 'spin 1s linear infinite' : 'none' }}
+            >
+              refresh
+            </span>
           </button>
         )}
 
         {editMode && (
-          <button
-            onClick={onEditSql}
-            style={actionIconBtn}
-            title="Edit SQL / visualization"
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>tune</span>
-          </button>
-        )}
+          <>
+            <button
+              onClick={onDuplicate}
+              style={actionIconBtn}
+              title="Duplicate tile"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>content_copy</span>
+            </button>
 
-        {editMode && (
-          <button
-            onClick={onRemove}
-            style={{ ...actionIconBtn, color: '#dc2626' }}
-            title="Remove tile"
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
-          </button>
+            <button
+              onClick={onEditSql}
+              style={actionIconBtn}
+              title="Edit SQL / visualization"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>tune</span>
+            </button>
+
+            <button
+              onClick={onRemove}
+              style={{ ...actionIconBtn, color: '#dc2626' }}
+              title="Remove tile"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
+            </button>
+          </>
         )}
       </div>
 
       {/* Tile Content */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '10px 14px' }}>
-        <TileContent tile={tile} />
+      <div style={{ flex: 1, overflow: 'auto', padding: '10px 14px', position: 'relative' }}>
+        <TileContent tile={tile} isLoading={isLoading} onRunQuery={onRefresh} onEditSql={onEditSql} />
       </div>
 
-      {/* Span controls (in edit mode) */}
+      {/* Span & Equalize Controls (in edit mode) */}
       {editMode && (
         <div
           style={{
             display: 'flex',
-            gap: 4,
+            flexWrap: 'wrap',
+            gap: 6,
             padding: '6px 12px',
             alignItems: 'center',
             borderTop: '1px solid var(--border-subtle, #f0f0f0)',
             background: 'var(--surface-2, #fafafa)',
           }}
         >
-          <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 500 }}>W:</span>
-          {[3, 4, 6, 8, 12].map((n) => (
+          {/* Width Section */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 500 }}>Width:</span>
             <button
-              key={n}
-              onClick={() => onUpdateSpan(n, tile.rowSpan)}
-              style={{
-                fontSize: 9,
-                padding: '2px 5px',
-                borderRadius: 4,
-                background: tile.colSpan === n ? '#1a73e8' : 'var(--border)',
-                color: tile.colSpan === n ? '#fff' : 'var(--text-muted)',
-                border: 'none',
-                cursor: 'pointer',
-              }}
+              onClick={() => onUpdateSpan(Math.max(1, tile.colSpan - 1), tile.rowSpan)}
+              disabled={tile.colSpan <= 1}
+              style={stepBtn}
+              title="Shrink width"
             >
-              {n}
+              -
             </button>
-          ))}
-          <span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 6, fontWeight: 500 }}>H:</span>
-          {[1, 2, 3, 4].map((n) => (
+            <span style={{ fontSize: 10, fontWeight: 600, minWidth: 14, textAlign: 'center' }}>
+              {tile.colSpan}
+            </span>
             <button
-              key={n}
-              onClick={() => onUpdateSpan(tile.colSpan, n)}
-              style={{
-                fontSize: 9,
-                padding: '2px 5px',
-                borderRadius: 4,
-                background: tile.rowSpan === n ? '#1a73e8' : 'var(--border)',
-                color: tile.rowSpan === n ? '#fff' : 'var(--text-muted)',
-                border: 'none',
-                cursor: 'pointer',
-              }}
+              onClick={() => onUpdateSpan(Math.min(12, tile.colSpan + 1), tile.rowSpan)}
+              disabled={tile.colSpan >= 12}
+              style={stepBtn}
+              title="Expand width"
             >
-              {n}
+              +
             </button>
-          ))}
+
+            {/* Quick width presets */}
+            <div style={{ display: 'inline-flex', gap: 2, marginLeft: 2 }}>
+              {[
+                { label: '1/4', span: 3 },
+                { label: '1/3', span: 4 },
+                { label: '1/2', span: 6 },
+                { label: '2/3', span: 8 },
+                { label: '3/4', span: 9 },
+                { label: 'Full', span: 12 },
+              ].map(({ label, span }) => (
+                <button
+                  key={label}
+                  onClick={() => onUpdateSpan(span, tile.rowSpan)}
+                  style={{
+                    fontSize: 9,
+                    padding: '2px 4px',
+                    borderRadius: 3,
+                    background: tile.colSpan === span ? '#1a73e8' : 'var(--border)',
+                    color: tile.colSpan === span ? '#fff' : 'var(--text-muted)',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ width: 1, height: 14, background: 'var(--border)' }} />
+
+          {/* Height Section */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 500 }}>Height:</span>
+            <button
+              onClick={() => onUpdateSpan(tile.colSpan, Math.max(1, tile.rowSpan - 1))}
+              disabled={tile.rowSpan <= 1}
+              style={stepBtn}
+              title="Shrink height"
+            >
+              -
+            </button>
+            <span style={{ fontSize: 10, fontWeight: 600, minWidth: 14, textAlign: 'center' }}>
+              {tile.rowSpan}x
+            </span>
+            <button
+              onClick={() => onUpdateSpan(tile.colSpan, Math.min(6, tile.rowSpan + 1))}
+              disabled={tile.rowSpan >= 6}
+              style={stepBtn}
+              title="Expand height"
+            >
+              +
+            </button>
+
+            {/* Quick height presets */}
+            <div style={{ display: 'inline-flex', gap: 2, marginLeft: 2 }}>
+              {[1, 2, 3, 4].map((h) => (
+                <button
+                  key={h}
+                  onClick={() => onUpdateSpan(tile.colSpan, h)}
+                  style={{
+                    fontSize: 9,
+                    padding: '2px 5px',
+                    borderRadius: 3,
+                    background: tile.rowSpan === h ? '#1a73e8' : 'var(--border)',
+                    color: tile.rowSpan === h ? '#fff' : 'var(--text-muted)',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {h}x
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ flex: 1 }} />
+
+          {/* Equalize Row button on tile */}
+          <button
+            onClick={onEqualizeRow}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 3,
+              padding: '2px 6px',
+              borderRadius: 4,
+              border: '1px solid var(--border)',
+              background: '#fff',
+              color: '#1a73e8',
+              fontSize: 9,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+            title="Equalize all tiles in this row"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 11 }}>view_week</span>
+            Equalize Row
+          </button>
         </div>
+      )}
+
+      {/* ── Interactive Drag Resize Handles ── */}
+      {editMode && (
+        <>
+          {/* Right edge width resize handle */}
+          <div
+            onMouseDown={handleWidthResizeStart}
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              width: 8,
+              bottom: 0,
+              cursor: 'col-resize',
+              background: 'transparent',
+              zIndex: 20,
+            }}
+            title="Drag horizontally to resize width"
+          />
+
+          {/* Bottom edge height resize handle */}
+          <div
+            onMouseDown={handleHeightResizeStart}
+            style={{
+              position: 'absolute',
+              left: 0,
+              bottom: 0,
+              height: 8,
+              right: 0,
+              cursor: 'row-resize',
+              background: 'transparent',
+              zIndex: 20,
+            }}
+            title="Drag vertically to resize height"
+          />
+
+          {/* Bottom-right diagonal resize handle */}
+          <div
+            onMouseDown={handleCornerResizeStart}
+            style={{
+              position: 'absolute',
+              right: 2,
+              bottom: 2,
+              width: 12,
+              height: 12,
+              cursor: 'nwse-resize',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#1a73e8',
+              zIndex: 21,
+              opacity: 0.7,
+            }}
+            title="Drag to resize width and height"
+          >
+            <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+              <path d="M7 1V7H1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        </>
       )}
     </div>
   );
 }
 
+const stepBtn: React.CSSProperties = {
+  width: 16,
+  height: 16,
+  borderRadius: 3,
+  border: '1px solid var(--border)',
+  background: '#fff',
+  fontSize: 10,
+  fontWeight: 700,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  padding: 0,
+  lineHeight: 1,
+};
+
 // ── Tile Content Renderer ──
 
-function TileContent({ tile }: { tile: BuilderTile }) {
+function TileContent({
+  tile,
+  isLoading,
+  onRunQuery,
+  onEditSql,
+}: {
+  tile: BuilderTile;
+  isLoading?: boolean;
+  onRunQuery?: () => void;
+  onEditSql?: () => void;
+}) {
+  if (isLoading) {
+    return <TileLoadingSkeleton vizType={tile.vizType} />;
+  }
+
   if (tile.tileType === 'text') {
     return (
       <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>
@@ -805,9 +1444,53 @@ function TileContent({ tile }: { tile: BuilderTile }) {
 
   if (!queryResult || !queryResult.rows || queryResult.rows.length === 0) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 80, color: 'var(--text-dim)' }}>
-        <span className="material-symbols-outlined" style={{ fontSize: 24, opacity: 0.4 }}>table_rows</span>
-        <span style={{ fontSize: 12, marginTop: 4 }}>No data loaded</span>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 120, gap: 10, color: 'var(--text-dim)' }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 28, opacity: 0.35 }}>
+          {vizType === 'TABLE' ? 'table_rows' : 'bar_chart'}
+        </span>
+        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>
+          {tile.cachedSql ? 'Query not yet loaded' : 'No query configured'}
+        </div>
+        {tile.cachedSql ? (
+          <button
+            onClick={onRunQuery}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '5px 12px',
+              borderRadius: 6,
+              border: '1px solid #1a73e8',
+              background: '#eff6ff',
+              color: '#1a73e8',
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>play_arrow</span>
+            Run Query
+          </button>
+        ) : (
+          <button
+            onClick={onEditSql}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '5px 12px',
+              borderRadius: 6,
+              border: '1px solid var(--border)',
+              background: '#fff',
+              color: 'var(--text)',
+              fontSize: 12,
+              cursor: 'pointer',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>add</span>
+            Add Query
+          </button>
+        )}
       </div>
     );
   }
@@ -835,6 +1518,51 @@ function TileContent({ tile }: { tile: BuilderTile }) {
 
   // Default DataTable
   return <DataTable result={queryResult} onSendMessage={() => {}} />;
+}
+
+// ── Tile Loading Skeleton ──
+
+function TileLoadingSkeleton({ vizType }: { vizType?: ArtifactType }) {
+  const isChart = vizType && CHART_TYPES.has(vizType);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10, padding: 8, opacity: 0.65 }}>
+      {/* Header bars */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ width: 80, height: 10, borderRadius: 4, background: '#e2e8f0', animation: 'pulse 1.5s ease-in-out infinite' }} />
+        <div style={{ width: 40, height: 10, borderRadius: 4, background: '#f1f5f9' }} />
+      </div>
+
+      {isChart ? (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: 12, padding: '10px 0' }}>
+          {[40, 75, 55, 90, 65, 80, 45].map((h, i) => (
+            <div
+              key={i}
+              style={{
+                flex: 1,
+                height: `${h}%`,
+                borderRadius: '4px 4px 0 0',
+                background: 'linear-gradient(180deg, #93c5fd 0%, #dbeafe 100%)',
+                animation: 'pulse 1.5s ease-in-out infinite',
+                animationDelay: `${i * 120}ms`,
+              }}
+            />
+          ))}
+        </div>
+      ) : (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[1, 2, 3, 4].map((row) => (
+            <div key={row} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <div style={{ width: '25%', height: 12, borderRadius: 3, background: '#e2e8f0', animation: 'pulse 1.5s ease-in-out infinite' }} />
+              <div style={{ width: '35%', height: 12, borderRadius: 3, background: '#f1f5f9', animation: 'pulse 1.5s ease-in-out infinite' }} />
+              <div style={{ width: '20%', height: 12, borderRadius: 3, background: '#f1f5f9', animation: 'pulse 1.5s ease-in-out infinite' }} />
+              <div style={{ width: '20%', height: 12, borderRadius: 3, background: '#e2e8f0', animation: 'pulse 1.5s ease-in-out infinite' }} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 const actionIconBtn: React.CSSProperties = {

@@ -15,7 +15,8 @@ import {
 } from 'react';
 import type { CompositionEnvelope } from './types';
 import type { BuilderDocument, BuilderTile, DocumentType, AppFilterControl } from './builder-types';
-import { envelopeToTile } from './builder-types';
+import { envelopeToTile, groupTilesIntoRows, computeEqualizedSpans } from './builder-types';
+export { groupTilesIntoRows, computeEqualizedSpans } from './builder-types';
 import { saveBuilderDocument, getBuilderDocuments } from './builder-persistence';
 import { executeTileQuery, saveDocumentToBigQuery } from './app-executor';
 import { useAuth } from './auth-context';
@@ -57,7 +58,16 @@ interface BuilderContextValue {
   addCustomTile: (docId: string, tile: Partial<BuilderTile>) => void;
   removeTile: (docId: string, tileId: string) => void;
   updateTile: (docId: string, tileId: string, updates: Partial<BuilderTile>) => void;
+  duplicateTile: (docId: string, tileId: string) => void;
+  moveTile: (docId: string, tileId: string, direction: 'left' | 'right' | 'up' | 'down') => void;
   reorderTiles: (docId: string, tiles: BuilderTile[]) => void;
+
+  // Layout & Row operations
+  equalizeRowWidths: (docId: string, targetTileId: string) => void;
+  equalizeAllRows: (docId: string) => void;
+  setRowHeight: (docId: string, targetTileId: string, rowSpan: number) => void;
+  applyRowPreset: (docId: string, targetTileId: string, presetSpans: number[]) => void;
+  setDocumentDensity: (docId: string, density: 'compact' | 'standard' | 'spacious') => void;
 
   // Filter operations
   addFilter: (docId: string, filter: AppFilterControl) => void;
@@ -431,6 +441,161 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
     );
   }, [documents]);
 
+  const duplicateTile = useCallback((docId: string, tileId: string) => {
+    setDocuments((prev) =>
+      prev.map((d) => {
+        if (d.id !== docId) return d;
+        const idx = d.tiles.findIndex((t) => t.id === tileId);
+        if (idx === -1) return d;
+        const source = d.tiles[idx];
+        const newTile: BuilderTile = {
+          ...source,
+          id: `tile_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+          title: `${source.title} (Copy)`,
+          col: Math.min(6, (source.col + source.colSpan) % 12),
+          row: source.row,
+        };
+        const nextTiles = [...d.tiles];
+        nextTiles.splice(idx + 1, 0, newTile);
+        return {
+          ...d,
+          tiles: nextTiles,
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    );
+  }, []);
+
+  const moveTile = useCallback((docId: string, tileId: string, direction: 'left' | 'right' | 'up' | 'down') => {
+    setDocuments((prev) =>
+      prev.map((d) => {
+        if (d.id !== docId) return d;
+        const tiles = [...d.tiles];
+        const idx = tiles.findIndex((t) => t.id === tileId);
+        if (idx === -1) return d;
+
+        if (direction === 'left' && idx > 0) {
+          const temp = tiles[idx - 1];
+          tiles[idx - 1] = tiles[idx];
+          tiles[idx] = temp;
+        } else if (direction === 'right' && idx < tiles.length - 1) {
+          const temp = tiles[idx + 1];
+          tiles[idx + 1] = tiles[idx];
+          tiles[idx] = temp;
+        } else if (direction === 'up') {
+          const rows = groupTilesIntoRows(tiles);
+          const rowIdx = rows.findIndex((r) => r.some((t) => t.id === tileId));
+          if (rowIdx > 0) {
+            const prevRow = rows[rowIdx - 1];
+            const targetIdx = tiles.findIndex((t) => t.id === prevRow[0].id);
+            const [item] = tiles.splice(idx, 1);
+            tiles.splice(targetIdx, 0, item);
+          }
+        } else if (direction === 'down') {
+          const rows = groupTilesIntoRows(tiles);
+          const rowIdx = rows.findIndex((r) => r.some((t) => t.id === tileId));
+          if (rowIdx < rows.length - 1 && rowIdx !== -1) {
+            const nextRow = rows[rowIdx + 1];
+            const targetIdx = tiles.findIndex((t) => t.id === nextRow[nextRow.length - 1].id);
+            const [item] = tiles.splice(idx, 1);
+            tiles.splice(targetIdx, 0, item);
+          }
+        }
+
+        return { ...d, tiles, updatedAt: new Date().toISOString() };
+      }),
+    );
+  }, []);
+
+  const equalizeRowWidths = useCallback((docId: string, targetTileId: string) => {
+    setDocuments((prev) =>
+      prev.map((d) => {
+        if (d.id !== docId) return d;
+        const rows = groupTilesIntoRows(d.tiles);
+        const targetRow = rows.find((r) => r.some((t) => t.id === targetTileId));
+        if (!targetRow || targetRow.length === 0) return d;
+
+        const equalSpans = computeEqualizedSpans(targetRow.length);
+        const updatedTiles = d.tiles.map((t) => {
+          const rowPos = targetRow.findIndex((rt) => rt.id === t.id);
+          if (rowPos !== -1) {
+            return { ...t, colSpan: equalSpans[rowPos] };
+          }
+          return t;
+        });
+
+        return { ...d, tiles: updatedTiles, updatedAt: new Date().toISOString() };
+      }),
+    );
+  }, []);
+
+  const equalizeAllRows = useCallback((docId: string) => {
+    setDocuments((prev) =>
+      prev.map((d) => {
+        if (d.id !== docId) return d;
+        const rows = groupTilesIntoRows(d.tiles);
+        const tileSpanMap = new Map<string, number>();
+
+        for (const row of rows) {
+          const equalSpans = computeEqualizedSpans(row.length);
+          row.forEach((t, i) => {
+            tileSpanMap.set(t.id, equalSpans[i]);
+          });
+        }
+
+        const updatedTiles = d.tiles.map((t) => ({
+          ...t,
+          colSpan: tileSpanMap.get(t.id) ?? t.colSpan,
+        }));
+
+        return { ...d, tiles: updatedTiles, updatedAt: new Date().toISOString() };
+      }),
+    );
+  }, []);
+
+  const setRowHeight = useCallback((docId: string, targetTileId: string, rowSpan: number) => {
+    setDocuments((prev) =>
+      prev.map((d) => {
+        if (d.id !== docId) return d;
+        const rows = groupTilesIntoRows(d.tiles);
+        const targetRow = rows.find((r) => r.some((t) => t.id === targetTileId));
+        if (!targetRow) return d;
+
+        const rowIds = new Set(targetRow.map((t) => t.id));
+        const updatedTiles = d.tiles.map((t) => (rowIds.has(t.id) ? { ...t, rowSpan } : t));
+
+        return { ...d, tiles: updatedTiles, updatedAt: new Date().toISOString() };
+      }),
+    );
+  }, []);
+
+  const applyRowPreset = useCallback((docId: string, targetTileId: string, presetSpans: number[]) => {
+    setDocuments((prev) =>
+      prev.map((d) => {
+        if (d.id !== docId) return d;
+        const rows = groupTilesIntoRows(d.tiles);
+        const targetRow = rows.find((r) => r.some((t) => t.id === targetTileId));
+        if (!targetRow) return d;
+
+        const updatedTiles = d.tiles.map((t) => {
+          const rowPos = targetRow.findIndex((rt) => rt.id === t.id);
+          if (rowPos !== -1 && rowPos < presetSpans.length) {
+            return { ...t, colSpan: presetSpans[rowPos] };
+          }
+          return t;
+        });
+
+        return { ...d, tiles: updatedTiles, updatedAt: new Date().toISOString() };
+      }),
+    );
+  }, []);
+
+  const setDocumentDensity = useCallback((docId: string, density: 'compact' | 'standard' | 'spacious') => {
+    setDocuments((prev) =>
+      prev.map((d) => (d.id === docId ? { ...d, density, updatedAt: new Date().toISOString() } : d)),
+    );
+  }, []);
+
   const saveToBigQuery = useCallback(async (docId: string, project: string, datasetName = '_metadata') => {
     const doc = documents.find((d) => d.id === docId);
     if (!doc) throw new Error('Document not found');
@@ -455,7 +620,14 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
         addCustomTile,
         removeTile,
         updateTile,
+        duplicateTile,
+        moveTile,
         reorderTiles,
+        equalizeRowWidths,
+        equalizeAllRows,
+        setRowHeight,
+        applyRowPreset,
+        setDocumentDensity,
         addFilter,
         removeFilter,
         updateFilter,

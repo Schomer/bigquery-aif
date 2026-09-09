@@ -21,7 +21,7 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { useBuilder } from '@/lib/builder-context';
 import { usePage } from '@/lib/page-context';
-import type { BuilderDocument } from '@/lib/builder-types';
+import type { BuilderDocument, DocumentType } from '@/lib/builder-types';
 import { deleteBuilderDocument, getBuilderDocuments } from '@/lib/builder-persistence';
 import {
   type StudioQueryItem,
@@ -746,6 +746,20 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
     const ids = new Set(builderDocs.map(d => d.id));
     return [...builderDocs, ...persistedDocs.filter(d => !ids.has(d.id))];
   })();
+
+  const handleCreateBlankDoc = (type: DocumentType = 'dashboard') => {
+    const typeLabelMap: Record<DocumentType, string> = {
+      dashboard: 'Dashboard',
+      app: 'App',
+      report: 'Report',
+      recipe: 'Recipe',
+    };
+    const typeTitle = typeLabelMap[type] || 'Dashboard';
+    const existingCount = allBuilderDocs.filter(d => d.type === type).length;
+    const name = existingCount > 0 ? `Untitled ${typeTitle} ${existingCount + 1}` : `Untitled ${typeTitle}`;
+    const newDocId = builder.createDocumentDirect(type, name);
+    openBuilderTab(newDocId, name);
+  };
 
   const [items, setItems] = useState<SavedArtifact[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
@@ -1689,6 +1703,13 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
       activeTab === 'bookmarks' ? 'bookmarks' :
       activeTab === 'favorites' ? 'favorites' : 'documents';
 
+    const docTypeForTab: DocumentType | null =
+      activeTab === 'dashboards' || activeTab === 'dashboard' ? 'dashboard' :
+      activeTab === 'apps' || activeTab === 'app' ? 'app' :
+      activeTab === 'reports' || activeTab === 'report' ? 'report' :
+      activeTab === 'recipes' || activeTab === 'recipe' ? 'recipe' :
+      activeTab === 'documents' ? 'dashboard' : null;
+
     return (
       <div style={S.emptyState}>
         <span className="material-symbols-outlined" style={S.emptyIcon}>
@@ -1706,6 +1727,28 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
             ? 'Interactive data apps created via AI prompts will automatically appear here.'
             : 'Items you save will appear here. Use the save button on any result to add it.'}
         </div>
+        {docTypeForTab && !activeSpaceId && (
+          <button
+            onClick={() => handleCreateBlankDoc(docTypeForTab)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 18px',
+              borderRadius: 8,
+              background: 'var(--accent, #1967d2)',
+              color: '#ffffff',
+              border: 'none',
+              fontWeight: 500,
+              fontSize: 13,
+              cursor: 'pointer',
+              marginTop: 12,
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
+            New Blank {docTypeForTab === 'dashboard' ? 'Dashboard' : docTypeForTab === 'app' ? 'App' : docTypeForTab === 'report' ? 'Report' : 'Recipe'}
+          </button>
+        )}
       </div>
     );
   }
@@ -2354,6 +2397,35 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
       <div style={S.header}>
         <h1 style={S.title}>{TAB_TITLES[activeTab] ?? 'Library'}</h1>
         <div style={S.headerRight}>
+          {(activeTab === 'dashboards' || activeTab === 'dashboard' || activeTab === 'apps' || activeTab === 'app' || activeTab === 'reports' || activeTab === 'report' || activeTab === 'recipes' || activeTab === 'recipe' || activeTab === 'documents') && (
+            <button
+              onClick={() => handleCreateBlankDoc(
+                activeTab === 'apps' || activeTab === 'app' ? 'app' :
+                activeTab === 'reports' || activeTab === 'report' ? 'report' :
+                activeTab === 'recipes' || activeTab === 'recipe' ? 'recipe' : 'dashboard'
+              )}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '6px 14px',
+                borderRadius: 8,
+                background: 'var(--accent, #1967d2)',
+                color: '#ffffff',
+                border: 'none',
+                fontWeight: 500,
+                fontSize: 12,
+                cursor: 'pointer',
+                marginRight: 4,
+                boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
+              {activeTab === 'apps' || activeTab === 'app' ? 'New Blank App' :
+               activeTab === 'reports' || activeTab === 'report' ? 'New Blank Report' :
+               activeTab === 'recipes' || activeTab === 'recipe' ? 'New Blank Recipe' : 'New Blank Dashboard'}
+            </button>
+          )}
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortMode)}

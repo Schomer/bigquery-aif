@@ -170,7 +170,7 @@ export interface ActionBarSelectionProps {
   noun: string;
   /** Plural, for the nouns that do not just take an `s`. */
   plural?: string;
-  /** Clears the selection. Wired to the `✕` at the far left. */
+  /** Clears the selection. Wired to the clear button at the far left. */
   onClear?: () => void;
   /** The actions. `Button variant="stroked"`, each with a label and an icon. */
   children?: React.ReactNode;

@@ -1,5 +1,21 @@
 # Operations Ledger
 
+## 2026-09-08 -- Fix table data in dashboard tiles, add advanced layout controls and blank dashboard creation
+
+**What**:
+1. *Table Data & Schema Tile Hydration*: When dashboards are created from `SCHEMA_VIEW` cards or table explorations in chat, `envelopeToTile` (`src/lib/builder-types.ts`) synthesizes a preview query (`SELECT * FROM \`project.dataset.table\` LIMIT 100`), extracts available sample rows and column definitions into `lastSnapshot`, and sets `vizType: 'TABLE'`. In `BuilderPage.tsx`, an auto-execution effect automatically queries unhydrated tiles on initial load with animated shimmer skeletons.
+2. *Interactive Layout Resizing*: Added drag-to-resize handles on tile borders (right edge for width 1-12 columns, bottom edge for rowSpan 1-6 rows, bottom-right corner for 2D resize) with visual pixel-drag preview overlay.
+3. *Row Equalization & Presets*: Implemented pure layout partitioning (`groupTilesIntoRows`, `computeEqualizedSpans`) and added `RowLayoutHeader` above each visual row with "Equalize Row", custom split presets (`50/50`, `66/33`, `33/66`, `75/25`, `33/33/33`, `50/25/25`, `25/50/25`, `25/25/25/25`), row height multipliers (`1x`, `2x`, `3x`, `4x`), and global "Equalize All Rows".
+4. *In-Tile Arrangement*: Added Move Left/Right, Duplicate Tile, quick width presets (`1/4`, `1/3`, `1/2`, `2/3`, `3/4`, `Full`), height steppers, and Edit SQL drawer.
+5. *New Blank Dashboard Creation*: Added "+ New Blank Dashboard" (and App/Report/Recipe) creation buttons in `SavedPage.tsx` top header and empty states.
+
+**Why**:
+1. Dashboards created from schema exploration cards had no SQL attached and displayed blank tiles with "No data loaded" because `envelope.provenance.sql` was undefined and `envelope.primaryArtifact.data` contained `sampleRows` rather than standard query `rows`.
+2. Users need granular control over tile sizing, row height scaling, and row width equalization when assembling complex dashboards and data apps.
+3. Users need to be able to create a new blank dashboard directly from the Library/Dashboard page without needing a chat conversation first.
+
+**Rule derived**: Every tile generated from schema/catalog exploration cards must synthesize valid default SQL and populate snapshot data immediately. Pure layout algorithms (`groupTilesIntoRows`, `computeEqualizedSpans`) must reside in framework-agnostic type definitions to facilitate isolated unit testing.
+
 ## 2026-09-08 -- Save and view created dashboards in Library Dashboards category
 
 **What**: Fixed dashboard viewing and persistence across the Library "Dashboards" category (`spaces:dashboards`), "Apps" (`spaces:apps`), "Reports" (`spaces:reports`), and "Recipes" (`spaces:recipes`).
