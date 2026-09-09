@@ -60,7 +60,12 @@ export function PageProvider({ children }: { children: ReactNode }) {
     const tabId = `dashboard:${dashboardId}`;
     setTabs((prev) => {
       const exists = prev.find((t) => t.id === tabId);
-      if (exists) return prev;
+      if (exists) {
+        if (label && exists.label !== label) {
+          return prev.map((t) => (t.id === tabId ? { ...t, label } : t));
+        }
+        return prev;
+      }
       return [
         ...prev,
         { id: tabId, label, page: 'dashboard', dashboardId, closeable: true },
@@ -74,7 +79,12 @@ export function PageProvider({ children }: { children: ReactNode }) {
     const tabId = `builder:${builderId}`;
     setTabs((prev) => {
       const exists = prev.find((t) => t.id === tabId);
-      if (exists) return prev;
+      if (exists) {
+        if (label && exists.label !== label) {
+          return prev.map((t) => (t.id === tabId ? { ...t, label } : t));
+        }
+        return prev;
+      }
       return [
         ...prev,
         { id: tabId, label, page: 'builder', builderId, closeable: true },

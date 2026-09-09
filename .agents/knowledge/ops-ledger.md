@@ -1,5 +1,16 @@
 # Operations Ledger
 
+## 2026-09-08 -- Auto-open dashboard when created or when adding items
+
+**What**:
+1. *Auto-open on AI Dashboard Creation*: Updated `useChatOrchestration.ts` to automatically open newly created or modified dashboards/apps in a builder tab (`openBuilderTab(dashboardId, name)`) when `DASHBOARD_VIEW` envelopes are received from chat turns, tool executions (`manage_app`), edits, or chip clicks.
+2. *Auto-open on Adding Items to Existing Documents*: Updated `handleAddToExistingDoc` in `ArtifactCard.tsx` to call `openBuilderTab(docId, docName)` after adding the envelope tile, immediately opening the document tab and bringing the user to the updated dashboard.
+3. *Tab Focus and Dynamic Label Refresh*: Enhanced `openBuilderTab` and `openDashboardTab` in `page-context.tsx` to update the tab label if the document title changed and immediately focus the active tab.
+
+**Why**: Solved the friction where creating a new dashboard or adding items to a dashboard left the user in chat requiring manual navigation; dashboards now open up automatically.
+
+**Rule derived**: Document and dashboard creation actions (whether triggered via natural language AI tools or direct UI menus) must immediately open and focus the resulting workspace tab.
+
 ## 2026-09-08 -- Fix row height sizing via explicit tile height and active divider hit zone
 
 **What**:

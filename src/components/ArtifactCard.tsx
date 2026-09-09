@@ -259,8 +259,9 @@ export function ArtifactCard({ envelope: propEnvelope, onConfirm, onCancel, onCh
     setKebabOpen(false);
   };
 
-  const handleAddToExistingDoc = (docId: string) => {
+  const handleAddToExistingDoc = (docId: string, docName: string) => {
     builder.addTile(docId, envelope);
+    openBuilderTab(docId, docName);
     setKebabOpen(false);
   };
 
@@ -512,7 +513,7 @@ export function ArtifactCard({ envelope: propEnvelope, onConfirm, onCancel, onCh
                           {openDocs.map((doc) => (
                             <button
                               key={doc.id}
-                              onClick={() => handleAddToExistingDoc(doc.id)}
+                              onClick={() => handleAddToExistingDoc(doc.id, doc.name)}
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',

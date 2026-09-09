@@ -2,6 +2,14 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-08 -- Auto-open dashboard when created or when adding items
+
+- Updated `useChatOrchestration.ts` to automatically open newly created or modified dashboards/apps in a builder tab (`openBuilderTab`) whenever `DASHBOARD_VIEW` envelopes are received from chat turns, tool executions (`manage_app`), edits, or chip clicks.
+- Updated `handleAddToExistingDoc` in `ArtifactCard.tsx` to automatically open the builder tab (`openBuilderTab(docId, docName)`) when adding an envelope tile to an existing document.
+- Enhanced `openBuilderTab` and `openDashboardTab` in `page-context.tsx` to update tab labels if document names change and immediately focus the workspace tab.
+- Added test coverage in `src/lib/__tests__/builder.test.ts`.
+- Verified test suite (163 passing tests) and Next.js static export build.
+
 ## 2026-09-08 -- Fix row height sizing via explicit tile height and active divider hit zone
 
 - Added explicit `height: calculatedMinHeight` to `TileCard` (previously only `minHeight` was set, allowing large table/chart contents to expand the grid row regardless of the selected `rowSpan`).

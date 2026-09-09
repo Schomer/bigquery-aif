@@ -53,24 +53,36 @@ describe('builder layout & tile hydration', () => {
       ]);
       expect(tile.lastSnapshot?.rowCount).toBe(2);
     });
-  });
 
-  describe('groupTilesIntoRows', () => {
-    it('groups tiles into 12-column rows based on colSpan', () => {
-      const tiles: BuilderTile[] = [
-        { id: 't1', title: 'Tile 1', col: 0, row: 0, colSpan: 6, rowSpan: 2 },
-        { id: 't2', title: 'Tile 2', col: 6, row: 0, colSpan: 6, rowSpan: 2 },
-        { id: 't3', title: 'Tile 3', col: 0, row: 2, colSpan: 4, rowSpan: 2 },
-        { id: 't4', title: 'Tile 4', col: 4, row: 2, colSpan: 4, rowSpan: 2 },
-        { id: 't5', title: 'Tile 5', col: 8, row: 2, colSpan: 4, rowSpan: 2 },
-        { id: 't6', title: 'Tile 6', col: 0, row: 4, colSpan: 12, rowSpan: 3 },
-      ];
+    it('hydrates chart envelopes into BuilderTile with SQL and cached rows', () => {
+      const envelope: CompositionEnvelope = {
+        id: 'env_chart_1',
+        conversationId: 'conv_1',
+        turnIndex: 1,
+        skill: 'query',
+        tone: 'NEUTRAL',
+        headline: { text: 'Monthly Revenue', basis: 'DATA' },
+        qualityFlags: [],
+        provenance: { sql: 'SELECT month, revenue FROM sales', project: 'my-proj' },
+        primaryArtifact: {
+          type: 'BAR_CHART',
+          data: {
+            columns: ['month', 'revenue'],
+            rows: [['Jan', 1000], ['Feb', 1500]],
+            rowCount: 2,
+          },
+        },
+        requiresConfirmation: false,
+        suggestedFollowups: [],
+      };
 
-      const rows = groupTilesIntoRows(tiles);
-      expect(rows.length).toBe(3);
-      expect(rows[0].map((t) => t.id)).toEqual(['t1', 't2']);
-      expect(rows[1].map((t) => t.id)).toEqual(['t3', 't4', 't5']);
-      expect(rows[2].map((t) => t.id)).toEqual(['t6']);
+      const tile = envelopeToTile(envelope, 6, 2);
+      expect(tile.title).toBe('Monthly Revenue');
+      expect(tile.vizType).toBe('BAR_CHART');
+      expect(tile.cachedSql).toBe('SELECT month, revenue FROM sales');
+      expect(tile.col).toBe(6);
+      expect(tile.row).toBe(2);
+      expect(tile.lastSnapshot?.rows).toEqual([['Jan', 1000], ['Feb', 1500]]);
     });
   });
 

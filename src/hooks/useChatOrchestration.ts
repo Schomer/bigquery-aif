@@ -5,6 +5,7 @@ import { createEmptyState, updateState, type ConversationState } from '@/lib/con
 import { useAuth } from '@/lib/auth-context';
 import { useConversation } from '@/lib/conversation-context';
 import { useChatRunState } from '@/lib/chat-run-state-context';
+import { usePage } from '@/lib/page-context';
 import { ChatOrchestrator } from '@/lib/chat-orchestrator';
 import type {
   ChatMessage,
@@ -244,6 +245,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
   const { activeProject, user, signIn, refreshAccessToken } = useAuth();
   const { conversationId, addOperation } = useConversation();
   const { setRunning } = useChatRunState();
+  const { openBuilderTab } = usePage();
 
   // Core state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -549,6 +551,17 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       if (autoItems.length > 0) {
         setContextItems(autoItems);
         setPinnedEnvelopeId(null);
+      }
+
+      // Auto-open newly created or modified dashboards/apps in a builder tab
+      for (const env of envelopes) {
+        if (env.primaryArtifact.type === 'DASHBOARD_VIEW') {
+          const d = env.primaryArtifact.data as { dashboardId?: string; name?: string } | undefined;
+          if (d?.dashboardId) {
+            const docName = d.name || 'Dashboard';
+            openBuilderTab(d.dashboardId, docName);
+          }
+        }
       }
     }
   }
@@ -1346,6 +1359,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       if (newAssistantIdx >= 0) {
         setThinkingSteps((prev) => ({ ...prev, [newAssistantIdx]: [...pendingStepsRef.current] }));
       }
+      updateContextFromEnvelopes(envelopes);
       persistConversation(updatedMsgs).catch((e) => console.warn('[persist]', e));
     } catch (err) {
       console.error(err);
@@ -1394,6 +1408,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
       ];
       setMessages(updatedMsgs);
       setThinkingSteps((prev) => ({ ...prev, [assistantIdx]: [...pendingStepsRef.current] }));
+      updateContextFromEnvelopes(envelopes);
       persistConversation(updatedMsgs).catch((e) => console.warn('[persist]', e));
     } catch (err) {
       console.error(err);
