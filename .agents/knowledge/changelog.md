@@ -1,6 +1,16 @@
 # Session Changelog
-
+ 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
+
+## 2026-09-08 -- Fluid row-based dashboard layout with continuous resizing and smart drag-and-drop
+
+- Updated `BuilderTile` data model in `src/lib/builder-types.ts` to support `rowIndex`, `widthPercent`, and `rowHeight` with auto-equalizing helper `equalizeRowTiles`.
+- Implemented smart inter-row drag-and-drop movement in `src/lib/builder-context.tsx` (`moveTileToRow`) with source row re-equalization, target row insertion & equalization, new row creation, and automatic pruning of empty rows.
+- Added continuous horizontal splitter dragging between adjacent tiles in `BuilderPage.tsx` and `setTileWidthPercent` in context.
+- Added continuous row height adjustment in pixels with `RowHeightResizeHandle` and multi-directional edge/corner resizing supporting compact KPI heights down to 60px.
+- Added `NewRowDropZone` components with glowing horizontal blue indicator lines above, between, and below rows.
+- Updated unit tests in `src/lib/__tests__/builder.test.ts` (167 passing tests).
+- Verified Next.js static build.
 
 ## 2026-09-08 -- Align title and header font weights with design system (500)
 

@@ -1,5 +1,26 @@
 # Operations Ledger
 
+## 2026-09-08 -- Fluid row-based dashboard layout with continuous resizing and smart drag-and-drop
+
+**What**:
+1. *Fluid Row Data Model*: Updated `BuilderTile` data model in `src/lib/builder-types.ts` to support explicit `rowIndex?: number`, `widthPercent?: number`, and `rowHeight?: number` alongside backward-compatible `colSpan` and `rowSpan`. Implemented `equalizeRowTiles` helper that distributes 100% width equally ($100 / N\%$) across all tiles in a row.
+2. *Smart Inter-Row Movement*: Added `moveTileToRow(docId, tileId, targetRowIdx, targetTileIdx, createNewRow)` in `src/lib/builder-context.tsx`. When moving a tile across rows:
+   - Removes tile from source row and re-equalizes remaining tiles in that row.
+   - If dropping between rows or onto new-row drop zones, creates a new row with the tile at 100% width.
+   - If inserting into an existing row, inserts at the targeted index and automatically equalizes all tiles in that row.
+   - Automatically prunes empty rows and re-indexes subsequent rows.
+3. *Continuous Horizontal Splitter Dragging*: Added `setTileWidthPercent(docId, tileId, widthPercent, adjacentTileId?, adjacentWidthPercent?)` in `builder-context.tsx` and interactive horizontal splitters between adjacent tiles in `BuilderPage.tsx`, allowing continuous percentage adjustments between neighboring tiles while keeping the row sum at 100%.
+4. *Continuous Row Height Resizing*: Replaced discrete grid-span increments with continuous pixel-based row heights (`rowHeight?: number`, defaulting to 320px with support for compact heights down to 60px for single-number KPIs). Updated `RowHeightResizeHandle` and tile edge/corner drag handlers to update pixel height fluidly across the entire row.
+5. *Visual Drop Zones & Indicators*:
+   - Added `NewRowDropZone` components above row 0, between rows, and below the last row, rendering a glowing horizontal blue indicator bar (`#1a73e8`, 4px height with circular end caps) when hovering during a tile drag.
+   - Maintained vertical blue insertion indicators for intra-row tile positioning.
+6. *Unit Tests & Verification*: Updated `src/lib/__tests__/builder.test.ts` to test `equalizeRowTiles`, `groupTilesIntoRows`, and row equalization (167 passing tests).
+
+**Why**: Solved the limitation of rigid 12-column integer grid constraints, allowing arbitrary tile proportions, automatic equal-width distribution on insertion, continuous pixel row heights, and smart row creation/pruning during drag-and-drop.
+
+**Rule derived**: Modern dashboard layout engines should use structured row groups with continuous flex percentages and pixel row heights rather than discrete column grids to enable fluid resizing and smart auto-equalization.
+
+
 ## 2026-09-08 -- Align title and header font weights with design system (500)
 
 **What**:
