@@ -2,6 +2,14 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-08 -- Save and view created dashboards in Library Dashboards category
+
+- Connected `manage_app` agent tool (`src/agent/tools/manage-app.ts`) to authenticated user ID (`auth.currentUser?.uid`) for automatic Firestore persistence (`saveBuilderDocument`) on document creation, tile additions, filter additions, and deletion.
+- Updated `SavedPage.tsx` to include `dashboards`, `dashboard`, `apps`, `app`, `reports`, `report`, `recipes`, `recipe` in tab filters and render live builder document cards and table rows with tile miniatures, item counts, and open/delete actions.
+- Gated and merged builder documents across `spaces:dashboards`, `spaces:apps`, `spaces:reports`, `spaces:recipes`, and `spaces:all` views in the Library.
+- Updated `BuilderPage.tsx` with asynchronous Firestore loading fallback when loading documents directly by ID.
+- Verified test suite (160 tests passing) and production static build.
+
 ## 2026-09-08 -- Wire ConsoleTopNav hamburger button to toggle sidebar expansion
 
 - Connected `onToggleNav` callback in `ConsoleShell` (`src/kit/shell/console-shell.tsx`) to toggle sidebar expansion state (`navExpanded`) and support optional controlled `isNavExpanded` / `onNavExpandedChange` props.

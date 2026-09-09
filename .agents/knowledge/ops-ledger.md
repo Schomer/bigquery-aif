@@ -1,5 +1,16 @@
 # Operations Ledger
 
+## 2026-09-08 -- Save and view created dashboards in Library Dashboards category
+
+**What**: Fixed dashboard viewing and persistence across the Library "Dashboards" category (`spaces:dashboards`), "Apps" (`spaces:apps`), "Reports" (`spaces:reports`), and "Recipes" (`spaces:recipes`).
+1. *Persistence*: In `src/agent/tools/manage-app.ts`, connected `auth.currentUser?.uid` to write directly to Firestore `saveBuilderDocument(uid, newDoc)` on document creation, tile updates, filter additions, and deletion (`deleteBuilderDocument`).
+2. *Library Category Visibility*: In `src/components/SavedPage.tsx`, added support for `dashboards`, `dashboard`, `apps`, `app`, `reports`, `report`, `recipes`, `recipe` in tab routing and filtered builder documents into their respective categories and the "All" view with live miniature SVG previews, item counts, and open/delete buttons.
+3. *Direct Loading*: In `src/components/BuilderPage.tsx`, added asynchronous Firestore fallback loading when opening a document directly by ID before React state hydration.
+
+**Why**: When a dashboard was created via AI prompt or canvas actions, clicking "Dashboards" in the sidebar rail previously returned zero results because `SavedPage.tsx` only queried legacy artifact collections, and `manage_app.ts` did not persist in-flight documents to Firestore.
+
+**Rule derived**: Builder documents (dashboards, apps, reports, recipes) must be persisted immediately to Firestore upon agent tool execution and must be rendered in their respective category tabs (`spaces:dashboards`, `spaces:apps`, etc.) rather than being restricted to an isolated `documents` tab.
+
 ## 2026-09-08 -- Wire ConsoleTopNav hamburger button to toggle sidebar expansion
 
 **What**: Connected `onToggleNav` in `ConsoleShell` (`src/kit/shell/console-shell.tsx`) to toggle `navExpanded` and handle controlled/uncontrolled state updates.

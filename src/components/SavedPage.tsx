@@ -34,28 +34,45 @@ import {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-type TabKey = 'all' | SavedArtifactType | 'documents' | 'studio';
+type TabKey =
+  | 'all'
+  | 'dashboards'
+  | 'dashboard'
+  | 'apps'
+  | 'app'
+  | 'reports'
+  | 'report'
+  | 'recipes'
+  | 'recipe'
+  | 'query'
+  | 'queries'
+  | 'workflow'
+  | 'workflows'
+  | 'pipeline'
+  | 'pipelines'
+  | 'documents'
+  | 'bookmarks'
+  | 'favorites'
+  | 'studio';
 type SortMode = 'recent' | 'name' | 'most-used' | 'type';
 type ViewMode = 'card' | 'list';
 type VisibilityFilter = 'all' | 'public' | 'private';
-
-const TABS: { key: TabKey; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'query', label: 'Queries' },
-  { key: 'studio', label: 'BigQuery Studio' },
-  { key: 'workflow', label: 'Workflows' },
-  { key: 'pipeline', label: 'Pipelines' },
-  { key: 'app', label: 'Apps' },
-  { key: 'documents', label: 'Documents' },
-];
 
 const TYPE_ICONS: Record<string, string> = {
   query: 'query_stats',
   workflow: 'conversion_path',
   pipeline: 'schedule',
-  app: 'apps',
+  app: 'widgets',
+  dashboard: 'dashboard',
+  dashboards: 'dashboard',
+  report: 'description',
+  reports: 'description',
+  recipe: 'receipt_long',
+  recipes: 'receipt_long',
   documents: 'dashboard_customize',
   studio: 'code',
+  bookmarks: 'bookmarks',
+  favorites: 'star',
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -63,8 +80,16 @@ const TYPE_LABELS: Record<string, string> = {
   workflow: 'Workflow',
   pipeline: 'Pipeline',
   app: 'App',
+  dashboard: 'Dashboard',
+  dashboards: 'Dashboard',
+  report: 'Report',
+  reports: 'Report',
+  recipe: 'Recipe',
+  recipes: 'Recipe',
   documents: 'Document',
   studio: 'Studio Query',
+  bookmarks: 'Bookmark',
+  favorites: 'Favorite',
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -796,7 +821,12 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
         getSpaces(userId),
         searchQuery.trim()
           ? searchArtifacts(userId, searchQuery.trim())
-          : getArtifacts(userId, activeTab === 'all' || activeTab === 'studio' ? undefined : activeTab as SavedArtifactType),
+          : getArtifacts(
+              userId,
+              (['query', 'workflow', 'pipeline', 'app'].includes(activeTab)
+                ? (activeTab as SavedArtifactType)
+                : undefined)
+            ),
         getSharedArtifacts(),
       ]);
       setSpaces(spacesResult);
@@ -1628,13 +1658,37 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
   function renderEmpty() {
     const EMPTY_ICONS: Record<string, string> = {
       all: 'home_storage',
+      dashboards: 'dashboard',
+      dashboard: 'dashboard',
+      apps: 'widgets',
+      app: 'widgets',
+      reports: 'description',
+      report: 'description',
+      recipes: 'receipt_long',
+      recipe: 'receipt_long',
       query: 'query_stats',
+      queries: 'query_stats',
       workflow: 'conversion_path',
+      workflows: 'conversion_path',
       pipeline: 'schedule',
-      app: 'apps',
+      pipelines: 'schedule',
+      bookmarks: 'bookmarks',
+      favorites: 'star',
+      documents: 'dashboard_customize',
     };
     const icon = EMPTY_ICONS[activeTab] ?? 'folder_open';
-    const tabLabel = activeTab === 'all' ? 'items' : activeTab === 'query' ? 'queries' : activeTab === 'workflow' ? 'workflows' : activeTab === 'pipeline' ? 'pipelines' : 'apps';
+    const tabLabel =
+      activeTab === 'all' ? 'items' :
+      activeTab === 'dashboards' || activeTab === 'dashboard' ? 'dashboards' :
+      activeTab === 'apps' || activeTab === 'app' ? 'apps' :
+      activeTab === 'reports' || activeTab === 'report' ? 'reports' :
+      activeTab === 'recipes' || activeTab === 'recipe' ? 'recipes' :
+      activeTab === 'query' || activeTab === 'queries' ? 'queries' :
+      activeTab === 'workflow' || activeTab === 'workflows' ? 'workflows' :
+      activeTab === 'pipeline' || activeTab === 'pipelines' ? 'pipelines' :
+      activeTab === 'bookmarks' ? 'bookmarks' :
+      activeTab === 'favorites' ? 'favorites' : 'documents';
+
     return (
       <div style={S.emptyState}>
         <span className="material-symbols-outlined" style={S.emptyIcon}>
@@ -1646,6 +1700,10 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
         <div style={S.emptyDesc}>
           {activeSpaceId
             ? 'Drag items here or use the context menu to move items into this space.'
+            : activeTab === 'dashboards' || activeTab === 'dashboard'
+            ? 'Dashboards created via AI prompts or built in the canvas will automatically appear here.'
+            : activeTab === 'apps' || activeTab === 'app'
+            ? 'Interactive data apps created via AI prompts will automatically appear here.'
             : 'Items you save will appear here. Use the save button on any result to add it.'}
         </div>
       </div>
@@ -1909,6 +1967,193 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
     );
   }
 
+  function renderDocThumbnail(doc: BuilderDocument) {
+    const tileCount = doc.tiles?.length || 0;
+    return (
+      <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 110 }}>
+        {tileCount === 0 ? (
+          <g>
+            <rect x={20} y={20} width={220} height={120} rx={8} fill="#f1f5f9" stroke="#cbd5e1" strokeDasharray="4 4" />
+            <text x={130} y={85} textAnchor="middle" fill="#94a3b8" fontSize={12} fontFamily="sans-serif">Empty Dashboard</text>
+          </g>
+        ) : (
+          doc.tiles.slice(0, 4).map((tile, i) => {
+            const x = (i % 2) * 130 + 10;
+            const y = Math.floor(i / 2) * 80 + 10;
+            const fills = ['#4f7af8', '#818cf8', '#38bdf8', '#c7d9ff'];
+            return (
+              <g key={tile.id || i}>
+                <rect x={x} y={y} width={115} height={68} rx={6} fill={fills[i % fills.length]} opacity={0.85} />
+                <rect x={x + 8} y={y + 8} width={60} height={7} rx={3} fill="white" opacity={0.7} />
+                <rect x={x + 8} y={y + 20} width={40} height={5} rx={2.5} fill="white" opacity={0.5} />
+              </g>
+            );
+          })
+        )}
+      </svg>
+    );
+  }
+
+  function renderDocCard(doc: BuilderDocument) {
+    const isHovered = hoveredCard === doc.id;
+    const isDashboard = doc.type === 'dashboard' || !doc.type;
+    const icon = isDashboard ? 'dashboard' : doc.type === 'app' ? 'widgets' : doc.type === 'report' ? 'description' : 'receipt_long';
+    const typeLabel = isDashboard ? 'Dashboard' : doc.type === 'app' ? 'App' : doc.type === 'report' ? 'Report' : 'Recipe';
+
+    return (
+      <div
+        key={doc.id}
+        style={{
+          ...S.card(false),
+          ...(isHovered ? S.cardHover : {}),
+        }}
+        onMouseEnter={() => setHoveredCard(doc.id)}
+        onMouseLeave={() => setHoveredCard(null)}
+      >
+        <div style={{ ...S.cardHeaderPad, ...S.cardHeader }}>
+          <div style={S.cardTitleRow}>
+            <div style={S.cardIconAvatar}>
+              <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--accent, #1967d2)' }}>
+                {icon}
+              </span>
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <h3
+                style={S.cardName}
+                title={doc.name}
+                onClick={() => {
+                  builder.loadDocument(doc);
+                  openBuilderTab(doc.id, doc.name);
+                }}
+              >
+                {doc.name}
+              </h3>
+              <div style={S.cardSubtype}>{typeLabel} -- {doc.tiles.length} tile{doc.tiles.length !== 1 ? 's' : ''}</div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{ ...S.cardThumbnail, cursor: 'pointer' }}
+          onClick={() => {
+            builder.loadDocument(doc);
+            openBuilderTab(doc.id, doc.name);
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          {renderDocThumbnail(doc)}
+        </div>
+
+        <div style={S.cardBody}>
+          {doc.description ? (
+            <div style={S.cardDesc}>{doc.description}</div>
+          ) : (
+            <div style={{ ...S.cardDesc, color: 'var(--text-dim, #80868b)', fontStyle: 'italic' }}>
+              Updated {relativeTime(doc.updatedAt)}
+            </div>
+          )}
+        </div>
+
+        <div style={S.cardFooter}>
+          <button
+            style={S.outlineBtn}
+            onClick={() => {
+              builder.loadDocument(doc);
+              openBuilderTab(doc.id, doc.name);
+            }}
+          >
+            Open
+          </button>
+          <button
+            style={S.deleteIconBtn}
+            title="Delete"
+            onClick={async (e) => {
+              e.stopPropagation();
+              try {
+                if (userId) {
+                  await deleteBuilderDocument(userId, doc.id);
+                }
+                builder.discardDocument(doc.id);
+                setPersistedDocs((prev) => prev.filter((d) => d.id !== doc.id));
+              } catch (err) {
+                console.error('Failed to delete document:', err);
+              }
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>delete</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderDocRow(doc: BuilderDocument) {
+    const isDashboard = doc.type === 'dashboard' || !doc.type;
+    const icon = isDashboard ? 'dashboard' : doc.type === 'app' ? 'widgets' : doc.type === 'report' ? 'description' : 'receipt_long';
+    const typeLabel = isDashboard ? 'Dashboard' : doc.type === 'app' ? 'App' : doc.type === 'report' ? 'Report' : 'Recipe';
+
+    return (
+      <tr key={doc.id} style={S.listRow(false)}>
+        <td style={{ ...S.listCell, width: 32 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--accent, #1967d2)' }}>
+            {icon}
+          </span>
+        </td>
+        <td style={S.listCell}>
+          <div
+            style={{ fontWeight: 500, cursor: 'pointer' }}
+            onClick={() => {
+              builder.loadDocument(doc);
+              openBuilderTab(doc.id, doc.name);
+            }}
+          >
+            {doc.name}
+          </div>
+          {doc.description && <div style={{ fontSize: 11, color: 'var(--text-dim, #80868b)' }}>{doc.description}</div>}
+        </td>
+        <td style={S.listCellMuted}>
+          <span style={S.typeBadge}>{typeLabel}</span>
+        </td>
+        <td style={S.listCellMuted}>
+          <span>{doc.tiles.length} tile{doc.tiles.length !== 1 ? 's' : ''}</span>
+        </td>
+        <td style={S.listCellMuted}>{relativeTime(doc.updatedAt)}</td>
+        <td style={{ ...S.listCell, textAlign: 'right' as const }}>
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
+            <button
+              style={{ ...S.outlineBtn, padding: '4px 12px', fontSize: 12 }}
+              onClick={() => {
+                builder.loadDocument(doc);
+                openBuilderTab(doc.id, doc.name);
+              }}
+            >
+              Open
+            </button>
+            <button
+              style={S.deleteIconBtn}
+              title="Delete"
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  if (userId) {
+                    await deleteBuilderDocument(userId, doc.id);
+                  }
+                  builder.discardDocument(doc.id);
+                  setPersistedDocs((prev) => prev.filter((d) => d.id !== doc.id));
+                } catch (err) {
+                  console.error('Failed to delete document:', err);
+                }
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
   // ── Render: content ────────────────────────────────────────────────────
 
   function renderContent() {
@@ -1978,7 +2223,72 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
 
     if (loading) return renderSkeleton();
 
-    const hasContent = filteredItems.length > 0;
+    // Filter builder documents according to active category tab and search query
+    const matchingDocs = allBuilderDocs.filter((doc) => {
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchName = doc.name.toLowerCase().includes(q);
+        const matchDesc = doc.description?.toLowerCase().includes(q);
+        const matchTile = doc.tiles?.some((t) => t.title.toLowerCase().includes(q));
+        if (!matchName && !matchDesc && !matchTile) return false;
+      }
+      if (activeTab === 'dashboards' || activeTab === 'dashboard') {
+        return doc.type === 'dashboard' || !doc.type;
+      }
+      if (activeTab === 'apps' || activeTab === 'app') {
+        return doc.type === 'app';
+      }
+      if (activeTab === 'reports' || activeTab === 'report') {
+        return doc.type === 'report';
+      }
+      if (activeTab === 'recipes' || activeTab === 'recipe') {
+        return doc.type === 'recipe';
+      }
+      if (activeTab === 'bookmarks' || activeTab === 'favorites') {
+        return doc.tags?.includes('bookmark') || doc.tags?.includes('favorite');
+      }
+      if (activeTab === 'documents' || activeTab === 'all') {
+        return true;
+      }
+      return false;
+    });
+
+    // Filter saved artifacts according to active category tab
+    const matchingArtifacts = filteredItems.filter((item) => {
+      if (activeTab === 'dashboards' || activeTab === 'dashboard') {
+        return false;
+      }
+      if (activeTab === 'reports' || activeTab === 'report') {
+        return false;
+      }
+      if (activeTab === 'recipes' || activeTab === 'recipe') {
+        return false;
+      }
+      if (activeTab === 'documents') {
+        return false;
+      }
+      if (activeTab === 'apps' || activeTab === 'app') {
+        return item.type === 'app';
+      }
+      if (activeTab === 'query' || activeTab === 'queries') {
+        return item.type === 'query';
+      }
+      if (activeTab === 'workflow' || activeTab === 'workflows') {
+        return item.type === 'workflow';
+      }
+      if (activeTab === 'pipeline' || activeTab === 'pipelines') {
+        return item.type === 'pipeline';
+      }
+      if (activeTab === 'bookmarks' || activeTab === 'favorites') {
+        return item.pinned || item.tags?.includes('bookmark') || item.tags?.includes('favorite');
+      }
+      if (activeTab === 'all') {
+        return true;
+      }
+      return true;
+    });
+
+    const hasContent = matchingDocs.length > 0 || matchingArtifacts.length > 0;
 
     if (!hasContent) return renderEmpty();
 
@@ -1986,7 +2296,8 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
       return (
         <table style={S.listTable}>
           <tbody>
-            {filteredItems.map((item) => renderItemRow(item))}
+            {matchingDocs.map((doc) => renderDocRow(doc))}
+            {matchingArtifacts.map((item) => renderItemRow(item))}
           </tbody>
         </table>
       );
@@ -1994,7 +2305,8 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
 
     return (
       <div style={S.grid}>
-        {filteredItems.map((item) => renderItemCard(item))}
+        {matchingDocs.map((doc) => renderDocCard(doc))}
+        {matchingArtifacts.map((item) => renderItemCard(item))}
       </div>
     );
   }
@@ -2003,12 +2315,24 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
 
   const TAB_TITLES: Record<string, string> = {
     all: 'Library',
+    dashboards: 'Dashboards',
+    dashboard: 'Dashboards',
+    apps: 'Apps',
+    app: 'Apps',
+    reports: 'Reports',
+    report: 'Reports',
+    recipes: 'Recipes',
+    recipe: 'Recipes',
     query: 'Queries',
+    queries: 'Queries',
     studio: 'BigQuery Studio Queries',
     workflow: 'Workflows',
+    workflows: 'Workflows',
     pipeline: 'Pipelines',
-    app: 'Apps',
+    pipelines: 'Pipelines',
     documents: 'Documents',
+    bookmarks: 'Bookmarks',
+    favorites: 'Favorites',
   };
 
   // If viewing a thread replay, show that instead of the catalog
@@ -2083,85 +2407,7 @@ export function SpacesPage({ userId, onRun, onNavigate, initialTab, refreshKey }
       </div>
 
       {/* Content */}
-      {(activeTab === 'documents' || (activeTab === 'all' && allBuilderDocs.length > 0)) && (
-        <div style={S.grid}>
-          {allBuilderDocs.length === 0 ? (
-            <div style={{ ...S.emptyState, gridColumn: '1 / -1' }}>
-              <span className="material-symbols-outlined" style={S.emptyIcon}>dashboard_customize</span>
-              <div style={S.emptyTitle}>No documents yet</div>
-              <div style={S.emptyDesc}>Create documents from chat results using the "Add to..." action on any result card.</div>
-            </div>
-          ) : (
-            allBuilderDocs.map((doc) => (
-              <div
-                key={doc.id}
-                style={{
-                  ...S.card(false),
-                  ...(hoveredCard === doc.id ? S.cardHover : {}),
-                }}
-                onMouseEnter={() => setHoveredCard(doc.id)}
-                onMouseLeave={() => setHoveredCard(null)}
-              >
-                <div style={{ ...S.cardHeaderPad, ...S.cardHeader }}>
-                  <div style={S.cardTitleRow}>
-                    <div style={S.cardIconAvatar}>
-                      <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--accent, #1967d2)' }}>
-                        {doc.type === 'dashboard' ? 'dashboard' : doc.type === 'app' ? 'widgets' : doc.type === 'report' ? 'description' : 'receipt_long'}
-                      </span>
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <h3 style={S.cardName} title={doc.name}>{doc.name}</h3>
-                      <div style={S.cardSubtype}>{doc.type.charAt(0).toUpperCase() + doc.type.slice(1)} -- {doc.tiles.length} tile{doc.tiles.length !== 1 ? 's' : ''}</div>
-                    </div>
-                  </div>
-                </div>
-                <div style={S.cardThumbnail}>
-                  <svg viewBox="0 0 260 160" width="100%" height="100%" style={{ display: 'block', maxHeight: 110 }}>
-                    {doc.tiles.slice(0, 4).map((tile, i) => {
-                      const x = (i % 2) * 130 + 10;
-                      const y = Math.floor(i / 2) * 80 + 10;
-                      return (
-                        <g key={tile.id}>
-                          <rect x={x} y={y} width={120} height={70} rx={6} fill={i === 0 ? '#4f7af8' : i === 1 ? '#a8c0f8' : '#c7d9ff'} opacity={0.85} />
-                          <rect x={x + 8} y={y + 8} width={60} height={8} rx={3} fill="white" opacity={0.6} />
-                          <rect x={x + 8} y={y + 22} width={40} height={6} rx={3} fill="white" opacity={0.4} />
-                        </g>
-                      );
-                    })}
-                  </svg>
-                </div>
-                <div style={S.cardBody}>
-                  <div style={{ ...S.cardDesc, color: 'var(--text-dim, #80868b)', fontStyle: 'italic' }}>
-                    Updated {relativeTime(doc.updatedAt)}
-                  </div>
-                </div>
-                <div style={S.cardFooter}>
-                  <button style={S.outlineBtn} onClick={() => {
-                    builder.loadDocument(doc);
-                    openBuilderTab(doc.id, doc.name);
-                  }}>Open</button>
-                  <button
-                    style={S.deleteIconBtn}
-                    title="Delete"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      try {
-                        await deleteBuilderDocument(userId, doc.id);
-                        builder.discardDocument(doc.id);
-                      } catch (err) {
-                        console.error('Failed to delete document:', err);
-                      }
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: 20 }}>delete</span>
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-      {activeTab !== 'documents' && renderContent()}
+      {renderContent()}
 
       {/* Skeleton animation keyframes */}
       <style>{`

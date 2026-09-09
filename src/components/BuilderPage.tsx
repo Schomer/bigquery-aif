@@ -12,6 +12,7 @@ import { useBuilder } from '@/lib/builder-context';
 import { usePage } from '@/lib/page-context';
 import { useAuth } from '@/lib/auth-context';
 import { getArtifacts } from '@/lib/saved-work';
+import { getBuilderDocuments } from '@/lib/builder-persistence';
 import type { BuilderTile, ArtifactType, AppFilterControl } from '@/lib/builder-types';
 import type { QueryResult, SavedArtifact } from '@/lib/types';
 import { ChartView } from './ChartView';
@@ -79,6 +80,20 @@ export function BuilderPage({ documentId }: Props) {
         .catch(() => {});
     }
   }, [user?.uid]);
+
+  // Load document from Firestore if not yet in state
+  useEffect(() => {
+    if (!document && user?.uid) {
+      getBuilderDocuments(user.uid)
+        .then((docs) => {
+          const found = docs.find((d) => d.id === documentId);
+          if (found) {
+            builder.loadDocument(found);
+          }
+        })
+        .catch((err) => console.warn('Failed to load document:', err));
+    }
+  }, [document, documentId, user?.uid, builder]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -185,8 +200,9 @@ export function BuilderPage({ documentId }: Props) {
 
   if (!document) {
     return (
-      <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-        Document not found.
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12, color: 'var(--text-muted)' }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 32 }}>dashboard</span>
+        <div style={{ fontSize: 14 }}>Loading dashboard...</div>
       </div>
     );
   }

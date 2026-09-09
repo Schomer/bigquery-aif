@@ -10,7 +10,8 @@ import {
   setGlobalBuilderDocuments,
 } from '../../lib/builder-context';
 import { executeQuery } from '../../lib/bigquery-client';
-import { saveBuilderDocument, getBuilderDocuments } from '../../lib/builder-persistence';
+import { auth } from '../../lib/firebase';
+import { saveBuilderDocument, deleteBuilderDocument, getBuilderDocuments } from '../../lib/builder-persistence';
 import { saveDocumentToBigQuery, fetchFilterOptionsFromBigQuery } from '../../lib/app-executor';
 
 function generateId(prefix = 'doc'): string {
@@ -216,9 +217,10 @@ export const manageAppTool: ToolDef = {
           }
         }
 
+        const uid = auth.currentUser?.uid || '';
         const newDoc: BuilderDocument = {
           id: docId,
-          userId: '',
+          userId: uid,
           type: docType,
           name,
           description,
@@ -233,6 +235,14 @@ export const manageAppTool: ToolDef = {
 
         openDocs = [newDoc, ...openDocs];
         setGlobalBuilderDocuments(openDocs);
+
+        if (uid) {
+          try {
+            await saveBuilderDocument(uid, newDoc);
+          } catch (e) {
+            console.warn('[manage_app] Error saving document to Firestore:', e);
+          }
+        }
 
         return {
           data: {
@@ -332,6 +342,15 @@ export const manageAppTool: ToolDef = {
         targetDoc.updatedAt = new Date().toISOString();
         setGlobalBuilderDocuments(openDocs);
 
+        const uidAddTile = auth.currentUser?.uid || '';
+        if (uidAddTile) {
+          try {
+            await saveBuilderDocument(uidAddTile, targetDoc);
+          } catch (e) {
+            console.warn('[manage_app] Error saving updated document:', e);
+          }
+        }
+
         return {
           data: {
             action: 'ADD_TILE',
@@ -378,6 +397,15 @@ export const manageAppTool: ToolDef = {
         targetDoc.updatedAt = new Date().toISOString();
         setGlobalBuilderDocuments(openDocs);
 
+        const uidAddFilter = auth.currentUser?.uid || '';
+        if (uidAddFilter) {
+          try {
+            await saveBuilderDocument(uidAddFilter, targetDoc);
+          } catch (e) {
+            console.warn('[manage_app] Error saving filter to document:', e);
+          }
+        }
+
         return {
           data: {
             action: 'ADD_FILTER',
@@ -417,17 +445,24 @@ export const manageAppTool: ToolDef = {
       if (action === 'DELETE') {
         const targetDocId = (args.document_id as string) || openDocs[0]?.id;
         const tileId = args.tile_id as string;
+        const uidDel = auth.currentUser?.uid || '';
 
         if (tileId && targetDocId) {
           const doc = openDocs.find((d) => d.id === targetDocId);
           if (doc) {
             doc.tiles = doc.tiles.filter((t) => t.id !== tileId);
             setGlobalBuilderDocuments(openDocs);
+            if (uidDel) {
+              try { await saveBuilderDocument(uidDel, doc); } catch {}
+            }
             return { data: { action: 'DELETE', deleted_tile: tileId, document_id: targetDocId } };
           }
         } else if (targetDocId) {
           openDocs = openDocs.filter((d) => d.id !== targetDocId);
           setGlobalBuilderDocuments(openDocs);
+          if (uidDel) {
+            try { await deleteBuilderDocument(uidDel, targetDocId); } catch {}
+          }
           return { data: { action: 'DELETE', deleted_document: targetDocId } };
         }
       }
