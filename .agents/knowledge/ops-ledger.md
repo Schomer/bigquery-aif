@@ -1,5 +1,17 @@
 # Operations Ledger
 
+## 2026-09-08 -- Add row height drag adjustment to dashboard builder
+
+**What**:
+1. *Dedicated Row Drag Handle*: Added `RowHeightResizeHandle` rendered below each row in edit mode with a full-width divider guide line, centered pill grip displaying `Row height: Nx`, and drag-to-resize listener tracking vertical cursor delta.
+2. *Synchronized Row Height on Tile Edge Drag*: Updated `onUpdateSpan` in `BuilderPage.tsx` so that resizing the bottom edge or corner of any individual tile updates the row height across all sibling tiles in that row via `builder.setRowHeight(documentId, tile.id, rowSpan)`.
+3. *Row Grid Alignment*: Configured `alignItems: 'stretch'` on the grid row containers so all tiles in a given row maintain uniform equalized height.
+4. *Span Bounds & Drag Sensitivity*: Increased max rowSpan from 6 to 8 and calibrated drag step responsiveness for smooth resizing.
+
+**Why**: Allows intuitive, visual direct-manipulation of row heights either via the row-level divider handle or by dragging the bottom of any card in the row.
+
+**Rule derived**: In grid-based visual document builders, synchronize row height adjustments across all tiles in the row, and provide both row-level divider handles and in-tile edge handles with stretch alignment.
+
 ## 2026-09-08 -- Refine dashboard toolbar and restore tile kebab menu
 
 **What**:

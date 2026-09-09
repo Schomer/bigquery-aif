@@ -619,38 +619,60 @@ export function BuilderPage({ documentId }: Props) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {tileRows.map((rowTiles, rIdx) => {
               const rowId = `row_${rIdx}`;
+              const currentRowSpan = rowTiles[0]?.rowSpan || 2;
 
               return (
-                <div
-                  key={rowId}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(12, 1fr)',
-                    gap: 16,
-                    alignItems: 'start',
-                  }}
-                >
-                  {rowTiles.map((tile) => (
-                    <TileCard
-                      key={tile.id}
-                      tile={tile}
+                <div key={rowId} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(12, 1fr)',
+                      gap: 16,
+                      alignItems: 'stretch',
+                    }}
+                  >
+                    {rowTiles.map((tile) => (
+                      <TileCard
+                        key={tile.id}
+                        tile={tile}
+                        baseHeight={densityCfg.baseHeight}
+                        editMode={editMode}
+                        isLoading={loadingTiles.has(tile.id)}
+                        isDragging={dragId === tile.id}
+                        isDragOver={dragOverId === tile.id}
+                        onDragStart={() => setDragId(tile.id)}
+                        onDragEnd={() => { setDragId(null); setDragOverId(null); }}
+                        onDragOver={(e) => { e.preventDefault(); setDragOverId(tile.id); }}
+                        onDrop={() => handleDrop(tile.id)}
+                        onRemove={() => builder.removeTile(documentId, tile.id)}
+                        onDuplicate={() => builder.duplicateTile(documentId, tile.id)}
+                        onRename={(name) => builder.updateTile(documentId, tile.id, { title: name })}
+                        onEditSql={() => setEditingTile(tile)}
+                        onUpdateSpan={(colSpan, rowSpan) => {
+                          if (rowSpan !== tile.rowSpan) {
+                            builder.setRowHeight(documentId, tile.id, rowSpan);
+                          }
+                          if (colSpan !== tile.colSpan) {
+                            builder.updateTile(documentId, tile.id, { colSpan });
+                          }
+                        }}
+                        onRefresh={() => handleRefreshSingleTile(tile.id)}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Row Height Resize Handle */}
+                  {editMode && (
+                    <RowHeightResizeHandle
+                      currentRowSpan={currentRowSpan}
                       baseHeight={densityCfg.baseHeight}
-                      editMode={editMode}
-                      isLoading={loadingTiles.has(tile.id)}
-                      isDragging={dragId === tile.id}
-                      isDragOver={dragOverId === tile.id}
-                      onDragStart={() => setDragId(tile.id)}
-                      onDragEnd={() => { setDragId(null); setDragOverId(null); }}
-                      onDragOver={(e) => { e.preventDefault(); setDragOverId(tile.id); }}
-                      onDrop={() => handleDrop(tile.id)}
-                      onRemove={() => builder.removeTile(documentId, tile.id)}
-                      onDuplicate={() => builder.duplicateTile(documentId, tile.id)}
-                      onRename={(name) => builder.updateTile(documentId, tile.id, { title: name })}
-                      onEditSql={() => setEditingTile(tile)}
-                      onUpdateSpan={(colSpan, rowSpan) => builder.updateTile(documentId, tile.id, { colSpan, rowSpan })}
-                      onRefresh={() => handleRefreshSingleTile(tile.id)}
+                      onResize={(newRowSpan) => {
+                        if (rowTiles[0]) {
+                          builder.setRowHeight(documentId, rowTiles[0].id, newRowSpan);
+                        }
+                      }}
                     />
-                  ))}
+                  )}
                 </div>
               );
             })}
@@ -735,6 +757,117 @@ function EditableName({ value, onChange }: { value: string; onChange: (v: string
         background: 'var(--surface)',
       }}
     />
+  );
+}
+
+// ── Row Height Resize Handle Component ──
+
+function RowHeightResizeHandle({
+  currentRowSpan,
+  baseHeight,
+  onResize,
+}: {
+  currentRowSpan: number;
+  baseHeight: number;
+  onResize: (newRowSpan: number) => void;
+}) {
+  const [isHovered, setIsHovered] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [previewSpan, setPreviewSpan] = useState<number | null>(null);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+    const startY = e.clientY;
+    const initialSpan = currentRowSpan;
+    window.document.body.style.cursor = 'row-resize';
+    window.document.body.style.userSelect = 'none';
+
+    let lastSpan = initialSpan;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaY = moveEvent.clientY - startY;
+      const deltaRows = Math.round(deltaY / (baseHeight * 0.6));
+      const nextSpan = Math.max(1, Math.min(8, initialSpan + deltaRows));
+      setPreviewSpan(nextSpan);
+      if (nextSpan !== lastSpan) {
+        lastSpan = nextSpan;
+        onResize(nextSpan);
+      }
+    };
+
+    const onMouseUp = () => {
+      setIsDragging(false);
+      setPreviewSpan(null);
+      window.document.body.style.cursor = '';
+      window.document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const displaySpan = previewSpan !== null ? previewSpan : currentRowSpan;
+  const active = isHovered || isDragging;
+
+  return (
+    <div
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onMouseDown={handleMouseDown}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: 18,
+        margin: '2px 0 6px 0',
+        cursor: 'row-resize',
+        position: 'relative',
+        userSelect: 'none',
+        zIndex: 5,
+      }}
+      title="Drag to adjust row height"
+    >
+      {/* Horizontal divider guide line */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          height: active ? 2 : 1,
+          background: active ? '#1a73e8' : 'var(--border, #e0e0e0)',
+          transition: 'background 0.15s, height 0.15s',
+        }}
+      />
+
+      {/* Centered drag pill grip */}
+      <div
+        style={{
+          position: 'relative',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          padding: '2px 10px',
+          borderRadius: 10,
+          background: active ? '#1a73e8' : 'var(--surface-2, #e8eaed)',
+          color: active ? '#ffffff' : 'var(--text-muted)',
+          fontSize: 11,
+          fontWeight: 500,
+          fontFamily: "'Google Sans', sans-serif",
+          boxShadow: active ? '0 2px 8px rgba(26, 115, 232, 0.3)' : 'none',
+          transition: 'all 0.15s',
+          pointerEvents: 'none',
+        }}
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
+          drag_handle
+        </span>
+        <span>Row height: {displaySpan}x</span>
+      </div>
+    </div>
   );
 }
 
@@ -827,8 +960,8 @@ function TileCard({
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const deltaY = moveEvent.clientY - startY;
-      const deltaRows = Math.round(deltaY / (baseHeight * 0.75));
-      const newRowSpan = Math.max(1, Math.min(6, initialRowSpan + deltaRows));
+      const deltaRows = Math.round(deltaY / (baseHeight * 0.6));
+      const newRowSpan = Math.max(1, Math.min(8, initialRowSpan + deltaRows));
       if (newRowSpan !== tile.rowSpan) {
         onUpdateSpan(tile.colSpan, newRowSpan);
       }
@@ -857,9 +990,9 @@ function TileCard({
       const deltaX = moveEvent.clientX - startX;
       const deltaY = moveEvent.clientY - startY;
       const deltaCols = Math.round(deltaX / singleColWidth);
-      const deltaRows = Math.round(deltaY / (baseHeight * 0.75));
+      const deltaRows = Math.round(deltaY / (baseHeight * 0.6));
       const newColSpan = Math.max(1, Math.min(12, initialColSpan + deltaCols));
-      const newRowSpan = Math.max(1, Math.min(6, initialRowSpan + deltaRows));
+      const newRowSpan = Math.max(1, Math.min(8, initialRowSpan + deltaRows));
       if (newColSpan !== tile.colSpan || newRowSpan !== tile.rowSpan) {
         onUpdateSpan(newColSpan, newRowSpan);
       }

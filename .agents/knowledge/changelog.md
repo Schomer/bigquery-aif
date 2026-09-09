@@ -2,6 +2,14 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-08 -- Add row height drag adjustment to dashboard builder
+
+- Added dedicated `RowHeightResizeHandle` below each row in edit mode with full-width guide line, centered drag indicator pill (`Row height: Nx`), and fluid vertical dragging.
+- Updated `onUpdateSpan` in `BuilderPage.tsx` so dragging the bottom edge or corner of any tile updates the row height across all tiles in that row simultaneously via `builder.setRowHeight`.
+- Applied `alignItems: 'stretch'` to grid row containers so all tiles in a row stretch uniformly to the full height.
+- Increased max row span capacity up to 8x and refined drag step responsiveness.
+- Verified test suite (163 passing tests) and Next.js static build.
+
 ## 2026-09-08 -- Refine dashboard toolbar and restore tile kebab menu
 
 - Removed the "DASHBOARD" badge from the builder top toolbar for a cleaner header.
