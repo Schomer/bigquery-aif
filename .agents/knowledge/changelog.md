@@ -2,6 +2,16 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-08 -- Invisible row/corner resize handles, smaller tile minHeight, and all-corner resizing
+
+- Made the row height resize divider completely invisible while keeping `cursor: row-resize` active on hover/drag between rows.
+- Reduced minimum tile base height (`baseHeight: 75` for standard, `60` for compact) allowing compact, single-number KPI tiles and small stat cards.
+- Removed the visible bottom-right corner bracket handle icon from `TileCard`.
+- Implemented invisible, multi-directional resize handles on all 4 corners (top-left, top-right, bottom-left, bottom-right) and all 4 edges with appropriate directional resize cursors.
+- Made `KpiCard` responsive with compact padding, centered alignment, and fluid typography for small tile heights.
+- Enhanced drag-over tile styling for clearer positioning feedback during drag-and-drop.
+- Verified test suite (163 passing tests) and Next.js static build.
+
 ## 2026-09-08 -- In-place query re-run in existing tile
 
 - Implemented `rerunEnvelopeQuery` in `useChatOrchestration.ts` to execute BigQuery queries for target envelopes in-place and save results to `persistentResultCache` IndexedDB.

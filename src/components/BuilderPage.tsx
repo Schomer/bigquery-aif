@@ -41,9 +41,9 @@ const CHART_TYPES = new Set<string>([
 ]);
 
 const DENSITY_CONFIG: Record<string, { label: string; baseHeight: number }> = {
-  compact: { label: 'Compact', baseHeight: 120 },
-  standard: { label: 'Standard', baseHeight: 155 },
-  spacious: { label: 'Spacious', baseHeight: 195 },
+  compact: { label: 'Compact', baseHeight: 60 },
+  standard: { label: 'Standard', baseHeight: 75 },
+  spacious: { label: 'Spacious', baseHeight: 100 },
 };
 
 interface Props {
@@ -771,14 +771,9 @@ function RowHeightResizeHandle({
   baseHeight: number;
   onResize: (newRowSpan: number) => void;
 }) {
-  const [isHovered, setIsHovered] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [previewSpan, setPreviewSpan] = useState<number | null>(null);
-
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(true);
     const startY = e.clientY;
     const initialSpan = currentRowSpan;
     window.document.body.style.cursor = 'row-resize';
@@ -789,8 +784,7 @@ function RowHeightResizeHandle({
     const onMouseMove = (moveEvent: MouseEvent) => {
       const deltaY = moveEvent.clientY - startY;
       const deltaRows = Math.round(deltaY / (baseHeight * 0.6));
-      const nextSpan = Math.max(1, Math.min(8, initialSpan + deltaRows));
-      setPreviewSpan(nextSpan);
+      const nextSpan = Math.max(1, Math.min(12, initialSpan + deltaRows));
       if (nextSpan !== lastSpan) {
         lastSpan = nextSpan;
         onResize(nextSpan);
@@ -798,8 +792,6 @@ function RowHeightResizeHandle({
     };
 
     const onMouseUp = () => {
-      setIsDragging(false);
-      setPreviewSpan(null);
       window.document.body.style.cursor = '';
       window.document.body.style.userSelect = '';
       window.removeEventListener('mousemove', onMouseMove);
@@ -810,64 +802,20 @@ function RowHeightResizeHandle({
     window.addEventListener('mouseup', onMouseUp);
   };
 
-  const displaySpan = previewSpan !== null ? previewSpan : currentRowSpan;
-  const active = isHovered || isDragging;
-
   return (
     <div
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
       onMouseDown={handleMouseDown}
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: 18,
-        margin: '2px 0 6px 0',
+        height: 14,
+        margin: '-5px 0 -5px 0',
         cursor: 'row-resize',
         position: 'relative',
         userSelect: 'none',
-        zIndex: 5,
+        zIndex: 10,
+        background: 'transparent',
       }}
       title="Drag to adjust row height"
-    >
-      {/* Horizontal divider guide line */}
-      <div
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          height: active ? 2 : 1,
-          background: active ? '#1a73e8' : 'var(--border, #e0e0e0)',
-          transition: 'background 0.15s, height 0.15s',
-        }}
-      />
-
-      {/* Centered drag pill grip */}
-      <div
-        style={{
-          position: 'relative',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 4,
-          padding: '2px 10px',
-          borderRadius: 10,
-          background: active ? '#1a73e8' : 'var(--surface-2, #e8eaed)',
-          color: active ? '#ffffff' : 'var(--text-muted)',
-          fontSize: 11,
-          fontWeight: 500,
-          fontFamily: "'Google Sans', sans-serif",
-          boxShadow: active ? '0 2px 8px rgba(26, 115, 232, 0.3)' : 'none',
-          transition: 'all 0.15s',
-          pointerEvents: 'none',
-        }}
-      >
-        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
-          drag_handle
-        </span>
-        <span>Row height: {displaySpan}x</span>
-      </div>
-    </div>
+    />
   );
 }
 
@@ -926,7 +874,7 @@ function TileCard({
   }, [menuOpen]);
 
   // Drag-to-resize handlers
-  const handleWidthResizeStart = (e: React.MouseEvent) => {
+  const handleWidthResizeStart = (e: React.MouseEvent, direction: 'right' | 'left' = 'right') => {
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
@@ -935,7 +883,8 @@ function TileCard({
     const singleColWidth = parentWidth / 12;
 
     const onMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.clientX - startX;
+      const rawDeltaX = moveEvent.clientX - startX;
+      const deltaX = direction === 'right' ? rawDeltaX : -rawDeltaX;
       const deltaCols = Math.round(deltaX / singleColWidth);
       const newColSpan = Math.max(1, Math.min(12, initialColSpan + deltaCols));
       if (newColSpan !== tile.colSpan) {
@@ -952,16 +901,17 @@ function TileCard({
     window.addEventListener('mouseup', onMouseUp);
   };
 
-  const handleHeightResizeStart = (e: React.MouseEvent) => {
+  const handleHeightResizeStart = (e: React.MouseEvent, direction: 'bottom' | 'top' = 'bottom') => {
     e.preventDefault();
     e.stopPropagation();
     const startY = e.clientY;
     const initialRowSpan = tile.rowSpan;
 
     const onMouseMove = (moveEvent: MouseEvent) => {
-      const deltaY = moveEvent.clientY - startY;
+      const rawDeltaY = moveEvent.clientY - startY;
+      const deltaY = direction === 'bottom' ? rawDeltaY : -rawDeltaY;
       const deltaRows = Math.round(deltaY / (baseHeight * 0.6));
-      const newRowSpan = Math.max(1, Math.min(8, initialRowSpan + deltaRows));
+      const newRowSpan = Math.max(1, Math.min(12, initialRowSpan + deltaRows));
       if (newRowSpan !== tile.rowSpan) {
         onUpdateSpan(tile.colSpan, newRowSpan);
       }
@@ -976,7 +926,10 @@ function TileCard({
     window.addEventListener('mouseup', onMouseUp);
   };
 
-  const handleCornerResizeStart = (e: React.MouseEvent) => {
+  const handleCornerResizeStart = (
+    e: React.MouseEvent,
+    corner: 'tl' | 'tr' | 'bl' | 'br' = 'br'
+  ) => {
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
@@ -987,12 +940,16 @@ function TileCard({
     const singleColWidth = parentWidth / 12;
 
     const onMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.clientX - startX;
-      const deltaY = moveEvent.clientY - startY;
+      const rawDeltaX = moveEvent.clientX - startX;
+      const rawDeltaY = moveEvent.clientY - startY;
+
+      const deltaX = corner === 'br' || corner === 'tr' ? rawDeltaX : -rawDeltaX;
+      const deltaY = corner === 'br' || corner === 'bl' ? rawDeltaY : -rawDeltaY;
+
       const deltaCols = Math.round(deltaX / singleColWidth);
       const deltaRows = Math.round(deltaY / (baseHeight * 0.6));
       const newColSpan = Math.max(1, Math.min(12, initialColSpan + deltaCols));
-      const newRowSpan = Math.max(1, Math.min(8, initialRowSpan + deltaRows));
+      const newRowSpan = Math.max(1, Math.min(12, initialRowSpan + deltaRows));
       if (newColSpan !== tile.colSpan || newRowSpan !== tile.rowSpan) {
         onUpdateSpan(newColSpan, newRowSpan);
       }
@@ -1007,7 +964,7 @@ function TileCard({
     window.addEventListener('mouseup', onMouseUp);
   };
 
-  const calculatedMinHeight = tile.rowSpan * baseHeight + (tile.rowSpan - 1) * 16;
+  const calculatedMinHeight = tile.rowSpan * baseHeight + (tile.rowSpan - 1) * 12;
 
   return (
     <div
@@ -1020,16 +977,16 @@ function TileCard({
       style={{
         gridColumn: `span ${tile.colSpan}`,
         minHeight: calculatedMinHeight,
-        background: '#fff',
+        background: isDragOver ? '#f0f6ff' : '#fff',
         border: isDragOver ? '2px solid #1a73e8' : editMode ? '1px solid #c2dbff' : '1px solid var(--border)',
-        borderRadius: 12,
+        borderRadius: 10,
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
         opacity: isDragging ? 0.45 : 1,
-        transition: 'box-shadow 0.15s, border-color 0.15s',
-        boxShadow: hovered ? '0 4px 16px rgba(0,0,0,0.08)' : 'none',
+        transition: 'box-shadow 0.15s, border-color 0.15s, background 0.15s',
+        boxShadow: isDragOver ? '0 0 0 2px rgba(26,115,232,0.2)' : hovered ? '0 4px 16px rgba(0,0,0,0.08)' : 'none',
         cursor: editMode ? 'grab' : 'default',
       }}
       onMouseEnter={() => setHovered(true)}
@@ -1041,7 +998,7 @@ function TileCard({
           display: 'flex',
           alignItems: 'center',
           gap: 6,
-          padding: '8px 12px',
+          padding: '6px 10px',
           borderBottom: '1px solid var(--border-subtle, #f0f0f0)',
           flexShrink: 0,
         }}
@@ -1183,68 +1140,140 @@ function TileCard({
       </div>
 
       {/* Tile Content */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '10px 14px', position: 'relative' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: '6px 10px', position: 'relative' }}>
         <TileContent tile={tile} isLoading={isLoading} onRunQuery={onRefresh} onEditSql={onEditSql} />
       </div>
 
-      {/* ── Interactive Drag Resize Handles ── */}
+      {/* ── Interactive Invisible Drag Resize Handles (Edges & Corners) ── */}
       {editMode && (
         <>
-          {/* Right edge width resize handle */}
+          {/* Top Edge */}
           <div
-            onMouseDown={handleWidthResizeStart}
+            onMouseDown={(e) => handleHeightResizeStart(e, 'top')}
             style={{
               position: 'absolute',
               top: 0,
-              right: 0,
-              width: 8,
-              bottom: 0,
-              cursor: 'col-resize',
-              background: 'transparent',
-              zIndex: 20,
-            }}
-            title="Drag horizontally to resize width"
-          />
-
-          {/* Bottom edge height resize handle */}
-          <div
-            onMouseDown={handleHeightResizeStart}
-            style={{
-              position: 'absolute',
-              left: 0,
-              bottom: 0,
-              height: 8,
-              right: 0,
+              left: 12,
+              right: 12,
+              height: 6,
               cursor: 'row-resize',
               background: 'transparent',
               zIndex: 20,
             }}
-            title="Drag vertically to resize height"
+            title="Drag to resize height"
           />
 
-          {/* Bottom-right diagonal resize handle */}
+          {/* Bottom Edge */}
           <div
-            onMouseDown={handleCornerResizeStart}
+            onMouseDown={(e) => handleHeightResizeStart(e, 'bottom')}
             style={{
               position: 'absolute',
-              right: 2,
-              bottom: 2,
-              width: 12,
-              height: 12,
-              cursor: 'nwse-resize',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#1a73e8',
-              zIndex: 21,
-              opacity: 0.7,
+              bottom: 0,
+              left: 12,
+              right: 12,
+              height: 6,
+              cursor: 'row-resize',
+              background: 'transparent',
+              zIndex: 20,
             }}
-            title="Drag to resize width and height"
-          >
-            <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-              <path d="M7 1V7H1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
+            title="Drag to resize height"
+          />
+
+          {/* Left Edge */}
+          <div
+            onMouseDown={(e) => handleWidthResizeStart(e, 'left')}
+            style={{
+              position: 'absolute',
+              top: 12,
+              bottom: 12,
+              left: 0,
+              width: 6,
+              cursor: 'col-resize',
+              background: 'transparent',
+              zIndex: 20,
+            }}
+            title="Drag to resize width"
+          />
+
+          {/* Right Edge */}
+          <div
+            onMouseDown={(e) => handleWidthResizeStart(e, 'right')}
+            style={{
+              position: 'absolute',
+              top: 12,
+              bottom: 12,
+              right: 0,
+              width: 6,
+              cursor: 'col-resize',
+              background: 'transparent',
+              zIndex: 20,
+            }}
+            title="Drag to resize width"
+          />
+
+          {/* Top-Left Corner */}
+          <div
+            onMouseDown={(e) => handleCornerResizeStart(e, 'tl')}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: 14,
+              height: 14,
+              cursor: 'nwse-resize',
+              background: 'transparent',
+              zIndex: 22,
+            }}
+            title="Drag to resize"
+          />
+
+          {/* Top-Right Corner */}
+          <div
+            onMouseDown={(e) => handleCornerResizeStart(e, 'tr')}
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              width: 14,
+              height: 14,
+              cursor: 'nesw-resize',
+              background: 'transparent',
+              zIndex: 22,
+            }}
+            title="Drag to resize"
+          />
+
+          {/* Bottom-Left Corner */}
+          <div
+            onMouseDown={(e) => handleCornerResizeStart(e, 'bl')}
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              width: 14,
+              height: 14,
+              cursor: 'nesw-resize',
+              background: 'transparent',
+              zIndex: 22,
+            }}
+            title="Drag to resize"
+          />
+
+          {/* Bottom-Right Corner (completely invisible, no bracket) */}
+          <div
+            onMouseDown={(e) => handleCornerResizeStart(e, 'br')}
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              right: 0,
+              width: 14,
+              height: 14,
+              cursor: 'nwse-resize',
+              background: 'transparent',
+              zIndex: 22,
+            }}
+            title="Drag to resize"
+          />
         </>
       )}
     </div>
@@ -1318,11 +1347,11 @@ function TileContent({
 
   if (!queryResult || !queryResult.rows || queryResult.rows.length === 0) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 120, gap: 10, color: 'var(--text-dim)' }}>
-        <span className="material-symbols-outlined" style={{ fontSize: 28, opacity: 0.35 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 40, gap: 6, color: 'var(--text-dim)' }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 24, opacity: 0.35 }}>
           {vizType === 'TABLE' ? 'table_rows' : 'bar_chart'}
         </span>
-        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>
+        <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)' }}>
           {tile.cachedSql ? 'Query not yet loaded' : 'No query configured'}
         </div>
         {tile.cachedSql ? (

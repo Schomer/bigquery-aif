@@ -1,5 +1,18 @@
 # Operations Ledger
 
+## 2026-09-08 -- Invisible row/corner resize handles, smaller tile minHeight, and all-corner resizing
+
+**What**:
+1. *Invisible Row Height Divider*: Replaced the visible line and grip pill in `RowHeightResizeHandle` with an invisible, transparent hit zone between rows that activates `cursor: row-resize` on hover and allows fluid dragging without visual clutter.
+2. *Smaller Tile Minimum Height*: Reduced baseHeight (`standard: 75`, `compact: 60`, `spacious: 100`) so 1x rowSpan tiles have a 75px minimum height, supporting compact single-number KPIs and small stat cards.
+3. *Removed Corner Bracket Handle*: Removed the visible blue SVG corner bracket from `TileCard`.
+4. *All-Corner and Edge Invisible Resizing*: Implemented invisible resize hit zones along all 4 edges (top, bottom, left, right) and all 4 corners (top-left, top-right, bottom-left, bottom-right) with proper cursor styles (`nwse-resize`, `nesw-resize`, `col-resize`, `row-resize`) and directional span calculation.
+5. *Responsive KPI Card*: Updated `KpiCard` to use compact padding, centered alignment, and fluid typography (`clamp`) to scale gracefully in small tile heights.
+
+**Why**: Eliminates intrusive handle graphics from cards and rows while delivering full multi-corner resizing and support for compact single-metric tiles.
+
+**Rule derived**: Use invisible, cursor-driven direct manipulation zones for canvas element resizing rather than permanent visual handles or bracket overlays.
+
 ## 2026-09-08 -- In-place query re-run in existing tile
 
 **What**:

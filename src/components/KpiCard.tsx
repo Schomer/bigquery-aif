@@ -60,18 +60,21 @@ export function KpiCard({ result }: Props) {
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      padding: '24px 16px',
-      gap: 8,
+      justifyContent: 'center',
+      height: '100%',
+      padding: '4px 8px',
+      gap: 3,
+      textAlign: 'center',
     }}>
-      <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
+      <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 500 }}>
         {primaryLabel.replace(/_/g, ' ')}
       </span>
       <span style={{
-        fontSize: 48,
+        fontSize: 'clamp(20px, 3.5vw, 40px)',
         fontWeight: 700,
         color: 'var(--text)',
         fontVariantNumeric: 'tabular-nums',
-        lineHeight: 1,
+        lineHeight: 1.1,
       }}>
         {primaryValue === undefined || primaryValue === null ? '--' : formatDisplayValue(primaryValue, primaryLabel)}
       </span>
@@ -80,18 +83,18 @@ export function KpiCard({ result }: Props) {
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 3,
-          padding: '3px 8px',
-          borderRadius: 20,
+          gap: 2,
+          padding: '1px 6px',
+          borderRadius: 12,
           background: `${deltaColor}18`,
           color: deltaColor,
-          fontSize: 13,
+          fontSize: 11,
           fontWeight: 600,
         }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>{deltaArrow}</span>
+          <span className="material-symbols-outlined" style={{ fontSize: 12 }}>{deltaArrow}</span>
           {Math.abs(delta).toFixed(1)}%
           {previousLabel && (
-            <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 400, marginLeft: 2 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400, marginLeft: 2 }}>
               vs {previousLabel.replace(/_/g, ' ')}
             </span>
           )}
