@@ -27,7 +27,20 @@ function stripUndefined<T>(obj: T): T {
 async function saveDashboard(uid: string, dashboard: SavedDashboard): Promise<void> {
   const { doc, setDoc } = await import('firebase/firestore');
   const { db } = await import('@/lib/firebase');
-  await setDoc(doc(db, 'users', uid, 'savedDashboards', dashboard.id), stripUndefined(dashboard));
+  const sanitized = stripUndefined(dashboard);
+  const dashboardJson = JSON.stringify(sanitized);
+  const payload = {
+    id: dashboard.id,
+    userId: uid,
+    name: dashboard.name,
+    description: dashboard.description || '',
+    project: dashboard.project || '',
+    createdAt: dashboard.createdAt,
+    updatedAt: dashboard.updatedAt,
+    tileCount: dashboard.tiles?.length || 0,
+    dashboardJson,
+  };
+  await setDoc(doc(db, 'users', uid, 'savedDashboards', dashboard.id), payload);
 }
 
 async function getDashboards(uid: string): Promise<SavedDashboard[]> {
@@ -35,7 +48,22 @@ async function getDashboards(uid: string): Promise<SavedDashboard[]> {
   const { db } = await import('@/lib/firebase');
   const q = query(collection(db, 'users', uid, 'savedDashboards'), orderBy('updatedAt', 'desc'));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => d.data() as SavedDashboard);
+  return snap.docs.map((d) => {
+    const data = d.data() as Record<string, unknown>;
+    if (typeof data.dashboardJson === 'string') {
+      try {
+        const parsed = JSON.parse(data.dashboardJson) as SavedDashboard;
+        return {
+          ...parsed,
+          id: (data.id as string) || parsed.id,
+          userId: (data.userId as string) || parsed.userId || uid,
+        };
+      } catch (err) {
+        console.warn('Failed to parse dashboardJson for dashboard:', d.id, err);
+      }
+    }
+    return data as unknown as SavedDashboard;
+  });
 }
 
 async function deleteDashboard(uid: string, id: string): Promise<void> {

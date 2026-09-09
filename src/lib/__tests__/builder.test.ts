@@ -131,4 +131,79 @@ describe('builder layout & tile hydration', () => {
       expect(rows[1]).toHaveLength(1);
     });
   });
+
+  describe('builder persistence serialization (Firestore safety)', () => {
+    it('serializes documents with nested snapshot rows and filter options without top-level nested arrays', async () => {
+      const { serializeDocumentPayload, deserializeDocumentPayload, stripUndefined } = await import('../builder-persistence');
+
+      const testDoc = {
+        id: 'doc_test_123',
+        userId: 'user_abc',
+        type: 'dashboard' as const,
+        name: 'Sales Dashboard',
+        description: 'Revenue analysis',
+        tiles: [
+          {
+            id: 'tile_1',
+            title: 'Revenue by Category',
+            col: 0,
+            row: 0,
+            colSpan: 6,
+            rowSpan: 2,
+            lastSnapshot: {
+              columns: ['category', 'revenue'],
+              rows: [
+                ['Electronics', 50000],
+                ['Clothing', 32000],
+              ],
+              rowCount: 2,
+              fetchedAt: '2026-09-09T00:00:00Z',
+            },
+            parameterBindings: undefined,
+          },
+        ],
+        globalFilters: [
+          {
+            id: 'filter_1',
+            label: 'Region',
+            type: 'DROPDOWN' as const,
+            paramName: 'region',
+            options: ['US', 'EU', 'APAC'],
+            defaultValue: undefined,
+          },
+        ],
+        tags: ['sales', '2026'],
+        createdAt: '2026-09-09T00:00:00Z',
+        updatedAt: '2026-09-09T00:00:00Z',
+      };
+
+      const payload = serializeDocumentPayload('user_abc', testDoc);
+
+      // Verify no nested arrays exist in top-level payload properties
+      expect(payload.id).toBe('doc_test_123');
+      expect(payload.userId).toBe('user_abc');
+      expect(payload.docJson).toBeDefined();
+      expect(typeof payload.docJson).toBe('string');
+      expect(payload.tiles).toBeUndefined(); // tiles serialized inside docJson
+      expect(payload.globalFilters).toBeUndefined(); // filters serialized inside docJson
+      expect(Array.isArray(payload.tags)).toBe(true);
+      expect(payload.tags).toEqual(['sales', '2026']);
+
+      // Ensure no undefined properties leaked
+      const rawJson = payload.docJson as string;
+      expect(rawJson).not.toContain('"parameterBindings"');
+
+      // Verify full fidelity deserialization
+      const restored = deserializeDocumentPayload(payload, 'user_abc');
+      expect(restored.id).toBe('doc_test_123');
+      expect(restored.name).toBe('Sales Dashboard');
+      expect(restored.tiles).toHaveLength(1);
+      expect(restored.tiles[0].lastSnapshot?.rows).toEqual([
+        ['Electronics', 50000],
+        ['Clothing', 32000],
+      ]);
+      expect(restored.globalFilters?.[0].options).toEqual(['US', 'EU', 'APAC']);
+    });
+  });
 });
+

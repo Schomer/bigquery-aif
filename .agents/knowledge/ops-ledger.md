@@ -1,5 +1,17 @@
 # Operations Ledger
 
+## 2026-09-09 -- Serialize Builder Documents to docJson for Firestore Nested Array Safety
+
+**What**:
+1. *Firestore Nested Array Safety*: Updated `src/lib/builder-persistence.ts` and `src/app/dashboard/page.tsx` to serialize complete document and dashboard state trees to `docJson` / `dashboardJson` (`JSON.stringify(sanitized)`), while indexing top-level scalar and metadata fields (`id`, `userId`, `name`, `type`, `description`, `project`, `density`, `createdAt`, `updatedAt`, `tags`, `spaceId`, `tileCount`).
+2. *Document Deserialization*: Added `deserializeDocumentPayload` with automatic JSON parsing when `docJson` is present and graceful fallback for legacy documents.
+3. *Unit Tests*: Added test cases in `src/lib/__tests__/builder.test.ts` verifying document serialization with nested snapshot rows, filter option arrays, and undefined property cleanup.
+
+**Why**: Saving builder documents with tile snapshot rows (`rows: [][]`), filter options (`options: []`), or artifact data previously failed with `FirebaseError: Function setDoc() called with invalid data. Nested arrays are not supported` because Firestore prohibits multidimensional arrays and arrays inside array elements.
+
+**Rule derived**: Complex compound documents stored in Firestore that contain 2D arrays, arrays of objects with nested arrays, or heterogeneous data payloads must store their data payload as a serialized JSON string (`docJson`) alongside top-level scalar indexing properties.
+
+
 ## 2026-09-08 -- Fluid row-based dashboard layout with continuous resizing and smart drag-and-drop
 
 **What**:

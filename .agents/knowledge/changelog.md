@@ -2,6 +2,14 @@
  
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-09 -- Serialize Builder Documents to docJson for Firestore Nested Array Safety
+
+- Updated `saveBuilderDocument` in `src/lib/builder-persistence.ts` and `saveDashboard` in `src/app/dashboard/page.tsx` to serialize complete document and tile trees to `docJson` / `dashboardJson`, preventing `FirebaseError: Function setDoc() called with invalid data. Nested arrays are not supported` from 2D query result snapshots, filter option arrays, or complex artifact data.
+- Added `serializeDocumentPayload` and `deserializeDocumentPayload` helpers with backwards-compatible parsing for existing documents.
+- Added unit tests in `src/lib/__tests__/builder.test.ts` covering document serialization and deserialization with multidimensional snapshot arrays and undefined property filtering.
+- Verified test suite (168 passing tests) and Next.js static export build.
+
+
 ## 2026-09-08 -- Fluid row-based dashboard layout with continuous resizing and smart drag-and-drop
 
 - Updated `BuilderTile` data model in `src/lib/builder-types.ts` to support `rowIndex`, `widthPercent`, and `rowHeight` with auto-equalizing helper `equalizeRowTiles`.
