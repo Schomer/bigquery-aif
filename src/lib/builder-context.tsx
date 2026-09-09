@@ -230,7 +230,8 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
   const saveDocument = useCallback(
     async (docId: string) => {
       const doc = documents.find((d) => d.id === docId);
-      if (!doc || !user?.uid) return;
+      if (!doc) throw new Error('Document not found');
+      if (!user?.uid) throw new Error('Please sign in to save documents.');
       const updated = { ...doc, updatedAt: new Date().toISOString(), userId: user.uid };
       setDocuments((prev) => prev.map((d) => (d.id === docId ? updated : d)));
       await saveBuilderDocument(user.uid, updated);

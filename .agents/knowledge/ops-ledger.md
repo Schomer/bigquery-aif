@@ -1,5 +1,18 @@
 # Operations Ledger
 
+## 2026-09-08 -- Auto-create BigQuery dataset and sanitize undefined fields on dashboard persistence
+
+**What**:
+1. *BigQuery Dataset Auto-Creation*: Updated `saveDocumentToBigQuery` in `src/lib/app-executor.ts` to call `ensureDatasetExists(project, targetDs)` before attempting `CREATE TABLE IF NOT EXISTS` or running `MERGE` SQL. If creating `_metadata` fails (e.g. project-level permissions), it automatically attempts to fall back to an existing writable dataset via `listDatasets(project)`.
+2. *Diagnostic DDL/DML Errors*: Surfaced clear BigQuery table creation error messages rather than silently swallowing initial `CREATE TABLE` errors and failing ambiguously on subsequent `MERGE`.
+3. *Firestore Undefined Field Sanitation*: Added recursive `stripUndefined` in `saveDashboard` within `src/app/dashboard/page.tsx` to prevent Firestore `setDoc` from throwing `Unsupported field value: undefined`.
+4. *Clear User-Facing Error Messages*: Updated `handleSave` in `BuilderPage.tsx` and `dashboard/page.tsx` to surface descriptive error messages (e.g. "Please sign in to save documents.") instead of generic "Save failed".
+5. *Unit Tests*: Added test cases in `src/lib/__tests__/app-executor.test.ts` verifying dataset creation, fallback resolution, and BigQuery table persistence.
+
+**Why**: Saving dashboards to BigQuery previously threw `BigQuery DML failed: Not found: Dataset malloy-data:_metadata was not found in location US` because `saveDocumentToBigQuery` did not ensure the target dataset existed before executing DDL/DML. In addition, un-sanitized undefined properties in dashboard configurations caused Firestore `setDoc` to fail on dashboard persistence.
+
+**Rule derived**: All BigQuery persistence operations that target a default or metadata dataset must call `ensureDatasetExists` prior to executing `CREATE TABLE` or DML queries, and all Firestore document writes must strip undefined fields before calling `setDoc`.
+
 ## 2026-09-08 -- Vertical line insertion indicator when dragging tiles on dashboard
 
 **What**:

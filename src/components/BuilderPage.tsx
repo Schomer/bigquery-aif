@@ -135,8 +135,8 @@ export function BuilderPage({ documentId }: Props) {
       await builder.saveDocument(documentId);
       setStatusMsg({ text: 'Saved to Library' });
       setTimeout(() => setStatusMsg(null), 2500);
-    } catch {
-      setStatusMsg({ text: 'Save failed', error: true });
+    } catch (err) {
+      setStatusMsg({ text: err instanceof Error ? err.message : 'Save failed', error: true });
     } finally {
       setSaving(false);
     }

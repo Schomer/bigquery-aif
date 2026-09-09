@@ -12,10 +12,22 @@ import type { SavedArtifact, SavedDashboard, DashboardTile } from '@/lib/types';
 
 // ── Firestore helpers ─────────────────────────────────────────────────────────
 
+function stripUndefined<T>(obj: T): T {
+  if (obj === null || obj === undefined || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(stripUndefined) as unknown as T;
+  const clean: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    if (v !== undefined) {
+      clean[k] = typeof v === 'object' && v !== null ? stripUndefined(v) : v;
+    }
+  }
+  return clean as T;
+}
+
 async function saveDashboard(uid: string, dashboard: SavedDashboard): Promise<void> {
   const { doc, setDoc } = await import('firebase/firestore');
   const { db } = await import('@/lib/firebase');
-  await setDoc(doc(db, 'users', uid, 'savedDashboards', dashboard.id), dashboard);
+  await setDoc(doc(db, 'users', uid, 'savedDashboards', dashboard.id), stripUndefined(dashboard));
 }
 
 async function getDashboards(uid: string): Promise<SavedDashboard[]> {
@@ -383,8 +395,8 @@ export default function DashboardPage({ initialDashboardId }: DashboardPageProps
       });
       setStatusMsg('Saved');
       setTimeout(() => setStatusMsg(''), 2000);
-    } catch {
-      setStatusMsg('Save failed');
+    } catch (err) {
+      setStatusMsg(err instanceof Error ? err.message : 'Save failed');
     } finally {
       setSaving(false);
     }

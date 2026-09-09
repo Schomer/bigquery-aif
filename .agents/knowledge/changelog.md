@@ -2,6 +2,13 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-08 -- Auto-create BigQuery dataset and sanitize undefined fields on dashboard persistence
+
+- Added `ensureDatasetExists` and dataset fallback resolution to `saveDocumentToBigQuery` in `src/lib/app-executor.ts` before creating `_aif_dashboards` table and running MERGE SQL.
+- Added recursive `stripUndefined` to `saveDashboard` in `src/app/dashboard/page.tsx` to prevent Firestore serialization errors.
+- Enhanced `handleSave` in `BuilderPage.tsx` and `src/app/dashboard/page.tsx` with descriptive error messages.
+- Added comprehensive unit tests in `src/lib/__tests__/app-executor.test.ts` covering dataset creation and fallback handling (165 passing tests).
+
 ## 2026-09-08 -- Vertical line insertion indicator when dragging tiles on dashboard
 
 - Added directional cursor position tracking (`left` / `right`) in `TileCard` drag-over events.

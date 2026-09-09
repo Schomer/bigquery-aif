@@ -2,7 +2,7 @@
 // Parameter substitution engine, reactive query runner, and BigQuery metadata persistence
 // for interactive data apps and dashboards.
 
-import { executeQuery, executeDml } from './bigquery-client';
+import { executeQuery, executeDml, ensureDatasetExists, listDatasets } from './bigquery-client';
 import type { BuilderDocument, BuilderTile, AppFilterControl, TileSnapshot } from './builder-types';
 
 /**
@@ -160,9 +160,29 @@ export async function saveDocumentToBigQuery(
 ): Promise<{ success: boolean; table: string; message: string }> {
   if (!project) throw new Error('Google Cloud Project is required.');
 
-  const targetTable = `\`${project}.${datasetName}._aif_dashboards\``;
+  let targetDs = (datasetName || '').trim() || '_metadata';
 
-  // Ensure dataset & table exist
+  // 1. Ensure dataset exists; if _metadata fails to create (e.g. project-level permissions), try fallback to existing dataset
+  try {
+    await ensureDatasetExists(project, targetDs);
+  } catch (dsErr) {
+    console.warn(`[app-executor] Failed to ensure dataset '${targetDs}':`, dsErr);
+    if (targetDs === '_metadata') {
+      try {
+        const datasets = await listDatasets(project);
+        if (datasets.length > 0) {
+          targetDs = datasets[0].datasetId;
+          console.info(`[app-executor] Falling back to existing dataset '${targetDs}'`);
+        }
+      } catch (listErr) {
+        console.warn('[app-executor] Fallback dataset listing failed:', listErr);
+      }
+    }
+  }
+
+  const targetTable = `\`${project}.${targetDs}._aif_dashboards\``;
+
+  // 2. Ensure table exists
   const createTableSql = `
     CREATE TABLE IF NOT EXISTS ${targetTable} (
       id STRING NOT NULL,
@@ -179,11 +199,11 @@ export async function saveDocumentToBigQuery(
   try {
     await executeDml(createTableSql, project);
   } catch (err) {
-    // If dataset doesn't exist, try creating dataset or save into first available dataset
     console.warn('[app-executor] Ensure table failed:', err);
+    throw new Error(`Failed to create BigQuery table ${targetTable}: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // Sanitize and serialize config
+  // 3. Sanitize and serialize config
   const serializedConfig = JSON.stringify(doc).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   const now = new Date().toISOString();
   const safeName = doc.name.replace(/'/g, "''");
@@ -221,7 +241,7 @@ export async function saveDocumentToBigQuery(
   await executeDml(mergeSql, project);
   return {
     success: true,
-    table: `${project}.${datasetName}._aif_dashboards`,
-    message: `Saved "${doc.name}" to BigQuery table ${project}.${datasetName}._aif_dashboards`,
+    table: `${project}.${targetDs}._aif_dashboards`,
+    message: `Saved "${doc.name}" to BigQuery table ${project}.${targetDs}._aif_dashboards`,
   };
 }
