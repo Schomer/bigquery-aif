@@ -536,7 +536,7 @@ export function ResultsSidebar({
                                   <div className="chat-sidebar-artifact-card-icon">
                                     <span className="material-symbols-outlined">{artifactIcon(env.primaryArtifact.type, env.primaryArtifact.data)}</span>
                                   </div>
-                                  <div className="chat-sidebar-artifact-card-body">
+                                  <div className="chat-sidebar-artifact-card-content">
                                     <div className="chat-sidebar-artifact-card-name">{name}</div>
                                     {stats && <div className="chat-sidebar-artifact-card-stats">{stats}</div>}
                                   </div>

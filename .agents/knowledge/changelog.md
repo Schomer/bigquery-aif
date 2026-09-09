@@ -2,7 +2,15 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
-## 2026-09-04 -- Automated self-healing error recovery loop for BigQuery CSV loads
+## 2026-09-08 -- Adopt Google Cloud Console CM3 design system kit on feature branch cm3-visual-updates
+
+- Integrated the full Google Cloud Console CM3 design system (`data-cloud-design-system-cm3`) into `bigquery-aif`.
+- Added 42 color tokens, 16 typography scale tokens, elevation, Radix primitives, and CM3 shell components (`ConsoleShell`, `ConsoleSideNav`, `ConsoleTopNav`, `SnackbarHost`).
+- Implemented `ProjectPickerDialog` with starred/recent project filtering and `AvatarMenu` with layout preferences and account details.
+- Integrated CM3 screens (`HomeScreen`, `WorkspaceChatScreen`, `AiInboxScreen`, `AutomationScreen`, `CatalogScreen`, `SecurityScreen`, `ObservabilityScreen`, `InfrastructureScreen`, `SkillsScreen`).
+- Connected prompt composer with ambient glow, rotating conic-gradient beam, asset chips, @-mentions, BigQuery & GCS dialogs, and Gemini 3.5 Flash model selector.
+- Renamed `src/pages/` to `src/screens/` to prevent conflict with Next.js App Router.
+- Verified 155 unit tests passing, static export building with Turbopack, and zero TypeScript errors.
 
 - Implemented an automated self-repair loop in `loadCsvToTable` (`src/lib/bigquery-client.ts`) that diagnoses BigQuery errors (missing datasets, disposition flags, character map/header names, delimiter mismatches, ragged rows) and automatically repairs configurations on retry.
 

@@ -1,5 +1,5 @@
 /* src/app/globals.css */
-@import "tailwindcss";
+@import "../kit/styles/kit.css";
 
 @layer base {
   :root {
@@ -2549,7 +2549,7 @@ details>summary::marker {
   color: #545F72;
 }
 
-.chat-sidebar-artifact-card-body {
+.chat-sidebar-artifact-card-content {
   flex: 1;
   min-width: 0;
   display: flex;

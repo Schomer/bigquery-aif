@@ -1,0 +1,5 @@
+/* Families referenced by the CM3 type tokens (../tokens.ts).
+   Roboto Mono backs the Code token; Google Sans backs everything else.
+   Note: "Google Sans Flex" is named first in --cm-sys-type-font-brand but is
+   not served here — it resolves to Google Sans unless the corp font is present. */
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500&family=Inter:wght@400;500&family=Roboto+Mono:wght@400;500&display=swap');

@@ -1,0 +1,21 @@
+/* The kit's stylesheet. Import this once, from your app's entry CSS:
+ *
+ *     @import './kit/styles/kit.css';
+ *
+ * Order matters. `fonts.css` must load before the type scale that references
+ * the families, and Tailwind must be imported before `theme.css` extends it.
+ *
+ * `source(none)` turns off Tailwind's automatic content detection so the two
+ * @source lines below are the whole scan list — one for the kit, one for your
+ * app. Without the second line Tailwind never sees your markup and every
+ * utility you write is silently dropped from the build.
+ */
+@import './fonts.css';
+
+@import 'tailwindcss' source(none);
+@source '../**/*.{js,ts,jsx,tsx}';
+@source '../../**/*.{js,ts,jsx,tsx}';
+
+@import 'tw-animate-css';
+
+@import './theme.css';

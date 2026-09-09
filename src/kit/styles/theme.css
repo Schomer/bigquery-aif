@@ -1,0 +1,366 @@
+@custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------------------
+ * Google Cloud Console (CM3) design tokens.
+ *
+ * --cm-sys-* is the whole system: 42 colours, 16 type roles, one elevation.
+ * Mirrored in ../tokens.ts, which is what the token gallery renders — change
+ * both together.
+ *
+ * There used to be a second layer here: shadcn compatibility aliases mapping
+ * `--muted`, `--accent-foreground` and friends onto CM3, so vendored shadcn
+ * primitives inherited the tokens without being edited. Every component in the
+ * kit now names its tokens directly, so the aliases are gone.
+ *
+ * That is deliberate, and it costs something. `bg-muted` no longer resolves to
+ * anything, so a shadcn component pasted in from elsewhere will render
+ * unstyled. That is the point: a familiar-looking class that quietly resolved
+ * to an approximation was the one way a component could drift off canon and
+ * still look fine. Now it fails loudly and you reach for `bg-cm-surface-variant`
+ * instead.
+ *
+ * No raw colour values below this block. If you need a colour that is not here,
+ * that is a design conversation, not a hex.
+ * ------------------------------------------------------------------------- */
+
+:root {
+  /* === Layer 1: CM3 color tokens ======================================== */
+
+  --cm-sys-color-backdrop: #f0f5fe;
+  --cm-sys-color-backdrop-active: #dbedfc;
+  --cm-sys-color-backdrop-inset: #dde3ea;
+  --cm-sys-color-on-backdrop-variant: #545f72;
+  --cm-sys-color-on-backdrop: #1b2e5d;
+
+  --cm-sys-color-primary: #496cc3;
+  --cm-sys-color-on-primary: #ffffff;
+  --cm-sys-color-primary-inverse: #839cff;
+  --cm-sys-color-on-primary-inverse: #1b2e5d;
+
+  --cm-sys-color-surface: #ffffff;
+  --cm-sys-color-on-surface: #1b2e5d;
+  --cm-sys-color-surface-variant: #f5f8fc;
+  --cm-sys-color-on-surface-variant: #475569;
+  --cm-sys-color-on-surface-variant-low: #7f919c;
+  --cm-sys-color-surface-elevation: #f0f5fe;
+  --cm-sys-color-surface-inverse: #353b43;
+  --cm-sys-color-on-surface-inverse: #f1f4f9;
+  --cm-sys-color-surface-modal: #f5f8fc;
+
+  --cm-sys-color-container: #e9eef6;
+  --cm-sys-color-container-high: #dae5f7;
+  --cm-sys-color-container-primary: #f5fbff;
+  --cm-sys-color-container-primary-outline: #dcebfd;
+  --cm-sys-color-on-container: #1b2e5d;
+  --cm-sys-color-primary-on-container: #314f9b;
+
+  --cm-sys-color-hairline: #b7c3e0;
+  --cm-sys-color-outline: #8496c1;
+  --cm-sys-color-outline-active: #496cc3;
+  --cm-sys-color-outline-focus: #4058b5;
+
+  --cm-sys-color-selection: #496cc3;
+  --cm-sys-color-selection-container: #e0f0f9;
+
+  --cm-sys-color-status-activeassist: #0082ed;
+  --cm-sys-color-status-activeassist-container: #e8f5fe;
+  --cm-sys-color-status-success: #108463;
+  --cm-sys-color-status-success-container: #e5f7f6;
+  --cm-sys-color-status-warning: #c64415;
+  --cm-sys-color-status-warning-container: #fff6d6;
+  --cm-sys-color-status-error: #c61f74;
+  --cm-sys-color-status-error-container: #ffeff2;
+  --cm-sys-color-status-destructive-container: #d9257f;
+  --cm-sys-color-status-neutral: #496cc3;
+  --cm-sys-color-status-neutral-container: #e9eef6;
+
+  --cm-sys-color-link-default: #314f9b;
+
+  /* === Brand mark greys ================================================= */
+  /* Not part of the 42. These three exist for one drawing — the console's home
+     mark, `Icons.ConsoleHome` — which is a logo rather than UI: it is shaded in
+     three greys and stays grey while the surface around it changes theme.
+     Deliberately absent from tokens.ts and the token gallery, because that
+     table is the palette you pick UI colours from and these are not choices.
+     Never put one on a surface, a label or a border. */
+
+  --cm-sys-color-logo-grey-deep-tone: #424242;
+  --cm-sys-color-logo-grey-medium-tone: #616161;
+  --cm-sys-color-logo-grey-soft-tone: #757575;
+
+  /* === Layer 1: CM3 type tokens ========================================= */
+  /* Sizes/weights live in the @theme block below, which generates the
+     text-cm-* utilities. These two are the family halves of the scale. */
+
+  --cm-sys-type-font-brand: "Google Sans Flex", "Google Sans", sans-serif;
+  --cm-sys-type-font-code: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* === Layer 1: CM3 elevation tokens ==================================== */
+  /* Generates shadow-cm-elevation via the @theme inline block below. Dark mode
+     adds an inset hairline because the drop shadow alone reads as nothing
+     against a dark surface. */
+
+  --cm-sys-elevation-shadow:
+    0px 1px 2px 0px rgba(60, 64, 67, 0.3),
+    0px 2px 6px 2px rgba(60, 64, 67, 0.15);
+
+  /* === Non-token scalars ================================================ */
+
+  --font-size: 16px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --radius: 0.625rem;
+}
+
+/* Dark theme overrides layer 1 only — layer 2 is aliases and follows
+   automatically. Requires .dark on the :root element (<html>). */
+.dark {
+  --cm-sys-color-backdrop: #282c32;
+  --cm-sys-color-backdrop-active: #2a3f5e;
+  --cm-sys-color-backdrop-inset: #4c4f5c;
+  --cm-sys-color-on-backdrop-variant: #9ca6b2;
+  --cm-sys-color-on-backdrop: #f1f4f9;
+
+  --cm-sys-color-primary: #839cff;
+  --cm-sys-color-on-primary: #1b2e5d;
+  --cm-sys-color-primary-inverse: #496cc3;
+  --cm-sys-color-on-primary-inverse: #ffffff;
+
+  --cm-sys-color-surface: #353b43;
+  --cm-sys-color-on-surface: #f1f4f9;
+  --cm-sys-color-surface-variant: #3c444e;
+  --cm-sys-color-on-surface-variant: #b9c0cc;
+  --cm-sys-color-on-surface-variant-low: #adb7c3;
+  --cm-sys-color-surface-elevation: #282c32;
+  --cm-sys-color-surface-inverse: #ffffff;
+  --cm-sys-color-on-surface-inverse: #1b2e5d;
+  --cm-sys-color-surface-modal: #3c444e;
+
+  --cm-sys-color-container: #414d5e;
+  --cm-sys-color-container-high: #2b3a50;
+  --cm-sys-color-container-primary: #3d4a62;
+  --cm-sys-color-container-primary-outline: #506276;
+  --cm-sys-color-on-container: #e5ecff;
+  --cm-sys-color-primary-on-container: #a8baff;
+
+  --cm-sys-color-hairline: #50638b;
+  --cm-sys-color-outline: #b7c2e8;
+  --cm-sys-color-outline-active: #839cff;
+  --cm-sys-color-outline-focus: #a9b8ff;
+
+  --cm-sys-color-selection: #839cff;
+  --cm-sys-color-selection-container: #3a4756;
+
+  --cm-sys-color-status-activeassist: #4da3ff;
+  --cm-sys-color-status-activeassist-container: #344b63;
+  --cm-sys-color-status-success: #6eebbf;
+  --cm-sys-color-status-success-container: #275f5c;
+  --cm-sys-color-status-warning: #ffdf82;
+  --cm-sys-color-status-warning-container: #736b3f;
+  --cm-sys-color-status-error: #ffb8db;
+  --cm-sys-color-status-error-container: #7d4560;
+  --cm-sys-color-status-destructive-container: #b6213c;
+  --cm-sys-color-status-neutral: #839cff;
+  --cm-sys-color-status-neutral-container: #50638b;
+
+  --cm-sys-color-link-default: #a8baff;
+
+  /* The mark keeps its shading in the dark — same three steps, lifted above the
+     dark backdrop instead of sitting under a white one. Ordering is preserved
+     (soft lightest, deep darkest), so the roof still reads as the lit face. */
+
+  --cm-sys-color-logo-grey-deep-tone: #9aa0a6;
+  --cm-sys-color-logo-grey-medium-tone: #bdc1c6;
+  --cm-sys-color-logo-grey-soft-tone: #e8eaed;
+
+  --cm-sys-elevation-shadow:
+    0px 1px 2px 0px rgba(60, 64, 67, 0.3),
+    0px 2px 6px 2px rgba(60, 64, 67, 0.15),
+    0px 0px 0px 1px inset rgb(60, 64, 67);
+}
+
+/* ---------------------------------------------------------------------------
+ * Type scale. Generates the text-cm-* utilities, each carrying its own
+ * line-height and weight, so `text-cm-body-medium` is the whole token.
+ * Values mirror TYPE_TOKENS in ../tokens.ts.
+ * ------------------------------------------------------------------------- */
+
+/* `static` so every token is emitted as a CSS variable even before a component
+   uses it — the scale stays inspectable and usable from inline styles. */
+@theme static {
+  --font-sans: var(--cm-sys-type-font-brand);
+  --font-mono: var(--cm-sys-type-font-code);
+
+  --text-cm-display-large: 56px;
+  --text-cm-display-large--line-height: 64px;
+  --text-cm-display-large--font-weight: 400;
+  --text-cm-display-medium: 44px;
+  --text-cm-display-medium--line-height: 52px;
+  --text-cm-display-medium--font-weight: 400;
+  --text-cm-display-small: 36px;
+  --text-cm-display-small--line-height: 44px;
+  --text-cm-display-small--font-weight: 400;
+
+  --text-cm-headline-large: 32px;
+  --text-cm-headline-large--line-height: 40px;
+  --text-cm-headline-large--font-weight: 400;
+  --text-cm-headline-medium: 28px;
+  --text-cm-headline-medium--line-height: 36px;
+  --text-cm-headline-medium--font-weight: 400;
+  --text-cm-headline-small: 24px;
+  --text-cm-headline-small--line-height: 32px;
+  --text-cm-headline-small--font-weight: 400;
+
+  --text-cm-title-large: 22px;
+  --text-cm-title-large--line-height: 28px;
+  --text-cm-title-large--font-weight: 400;
+  --text-cm-title-medium: 20px;
+  --text-cm-title-medium--line-height: 24px;
+  --text-cm-title-medium--font-weight: 400;
+  --text-cm-title-small: 18px;
+  --text-cm-title-small--line-height: 24px;
+  --text-cm-title-small--font-weight: 400;
+
+  --text-cm-label-large: 16px;
+  --text-cm-label-large--line-height: 24px;
+  --text-cm-label-large--font-weight: 500;
+  --text-cm-label-medium: 14px;
+  --text-cm-label-medium--line-height: 20px;
+  --text-cm-label-medium--font-weight: 500;
+  --text-cm-label-small: 12px;
+  --text-cm-label-small--line-height: 16px;
+  --text-cm-label-small--font-weight: 500;
+
+  --text-cm-body-large: 16px;
+  --text-cm-body-large--line-height: 24px;
+  --text-cm-body-large--font-weight: 400;
+  --text-cm-body-medium: 14px;
+  --text-cm-body-medium--line-height: 20px;
+  --text-cm-body-medium--font-weight: 400;
+  --text-cm-body-small: 12px;
+  --text-cm-body-small--line-height: 16px;
+  --text-cm-body-small--font-weight: 400;
+
+  --text-cm-code: 12px;
+  --text-cm-code--line-height: 16px;
+  --text-cm-code--font-weight: 400;
+}
+
+@theme inline {
+  --shadow-cm-elevation: var(--cm-sys-elevation-shadow);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-cm-backdrop: var(--cm-sys-color-backdrop);
+  --color-cm-backdrop-active: var(--cm-sys-color-backdrop-active);
+  --color-cm-backdrop-inset: var(--cm-sys-color-backdrop-inset);
+  --color-cm-on-backdrop-variant: var(--cm-sys-color-on-backdrop-variant);
+  --color-cm-on-backdrop: var(--cm-sys-color-on-backdrop);
+
+  --color-cm-primary: var(--cm-sys-color-primary);
+  --color-cm-on-primary: var(--cm-sys-color-on-primary);
+  --color-cm-primary-inverse: var(--cm-sys-color-primary-inverse);
+  --color-cm-on-primary-inverse: var(--cm-sys-color-on-primary-inverse);
+
+  --color-cm-surface: var(--cm-sys-color-surface);
+  --color-cm-on-surface: var(--cm-sys-color-on-surface);
+  --color-cm-surface-variant: var(--cm-sys-color-surface-variant);
+  --color-cm-on-surface-variant: var(--cm-sys-color-on-surface-variant);
+  --color-cm-on-surface-variant-low: var(--cm-sys-color-on-surface-variant-low);
+  --color-cm-surface-elevation: var(--cm-sys-color-surface-elevation);
+  --color-cm-surface-inverse: var(--cm-sys-color-surface-inverse);
+  --color-cm-on-surface-inverse: var(--cm-sys-color-on-surface-inverse);
+  --color-cm-surface-modal: var(--cm-sys-color-surface-modal);
+
+  --color-cm-container: var(--cm-sys-color-container);
+  --color-cm-container-high: var(--cm-sys-color-container-high);
+  --color-cm-container-primary: var(--cm-sys-color-container-primary);
+  --color-cm-container-primary-outline: var(--cm-sys-color-container-primary-outline);
+  --color-cm-on-container: var(--cm-sys-color-on-container);
+  --color-cm-primary-on-container: var(--cm-sys-color-primary-on-container);
+
+  --color-cm-hairline: var(--cm-sys-color-hairline);
+  --color-cm-outline: var(--cm-sys-color-outline);
+  --color-cm-outline-active: var(--cm-sys-color-outline-active);
+  --color-cm-outline-focus: var(--cm-sys-color-outline-focus);
+
+  --color-cm-selection: var(--cm-sys-color-selection);
+  --color-cm-selection-container: var(--cm-sys-color-selection-container);
+
+  --color-cm-status-activeassist: var(--cm-sys-color-status-activeassist);
+  --color-cm-status-activeassist-container: var(--cm-sys-color-status-activeassist-container);
+  --color-cm-status-success: var(--cm-sys-color-status-success);
+  --color-cm-status-success-container: var(--cm-sys-color-status-success-container);
+  --color-cm-status-warning: var(--cm-sys-color-status-warning);
+  --color-cm-status-warning-container: var(--cm-sys-color-status-warning-container);
+  --color-cm-status-error: var(--cm-sys-color-status-error);
+  --color-cm-status-error-container: var(--cm-sys-color-status-error-container);
+  --color-cm-status-destructive-container: var(--cm-sys-color-status-destructive-container);
+  --color-cm-status-neutral: var(--cm-sys-color-status-neutral);
+  --color-cm-status-neutral-container: var(--cm-sys-color-status-neutral-container);
+
+  --color-cm-link-default: var(--cm-sys-color-link-default);
+
+  /* Brand mark only — see the note beside the values. */
+  --color-cm-logo-grey-deep-tone: var(--cm-sys-color-logo-grey-deep-tone);
+  --color-cm-logo-grey-medium-tone: var(--cm-sys-color-logo-grey-medium-tone);
+  --color-cm-logo-grey-soft-tone: var(--cm-sys-color-logo-grey-soft-tone);
+}
+
+@layer base {
+  * {
+    @apply border-cm-hairline outline-cm-outline-focus/50;
+  }
+
+  body {
+    @apply bg-cm-surface text-cm-on-surface font-sans;
+  }
+
+  html {
+    font-size: var(--font-size);
+  }
+
+  /* Headings and form controls default to the type scale. Any component that
+     needs something else overrides with its own text-cm-* utility. */
+
+  h1 {
+    @apply text-cm-headline-small;
+  }
+
+  h2 {
+    @apply text-cm-title-medium;
+  }
+
+  h3 {
+    @apply text-cm-title-small;
+  }
+
+  h4 {
+    @apply text-cm-label-large;
+  }
+
+  label {
+    @apply text-cm-label-large;
+  }
+
+  button {
+    @apply text-cm-label-large;
+  }
+
+  /* Field text is body-medium everywhere. The floating labels that sit on these
+     fields are body-small — see input.tsx / textarea.tsx / select.tsx. */
+  input,
+  textarea,
+  select {
+    @apply text-cm-body-medium;
+  }
+
+  code,
+  pre,
+  kbd,
+  samp {
+    @apply font-mono;
+  }
+}

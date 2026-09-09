@@ -17,6 +17,14 @@ import { SpacesPage } from '@/components/SavedPage';
 import { FavoritesPage } from '@/components/FavoritesPage';
 import dynamic from 'next/dynamic';
 const DashboardPage = dynamic(() => import('@/app/dashboard/page'), { ssr: false });
+import { HomeScreen } from '@/screens/HomeScreen';
+import { AiInboxScreen } from '@/screens/AiInboxScreen';
+import { AutomationScreen } from '@/screens/AutomationScreen';
+import { CatalogScreen } from '@/screens/CatalogScreen';
+import { SecurityScreen } from '@/screens/SecurityScreen';
+import { ObservabilityScreen } from '@/screens/ObservabilityScreen';
+import { InfrastructureScreen } from '@/screens/InfrastructureScreen';
+import { SkillsScreen } from '@/screens/SkillsScreen';
 import { BuilderPage } from '@/components/BuilderPage';
 import { SaveModal } from '@/components/SaveModal';
 import type { SavedArtifact } from '@/lib/types';
@@ -187,6 +195,68 @@ export default function Home() {
 
       {/* -- Overview removed -- */}
 
+      {/* -- Home page -- */}
+      {activePage === 'home' && (
+        <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
+          <HomeScreen
+            memberName={user?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'there'}
+            onSubmitPrompt={(prompt) => {
+              setActivePage('chat');
+              chat.sendMessage(prompt);
+            }}
+          />
+        </div>
+      )}
+
+      {/* -- AI Inbox page -- */}
+      {activePage === 'inbox' && (
+        <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
+          <AiInboxScreen />
+        </div>
+      )}
+
+      {/* -- Automation page -- */}
+      {activePage === 'automation' && (
+        <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
+          <AutomationScreen />
+        </div>
+      )}
+
+      {/* -- Catalog page -- */}
+      {activePage === 'catalog' && (
+        <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
+          <CatalogScreen />
+        </div>
+      )}
+
+      {/* -- Security page -- */}
+      {activePage === 'security' && (
+        <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
+          <SecurityScreen />
+        </div>
+      )}
+
+      {/* -- Observability page -- */}
+      {activePage === 'observability' && (
+        <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
+          <ObservabilityScreen />
+        </div>
+      )}
+
+      {/* -- Infrastructure page -- */}
+      {activePage === 'infrastructure' && (
+        <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
+          <InfrastructureScreen />
+        </div>
+      )}
+
+      {/* -- Skills page -- */}
+      {activePage === 'skills' && (
+        <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
+          <SkillsScreen />
+        </div>
+      )}
+
       {/* -- Favorites page -- */}
       {activePage === 'favorites' && user && (
         <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
@@ -267,7 +337,7 @@ export default function Home() {
          UNIFIED LAYOUT (original single-pane)
          ============================================================ */}
       {!isSplit && (
-        <div style={{ display: (activePage === 'prompts' || activePage === 'spaces' || activePage.startsWith('spaces:') || activePage === 'favorites' || activePage === 'dashboard' || activePage === 'templates' || activeTabId !== 'chat') ? 'none' : 'flex', height: '100%', background: 'var(--chat-bg)' }}>
+        <div style={{ display: (['home', 'inbox', 'automation', 'catalog', 'security', 'observability', 'infrastructure', 'skills', 'prompts', 'spaces', 'favorites', 'dashboard', 'templates'].includes(activePage) || activePage.startsWith('spaces:') || activeTabId !== 'chat') ? 'none' : 'flex', height: '100%', background: 'var(--chat-bg)' }}>
 
           {/* Chat sidebar panel */}
           <ChatSidebar
@@ -514,7 +584,7 @@ export default function Home() {
       {isSplit && (
         <div
           className={`layout-split ${layout === 'chat-right' ? 'layout-chat-right' : 'layout-chat-left'}`}
-          style={{ display: (activePage === 'prompts' || activePage === 'spaces' || activePage.startsWith('spaces:') || activePage === 'favorites' || activePage === 'dashboard' || activePage === 'templates' || activeTabId !== 'chat') ? 'none' : 'flex', height: '100%' }}
+          style={{ display: (['home', 'inbox', 'automation', 'catalog', 'security', 'observability', 'infrastructure', 'skills', 'prompts', 'spaces', 'favorites', 'dashboard', 'templates'].includes(activePage) || activePage.startsWith('spaces:') || activeTabId !== 'chat') ? 'none' : 'flex', height: '100%' }}
         >
           {/* Chat list view */}
           {splitView === 'list' && (

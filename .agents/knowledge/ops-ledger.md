@@ -1,6 +1,21 @@
 # Operations Ledger
 
-## 2026-09-04 -- Automated self-healing error recovery loop for BigQuery CSV loads
+## 2026-09-08 -- Adopt Google Cloud Console CM3 design system kit on feature branch cm3-visual-updates
+
+**What**: Updated the application user interface to adopt the Google Cloud Console CM3 design system (`data-cloud-design-system-cm3`). Integrated the ConsoleShell top navigation, navigation rail, ProjectPickerDialog, AvatarMenu, SnackbarHost, and CM3 token foundation (42 colors, 16 typography tokens, elevation). Wired all navigation pages (`HomeScreen`, `WorkspaceChatScreen`, `AiInboxScreen`, `AutomationScreen`, `CatalogScreen`, `SecurityScreen`, `ObservabilityScreen`, `InfrastructureScreen`, `SkillsScreen`).
+
+**Why**: Unifies the BigQuery AIF application with the canonical Google Cloud Console CM3 visual guidelines, providing navigation rails, prompt composer with animated glow and rotating conic-gradient beam, structured asset chips, and dialogs.
+
+**Fix**:
+1. Installed Radix UI primitives, `class-variance-authority`, `clsx`, `tailwind-merge`, `tw-animate-css`, and `sonner`.
+2. Copied `src/kit/` component library and configured `@import "../kit/styles/kit.css";` in `src/app/globals.css`.
+3. Created `ProjectPickerDialog.tsx` and `AvatarMenu.tsx` for console shell navigation interactions.
+4. Renamed `src/pages/` to `src/screens/` to prevent Next.js Pages Router conflict in an App Router codebase.
+5. In `src/kit/ui/material-symbols.tsx`, added missing symbols (`Star`, `StarBorder`, `CloudQueue`, `Logout`, `Storage`, `QueryStats`, `DashboardCustomize`, `Bookmarks`, `Dashboard`, `DockToRight`, `ViewSidebar`, `DockToLeft`).
+6. Fixed `easy-copy.tsx` timer initialization (`useRef<number | undefined>(undefined)`).
+7. Maintained `gemini-3.5-flash` model invariant across all components and selectors.
+
+**Rule derived**: In Next.js App Router applications, never place view components in `src/pages/` as Next.js will treat it as a Pages Router directory; use `src/screens/` or `src/views/`. Avoid CSS class names ending in `-body` to prevent Tailwind 4 bare `body{}` rule extraction bugs.
 
 **What**: Implemented an automated self-healing error recovery loop in `loadCsvToTable` (`src/lib/bigquery-client.ts`) that intercepts BigQuery job rejection errors and applies targeted remediation before retrying:
 1. *Missing Dataset*: Auto-creates dataset via `ensureDatasetExists()` and retries.
