@@ -39,7 +39,24 @@ export function DashboardArtifactCard({ envelope }: CustomViewProps) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div
+      onClick={handleOpen}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleOpen();
+        }
+      }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
+        cursor: 'pointer',
+        padding: '4px 0',
+      }}
+    >
       {/* Header row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{
@@ -49,16 +66,19 @@ export function DashboardArtifactCard({ envelope }: CustomViewProps) {
         }}>
           <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#fff' }}>dashboard</span>
         </div>
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>{data.name}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>{data.name || 'Dashboard'}</div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>
-            {data.tileCount} tile{data.tileCount !== 1 ? 's' : ''}
+            {data.tileCount ?? (data.tileNames ? data.tileNames.length : 0)} tile{(data.tileCount !== 1) ? 's' : ''}
           </div>
         </div>
+        <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--text-muted)' }}>
+          open_in_new
+        </span>
       </div>
 
       {/* Tile preview pills */}
-      {data.tileNames.length > 0 && (
+      {data.tileNames && data.tileNames.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {data.tileNames.map((name, i) => (
             <span
@@ -82,7 +102,10 @@ export function DashboardArtifactCard({ envelope }: CustomViewProps) {
       <div>
         <button
           id={`open-dashboard-${data.dashboardId}`}
-          onClick={handleOpen}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleOpen();
+          }}
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 8,
             padding: '9px 18px',

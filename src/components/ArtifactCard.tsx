@@ -1113,6 +1113,15 @@ function Artifact({
         return <DataTable result={data as import('@/lib/types').QueryResult} onSendMessage={onSendMessage} />;
       }
       return null;
+    case 'DASHBOARD_VIEW':
+      return (
+        <DashboardArtifactCard
+          envelope={envelope}
+          onSendMessage={onSendMessage}
+          onConfirm={onConfirm}
+          onCancel={onCancel}
+        />
+      );
     default:
       // Unknown artifact type -- log and degrade gracefully instead of dumping raw JSON.
       console.warn('[ArtifactCard] Unknown artifact type:', type, '-- falling back to DataTable');

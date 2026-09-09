@@ -2,6 +2,14 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-08 -- Open dashboard on artifact click in chat
+
+- Updated `DashboardArtifactCard.tsx` so clicking anywhere on the card header, body, or the "Open Dashboard" button opens the dashboard workspace tab with keyboard navigation support.
+- Updated `ResultsSidebar.tsx` to handle `DASHBOARD_VIEW` artifact card clicks in the chat sidebar, opening the dashboard tab (`openBuilderTab` / `openDashboardTab`).
+- Added `DASHBOARD_VIEW` case in `ArtifactCard.tsx` fallback rendering switch.
+- Added `presentation: 'custom'` to `manage_app` envelope builder in `src/agent/index.ts`.
+- Verified test suite (163 passing tests) and Next.js static build.
+
 ## 2026-09-08 -- Auto-open dashboard when created or when adding items
 
 - Updated `useChatOrchestration.ts` to automatically open newly created or modified dashboards/apps in a builder tab (`openBuilderTab`) whenever `DASHBOARD_VIEW` envelopes are received from chat turns, tool executions (`manage_app`), edits, or chip clicks.

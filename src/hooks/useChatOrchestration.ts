@@ -245,7 +245,7 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
   const { activeProject, user, signIn, refreshAccessToken } = useAuth();
   const { conversationId, addOperation } = useConversation();
   const { setRunning } = useChatRunState();
-  const { openBuilderTab } = usePage();
+  const { openBuilderTab, openDashboardTab } = usePage();
 
   // Core state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -553,13 +553,17 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
         setPinnedEnvelopeId(null);
       }
 
-      // Auto-open newly created or modified dashboards/apps in a builder tab
+      // Auto-open newly created or modified dashboards/apps in a tab
       for (const env of envelopes) {
         if (env.primaryArtifact.type === 'DASHBOARD_VIEW') {
           const d = env.primaryArtifact.data as { dashboardId?: string; name?: string } | undefined;
           if (d?.dashboardId) {
             const docName = d.name || 'Dashboard';
-            openBuilderTab(d.dashboardId, docName);
+            if (d.dashboardId.startsWith('doc_')) {
+              openBuilderTab(d.dashboardId, docName);
+            } else {
+              openDashboardTab(d.dashboardId, docName);
+            }
           }
         }
       }

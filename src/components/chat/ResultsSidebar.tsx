@@ -18,6 +18,8 @@ import type {
 import type { ChatError } from '@/hooks/useChatOrchestration';
 import { CrystalBallThinking, ErrorCard, RegenerateButton, QueryProgressPanel } from './ChatThread';
 import { ChatInput } from './ChatInput';
+import { usePage } from '@/lib/page-context';
+import { useBuilder } from '@/lib/builder-context';
 import type { RecentItem } from '@/lib/firestore-service';
 import { DataStartSection } from '@/app/page';
 
@@ -256,6 +258,9 @@ export function ResultsSidebar({
     localStorage.setItem('hdn_sidebar_width', String(sidebarWidth));
   }, [sidebarWidth]);
 
+  const { openDashboardTab, openBuilderTab } = usePage();
+  const builder = useBuilder();
+
   // Scroll the results panel to a specific envelope card
   const scrollToResult = useCallback((envelopeId: string) => {
     const panel = resultsPanelRef.current;
@@ -268,6 +273,23 @@ export function ResultsSidebar({
       card.classList.add('result-card-highlight');
     }
   }, []);
+
+  // Click handler for artifact cards in the chat sidebar -- dashboard artifacts open the dashboard directly
+  const handleArtifactClick = useCallback((env: CompositionEnvelope) => {
+    if (env.primaryArtifact.type === 'DASHBOARD_VIEW') {
+      const d = env.primaryArtifact.data as { dashboardId?: string; name?: string } | undefined;
+      if (d?.dashboardId) {
+        const isBuilderDoc = builder.getDocument(d.dashboardId);
+        if (isBuilderDoc || d.dashboardId.startsWith('doc_')) {
+          openBuilderTab(d.dashboardId, d.name || 'Dashboard');
+        } else {
+          openDashboardTab(d.dashboardId, d.name || 'Dashboard');
+        }
+        return;
+      }
+    }
+    scrollToResult(env.id);
+  }, [builder, openBuilderTab, openDashboardTab, scrollToResult]);
 
   // Drag handle for resizing sidebar
   const handleDragStart = useCallback((e: React.MouseEvent) => {
@@ -539,11 +561,11 @@ export function ResultsSidebar({
                                 <div
                                   key={env.id}
                                   className="chat-sidebar-artifact-card"
-                                  onClick={() => scrollToResult(env.id)}
+                                  onClick={() => handleArtifactClick(env)}
                                   role="button"
                                   tabIndex={0}
-                                  onKeyDown={(e) => e.key === 'Enter' && scrollToResult(env.id)}
-                                  title="View in results panel"
+                                  onKeyDown={(e) => e.key === 'Enter' && handleArtifactClick(env)}
+                                  title={env.primaryArtifact.type === 'DASHBOARD_VIEW' ? 'Open dashboard' : 'View in results panel'}
                                 >
                                   <div className="chat-sidebar-artifact-card-icon">
                                     <span className="material-symbols-outlined">{artifactIcon(env.primaryArtifact.type, env.primaryArtifact.data)}</span>

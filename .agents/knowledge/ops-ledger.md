@@ -1,5 +1,17 @@
 # Operations Ledger
 
+## 2026-09-08 -- Open dashboard on artifact click in chat
+
+**What**:
+1. *Clickable Dashboard Artifact Cards in Chat*: Updated `DashboardArtifactCard.tsx` so clicking anywhere on the card header or body (or pressing Enter/Space) opens the dashboard workspace tab (`openBuilderTab` or `openDashboardTab`), with an open-in-new indicator and accessible keyboard support.
+2. *Sidebar Artifact Card Click Interaction*: Updated `ResultsSidebar.tsx` to detect `DASHBOARD_VIEW` artifacts in the chat sidebar item list and route card clicks directly to `openBuilderTab` / `openDashboardTab` rather than only scrolling to a panel card.
+3. *Fallback Fallthrough in ArtifactCard*: Added `case 'DASHBOARD_VIEW'` in `ArtifactCard.tsx`'s `Artifact` switch fallback, and added `presentation: 'custom'` explicitly to `manage_app` envelope builder in `src/agent/index.ts`.
+4. *Unified Auto-open Routing*: Updated `useChatOrchestration.ts` to support opening both builder documents (`doc_` prefix) and classic dashboards when `DASHBOARD_VIEW` envelopes are emitted.
+
+**Why**: Clicking an artifact in the chat representing a dashboard now opens the dashboard directly into a focused workspace tab.
+
+**Rule derived**: All artifact representations of dashboards in chat (in the main thread, results panel, and sidebar item cards) must be interactive and open the target dashboard workspace tab on click or keyboard activation.
+
 ## 2026-09-08 -- Auto-open dashboard when created or when adding items
 
 **What**:

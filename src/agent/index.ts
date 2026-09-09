@@ -388,6 +388,7 @@ export async function processWithAgentLoop({
             },
           },
           provenance: { visibility: 'COLLAPSED', executionTrace },
+          presentation: 'custom',
           skipSelfReview: true,
           nextActions: [],
         });
