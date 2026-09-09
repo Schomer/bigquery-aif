@@ -662,17 +662,15 @@ export function BuilderPage({ documentId }: Props) {
                   </div>
 
                   {/* Row Height Resize Handle */}
-                  {editMode && (
-                    <RowHeightResizeHandle
-                      currentRowSpan={currentRowSpan}
-                      baseHeight={densityCfg.baseHeight}
-                      onResize={(newRowSpan) => {
-                        if (rowTiles[0]) {
-                          builder.setRowHeight(documentId, rowTiles[0].id, newRowSpan);
-                        }
-                      }}
-                    />
-                  )}
+                  <RowHeightResizeHandle
+                    currentRowSpan={currentRowSpan}
+                    baseHeight={densityCfg.baseHeight}
+                    onResize={(newRowSpan) => {
+                      if (rowTiles[0]) {
+                        builder.setRowHeight(documentId, rowTiles[0].id, newRowSpan);
+                      }
+                    }}
+                  />
                 </div>
               );
             })}
@@ -881,18 +879,25 @@ function TileCard({
     const initialColSpan = tile.colSpan;
     const parentWidth = cardRef.current?.parentElement?.getBoundingClientRect().width || 1200;
     const singleColWidth = parentWidth / 12;
+    window.document.body.style.cursor = 'col-resize';
+    window.document.body.style.userSelect = 'none';
+
+    let lastCol = initialColSpan;
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const rawDeltaX = moveEvent.clientX - startX;
       const deltaX = direction === 'right' ? rawDeltaX : -rawDeltaX;
       const deltaCols = Math.round(deltaX / singleColWidth);
       const newColSpan = Math.max(1, Math.min(12, initialColSpan + deltaCols));
-      if (newColSpan !== tile.colSpan) {
+      if (newColSpan !== lastCol) {
+        lastCol = newColSpan;
         onUpdateSpan(newColSpan, tile.rowSpan);
       }
     };
 
     const onMouseUp = () => {
+      window.document.body.style.cursor = '';
+      window.document.body.style.userSelect = '';
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
     };
@@ -906,18 +911,25 @@ function TileCard({
     e.stopPropagation();
     const startY = e.clientY;
     const initialRowSpan = tile.rowSpan;
+    window.document.body.style.cursor = 'row-resize';
+    window.document.body.style.userSelect = 'none';
+
+    let lastRow = initialRowSpan;
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const rawDeltaY = moveEvent.clientY - startY;
       const deltaY = direction === 'bottom' ? rawDeltaY : -rawDeltaY;
       const deltaRows = Math.round(deltaY / (baseHeight * 0.6));
       const newRowSpan = Math.max(1, Math.min(12, initialRowSpan + deltaRows));
-      if (newRowSpan !== tile.rowSpan) {
+      if (newRowSpan !== lastRow) {
+        lastRow = newRowSpan;
         onUpdateSpan(tile.colSpan, newRowSpan);
       }
     };
 
     const onMouseUp = () => {
+      window.document.body.style.cursor = '';
+      window.document.body.style.userSelect = '';
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
     };
@@ -938,6 +950,12 @@ function TileCard({
     const initialRowSpan = tile.rowSpan;
     const parentWidth = cardRef.current?.parentElement?.getBoundingClientRect().width || 1200;
     const singleColWidth = parentWidth / 12;
+    const cursorStyle = corner === 'tl' || corner === 'br' ? 'nwse-resize' : 'nesw-resize';
+    window.document.body.style.cursor = cursorStyle;
+    window.document.body.style.userSelect = 'none';
+
+    let lastCol = initialColSpan;
+    let lastRow = initialRowSpan;
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const rawDeltaX = moveEvent.clientX - startX;
@@ -950,12 +968,16 @@ function TileCard({
       const deltaRows = Math.round(deltaY / (baseHeight * 0.6));
       const newColSpan = Math.max(1, Math.min(12, initialColSpan + deltaCols));
       const newRowSpan = Math.max(1, Math.min(12, initialRowSpan + deltaRows));
-      if (newColSpan !== tile.colSpan || newRowSpan !== tile.rowSpan) {
+      if (newColSpan !== lastCol || newRowSpan !== lastRow) {
+        lastCol = newColSpan;
+        lastRow = newRowSpan;
         onUpdateSpan(newColSpan, newRowSpan);
       }
     };
 
     const onMouseUp = () => {
+      window.document.body.style.cursor = '';
+      window.document.body.style.userSelect = '';
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
     };
@@ -976,6 +998,7 @@ function TileCard({
       onDrop={onDrop}
       style={{
         gridColumn: `span ${tile.colSpan}`,
+        height: calculatedMinHeight,
         minHeight: calculatedMinHeight,
         background: isDragOver ? '#f0f6ff' : '#fff',
         border: isDragOver ? '2px solid #1a73e8' : editMode ? '1px solid #c2dbff' : '1px solid var(--border)',

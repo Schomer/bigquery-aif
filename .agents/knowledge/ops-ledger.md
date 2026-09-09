@@ -1,5 +1,16 @@
 # Operations Ledger
 
+## 2026-09-08 -- Fix row height sizing via explicit tile height and active divider hit zone
+
+**What**:
+1. *Explicit Tile Height*: Added `height: calculatedMinHeight` alongside `minHeight` on `TileCard`. CSS Grid items with internal tables or charts naturally expand row tracks unless height is strictly constrained, which previously made rowSpan height changes appear non-functional.
+2. *Active Row Height Divider*: Ensured `RowHeightResizeHandle` is mounted and responsive across all view/edit states with a transparent hit area, instant `cursor: row-resize` styling, and delta-tracked rowSpan dispatch.
+3. *Global Cursor & Select Locks*: Added document body cursor and user-select locks during drag resize operations in `TileCard` and `RowHeightResizeHandle` for smooth continuous drag interaction.
+
+**Why**: Solved the issue where resizing row height did not visibly resize cards containing large tables or charts.
+
+**Rule derived**: In CSS Grid canvas layouts with data tables/charts, apply explicit `height` matching the grid track size to prevent large content from blowing out the track height during dynamic row resizing.
+
 ## 2026-09-08 -- Invisible row/corner resize handles, smaller tile minHeight, and all-corner resizing
 
 **What**:

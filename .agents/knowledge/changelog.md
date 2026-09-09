@@ -2,6 +2,13 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-08 -- Fix row height sizing via explicit tile height and active divider hit zone
+
+- Added explicit `height: calculatedMinHeight` to `TileCard` (previously only `minHeight` was set, allowing large table/chart contents to expand the grid row regardless of the selected `rowSpan`).
+- Enabled `RowHeightResizeHandle` across all view/edit modes with active hover-cursor and fluid vertical drag tracking.
+- Improved resize drag handlers in `TileCard` with global document body cursor locks and drag state tracking across mouse movements.
+- Verified test suite (163 passing tests) and Next.js static build.
+
 ## 2026-09-08 -- Invisible row/corner resize handles, smaller tile minHeight, and all-corner resizing
 
 - Made the row height resize divider completely invisible while keeping `cursor: row-resize` active on hover/drag between rows.
