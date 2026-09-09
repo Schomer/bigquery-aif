@@ -11,6 +11,7 @@ import { SignedOutPage } from './SignedOutPage';
 import { GlobalSearch } from '@/components/GlobalSearch';
 import { ProjectPickerDialog } from './ProjectPickerDialog';
 import { AvatarMenu } from './AvatarMenu';
+import { HeaderOptionsMenu } from './HeaderOptionsMenu';
 import {
   ConsoleShell,
   type ConsoleSideNavItem,
@@ -98,13 +99,13 @@ function ConsoleShellContent({ children }: { children: React.ReactNode }) {
       defaultOpen: true,
       children: [
         { id: 'spaces:all', label: 'All', icon: <MaterialSymbols.Storage className="size-[18px]" /> },
-        { id: 'spaces:query', label: 'Queries', icon: <MaterialSymbols.QueryStats className="size-[18px]" /> },
-        { id: 'spaces:workflow', label: 'Workflows', icon: <MaterialSymbols.ConversionPath className="size-[18px]" /> },
-        { id: 'spaces:pipeline', label: 'Pipelines', icon: <MaterialSymbols.Schedule className="size-[18px]" /> },
-        { id: 'spaces:documents', label: 'Documents', icon: <MaterialSymbols.DashboardCustomize className="size-[18px]" /> },
+        { id: 'spaces:dashboards', label: 'Dashboards', icon: <MaterialSymbols.QueryStats className="size-[18px]" /> },
+        { id: 'spaces:apps', label: 'Apps', icon: <MaterialSymbols.Dashboard className="size-[18px]" /> },
+        { id: 'spaces:reports', label: 'Reports', icon: <MaterialSymbols.Description className="size-[18px]" /> },
+        { id: 'spaces:recipes', label: 'Recipes', icon: <MaterialSymbols.DashboardCustomize className="size-[18px]" /> },
         { id: 'favorites', label: 'Favorites', icon: <MaterialSymbols.Star className="size-[18px]" /> },
-        { id: 'prompts', label: 'Prompts', icon: <MaterialSymbols.Bookmarks className="size-[18px]" /> },
-        { id: 'templates', label: 'Templates', icon: <MaterialSymbols.Dashboard className="size-[18px]" /> },
+        { id: 'spaces:bookmarks', label: 'Bookmarks', icon: <MaterialSymbols.Bookmarks className="size-[18px]" /> },
+        { id: 'prompts', label: 'Prompts', icon: <MaterialSymbols.Dashboard className="size-[18px]" /> },
       ],
     },
     {
@@ -218,6 +219,12 @@ function ConsoleShellContent({ children }: { children: React.ReactNode }) {
         onProjectClick={() => setProjectPickerOpen(true)}
         onSearchClick={openGlobalSearch}
         onAvatarClick={() => setAvatarMenuOpen(true)}
+        moreMenuContent={
+          <HeaderOptionsMenu
+            onOpenProjectPicker={() => setProjectPickerOpen(true)}
+            onOpenAvatarMenu={() => setAvatarMenuOpen(true)}
+          />
+        }
         defaultNavExpanded
         bare
       >

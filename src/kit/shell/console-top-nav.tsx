@@ -1,4 +1,6 @@
+import * as React from "react";
 import { cn } from "../ui/utils";
+import { Menu, MenuContent, MenuTrigger } from "../ui/menu";
 
 /**
  * The Cloud Console blue bar: hamburger, Google Cloud logo, project pill,
@@ -34,6 +36,7 @@ export interface ConsoleTopNavProps {
   onCloudShellClick?: () => void;
   onNotificationsClick?: () => void;
   onMoreClick?: () => void;
+  moreMenuContent?: React.ReactNode;
   onAvatarClick?: () => void;
   className?: string;
 }
@@ -58,6 +61,7 @@ export function ConsoleTopNav({
   onCloudShellClick,
   onNotificationsClick,
   onMoreClick,
+  moreMenuContent,
   onAvatarClick,
   className,
 }: ConsoleTopNavProps) {
@@ -176,15 +180,34 @@ export function ConsoleTopNav({
             </svg>
           </button>
         )}
-        <button type="button" onClick={onMoreClick} className={NAV_ICON_BUTTON} title="More options">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--cm-sys-color-on-surface-variant)" aria-hidden>
-            <path
-              fillRule="evenodd"
-              clipRule="evenodd"
-              d="M12 8a2 2 0 100-4 2 2 0 000 4zm0 6a2 2 0 100-4 2 2 0 000 4zm0 6a2 2 0 100-4 2 2 0 000 4z"
-            />
-          </svg>
-        </button>
+        {moreMenuContent ? (
+          <Menu>
+            <MenuTrigger asChild>
+              <button type="button" className={NAV_ICON_BUTTON} title="More options">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--cm-sys-color-on-surface-variant)" aria-hidden>
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M12 8a2 2 0 100-4 2 2 0 000 4zm0 6a2 2 0 100-4 2 2 0 000 4zm0 6a2 2 0 100-4 2 2 0 000 4z"
+                  />
+                </svg>
+              </button>
+            </MenuTrigger>
+            <MenuContent align="end" side="bottom" sideOffset={6} className="min-w-[220px]">
+              {moreMenuContent}
+            </MenuContent>
+          </Menu>
+        ) : (
+          <button type="button" onClick={onMoreClick} className={NAV_ICON_BUTTON} title="More options">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--cm-sys-color-on-surface-variant)" aria-hidden>
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M12 8a2 2 0 100-4 2 2 0 000 4zm0 6a2 2 0 100-4 2 2 0 000 4zm0 6a2 2 0 100-4 2 2 0 000 4z"
+              />
+            </svg>
+          </button>
+        )}
         <button
           type="button"
           onClick={onAvatarClick}
