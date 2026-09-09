@@ -1,5 +1,18 @@
 # Operations Ledger
 
+## 2026-09-08 -- Refine dashboard toolbar and restore tile kebab menu
+
+**What**:
+1. *Toolbar Badge Removed*: Removed the "DASHBOARD" badge (`DOC_TYPE_LABELS`) from the dashboard builder header.
+2. *Clean Text "+ Add" Button*: Converted the "+ Add" button into a clean borderless text button (removed border and extra icon).
+3. *Repositioned & Borderless Refresh*: Removed the border from the toolbar `Refresh` button and relocated it to the right side directly next to the `Save` split menu.
+4. *Close Button Removed*: Removed the `[x]` close button on the far right so `Edit / Done` remains the prominent rightmost action.
+5. *Tile Kebab Menu Always Visible*: Removed the `editMode` condition from the `TileCard` header kebab menu so users can always access `SQL`, `Duplicate`, and `Delete` actions on every tile.
+
+**Why**: Simplifies visual noise in the header while keeping all tile actions readily accessible without needing to toggle edit mode first.
+
+**Rule derived**: Keep document headers minimal and borderless for secondary/utility buttons; keep per-tile context menus (kebab) accessible in both view and edit modes.
+
 ## 2026-09-08 -- Update dashboard toolbar: + Add button on left, attached Save menu (Save, Save As, BigQuery), and Edit/Done on far right
 
 **What**:

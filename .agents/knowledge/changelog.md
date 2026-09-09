@@ -2,6 +2,15 @@
 
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-08 -- Refine dashboard toolbar and restore tile kebab menu
+
+- Removed the "DASHBOARD" badge from the builder top toolbar for a cleaner header.
+- Updated `+ Add` button to be a clean borderless text button without extra icon or border.
+- Removed border from the `Refresh` button and moved it next to the `Save` button on the right.
+- Removed the `[x]` close button from the far right so `Edit / Done` is the rightmost toolbar element.
+- Made the kebab menu (`more_vert` icon) in `TileCard` header always visible and accessible on all tiles (removed edit mode restriction).
+- Verified test suite (163 passing tests) and Next.js static build.
+
 ## 2026-09-08 -- Update dashboard toolbar: + Add button on left, attached Save menu (Save, Save As, BigQuery), and Edit/Done on far right
 
 - Added text button `+ Add` on the left of the dashboard builder top toolbar for fast tile/text insertion.

@@ -24,13 +24,6 @@ import { AppFilterBar } from './builder/AppFilterBar';
 import { TileSqlEditor } from './builder/TileSqlEditor';
 import { AddTileModal } from './builder/AddTileModal';
 
-const DOC_TYPE_LABELS: Record<string, string> = {
-  dashboard: 'Dashboard',
-  app: 'Interactive App',
-  report: 'Report',
-  recipe: 'Recipe',
-};
-
 const DOC_TYPE_ICONS: Record<string, string> = {
   dashboard: 'dashboard',
   app: 'widgets',
@@ -59,7 +52,7 @@ interface Props {
 
 export function BuilderPage({ documentId }: Props) {
   const builder = useBuilder();
-  const { closeTab, openBuilderTab } = usePage();
+  const { openBuilderTab } = usePage();
   const { activeProject, user } = useAuth();
   const document = builder.getDocument(documentId);
 
@@ -296,15 +289,6 @@ export function BuilderPage({ documentId }: Props) {
     [dragId, document, builder, documentId],
   );
 
-  const handleDiscard = useCallback(() => {
-    if (builder.hasUnsavedChanges(documentId)) {
-      const ok = window.confirm('Discard unsaved changes?');
-      if (!ok) return;
-    }
-    builder.discardDocument(documentId);
-    closeTab(`builder:${documentId}`);
-  }, [builder, documentId, closeTab]);
-
   if (!document) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12, color: 'var(--text-muted)' }}>
@@ -321,44 +305,20 @@ export function BuilderPage({ documentId }: Props) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--chat-bg, #f8f9fa)', overflow: 'hidden' }}>
-      {/* ── Top Toolbar ── */}
+      {/* ── Top Bar / Header ── */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 10,
-          padding: '0 20px',
-          height: 52,
+          gap: 12,
+          padding: '10px 20px',
           borderBottom: '1px solid var(--border)',
-          background: 'var(--surface, #fff)',
+          background: 'var(--surface)',
           flexShrink: 0,
           position: 'relative',
           zIndex: 10,
         }}
       >
-        {/* Type badge */}
-        <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            padding: '3px 10px',
-            borderRadius: 12,
-            background: 'var(--surface-2, #f0f0f0)',
-            fontSize: 11,
-            fontWeight: 500,
-            color: 'var(--text-muted)',
-            fontFamily: "'Google Sans', sans-serif",
-            textTransform: 'uppercase',
-            letterSpacing: '0.03em',
-          }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 13 }}>
-            {DOC_TYPE_ICONS[document.type] ?? 'dashboard'}
-          </span>
-          {DOC_TYPE_LABELS[document.type] ?? document.type}
-        </span>
-
         {/* Document Title */}
         <EditableName
           value={document.name}
@@ -383,46 +343,21 @@ export function BuilderPage({ documentId }: Props) {
         <button
           onClick={() => setAddTileOpen(true)}
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            padding: '5px 12px',
-            borderRadius: 8,
-            border: '1px solid var(--border)',
+            padding: '6px 10px',
+            border: 'none',
             background: 'none',
             color: 'var(--text)',
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: 500,
             cursor: 'pointer',
             fontFamily: "'Google Sans', sans-serif",
+            borderRadius: 6,
           }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f1f3f4)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
           title="Add tile or text"
         >
-          <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#1a73e8' }}>add</span>
           + Add
-        </button>
-
-        {/* Refresh All */}
-        <button
-          onClick={handleRefreshAll}
-          disabled={refreshing}
-          title="Refresh all queries"
-          style={{
-            padding: '6px 8px',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            background: 'none',
-            cursor: refreshing ? 'wait' : 'pointer',
-            color: 'var(--text-muted)',
-            lineHeight: 1,
-          }}
-        >
-          <span
-            className="material-symbols-outlined"
-            style={{ fontSize: 16, animation: refreshing ? 'spin 1s linear infinite' : 'none' }}
-          >
-            refresh
-          </span>
         </button>
 
         <div style={{ flex: 1 }} />
@@ -440,6 +375,35 @@ export function BuilderPage({ documentId }: Props) {
             {statusMsg.text}
           </span>
         )}
+
+        {/* Refresh All (borderless, next to Save button) */}
+        <button
+          onClick={handleRefreshAll}
+          disabled={refreshing}
+          title="Refresh all queries"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 32,
+            height: 32,
+            padding: 0,
+            border: 'none',
+            borderRadius: 6,
+            background: 'none',
+            cursor: refreshing ? 'wait' : 'pointer',
+            color: 'var(--text-muted)',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f1f3f4)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+        >
+          <span
+            className="material-symbols-outlined"
+            style={{ fontSize: 18, animation: refreshing ? 'spin 1s linear infinite' : 'none' }}
+          >
+            refresh
+          </span>
+        </button>
 
         {/* Save button with attached menu */}
         <div ref={saveMenuRef} style={{ position: 'relative', display: 'inline-flex', alignItems: 'stretch' }}>
@@ -591,28 +555,6 @@ export function BuilderPage({ documentId }: Props) {
             {editMode ? 'check' : 'edit'}
           </span>
           {editMode ? 'Done' : 'Edit'}
-        </button>
-
-        {/* Close Button */}
-        <button
-          onClick={handleDiscard}
-          title="Close tab"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 32,
-            height: 32,
-            padding: 0,
-            borderRadius: 8,
-            border: '1px solid var(--border)',
-            background: 'none',
-            color: 'var(--text-muted)',
-            fontSize: 13,
-            cursor: 'pointer',
-          }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 15 }}>close</span>
         </button>
       </div>
 
@@ -1019,94 +961,92 @@ function TileCard({
           </button>
         )}
 
-        {/* Kebab menu in edit mode */}
-        {editMode && (
-          <div ref={menuRef} style={{ position: 'relative' }}>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setMenuOpen((v) => !v);
+        {/* Kebab menu */}
+        <div ref={menuRef} style={{ position: 'relative' }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpen((v) => !v);
+            }}
+            style={actionIconBtn}
+            title="Tile options"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+              more_vert
+            </span>
+          </button>
+
+          {menuOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: 4,
+                minWidth: 140,
+                background: '#fff',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+                padding: '4px 0',
+                zIndex: 50,
+                display: 'flex',
+                flexDirection: 'column',
+                fontFamily: "'Google Sans', sans-serif",
               }}
-              style={actionIconBtn}
-              title="Tile options"
             >
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
-                more_vert
-              </span>
-            </button>
-
-            {menuOpen && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: 4,
-                  minWidth: 140,
-                  background: '#fff',
-                  border: '1px solid var(--border)',
-                  borderRadius: 8,
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
-                  padding: '4px 0',
-                  zIndex: 50,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  fontFamily: "'Google Sans', sans-serif",
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onEditSql();
                 }}
+                style={menuItemStyle}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f3f4f6)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
               >
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMenuOpen(false);
-                    onEditSql();
-                  }}
-                  style={menuItemStyle}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f3f4f6)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: 15, color: 'var(--text-muted)' }}>
-                    code
-                  </span>
-                  SQL
-                </button>
+                <span className="material-symbols-outlined" style={{ fontSize: 15, color: 'var(--text-muted)' }}>
+                  code
+                </span>
+                SQL
+              </button>
 
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMenuOpen(false);
-                    onDuplicate();
-                  }}
-                  style={menuItemStyle}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f3f4f6)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: 15, color: 'var(--text-muted)' }}>
-                    content_copy
-                  </span>
-                  Duplicate
-                </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onDuplicate();
+                }}
+                style={menuItemStyle}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f3f4f6)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 15, color: 'var(--text-muted)' }}>
+                  content_copy
+                </span>
+                Duplicate
+              </button>
 
-                <div style={{ height: 1, background: 'var(--border-subtle, #f0f0f0)', margin: '4px 0' }} />
+              <div style={{ height: 1, background: 'var(--border-subtle, #f0f0f0)', margin: '4px 0' }} />
 
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMenuOpen(false);
-                    onRemove();
-                  }}
-                  style={{ ...menuItemStyle, color: '#dc2626' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = '#fef2f2'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#dc2626' }}>
-                    delete
-                  </span>
-                  Delete
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onRemove();
+                }}
+                style={{ ...menuItemStyle, color: '#dc2626' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#fef2f2'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#dc2626' }}>
+                  delete
+                </span>
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tile Content */}
