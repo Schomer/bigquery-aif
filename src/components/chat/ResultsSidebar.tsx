@@ -20,6 +20,7 @@ import { CrystalBallThinking, ErrorCard, RegenerateButton, QueryProgressPanel } 
 import { ChatInput } from './ChatInput';
 import { usePage } from '@/lib/page-context';
 import { useBuilder } from '@/lib/builder-context';
+import { usePreferences } from '@/lib/preferences-context';
 import type { RecentItem } from '@/lib/firestore-service';
 import { DataStartSection } from '@/app/page';
 
@@ -247,7 +248,10 @@ export function ResultsSidebar({
   recentItems,
   setActiveProject,
 }: ResultsSidebarProps) {
+  const { outputViewMode } = usePreferences();
   const [isDragging, setIsDragging] = useState(false);
+  const [activeEnvelopeId, setActiveEnvelopeId] = useState<string | null>(null);
+  const prevLastEnvelopeIdRef = useRef<string | null>(null);
   const resultsPanelRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -274,6 +278,46 @@ export function ResultsSidebar({
     }
   }, []);
 
+  // Collect envelopes from visible assistant messages for the results panel.
+  // Exclude confirmation envelopes (render inline in the chat sidebar) and
+  // CONVERSATION envelopes (plain text -- render inline in the chat sidebar too).
+  const CONFIRM_TYPES = new Set(['COST_CONFIRM_CARD', 'CONFIRMATION_CARD']);
+  const INLINE_TYPES = new Set(['COST_CONFIRM_CARD', 'CONFIRMATION_CARD', 'CONVERSATION']);
+  const allEnvelopes = useMemo(() => {
+    const result: CompositionEnvelope[] = [];
+    for (let idx = 0; idx < messages.length; idx++) {
+      if (idx < historyHiddenBefore) continue;
+      const msg = messages[idx];
+      if (msg.role === 'assistant' && msg.envelopes?.length) {
+        for (const env of msg.envelopes) {
+          if (!INLINE_TYPES.has(env.primaryArtifact.type)) {
+            result.push(env);
+          }
+        }
+      }
+    }
+    return result;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, historyHiddenBefore]);
+
+  // Track the most recent envelope when new outputs arrive
+  useEffect(() => {
+    const lastEnv = allEnvelopes[allEnvelopes.length - 1];
+    const lastId = lastEnv?.id ?? null;
+    if (lastId && lastId !== prevLastEnvelopeIdRef.current) {
+      setActiveEnvelopeId(lastId);
+    }
+    prevLastEnvelopeIdRef.current = lastId;
+  }, [allEnvelopes]);
+
+  // If activeEnvelopeId is set and valid, use it; otherwise fallback to the last envelope in allEnvelopes
+  const effectiveActiveEnvelopeId = useMemo(() => {
+    if (activeEnvelopeId && allEnvelopes.some((e) => e.id === activeEnvelopeId)) {
+      return activeEnvelopeId;
+    }
+    return allEnvelopes.length > 0 ? allEnvelopes[allEnvelopes.length - 1].id : null;
+  }, [activeEnvelopeId, allEnvelopes]);
+
   // Click handler for artifact cards in the chat sidebar -- dashboard artifacts open the dashboard directly
   const handleArtifactClick = useCallback((env: CompositionEnvelope) => {
     if (env.primaryArtifact.type === 'DASHBOARD_VIEW') {
@@ -288,8 +332,20 @@ export function ResultsSidebar({
         return;
       }
     }
-    scrollToResult(env.id);
-  }, [builder, openBuilderTab, openDashboardTab, scrollToResult]);
+    setActiveEnvelopeId(env.id);
+    if (outputViewMode === 'all') {
+      scrollToResult(env.id);
+    }
+  }, [builder, openBuilderTab, openDashboardTab, outputViewMode, scrollToResult]);
+
+  const displayedEnvelopes = useMemo(() => {
+    if (outputViewMode === 'single') {
+      if (!effectiveActiveEnvelopeId) return [];
+      const match = allEnvelopes.find((e) => e.id === effectiveActiveEnvelopeId);
+      return match ? [match] : [];
+    }
+    return allEnvelopes;
+  }, [outputViewMode, effectiveActiveEnvelopeId, allEnvelopes]);
 
   // Drag handle for resizing sidebar
   const handleDragStart = useCallback((e: React.MouseEvent) => {
@@ -316,28 +372,6 @@ export function ResultsSidebar({
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
   }, [sidebarWidth, layout, setSidebarWidth]);
-
-  // Collect envelopes from visible assistant messages for the results panel.
-  // Exclude confirmation envelopes (render inline in the chat sidebar) and
-  // CONVERSATION envelopes (plain text -- render inline in the chat sidebar too).
-  const CONFIRM_TYPES = new Set(['COST_CONFIRM_CARD', 'CONFIRMATION_CARD']);
-  const INLINE_TYPES = new Set(['COST_CONFIRM_CARD', 'CONFIRMATION_CARD', 'CONVERSATION']);
-  const allEnvelopes = useMemo(() => {
-    const result: CompositionEnvelope[] = [];
-    for (let idx = 0; idx < messages.length; idx++) {
-      if (idx < historyHiddenBefore) continue;
-      const msg = messages[idx];
-      if (msg.role === 'assistant' && msg.envelopes?.length) {
-        for (const env of msg.envelopes) {
-          if (!INLINE_TYPES.has(env.primaryArtifact.type)) {
-            result.push(env);
-          }
-        }
-      }
-    }
-    return result;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, historyHiddenBefore]);
 
   // Project selection buttons (used in empty-state panels)
   const projectButtons = (
@@ -557,15 +591,16 @@ export function ResultsSidebar({
                             {artifactEnvs.map((env) => {
                               const name = envelopeName(env);
                               const stats = envelopeStats(env);
+                              const isSelected = effectiveActiveEnvelopeId === env.id;
                               return (
                                 <div
                                   key={env.id}
-                                  className="chat-sidebar-artifact-card"
+                                  className={`chat-sidebar-artifact-card${isSelected ? ' chat-sidebar-artifact-card--selected' : ''}`}
                                   onClick={() => handleArtifactClick(env)}
                                   role="button"
                                   tabIndex={0}
                                   onKeyDown={(e) => e.key === 'Enter' && handleArtifactClick(env)}
-                                  title={env.primaryArtifact.type === 'DASHBOARD_VIEW' ? 'Open dashboard' : 'View in results panel'}
+                                  title={env.primaryArtifact.type === 'DASHBOARD_VIEW' ? 'Open dashboard' : (outputViewMode === 'single' ? 'View output' : 'View in results panel')}
                                 >
                                   <div className="chat-sidebar-artifact-card-icon">
                                     <span className="material-symbols-outlined">{artifactIcon(env.primaryArtifact.type, env.primaryArtifact.data)}</span>
@@ -797,9 +832,9 @@ export function ResultsSidebar({
             />
             {recentItemsSection}
           </div>
-        ) : allEnvelopes.length > 0 ? (
+        ) : displayedEnvelopes.length > 0 ? (
           <div className="results-panel-inner">
-            {allEnvelopes.map((env) => (
+            {displayedEnvelopes.map((env) => (
               <div key={env.id} data-envelope-id={env.id}>
                 <ArtifactCard
                   envelope={env}

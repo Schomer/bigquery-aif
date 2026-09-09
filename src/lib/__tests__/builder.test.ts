@@ -199,5 +199,35 @@ describe('builder layout & tile hydration', () => {
       expect(restored.globalFilters?.[0].options).toEqual(['US', 'EU', 'APAC']);
     });
   });
+
+  describe('advanced filter SQL substitutions', () => {
+    it('substitutes NUMBER_RANGE object into SQL template', async () => {
+      const { substituteSqlParameters } = await import('../app-executor');
+      const sql = 'SELECT * FROM sales WHERE price >= {{min_price}} AND price <= {{max_price}}';
+      const result = substituteSqlParameters(sql, { price: { min: 50, max: 200 } });
+      expect(result).toBe('SELECT * FROM sales WHERE price >= 50 AND price <= 200');
+    });
+
+    it('substitutes DATE_RANGE object into SQL template', async () => {
+      const { substituteSqlParameters } = await import('../app-executor');
+      const sql = 'SELECT * FROM sales WHERE order_date BETWEEN "{{start_date}}" AND "{{end_date}}"';
+      const result = substituteSqlParameters(sql, { date_range: { start: '2026-01-01', end: '2026-06-30' } });
+      expect(result).toBe('SELECT * FROM sales WHERE order_date BETWEEN "2026-01-01" AND "2026-06-30"');
+    });
+
+    it('substitutes MULTI_SELECT array into SQL IN clause', async () => {
+      const { substituteSqlParameters } = await import('../app-executor');
+      const sql = 'SELECT * FROM sales WHERE region IN ({{regions}})';
+      const result = substituteSqlParameters(sql, { regions: ['US', 'EU', 'APAC'] });
+      expect(result).toBe("SELECT * FROM sales WHERE region IN ('US', 'EU', 'APAC')");
+    });
+
+    it('cleans unmatched template parameters safely with empty string fallback', async () => {
+      const { substituteSqlParameters } = await import('../app-executor');
+      const sql = "SELECT * FROM sales WHERE (country = '{{country}}' OR '{{country}}' = '')";
+      const result = substituteSqlParameters(sql, {});
+      expect(result).toBe("SELECT * FROM sales WHERE (country = '' OR '' = '')");
+    });
+  });
 });
 

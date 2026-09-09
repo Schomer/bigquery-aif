@@ -14,6 +14,21 @@ export const COLORS = [
   '#f87171',  // coral-red
 ];
 
+export const PALETTES: Record<string, string[]> = {
+  default: COLORS,
+  ocean: ['#0284c7', '#06b6d4', '#38bdf8', '#7dd3fc', '#bae6fd', '#0369a1'],
+  emerald: ['#059669', '#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#047857'],
+  sunset: ['#ea580c', '#f97316', '#fb923c', '#f43f5e', '#fb7185', '#e11d48'],
+  purple: ['#7c3aed', '#8b5cf6', '#a78bfa', '#c084fc', '#e879f9', '#6d28d9'],
+  monochrome: ['#1e293b', '#334155', '#475569', '#64748b', '#94a3b8', '#cbd5e1'],
+};
+
+export function getPalette(name?: string): string[] {
+  if (!name) return COLORS;
+  const key = name.toLowerCase().trim();
+  return PALETTES[key] || COLORS;
+}
+
 export const AXIS_STYLE = {
   tick: { fill: 'var(--text-muted)', fontSize: 11 },
   axisLine: false,

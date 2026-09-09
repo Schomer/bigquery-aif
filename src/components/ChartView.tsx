@@ -53,9 +53,16 @@ interface Props {
   result: QueryResult;
   chartType: ChartType;
   onSendMessage: (msg: string) => void;
+  onSelectPoint?: (dimension: string, value: string) => void;
+  colorPalette?: string;
 }
 
-const RENDERERS: Record<ChartType, React.ComponentType<{ result: QueryResult; onSendMessage: (msg: string) => void }>> = {
+const RENDERERS: Record<ChartType, React.ComponentType<{
+  result: QueryResult;
+  onSendMessage: (msg: string) => void;
+  onSelectPoint?: (dimension: string, value: string) => void;
+  colorPalette?: string;
+}>> = {
   // Recharts native
   LINE_CHART: LineChartRenderer,
   BAR_CHART: BarChartRenderer,
@@ -87,7 +94,7 @@ const RENDERERS: Record<ChartType, React.ComponentType<{ result: QueryResult; on
   WORLD_MAP: WorldMapRenderer,
 };
 
-export function ChartView({ result, chartType, onSendMessage }: Props) {
+export function ChartView({ result, chartType, onSendMessage, onSelectPoint, colorPalette }: Props) {
   // For map types, inspect the data to confirm the geography rather than
   // trusting the router's guess from the user's text alone.
   let resolvedType = chartType;
@@ -108,5 +115,5 @@ export function ChartView({ result, chartType, onSendMessage }: Props) {
     );
   }
 
-  return <Renderer result={result} onSendMessage={onSendMessage} />;
+  return <Renderer result={result} onSendMessage={onSendMessage} onSelectPoint={onSelectPoint} colorPalette={colorPalette} />;
 }

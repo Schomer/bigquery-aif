@@ -10,6 +10,7 @@ import type {
   AppFilterControl,
   FilterControlType,
   TileInteractionRule,
+  TileSnapshot,
 } from '../../lib/builder-types';
 import {
   getGlobalBuilderDocuments,
@@ -512,9 +513,9 @@ export const manageAppTool: ToolDef = {
               .replace(/\{\{start_date\}\}/g, '1900-01-01')
               .replace(/\{\{end_date\}\}/g, '2100-12-31');
             const res = await executeQuery(cleanSql, project);
-            const snapshot = {
+            const snapshot: TileSnapshot = {
               columns: res.columns,
-              rows: res.rows,
+              rows: res.rows as (string | number | boolean | null)[][],
               rowCount: res.rowCount,
               fetchedAt: new Date().toISOString(),
             };
@@ -726,7 +727,7 @@ export const manageAppTool: ToolDef = {
         if (!targetDoc) return { data: { error: 'No active dashboard found.' } };
 
         const filterId = args.filter_id as string;
-        const filterLabel = (args.filters?.[0]?.label || args.document_name) as string;
+        const filterLabel = ((args.filters as any[])?.[0]?.label || args.document_name) as string;
 
         let targetFilter = targetDoc.globalFilters?.find((f) => f.id === filterId);
         if (!targetFilter && filterLabel && targetDoc.globalFilters) {
@@ -737,7 +738,7 @@ export const manageAppTool: ToolDef = {
           return { data: { error: 'Could not find filter to update.' } };
         }
 
-        const updateData = args.filters?.[0] || {};
+        const updateData = (args.filters as any[])?.[0] || {};
         if (updateData.label) targetFilter.label = updateData.label;
         if (updateData.param_name) targetFilter.paramName = updateData.param_name;
         if (updateData.column) targetFilter.column = updateData.column;
@@ -772,7 +773,7 @@ export const manageAppTool: ToolDef = {
         if (!targetDoc) return { data: { error: 'No active dashboard found.' } };
 
         const filterId = args.filter_id as string;
-        const filterLabel = (args.filters?.[0]?.label || args.document_name) as string;
+        const filterLabel = ((args.filters as any[])?.[0]?.label || args.document_name) as string;
 
         if (targetDoc.globalFilters) {
           targetDoc.globalFilters = targetDoc.globalFilters.filter((f) => {

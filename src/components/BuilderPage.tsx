@@ -23,6 +23,7 @@ import { PresentationView } from './PresentationView';
 import { AppFilterBar } from './builder/AppFilterBar';
 import { TileSqlEditor } from './builder/TileSqlEditor';
 import { AddTileModal } from './builder/AddTileModal';
+import { BuilderChatSidebar } from './builder/BuilderChatSidebar';
 
 const DOC_TYPE_ICONS: Record<string, string> = {
   dashboard: 'dashboard',
@@ -57,6 +58,8 @@ export function BuilderPage({ documentId }: Props) {
   const document = builder.getDocument(documentId);
 
   const [editMode, setEditMode] = useState(false);
+  const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  const [showChatSidebar, setShowChatSidebar] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingBq, setSavingBq] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -537,9 +540,43 @@ export function BuilderPage({ documentId }: Props) {
           )}
         </div>
 
+        {/* AI Assistant button in edit mode */}
+        {editMode && (
+          <button
+            onClick={() => setShowChatSidebar((v) => !v)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '6px 12px',
+              borderRadius: 8,
+              border: showChatSidebar ? '1px solid #1a73e8' : '1px solid var(--border)',
+              background: showChatSidebar ? 'rgba(26, 115, 232, 0.08)' : 'var(--surface)',
+              color: showChatSidebar ? '#1a73e8' : 'var(--text)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+              fontFamily: "'Google Sans', sans-serif",
+              transition: 'all 0.15s',
+            }}
+            title="Toggle AI Assistant"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+              auto_awesome
+            </span>
+            AI Assistant
+          </button>
+        )}
+
         {/* Edit / Done button on the far right */}
         <button
-          onClick={() => setEditMode((v) => !v)}
+          onClick={() =>
+            setEditMode((v) => {
+              const next = !v;
+              if (!next) setSelectedTileId(null);
+              return next;
+            })
+          }
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -567,193 +604,306 @@ export function BuilderPage({ documentId }: Props) {
       <AppFilterBar
         filters={document.globalFilters || []}
         values={document.filterValues || {}}
+        tiles={document.tiles}
         editMode={editMode}
         onValueChange={handleFilterChange}
         onClearAll={handleClearFilters}
         onAddFilter={(filter) => builder.addFilter(documentId, filter)}
+        onEditFilter={(filter) => builder.updateFilter(documentId, filter.id, filter)}
         onRemoveFilter={(filterId) => builder.removeFilter(documentId, filterId)}
         isRefreshing={refreshing}
       />
 
-      {/* ── Grid Canvas ── */}
-      <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
-        {document.tiles.length === 0 ? (
-          <div
+      {/* ── Active Cross-Filtering Selections Pill Bar ── */}
+      {document.activeSelections && Object.keys(document.activeSelections).length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 8,
+            padding: '6px 20px',
+            background: 'rgba(26, 115, 232, 0.05)',
+            borderBottom: '1px solid rgba(26, 115, 232, 0.15)',
+            fontSize: 12,
+            zIndex: 9,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#1a73e8', fontWeight: 600 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>
+              filter_alt
+            </span>
+            <span>Active Filters:</span>
+          </div>
+
+          {Object.entries(document.activeSelections).map(([tileId, sel]) => {
+            const sourceTile = document.tiles.find((t) => t.id === tileId);
+            return (
+              <div
+                key={tileId}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '3px 8px 3px 10px',
+                  borderRadius: 14,
+                  background: '#ffffff',
+                  border: '1px solid #1a73e8',
+                  color: '#1a73e8',
+                  fontWeight: 500,
+                  fontSize: 12,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                }}
+              >
+                <span>
+                  <strong>{sourceTile?.title || 'Card'}:</strong> {sel.dimension} = {String(sel.value)}
+                </span>
+                <button
+                  onClick={() => builder.setActiveSelection(documentId, tileId, null)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 16,
+                    height: 16,
+                    borderRadius: '50%',
+                    border: 'none',
+                    background: 'rgba(26, 115, 232, 0.12)',
+                    color: '#1a73e8',
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                  title="Remove this filter"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 12 }}>
+                    close
+                  </span>
+                </button>
+              </div>
+            );
+          })}
+
+          <button
+            onClick={() => builder.clearActiveSelections(documentId)}
             style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '75%',
-              gap: 14,
-              border: '2px dashed var(--border)',
-              borderRadius: 14,
-              color: 'var(--text-muted)',
+              padding: '2px 8px',
+              borderRadius: 4,
+              border: 'none',
+              background: 'none',
+              color: '#1a73e8',
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: 'pointer',
+              textDecoration: 'underline',
             }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 44, opacity: 0.25 }}>
-              {DOC_TYPE_ICONS[document.type] ?? 'dashboard'}
-            </span>
-            <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>
-              Canvas is empty
-            </div>
-            <div style={{ fontSize: 13, maxWidth: 400, textAlign: 'center' }}>
-              Add results from chat, ask the AI to &ldquo;add to dashboard&rdquo;, or click below to build custom tiles.
-            </div>
-            <button
-              onClick={() => setAddTileOpen(true)}
+            Reset All
+          </button>
+        </div>
+      )}
+
+      {/* ── Main Canvas and Chat Sidebar Layout ── */}
+      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+        {/* Grid Canvas */}
+        <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
+          {document.tiles.length === 0 ? (
+            <div
               style={{
-                display: 'inline-flex',
+                display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
-                gap: 6,
-                padding: '8px 18px',
-                borderRadius: 8,
-                border: 'none',
-                background: '#1a73e8',
-                color: '#fff',
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: 'pointer',
+                justifyContent: 'center',
+                height: '75%',
+                gap: 14,
+                border: '2px dashed var(--border)',
+                borderRadius: 14,
+                color: 'var(--text-muted)',
               }}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
-              Add First Tile
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {/* Top New Row Drop Zone */}
-            {editMode && dragId && (
-              <NewRowDropZone
-                active={dropTarget?.type === 'new-row' && dropTarget.rowIdx === 0}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDropTarget({ type: 'new-row', rowIdx: 0 });
+              <span className="material-symbols-outlined" style={{ fontSize: 44, opacity: 0.25 }}>
+                {DOC_TYPE_ICONS[document.type] ?? 'dashboard'}
+              </span>
+              <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>
+                Canvas is empty
+              </div>
+              <div style={{ fontSize: 13, maxWidth: 400, textAlign: 'center' }}>
+                Add results from chat, ask the AI to &ldquo;add to dashboard&rdquo;, or click below to build custom tiles.
+              </div>
+              <button
+                onClick={() => setAddTileOpen(true)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '8px 18px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: '#1a73e8',
+                  color: '#fff',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: 'pointer',
                 }}
-                onDragLeave={() => {
-                  if (dropTarget?.type === 'new-row' && dropTarget.rowIdx === 0) setDropTarget(null);
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  handleDropAction({ type: 'new-row', rowIdx: 0 });
-                }}
-              />
-            )}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
+                Add First Tile
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Top New Row Drop Zone */}
+              {editMode && dragId && (
+                <NewRowDropZone
+                  active={dropTarget?.type === 'new-row' && dropTarget.rowIdx === 0}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDropTarget({ type: 'new-row', rowIdx: 0 });
+                  }}
+                  onDragLeave={() => {
+                    if (dropTarget?.type === 'new-row' && dropTarget.rowIdx === 0) setDropTarget(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    handleDropAction({ type: 'new-row', rowIdx: 0 });
+                  }}
+                />
+              )}
 
-            {tileRows.map((rowTiles, rIdx) => {
-              const rowId = `row_${rIdx}`;
-              const currentRowHeight =
-                rowTiles[0]?.rowHeight ||
-                (rowTiles[0]?.rowSpan ? rowTiles[0].rowSpan * densityCfg.baseHeight + (rowTiles[0].rowSpan - 1) * 12 : 220);
+              {tileRows.map((rowTiles, rIdx) => {
+                const rowId = `row_${rIdx}`;
+                const currentRowHeight =
+                  rowTiles[0]?.rowHeight ||
+                  (rowTiles[0]?.rowSpan ? rowTiles[0].rowSpan * densityCfg.baseHeight + (rowTiles[0].rowSpan - 1) * 12 : 220);
 
-              return (
-                <div key={rowId} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {/* Row Flex Container */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: 12,
-                      alignItems: 'stretch',
-                      width: '100%',
-                      height: currentRowHeight,
-                      minHeight: 50,
-                      position: 'relative',
-                    }}
-                  >
-                    {rowTiles.map((tile, tIdx) => {
-                      const widthPercent = tile.widthPercent ?? Number((100 / rowTiles.length).toFixed(3));
-                      return (
-                        <TileCard
-                          key={tile.id}
-                          tile={tile}
-                          widthPercent={widthPercent}
-                          rowIndex={rIdx}
-                          tileIndex={tIdx}
-                          rowTiles={rowTiles}
-                          rowHeight={currentRowHeight}
-                          editMode={editMode}
-                          isLoading={loadingTiles.has(tile.id)}
-                          isDragging={dragId === tile.id}
-                          dropPosition={
-                            dropTarget?.type === 'in-row' && dropTarget.tileId === tile.id
-                              ? dropTarget.position
-                              : null
-                          }
-                          onDragStart={() => {
-                            setDragId(tile.id);
-                            setDropTarget(null);
-                          }}
-                          onDragEnd={() => {
-                            setDragId(null);
-                            setDropTarget(null);
-                          }}
-                          onDragOverPosition={(e, position) => {
-                            setDropTarget({
-                              type: 'in-row',
-                              tileId: tile.id,
-                              rowIdx: rIdx,
-                              tileIdx: tIdx,
-                              position,
-                            });
-                          }}
-                          onDropPosition={(position) =>
-                            handleDropAction({
-                              type: 'in-row',
-                              tileId: tile.id,
-                              rowIdx: rIdx,
-                              tileIdx: tIdx,
-                              position,
-                            })
-                          }
-                          onRemove={() => builder.removeTile(documentId, tile.id)}
-                          onDuplicate={() => builder.duplicateTile(documentId, tile.id)}
-                          onRename={(name) => builder.updateTile(documentId, tile.id, { title: name })}
-                          onEditSql={() => setEditingTile(tile)}
-                          onResizeWidthPercent={(newPercentA, adjacentTileId, newPercentB) => {
-                            builder.setTileWidthPercent(documentId, tile.id, newPercentA, adjacentTileId, newPercentB);
-                          }}
-                          onResizeHeight={(newHeight) => {
+                return (
+                  <div key={rowId} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {/* Row Flex Container */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 12,
+                        alignItems: 'stretch',
+                        width: '100%',
+                        height: currentRowHeight,
+                        minHeight: 50,
+                        position: 'relative',
+                      }}
+                    >
+                      {rowTiles.map((tile, tIdx) => {
+                        const widthPercent = tile.widthPercent ?? Number((100 / rowTiles.length).toFixed(3));
+                        return (
+                          <TileCard
+                            key={tile.id}
+                            tile={tile}
+                            widthPercent={widthPercent}
+                            rowIndex={rIdx}
+                            tileIndex={tIdx}
+                            rowTiles={rowTiles}
+                            rowHeight={currentRowHeight}
+                            editMode={editMode}
+                            isSelected={selectedTileId === tile.id}
+                            onSelectCard={() => {
+                              if (editMode) {
+                                setSelectedTileId((prev) => (prev === tile.id ? null : tile.id));
+                              }
+                            }}
+                            onSelectPoint={(dimension, value) => {
+                              builder.setActiveSelection(documentId, tile.id, { dimension, value });
+                            }}
+                            isLoading={loadingTiles.has(tile.id)}
+                            isDragging={dragId === tile.id}
+                            dropPosition={
+                              dropTarget?.type === 'in-row' && dropTarget.tileId === tile.id
+                                ? dropTarget.position
+                                : null
+                            }
+                            onDragStart={() => {
+                              setDragId(tile.id);
+                              setDropTarget(null);
+                            }}
+                            onDragEnd={() => {
+                              setDragId(null);
+                              setDropTarget(null);
+                            }}
+                            onDragOverPosition={(e, position) => {
+                              setDropTarget({
+                                type: 'in-row',
+                                tileId: tile.id,
+                                rowIdx: rIdx,
+                                tileIdx: tIdx,
+                                position,
+                              });
+                            }}
+                            onDropPosition={(position) =>
+                              handleDropAction({
+                                type: 'in-row',
+                                tileId: tile.id,
+                                rowIdx: rIdx,
+                                tileIdx: tIdx,
+                                position,
+                              })
+                            }
+                            onRemove={() => builder.removeTile(documentId, tile.id)}
+                            onDuplicate={() => builder.duplicateTile(documentId, tile.id)}
+                            onRename={(name) => builder.updateTile(documentId, tile.id, { title: name })}
+                            onEditSql={() => setEditingTile(tile)}
+                            onResizeWidthPercent={(newPercentA, adjacentTileId, newPercentB) => {
+                              builder.setTileWidthPercent(documentId, tile.id, newPercentA, adjacentTileId, newPercentB);
+                            }}
+                            onResizeHeight={(newHeight) => {
+                              builder.setRowHeight(documentId, rowTiles[0].id, newHeight);
+                            }}
+                            onRefresh={() => handleRefreshSingleTile(tile.id)}
+                          />
+                        );
+                      })}
+                    </div>
+
+                    {/* Row Height Resize Handle */}
+                    {editMode && (
+                      <RowHeightResizeHandle
+                        currentRowHeight={currentRowHeight}
+                        onResize={(newHeight) => {
+                          if (rowTiles[0]) {
                             builder.setRowHeight(documentId, rowTiles[0].id, newHeight);
-                          }}
-                          onRefresh={() => handleRefreshSingleTile(tile.id)}
-                        />
-                      );
-                    })}
+                          }
+                        }}
+                      />
+                    )}
+
+                    {/* Inter-Row New Row Drop Zone */}
+                    {editMode && dragId && (
+                      <NewRowDropZone
+                        active={dropTarget?.type === 'new-row' && dropTarget.rowIdx === rIdx + 1}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setDropTarget({ type: 'new-row', rowIdx: rIdx + 1 });
+                        }}
+                        onDragLeave={() => {
+                          if (dropTarget?.type === 'new-row' && dropTarget.rowIdx === rIdx + 1) setDropTarget(null);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          handleDropAction({ type: 'new-row', rowIdx: rIdx + 1 });
+                        }}
+                      />
+                    )}
                   </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
-                  {/* Row Height Resize Handle */}
-                  {editMode && (
-                    <RowHeightResizeHandle
-                      currentRowHeight={currentRowHeight}
-                      onResize={(newHeight) => {
-                        if (rowTiles[0]) {
-                          builder.setRowHeight(documentId, rowTiles[0].id, newHeight);
-                        }
-                      }}
-                    />
-                  )}
-
-                  {/* Inter-Row New Row Drop Zone */}
-                  {editMode && dragId && (
-                    <NewRowDropZone
-                      active={dropTarget?.type === 'new-row' && dropTarget.rowIdx === rIdx + 1}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        setDropTarget({ type: 'new-row', rowIdx: rIdx + 1 });
-                      }}
-                      onDragLeave={() => {
-                        if (dropTarget?.type === 'new-row' && dropTarget.rowIdx === rIdx + 1) setDropTarget(null);
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        handleDropAction({ type: 'new-row', rowIdx: rIdx + 1 });
-                      }}
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </div>
+        {/* AI Chat Sidebar */}
+        {editMode && showChatSidebar && (
+          <BuilderChatSidebar
+            document={document}
+            selectedTile={document.tiles.find((t) => t.id === selectedTileId) || null}
+            onClearSelectedTile={() => setSelectedTileId(null)}
+            onClose={() => setShowChatSidebar(false)}
+            onRefreshDocument={handleRefreshAll}
+          />
         )}
       </div>
 
@@ -959,6 +1109,9 @@ function TileCard({
   rowTiles,
   rowHeight,
   editMode,
+  isSelected,
+  onSelectCard,
+  onSelectPoint,
   isLoading,
   isDragging,
   dropPosition,
@@ -981,6 +1134,9 @@ function TileCard({
   rowTiles: BuilderTile[];
   rowHeight: number;
   editMode: boolean;
+  isSelected?: boolean;
+  onSelectCard?: () => void;
+  onSelectPoint?: (dimension: string, value: string | number) => void;
   isLoading: boolean;
   isDragging: boolean;
   dropPosition?: 'left' | 'right' | null;
@@ -994,7 +1150,7 @@ function TileCard({
   onEditSql: () => void;
   onResizeWidthPercent: (newPercentA: number, adjacentTileId?: string, newPercentB?: number) => void;
   onResizeHeight: (newHeight: number) => void;
-  onRefresh: () => void;
+  onRefresh: () => void | Promise<any>;
 }) {
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1196,11 +1352,16 @@ function TileCard({
         flexDirection: 'column',
         position: 'relative',
         opacity: isDragging ? 0.35 : 1,
-        cursor: editMode ? 'grab' : 'default',
+        cursor: editMode ? 'pointer' : 'default',
         boxSizing: 'border-box',
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onClick={() => {
+        if (editMode) {
+          onSelectCard?.();
+        }
+      }}
     >
       {/* Drop insertion indicator vertical line */}
       {dropPosition && !isDragging && (
@@ -1237,8 +1398,16 @@ function TileCard({
           overflow: 'hidden',
           borderRadius: 10,
           background: '#fff',
-          border: editMode ? '1px solid #c2dbff' : '1px solid var(--border)',
-          boxShadow: hovered ? '0 4px 16px rgba(0,0,0,0.08)' : 'none',
+          border: isSelected
+            ? '2px solid #1a73e8'
+            : editMode
+            ? '1px solid #c2dbff'
+            : '1px solid var(--border)',
+          boxShadow: isSelected
+            ? '0 0 0 3px rgba(26, 115, 232, 0.25), 0 4px 16px rgba(0,0,0,0.08)'
+            : hovered
+            ? '0 4px 16px rgba(0,0,0,0.08)'
+            : 'none',
           transition: 'box-shadow 0.15s, border-color 0.15s',
           position: 'relative',
         }}
@@ -1283,12 +1452,33 @@ function TileCard({
             </span>
           )}
 
+          {/* Selected badge */}
+          {isSelected && (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                padding: '1px 6px',
+                borderRadius: 4,
+                background: '#1a73e8',
+                color: '#ffffff',
+                fontFamily: "'Google Sans', sans-serif",
+                letterSpacing: 0.2,
+              }}
+            >
+              Selected
+            </span>
+          )}
+
           <div style={{ flex: 1 }} />
 
           {/* Refresh Tile */}
           {tile.cachedSql && (
             <button
-              onClick={onRefresh}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRefresh();
+              }}
               disabled={isLoading}
               style={actionIconBtn}
               title="Refresh tile"
@@ -1391,16 +1581,24 @@ function TileCard({
         </div>
 
         {/* Tile Content */}
-        <div style={{
-          flex: 1,
-          minHeight: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          padding: '6px 10px',
-          position: 'relative',
-          overflow: 'hidden',
-        }}>
-          <TileContent tile={tile} isLoading={isLoading} onRunQuery={onRefresh} onEditSql={onEditSql} />
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '6px 10px',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <TileContent
+            tile={tile}
+            isLoading={isLoading}
+            onRunQuery={onRefresh}
+            onEditSql={onEditSql}
+            onSelectPoint={onSelectPoint}
+          />
         </div>
       </div>
 
@@ -1563,11 +1761,13 @@ function TileContent({
   isLoading,
   onRunQuery,
   onEditSql,
+  onSelectPoint,
 }: {
   tile: BuilderTile;
   isLoading?: boolean;
   onRunQuery?: () => void;
   onEditSql?: () => void;
+  onSelectPoint?: (dimension: string, value: string | number) => void;
 }) {
   if (isLoading) {
     return <TileLoadingSkeleton vizType={tile.vizType} />;
@@ -1661,7 +1861,15 @@ function TileContent({
   // Chart rendering
   if (CHART_TYPES.has(vizType)) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return <ChartView result={queryResult} chartType={vizType as any} onSendMessage={() => {}} />;
+    return (
+      <ChartView
+        result={queryResult}
+        chartType={vizType as any}
+        colorPalette={tile.colorPalette}
+        onSelectPoint={(dimension, value) => onSelectPoint?.(dimension, value)}
+        onSendMessage={() => {}}
+      />
+    );
   }
 
   // KPI

@@ -28,7 +28,7 @@ function saveFavorites(favs: Set<string>) {
 export function TopBar({ onNavToggle }: TopBarProps) {
   const { user, accessToken, projects, activeProject, isLoading, signIn, signOut, setActiveProject } = useAuth();
   const { layout, setLayout, historyVisible, setHistoryVisible } = useLayout();
-  const { showProvenance, setShowProvenance, showSuggestions, setShowSuggestions } = usePreferences();
+  const { showProvenance, setShowProvenance, showSuggestions, setShowSuggestions, outputViewMode, setOutputViewMode } = usePreferences();
 
   const LAYOUT_OPTIONS: { value: ChatLayout; icon: string; label: string }[] = [
     { value: 'chat-left',  icon: '/icons/sidebar_left.svg',    label: 'Chat left' },
@@ -435,6 +435,36 @@ export function TopBar({ onNavToggle }: TopBarProps) {
                   <span className="gc-toggle-switch-knob" />
                 </button>
               </label>
+              <div className="gc-kebab-menu-divider" />
+              <div className="gc-kebab-menu-header">Outputs view</div>
+              <div
+                className="gc-kebab-menu-toggle"
+                role="menuitemradio"
+                aria-checked={outputViewMode === 'all'}
+                onClick={() => setOutputViewMode('all')}
+              >
+                <span className="gc-kebab-menu-toggle-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--text-muted)' }}>view_agenda</span>
+                  All outputs (scrolling list)
+                </span>
+                {outputViewMode === 'all' && (
+                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--accent, #1a73e8)' }}>check</span>
+                )}
+              </div>
+              <div
+                className="gc-kebab-menu-toggle"
+                role="menuitemradio"
+                aria-checked={outputViewMode === 'single'}
+                onClick={() => setOutputViewMode('single')}
+              >
+                <span className="gc-kebab-menu-toggle-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--text-muted)' }}>crop_landscape</span>
+                  Single output
+                </span>
+                {outputViewMode === 'single' && (
+                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--accent, #1a73e8)' }}>check</span>
+                )}
+              </div>
               <div className="gc-kebab-menu-divider" />
               <a
                 className="gc-kebab-menu-toggle"

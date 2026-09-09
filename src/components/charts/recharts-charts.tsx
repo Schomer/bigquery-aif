@@ -10,7 +10,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList, ReferenceLine,
 } from 'recharts';
 import {
-  COLORS, AXIS_STYLE, TOOLTIP_STYLE, GRID_STYLE, CHART_HEIGHT, CHART_MARGIN,
+  COLORS, getPalette, AXIS_STYLE, TOOLTIP_STYLE, GRID_STYLE, CHART_HEIGHT, CHART_MARGIN,
   buildChartData, resolveAxes, drillDownMessage, pivotLongFormat,
 } from './chart-utils';
 import { formatCompactValue, formatDisplayValue } from '@/lib/format-value';
@@ -18,33 +18,47 @@ import { formatCompactValue, formatDisplayValue } from '@/lib/format-value';
 interface ChartProps {
   result: QueryResult;
   onSendMessage: (msg: string) => void;
+  onSelectPoint?: (dimension: string, value: string) => void;
+  colorPalette?: string;
 }
 
-function makeClickHandler(xKey: string, onSendMessage: (msg: string) => void) {
+function makeClickHandler(
+  xKey: string,
+  onSendMessage?: (msg: string) => void,
+  onSelectPoint?: (dimension: string, value: string) => void,
+) {
   return (state: any) => {
-    if (!onSendMessage) return;
+    let xValue: unknown = undefined;
     if (state?.activePayload?.length > 0) {
       const clickedData = state.activePayload[0].payload;
-      const xValue = clickedData[xKey];
-      if (xValue !== null && xValue !== undefined) {
-        onSendMessage(drillDownMessage(xKey, xValue));
-      }
+      xValue = clickedData[xKey];
     } else if (state?.activeLabel !== undefined) {
-      const xValue = state.activeLabel;
-      if (xValue !== null && xValue !== undefined) {
+      xValue = state.activeLabel;
+    }
+    if (xValue !== null && xValue !== undefined) {
+      if (onSelectPoint) {
+        onSelectPoint(xKey, String(xValue));
+      } else if (onSendMessage) {
         onSendMessage(drillDownMessage(xKey, xValue));
       }
     }
   };
 }
 
-function makePieClickHandler(xKey: string, onSendMessage: (msg: string) => void) {
+function makePieClickHandler(
+  xKey: string,
+  onSendMessage?: (msg: string) => void,
+  onSelectPoint?: (dimension: string, value: string) => void,
+) {
   return (clickedEntry: any) => {
-    if (!onSendMessage) return;
     const payload = clickedEntry.payload || clickedEntry;
     const xValue = payload[xKey];
     if (xValue !== null && xValue !== undefined) {
-      onSendMessage(drillDownMessage(xKey, xValue));
+      if (onSelectPoint) {
+        onSelectPoint(xKey, String(xValue));
+      } else if (onSendMessage) {
+        onSendMessage(drillDownMessage(xKey, xValue));
+      }
     }
   };
 }
@@ -173,13 +187,14 @@ function computeAvg(data: Record<string, unknown>[], key: string): number | null
 
 // 1. LineChartRenderer
 // ---------------------------------------------------------------------------
-export function LineChartRenderer({ result, onSendMessage }: ChartProps) {
+export function LineChartRenderer({ result, onSendMessage, onSelectPoint, colorPalette }: ChartProps) {
   const { data, xKey, yKeys, tickFmt, tipFmt, xTickFmt } = useChartSetupWithPivot(result);
+  const colors = getPalette(colorPalette);
   const avg = yKeys.length === 1 ? computeAvg(data, yKeys[0]) : null;
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-        <LineChart data={data} margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage)}>
+        <LineChart data={data} margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage, onSelectPoint)}>
           <CartesianGrid {...GRID_STYLE} />
           <XAxis dataKey={xKey} {...AXIS_STYLE} tickFormatter={xTickFmt} />
           <YAxis {...AXIS_STYLE} tickFormatter={tickFmt} />
@@ -189,7 +204,7 @@ export function LineChartRenderer({ result, onSendMessage }: ChartProps) {
               key={k}
               type="monotone"
               dataKey={k}
-              stroke={COLORS[i % COLORS.length]}
+              stroke={colors[i % colors.length]}
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4 }}
@@ -220,8 +235,9 @@ const BAR_ROW_HEIGHT = 32;
 const BAR_CHART_MAX_VISIBLE = 400;
 const BAR_CHART_MIN_HEIGHT = 200;
 
-export function BarChartRenderer({ result, onSendMessage }: ChartProps) {
+export function BarChartRenderer({ result, onSendMessage, onSelectPoint, colorPalette }: ChartProps) {
   const { data, xKey, yKeys, tickFmt, tipFmt } = useChartSetup(result);
+  const colors = getPalette(colorPalette);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const chartHeight = Math.max(BAR_CHART_MIN_HEIGHT, data.length * BAR_ROW_HEIGHT);
@@ -248,14 +264,14 @@ export function BarChartRenderer({ result, onSendMessage }: ChartProps) {
       width={containerWidth || undefined}
       height={chartHeight}
       margin={CHART_MARGIN}
-      onClick={makeClickHandler(xKey, onSendMessage)}
+      onClick={makeClickHandler(xKey, onSendMessage, onSelectPoint)}
     >
       <CartesianGrid {...GRID_STYLE} />
       <XAxis type="number" {...AXIS_STYLE} tickFormatter={tickFmt} />
       <YAxis type="category" dataKey={xKey} {...AXIS_STYLE} width={160} />
       <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
       {yKeys.map((k, i) => (
-        <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} animationDuration={500} animationEasing="ease-out" />
+        <Bar key={k} dataKey={k} fill={colors[i % colors.length]} animationDuration={500} animationEasing="ease-out" />
       ))}
 
       {yKeys.length > 1 && <Legend iconSize={8} />}
@@ -281,18 +297,19 @@ export function BarChartRenderer({ result, onSendMessage }: ChartProps) {
 // ---------------------------------------------------------------------------
 // 3. ColumnChartRenderer (vertical bars, standard)
 // ---------------------------------------------------------------------------
-export function ColumnChartRenderer({ result, onSendMessage }: ChartProps) {
+export function ColumnChartRenderer({ result, onSendMessage, onSelectPoint, colorPalette }: ChartProps) {
   const { data, xKey, yKeys, tickFmt, tipFmt, xTickFmt } = useChartSetup(result);
+  const colors = getPalette(colorPalette);
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-        <BarChart data={data} margin={{ ...CHART_MARGIN, left: 8 }} onClick={makeClickHandler(xKey, onSendMessage)}>
+        <BarChart data={data} margin={{ ...CHART_MARGIN, left: 8 }} onClick={makeClickHandler(xKey, onSendMessage, onSelectPoint)}>
           <CartesianGrid {...GRID_STYLE} />
           <XAxis dataKey={xKey} {...AXIS_STYLE} tickFormatter={xTickFmt} />
           <YAxis {...AXIS_STYLE} tickFormatter={tickFmt} width={56} />
           <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
           {yKeys.map((k, i) => (
-            <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} radius={[3, 3, 0, 0]} animationDuration={500} animationEasing="ease-out" />
+            <Bar key={k} dataKey={k} fill={colors[i % colors.length]} radius={[3, 3, 0, 0]} animationDuration={500} animationEasing="ease-out" />
           ))}
           {yKeys.length > 1 && <Legend iconSize={8} />}
         </BarChart>
@@ -305,13 +322,14 @@ export function ColumnChartRenderer({ result, onSendMessage }: ChartProps) {
 // ---------------------------------------------------------------------------
 // 4. AreaChartRenderer
 // ---------------------------------------------------------------------------
-export function AreaChartRenderer({ result, onSendMessage }: ChartProps) {
+export function AreaChartRenderer({ result, onSendMessage, onSelectPoint, colorPalette }: ChartProps) {
   const { data, xKey, yKeys, tickFmt, tipFmt, xTickFmt } = useChartSetupWithPivot(result);
+  const colors = getPalette(colorPalette);
   const avg = yKeys.length === 1 ? computeAvg(data, yKeys[0]) : null;
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-        <AreaChart data={data} margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage)}>
+        <AreaChart data={data} margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage, onSelectPoint)}>
           <CartesianGrid {...GRID_STYLE} />
           <XAxis dataKey={xKey} {...AXIS_STYLE} tickFormatter={xTickFmt} />
           <YAxis {...AXIS_STYLE} tickFormatter={tickFmt} />
@@ -321,8 +339,8 @@ export function AreaChartRenderer({ result, onSendMessage }: ChartProps) {
               key={k}
               type="monotone"
               dataKey={k}
-              stroke={COLORS[i % COLORS.length]}
-              fill={COLORS[i % COLORS.length]}
+              stroke={colors[i % colors.length]}
+              fill={colors[i % colors.length]}
               fillOpacity={0.1}
               strokeWidth={2}
             />
@@ -348,17 +366,18 @@ export function AreaChartRenderer({ result, onSendMessage }: ChartProps) {
 // ---------------------------------------------------------------------------
 // 5. ScatterChartRenderer
 // ---------------------------------------------------------------------------
-export function ScatterChartRenderer({ result, onSendMessage }: ChartProps) {
+export function ScatterChartRenderer({ result, onSendMessage, onSelectPoint, colorPalette }: ChartProps) {
   const { data, xKey, yKeys, tickFmt, tipFmt } = useChartSetup(result);
+  const colors = getPalette(colorPalette);
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-        <ScatterChart margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage)}>
+        <ScatterChart margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage, onSelectPoint)}>
           <CartesianGrid {...GRID_STYLE} />
           <XAxis dataKey={xKey} type="number" {...AXIS_STYLE} />
           <YAxis dataKey={yKeys[0]} type="number" {...AXIS_STYLE} tickFormatter={tickFmt} />
           <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
-          <Scatter data={data} fill={COLORS[0]} opacity={0.7} />
+          <Scatter data={data} fill={colors[0]} opacity={0.7} />
         </ScatterChart>
       </ResponsiveContainer>
       <ChartTip />
@@ -369,8 +388,9 @@ export function ScatterChartRenderer({ result, onSendMessage }: ChartProps) {
 // ---------------------------------------------------------------------------
 // 6. PieChartRenderer
 // ---------------------------------------------------------------------------
-export function PieChartRenderer({ result, onSendMessage }: ChartProps) {
+export function PieChartRenderer({ result, onSendMessage, onSelectPoint, colorPalette }: ChartProps) {
   const { data, xKey, yKeys } = useChartSetup(result);
+  const colors = getPalette(colorPalette);
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
@@ -383,10 +403,10 @@ export function PieChartRenderer({ result, onSendMessage }: ChartProps) {
             cy="50%"
             outerRadius={100}
             strokeWidth={0}
-            onClick={makePieClickHandler(xKey, onSendMessage)}
+            onClick={makePieClickHandler(xKey, onSendMessage, onSelectPoint)}
           >
             {data.map((_, i) => (
-              <Cell key={i} fill={COLORS[i % COLORS.length]} opacity={0.9} />
+              <Cell key={i} fill={colors[i % colors.length]} opacity={0.9} />
             ))}
           </Pie>
           <Tooltip {...TOOLTIP_STYLE} />
@@ -400,8 +420,9 @@ export function PieChartRenderer({ result, onSendMessage }: ChartProps) {
 // ---------------------------------------------------------------------------
 // 7. DonutChartRenderer
 // ---------------------------------------------------------------------------
-export function DonutChartRenderer({ result, onSendMessage }: ChartProps) {
+export function DonutChartRenderer({ result, onSendMessage, onSelectPoint, colorPalette }: ChartProps) {
   const { data, xKey, yKeys } = useChartSetup(result);
+  const colors = getPalette(colorPalette);
   const valueKey = yKeys[0] ?? result.columns[1];
   const total = data.reduce((sum, d) => {
     const v = Number(d[valueKey]);
@@ -421,10 +442,10 @@ export function DonutChartRenderer({ result, onSendMessage }: ChartProps) {
             innerRadius={55}
             outerRadius={100}
             strokeWidth={0}
-            onClick={makePieClickHandler(xKey, onSendMessage)}
+            onClick={makePieClickHandler(xKey, onSendMessage, onSelectPoint)}
           >
             {data.map((_, i) => (
-              <Cell key={i} fill={COLORS[i % COLORS.length]} opacity={0.9} />
+              <Cell key={i} fill={colors[i % colors.length]} opacity={0.9} />
             ))}
           </Pie>
           <Tooltip {...TOOLTIP_STYLE} />
@@ -448,8 +469,9 @@ export function DonutChartRenderer({ result, onSendMessage }: ChartProps) {
 // ---------------------------------------------------------------------------
 // 8. HistogramRenderer
 // ---------------------------------------------------------------------------
-export function HistogramRenderer({ result, onSendMessage }: ChartProps) {
+export function HistogramRenderer({ result, onSendMessage, onSelectPoint, colorPalette }: ChartProps) {
   const { data, xKey, yKeys, tickFmt, tipFmt } = useChartSetup(result);
+  const colors = getPalette(colorPalette);
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
@@ -458,13 +480,13 @@ export function HistogramRenderer({ result, onSendMessage }: ChartProps) {
           margin={CHART_MARGIN}
           barCategoryGap={0}
           barGap={0}
-          onClick={makeClickHandler(xKey, onSendMessage)}
+          onClick={makeClickHandler(xKey, onSendMessage, onSelectPoint)}
         >
           <CartesianGrid {...GRID_STYLE} />
           <XAxis dataKey={xKey} {...AXIS_STYLE} />
           <YAxis {...AXIS_STYLE} tickFormatter={tickFmt} />
           <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
-          <Bar dataKey={yKeys[0]} fill={COLORS[0]} />
+          <Bar dataKey={yKeys[0]} fill={colors[0]} />
         </BarChart>
       </ResponsiveContainer>
       <ChartTip />
@@ -475,15 +497,16 @@ export function HistogramRenderer({ result, onSendMessage }: ChartProps) {
 // ---------------------------------------------------------------------------
 // 9. SparklineRenderer (minimal, no tip)
 // ---------------------------------------------------------------------------
-export function SparklineRenderer({ result }: ChartProps) {
+export function SparklineRenderer({ result, colorPalette }: ChartProps) {
   const { data, xKey, yKeys } = useChartSetup(result);
+  const colors = getPalette(colorPalette);
   return (
     <ResponsiveContainer width="100%" height={60}>
       <LineChart data={data} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
         <Line
           type="monotone"
           dataKey={yKeys[0]}
-          stroke={COLORS[0]}
+          stroke={colors[0]}
           strokeWidth={1.5}
           dot={false}
         />
@@ -495,12 +518,13 @@ export function SparklineRenderer({ result }: ChartProps) {
 // ---------------------------------------------------------------------------
 // 10. RadarChartRenderer
 // ---------------------------------------------------------------------------
-export function RadarChartRenderer({ result, onSendMessage }: ChartProps) {
+export function RadarChartRenderer({ result, onSendMessage, onSelectPoint, colorPalette }: ChartProps) {
   const { data, xKey, yKeys } = useChartSetup(result);
+  const colors = getPalette(colorPalette);
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-        <RadarChart data={data} cx="50%" cy="50%" outerRadius="75%" onClick={makeClickHandler(xKey, onSendMessage)}>
+        <RadarChart data={data} cx="50%" cy="50%" outerRadius="75%" onClick={makeClickHandler(xKey, onSendMessage, onSelectPoint)}>
           <PolarGrid stroke="var(--border-subtle)" />
           <PolarAngleAxis dataKey={xKey} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} />
           <PolarRadiusAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} />
@@ -508,8 +532,8 @@ export function RadarChartRenderer({ result, onSendMessage }: ChartProps) {
             <Radar
               key={k}
               dataKey={k}
-              stroke={COLORS[i % COLORS.length]}
-              fill={COLORS[i % COLORS.length]}
+              stroke={colors[i % colors.length]}
+              fill={colors[i % colors.length]}
               fillOpacity={0.15}
             />
           ))}
@@ -525,8 +549,9 @@ export function RadarChartRenderer({ result, onSendMessage }: ChartProps) {
 // ---------------------------------------------------------------------------
 // 11. FunnelChartRenderer
 // ---------------------------------------------------------------------------
-export function FunnelChartRenderer({ result, onSendMessage }: ChartProps) {
+export function FunnelChartRenderer({ result, onSendMessage, onSelectPoint, colorPalette }: ChartProps) {
   const { data, xKey, yKeys } = useChartSetup(result);
+  const colors = getPalette(colorPalette);
   const valueKey = yKeys[0] ?? result.columns[1];
 
   // Enrich data with conversion percentages and fill colors
@@ -536,7 +561,7 @@ export function FunnelChartRenderer({ result, onSendMessage }: ChartProps) {
     const conversionPct = i === 0 ? 100 : Math.round((current / previous) * 100);
     return {
       ...d,
-      fill: COLORS[i % COLORS.length],
+      fill: colors[i % colors.length],
       _conversionLabel: i === 0 ? `${current.toLocaleString()}` : `${current.toLocaleString()} (${conversionPct}%)`,
     };
   });
@@ -544,7 +569,7 @@ export function FunnelChartRenderer({ result, onSendMessage }: ChartProps) {
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-        <FunnelChart onClick={makeClickHandler(xKey, onSendMessage)}>
+        <FunnelChart onClick={makeClickHandler(xKey, onSendMessage, onSelectPoint)}>
           <Tooltip {...TOOLTIP_STYLE} />
           <Funnel
             dataKey={valueKey}
@@ -579,9 +604,10 @@ interface TreemapContentProps {
   name?: string;
   value?: number;
   index: number;
+  colors?: string[];
 }
 
-function TreemapContent({ x, y, width, height, name, value, index }: TreemapContentProps) {
+function TreemapContent({ x, y, width, height, name, value, index, colors = COLORS }: TreemapContentProps) {
   if (width < 40 || height < 30) return null;
   return (
     <g>
@@ -590,7 +616,7 @@ function TreemapContent({ x, y, width, height, name, value, index }: TreemapCont
         y={y}
         width={width}
         height={height}
-        fill={COLORS[index % COLORS.length]}
+        fill={colors[index % colors.length]}
         stroke="var(--surface-1)"
         strokeWidth={2}
         rx={3}
@@ -617,8 +643,9 @@ function TreemapContent({ x, y, width, height, name, value, index }: TreemapCont
   );
 }
 
-export function TreemapRenderer({ result, onSendMessage }: ChartProps) {
+export function TreemapRenderer({ result, onSendMessage, onSelectPoint, colorPalette }: ChartProps) {
   const { data, xKey, yKeys } = useChartSetup(result);
+  const colors = getPalette(colorPalette);
   const valueKey = yKeys[0] ?? result.columns[1];
 
   const treemapData = data.map((d) => ({
@@ -633,11 +660,15 @@ export function TreemapRenderer({ result, onSendMessage }: ChartProps) {
           data={treemapData}
           dataKey={valueKey}
           stroke="var(--surface-1)"
-          content={<TreemapContent x={0} y={0} width={0} height={0} index={0} />}
+          content={<TreemapContent x={0} y={0} width={0} height={0} index={0} colors={colors} />}
           onClick={(node: any) => {
-            if (!onSendMessage || !node?.name) return;
+            if (!node?.name) return;
             const xValue = node.name;
-            onSendMessage(drillDownMessage(xKey, xValue));
+            if (onSelectPoint) {
+              onSelectPoint(xKey, String(xValue));
+            } else if (onSendMessage) {
+              onSendMessage(drillDownMessage(xKey, xValue));
+            }
           }}
         >
           <Tooltip {...TOOLTIP_STYLE} />
@@ -651,7 +682,7 @@ export function TreemapRenderer({ result, onSendMessage }: ChartProps) {
 // ---------------------------------------------------------------------------
 // 13. SankeyRenderer
 // ---------------------------------------------------------------------------
-export function SankeyRenderer({ result, onSendMessage }: ChartProps) {
+export function SankeyRenderer({ result, onSendMessage, onSelectPoint }: ChartProps) {
   const { columns, rows } = result;
 
   if (columns.length < 3) {
@@ -699,9 +730,13 @@ export function SankeyRenderer({ result, onSendMessage }: ChartProps) {
           margin={{ top: 8, right: 40, left: 40, bottom: 8 }}
           link={{ stroke: 'var(--border)' }}
           onClick={(node: any) => {
-            if (!onSendMessage || !node?.name) return;
+            if (!node?.name) return;
             const xValue = node.name;
-            onSendMessage(drillDownMessage(sourceCol, xValue));
+            if (onSelectPoint) {
+              onSelectPoint(sourceCol, String(xValue));
+            } else if (onSendMessage) {
+              onSendMessage(drillDownMessage(sourceCol, xValue));
+            }
           }}
         >
           <Tooltip {...TOOLTIP_STYLE} />
@@ -715,25 +750,26 @@ export function SankeyRenderer({ result, onSendMessage }: ChartProps) {
 // ---------------------------------------------------------------------------
 // 14. ComposedChartRenderer
 // ---------------------------------------------------------------------------
-export function ComposedChartRenderer({ result, onSendMessage }: ChartProps) {
+export function ComposedChartRenderer({ result, onSendMessage, onSelectPoint, colorPalette }: ChartProps) {
   const { data, xKey, yKeys, tickFmt, tipFmt } = useChartSetup(result);
+  const colors = getPalette(colorPalette);
   return (
     <div>
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-        <ComposedChart data={data} margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage)}>
+        <ComposedChart data={data} margin={CHART_MARGIN} onClick={makeClickHandler(xKey, onSendMessage, onSelectPoint)}>
           <CartesianGrid {...GRID_STYLE} />
           <XAxis dataKey={xKey} {...AXIS_STYLE} />
           <YAxis {...AXIS_STYLE} tickFormatter={tickFmt} />
           <Tooltip {...TOOLTIP_STYLE} formatter={tipFmt} />
           {yKeys.length > 0 && (
-            <Bar dataKey={yKeys[0]} fill={COLORS[0]} radius={[3, 3, 0, 0]} />
+            <Bar dataKey={yKeys[0]} fill={colors[0]} radius={[3, 3, 0, 0]} />
           )}
           {yKeys.slice(1).map((k, i) => (
             <Line
               key={k}
               type="monotone"
               dataKey={k}
-              stroke={COLORS[(i + 1) % COLORS.length]}
+              stroke={colors[(i + 1) % colors.length]}
               strokeWidth={2}
               dot={false}
             />

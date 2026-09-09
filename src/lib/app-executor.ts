@@ -25,8 +25,17 @@ export function substituteSqlParameters(
   let sql = templateSql;
 
   // Process standard date parameters if present
-  const startDate = (filterValues['start_date'] ?? filterValues['startDate'] ?? '') as string;
-  const endDate = (filterValues['end_date'] ?? filterValues['endDate'] ?? '') as string;
+  let startDate = (filterValues['start_date'] ?? filterValues['startDate'] ?? '') as string;
+  let endDate = (filterValues['end_date'] ?? filterValues['endDate'] ?? '') as string;
+
+  // Check if any filterValue is a DATE_RANGE object: { start, end }
+  for (const [k, v] of Object.entries(filterValues)) {
+    if (typeof v === 'object' && v !== null && !Array.isArray(v) && ('start' in v || 'end' in v)) {
+      const dr = v as { start?: string; end?: string };
+      if (dr.start) startDate = dr.start;
+      if (dr.end) endDate = dr.end;
+    }
+  }
 
   if (startDate) {
     sql = sql.replace(/\{\{start_date\}\}/g, startDate);
@@ -50,6 +59,21 @@ export function substituteSqlParameters(
     const cleanParam = targetParam.replace(/^\{\{|\}\}$/g, '');
     const placeholder1 = `{{${cleanParam}}}`;
     const placeholder2 = `@${cleanParam}`;
+
+    // Handle DATE_RANGE object: { start, end }
+    if (typeof val === 'object' && val !== null && !Array.isArray(val) && ('start' in val || 'end' in val)) {
+      const dateRange = val as { start?: string; end?: string };
+      const startVal = dateRange.start || '1900-01-01';
+      const endVal = dateRange.end || '2100-12-31';
+
+      sql = sql.replaceAll(`{{start_date}}`, startVal);
+      sql = sql.replaceAll(`{{end_date}}`, endVal);
+      sql = sql.replaceAll(`{{${cleanParam}_start}}`, startVal);
+      sql = sql.replaceAll(`{{start_${cleanParam}}}`, startVal);
+      sql = sql.replaceAll(`{{${cleanParam}_end}}`, endVal);
+      sql = sql.replaceAll(`{{end_${cleanParam}}}`, endVal);
+      continue;
+    }
 
     // Handle NUMBER_RANGE object: { min, max }
     if (typeof val === 'object' && val !== null && !Array.isArray(val) && ('min' in val || 'max' in val)) {

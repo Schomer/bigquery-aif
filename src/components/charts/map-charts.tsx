@@ -94,6 +94,8 @@ export function MapFallback({ message }: { message: string }) {
 interface ChartProps {
   result: QueryResult;
   onSendMessage: (msg: string) => void;
+  onSelectPoint?: (dimension: string, value: string) => void;
+  colorPalette?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -531,7 +533,7 @@ const AK_LON_MIN = -180, AK_LON_MAX = -130, AK_LAT_MIN = 54, AK_LAT_MAX = 72;
 // Hawaii inset
 const HI_LON_MIN = -161, HI_LON_MAX = -154, HI_LAT_MIN = 18.5, HI_LAT_MAX = 22.5;
 
-export function USAMapRenderer({ result, onSendMessage }: ChartProps) {
+export function USAMapRenderer({ result, onSendMessage, onSelectPoint, colorPalette }: ChartProps) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const geojson = useGeoJson('/us-states.geojson');
 
@@ -608,8 +610,8 @@ export function USAMapRenderer({ result, onSendMessage }: ChartProps) {
     const val = stateValueMap.get(name.toLowerCase());
     if (val === undefined) return '#e2e8f0';
     const ratio = maxValue > minValue ? (val - minValue) / (maxValue - minValue) : 0.5;
-    return choroplethColor(ratio);
-  }, [stateValueMap, maxValue, minValue]);
+    return choroplethColor(ratio, colorPalette);
+  }, [stateValueMap, maxValue, minValue, colorPalette]);
 
   const features = geojson?.features ?? [];
 
@@ -633,6 +635,13 @@ export function USAMapRenderer({ result, onSendMessage }: ChartProps) {
         fill={fill}
         stroke="#ffffff"
         strokeWidth={1}
+        onClick={() => {
+          if (onSelectPoint) {
+            onSelectPoint('state', name);
+          } else if (onSendMessage) {
+            onSendMessage(drillDownMessage(safeXKey || 'state', name));
+          }
+        }}
         onMouseEnter={(e) => {
           const val = stateValueMap.get(name.toLowerCase());
           setTooltip({
@@ -709,8 +718,34 @@ const ISO3_TO_ISO2: Record<string, string> = {
   ZMB: 'ZM', ZWE: 'ZW',
 };
 
-// #dbeafe (219,234,254) → #1e3a8a (30,58,138) — matches the CSS gradient in the legend exactly
-function choroplethColor(ratio: number): string {
+// Choropleth color ramp with palette support
+function choroplethColor(ratio: number, paletteName?: string): string {
+  const p = (paletteName || '').toLowerCase();
+  if (p === 'emerald') {
+    const r = Math.round(209 - ratio * (209 - 6));
+    const g = Math.round(250 - ratio * (250 - 95));
+    const b = Math.round(229 - ratio * (229 - 70));
+    return `rgb(${r},${g},${b})`;
+  }
+  if (p === 'sunset') {
+    const r = Math.round(255 - ratio * (255 - 154));
+    const g = Math.round(237 - ratio * (237 - 52));
+    const b = Math.round(213 - ratio * (213 - 18));
+    return `rgb(${r},${g},${b})`;
+  }
+  if (p === 'purple') {
+    const r = Math.round(243 - ratio * (243 - 88));
+    const g = Math.round(232 - ratio * (232 - 28));
+    const b = Math.round(255 - ratio * (255 - 135));
+    return `rgb(${r},${g},${b})`;
+  }
+  if (p === 'monochrome') {
+    const r = Math.round(241 - ratio * (241 - 15));
+    const g = Math.round(245 - ratio * (245 - 23));
+    const b = Math.round(249 - ratio * (249 - 42));
+    return `rgb(${r},${g},${b})`;
+  }
+  // Default ocean / blue: #dbeafe (219,234,254) → #1e3a8a (30,58,138)
   const r = Math.round(219 - ratio * (219 - 30));
   const g = Math.round(234 - ratio * (234 - 58));
   const b = Math.round(254 - ratio * (254 - 138));
@@ -778,7 +813,7 @@ function resolveFeatureValue(
 // World map equirectangular bounds
 const W_LON_MIN = -180, W_LON_MAX = 180, W_LAT_MIN = -90, W_LAT_MAX = 90;
 
-export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
+export function WorldMapRenderer({ result, onSendMessage, onSelectPoint, colorPalette }: ChartProps) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const geojson = useGeoJson('/world-countries.geojson');
 
@@ -827,8 +862,8 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
     const value = resolveFeatureValue(properties, valueMap);
     if (value === null) return '#e2e8f0';
     const ratio = maxValue > minValue ? (value - minValue) / (maxValue - minValue) : 0.5;
-    return choroplethColor(ratio);
-  }, [valueMap, maxValue, minValue]);
+    return choroplethColor(ratio, colorPalette);
+  }, [valueMap, maxValue, minValue, colorPalette]);
 
   const features = geojson?.features ?? [];
 
@@ -854,6 +889,13 @@ export function WorldMapRenderer({ result, onSendMessage }: ChartProps) {
                 fill={fill}
                 stroke="#ffffff"
                 strokeWidth={0.5}
+                onClick={() => {
+                  if (onSelectPoint) {
+                    onSelectPoint('country', name);
+                  } else if (onSendMessage) {
+                    onSendMessage(drillDownMessage(safeXKey || 'country', name));
+                  }
+                }}
                 onMouseEnter={(e) => {
                   const value = resolveFeatureValue(props, valueMap);
                   setTooltip({

@@ -1,5 +1,20 @@
 # Operations Ledger
 
+## 2026-09-09 -- Output view mode setting in top-level kebab menu (scrolling list vs single output)
+
+**What**:
+1. *Output View Mode Setting*: Added `outputViewMode` (`'all' | 'single'`) preference to `PreferencesContext` in `src/lib/preferences-context.tsx` with localStorage persistence under key `hdn_output_view_mode`.
+2. *Top-Level Kebab Menu Options*: Added "Outputs view" selector (`MenuRadioGroup` / radio options) to `HeaderOptionsMenu.tsx` (console shell more menu), `TopBar.tsx` (standalone header menu), and `AvatarMenu.tsx` (account and preferences dialog), providing options for "All outputs (scrolling list)" and "Single output".
+3. *Results Panel & Chat Sidebar Coordination*:
+   - In `src/components/chat/ResultsSidebar.tsx`, tracked `activeEnvelopeId` state and monitored `allEnvelopes` to automatically set the active envelope when new query/tool results arrive after prompting.
+   - Updated `handleArtifactClick` so clicking any artifact card tile in the chat sidebar sets the active envelope immediately.
+   - When `outputViewMode === 'single'`, filtered the displayed results in `.results-panel` to only the active envelope card. When `outputViewMode === 'all'`, rendered all conversation outputs and scrolled smoothly to selected tiles.
+   - Added `.chat-sidebar-artifact-card--selected` visual highlight in `src/app/globals.css` (and dark theme) to clearly indicate the currently active output in the sidebar.
+
+**Why**: Gives users full control over their canvas density and visual focus, allowing them to switch between reviewing all generated outputs in an ongoing scrolling list or focusing on a single active output tile at a time without distractions.
+
+**Rule derived**: Output display settings must coordinate between the top-level menu preference, the chat sidebar tile click state, and new response arrival events so that single-output focus mode automatically stays in sync with newly prompted responses and user tile clicks.
+
 ## 2026-09-09 -- CM3 Design System Alignment Across Console Screens & SuggestionChip Integration
 
 **What**:

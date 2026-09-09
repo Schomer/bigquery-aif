@@ -2533,6 +2533,12 @@ details>summary::marker {
   box-shadow: 0 2px 8px rgba(26, 115, 232, 0.1);
 }
 
+.chat-sidebar-artifact-card--selected {
+  border-color: var(--accent, #1a73e8);
+  background: color-mix(in srgb, var(--accent, #1a73e8) 8%, var(--surface, #ffffff));
+  box-shadow: 0 0 0 1.5px var(--accent, #1a73e8), 0 2px 8px rgba(26, 115, 232, 0.12);
+}
+
 .chat-sidebar-artifact-card-icon {
   display: flex;
   align-items: center;
@@ -3315,6 +3321,7 @@ details>summary::marker {
 
 .dark-theme .chat-sidebar-artifact-card { background: #1e1e26; border-color: #2e2e3a; }
 .dark-theme .chat-sidebar-artifact-card:hover { background: #25253a; border-color: #7b9ff5; box-shadow: 0 2px 8px rgba(138, 180, 248, 0.12); }
+.dark-theme .chat-sidebar-artifact-card--selected { background: #22283e; border-color: #7b9ff5; box-shadow: 0 0 0 1.5px #7b9ff5, 0 2px 8px rgba(138, 180, 248, 0.2); }
 .dark-theme .chat-sidebar-artifact-card-icon { background: #1a2840; }
 .dark-theme .chat-sidebar-artifact-card-icon .material-symbols-outlined { color: #8a9bb5; }
 .dark-theme .chat-sidebar-artifact-card-name { color: #e8eaed; }

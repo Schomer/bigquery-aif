@@ -3,6 +3,22 @@
 // Extracted from handle-conversation.ts buildAgentPrompt() +
 // gemini-client.ts DATA_ASSISTANT_INSTRUCTIONS.
 
+export interface DashboardContextInfo {
+  id: string;
+  name: string;
+  tiles: Array<{ id: string; title: string; vizType?: string; sql?: string; colorPalette?: string }>;
+  filters?: Array<{ id: string; label: string; paramName: string; type: string; column?: string; targetTileIds?: string[] }>;
+  interactions?: Array<{ id: string; sourceTileId: string; sourceDimension: string; targetTileId: string; targetParameter: string }>;
+}
+
+export interface SelectedTileInfo {
+  id: string;
+  title: string;
+  vizType?: string;
+  sql?: string;
+  colorPalette?: string;
+}
+
 export interface PromptContext {
   project: string;
   availableDatasets: string[];
@@ -11,6 +27,8 @@ export interface PromptContext {
   lastSkill?: string;
   lastDatasetTables?: string[];
   skillSummary?: string;
+  activeDashboard?: DashboardContextInfo;
+  selectedTile?: SelectedTileInfo;
 }
 
 /**
@@ -31,6 +49,25 @@ export function buildFlashSystemPrompt(ctx: PromptContext): string {
     : '';
   const datasetTablesLine = ctx.lastDatasetTables?.length
     ? `Tables in the active dataset: ${ctx.lastDatasetTables.join(', ')}`
+    : '';
+
+  const dashboardLine = ctx.activeDashboard
+    ? `ACTIVE DASHBOARD / DATA APP:
+- Document ID: ${ctx.activeDashboard.id}
+- Name: "${ctx.activeDashboard.name}"
+- Tiles (${ctx.activeDashboard.tiles.length}):
+${ctx.activeDashboard.tiles.map(t => `  * [ID: ${t.id}] "${t.title}" (${t.vizType || 'TABLE'})${t.colorPalette ? ` [Palette: ${t.colorPalette}]` : ''}\n    SQL: ${t.sql || '(none)'}`).join('\n')}
+${ctx.activeDashboard.filters && ctx.activeDashboard.filters.length > 0 ? `- Filters (${ctx.activeDashboard.filters.length}):\n${ctx.activeDashboard.filters.map(f => `  * [ID: ${f.id}] "${f.label}" (param: @${f.paramName}, type: ${f.type})${f.column ? ` bound to ${f.column}` : ''}`).join('\n')}` : ''}
+${ctx.activeDashboard.interactions && ctx.activeDashboard.interactions.length > 0 ? `- Active Cross-Filter Interactions:\n${ctx.activeDashboard.interactions.map(i => `  * Tile ${i.sourceTileId} (${i.sourceDimension}) -> Tile ${i.targetTileId} (@${i.targetParameter})`).join('\n')}` : ''}`
+    : '';
+
+  const selectedTileLine = ctx.selectedTile
+    ? `CURRENTLY SELECTED CARD IN DASHBOARD (Context for card-specific prompts):
+- Tile ID: ${ctx.selectedTile.id}
+- Title: "${ctx.selectedTile.title}"
+- Viz Type: ${ctx.selectedTile.vizType || 'TABLE'}
+- Color Palette: ${ctx.selectedTile.colorPalette || 'default'}
+- SQL: ${ctx.selectedTile.sql || '(none)'}`
     : '';
 
   return `You are a data expert and BigQuery specialist embedded in a data management application.
@@ -63,11 +100,14 @@ DECISION RULES:
 8. CSV & FILE UPLOADS: When the user asks to upload, import, or load a CSV file or spreadsheet into BigQuery (e.g. "upload this CSV into a table named X", "import my CSV data"):
 - NEVER execute DDL (CREATE TABLE) to create an empty table with synthetic columns. SQL cannot access or load local files from a text message.
 - Use present_result with format "info" to explain that CSV files are loaded by attaching the file (using the paperclip icon in the chat input or dragging and dropping the file). If the user specified a target dataset or table (e.g. "breweries"), tell them that attaching the file will automatically parse and upload all rows into that target table.
-9. DASHBOARDS & INTERACTIVE DATA APPS: When the user asks to create a dashboard, make an interactive data app, add a query/chart to a dashboard, add a filter control (like country or date dropdown), adjust layouts, or save setups to BigQuery:
+9. DASHBOARDS & INTERACTIVE DATA APPS: When the user asks to create, update, or customize a dashboard / interactive data app, modify a tile, set up cross-filtering interactions, or manage filters:
 - Call manage_app immediately.
 - For creating new apps/dashboards (e.g. "make a sales dashboard", "create an interactive app with country filter and revenue chart"): Use action="CREATE" with document_name, description, initial tiles (with title, sql, and viz_type), and filters (with label, param_name, type, and options_sql).
-- For adding the last query or a new chart to a dashboard ("add this to my dashboard", "add a bar chart of top products to the dashboard"): Use action="ADD_TILE" with tile title, sql, and viz_type.
-- For adding filter controls ("add a year filter dropdown", "add a date range filter to the app"): Use action="ADD_FILTER" with label, param_name, type, and options_sql.
+- For modifying the selected tile or a specific tile (e.g. "change this chart to a bar chart", "make this map blue/emerald", "update the query on this tile", "filter this card by year"): Use action="UPDATE_TILE" with tile_id (from selected tile context or matching tile ID), and any fields to update (viz_type, color_palette, sql, title).
+- For cross-filtering / click interactions (e.g. "when clicking a country in the map, filter the Spending and Income charts", "make clicking a bar filter the other tiles"): Use action="SET_INTERACTION" with source_tile_id, source_dimension (e.g. "country", "state", "category"), target_tile_ids (array of target tile IDs), and target_parameter_name (e.g. "selected_country").
+- For adding filter controls (e.g. "add a date range filter", "add a country dropdown filter for the top two tiles"): Use action="ADD_FILTER" with label, param_name, type (DROPDOWN, MULTI_SELECT, DATE_RANGE, DATE_PICKER, NUMBER_RANGE, SEARCH_INPUT, BUTTON_GROUP), column, target_tile_ids, and options_sql.
+- For updating/deleting filters: Use action="UPDATE_FILTER" or action="DELETE_FILTER" with filter_id.
+- For updating dashboard properties (e.g. title, layout density): Use action="UPDATE_DASHBOARD" with document_id and updates.
 - For exporting/saving setup to BigQuery ("save this dashboard to BigQuery", "persist setup in BigQuery"): Use action="EXPORT_BIGQUERY".
 
 CARD BUDGET & RESULT DISPLAY:
@@ -92,7 +132,7 @@ TOOL SELECTION:
 - list_resources: For browsing available datasets and tables.
 - manage_pipeline: For scheduled query management -- listing, creating, deleting, or checking status of scheduled queries.
 - export_data: For exporting query results to CSV or Google Sheets. Run the SQL and export in one call.
-- manage_app: For creating and modifying interactive data apps and dashboards, adding/updating tiles, attaching interactive filter controls (date range, dropdown, multi-select, search), and exporting app definitions to BigQuery.
+- manage_app: For creating and modifying interactive data apps and dashboards, updating tiles/charts/colors, configuring cross-filtering interactions, attaching interactive filter controls (date range, dropdown, multi-select, number range, search), and exporting app definitions to BigQuery.
 - present_result: For structuring ANY response that contains lists, summaries, key-value pairs, or step-by-step instructions. The UI renders these as interactive, formatted views. Use format "entity_list" for clickable resource lists, "key_values" for property/stat summaries, "summary" for narrative + findings, "steps" for procedures, "info" for informational text with highlights.
 
 INTENT METADATA (always provide when calling run_query or execute_dml):
@@ -147,5 +187,7 @@ ${lastTableLine}
 ${lastTableSchemaLine}
 ${lastSkillLine}
 ${datasetTablesLine}
+${dashboardLine}
+${selectedTileLine}
 ${ctx.skillSummary ? `\nCAPABILITIES:\n${ctx.skillSummary}` : ''}`;
 }

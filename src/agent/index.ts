@@ -90,6 +90,8 @@ export interface AgentProcessArgs {
     lastSkill?: SkillName;
     lastDatasetTables?: string[];
     uid?: string;
+    activeDashboard?: import('./prompts/flash').DashboardContextInfo;
+    selectedTile?: import('./prompts/flash').SelectedTileInfo;
   };
   onStatus?: StatusCallback;
   signal?: AbortSignal;
@@ -146,6 +148,8 @@ export async function processWithAgentLoop({
     lastTableSchema: context?.lastTableSchema,
     lastSkill: context?.lastSkill as string | undefined,
     lastDatasetTables: context?.lastDatasetTables,
+    activeDashboard: context?.activeDashboard,
+    selectedTile: context?.selectedTile,
   });
 
   // Create adapter and interrupt signal

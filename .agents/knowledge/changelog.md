@@ -2,7 +2,15 @@
  
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
-## 2026-09-09 -- CM3 Design System Alignment Across Console Screens & SuggestionChip Integration
+## 2026-09-09 -- Output view mode setting in top-level kebab menu (scrolling list vs single output)
+
+- Added `outputViewMode` preference (`'all' | 'single'`) in `src/lib/preferences-context.tsx` with localStorage persistence (`hdn_output_view_mode`).
+- Added "Outputs view" selector to top-level kebab menus: `HeaderOptionsMenu.tsx` (console shell more options), `TopBar.tsx` (standalone header), and `AvatarMenu.tsx` (account & display preferences dialog).
+- Updated `ResultsSidebar.tsx` to support both view modes:
+  - Scrolling list of all outputs (`'all'`): renders all conversation outputs vertically in the results panel and scrolls to clicked tiles.
+  - Single output (`'single'`): displays only the active output card in the results panel (the last clicked artifact card in the chat sidebar, or the newest output received after prompting).
+- Added `.chat-sidebar-artifact-card--selected` visual highlight in `src/app/globals.css` (and dark theme) for clear indication of which output tile is currently active.
+- Verified test suite (168 vitest unit tests passing) and Next.js static export build.
 
 - Upgraded all console screens (`CatalogScreen`, `ObservabilityScreen`, `SecurityScreen`, `AutomationScreen`, `InfrastructureScreen`, `SkillsScreen`, `AiInboxScreen`, `HomeScreen`) to use Google Cloud Console CM3 design system patterns from `data-cloud-design-system-cm3`.
 - Replaced standard action bars and cards with `<ActionBar>`, `<ActionBarTitle>`, `<ActionBarEnd>`, `<TableFrame>`, `<TableTitleBar>`, `<Pagination>`, and `<SuggestionChip>`.

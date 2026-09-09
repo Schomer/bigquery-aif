@@ -29,7 +29,7 @@ const LAYOUT_OPTIONS: { value: ChatLayout; label: string; icon: React.ReactNode 
 
 export function AvatarMenu({ open, onOpenChange }: AvatarMenuProps) {
   const { user, signOut } = useAuth();
-  const { showProvenance, setShowProvenance, showSuggestions, setShowSuggestions } = usePreferences();
+  const { showProvenance, setShowProvenance, showSuggestions, setShowSuggestions, outputViewMode, setOutputViewMode } = usePreferences();
   const { layout, setLayout } = useLayout();
 
   const displayName = user?.name || user?.email?.split('@')[0] || 'User';
@@ -79,6 +79,41 @@ export function AvatarMenu({ open, onOpenChange }: AvatarMenuProps) {
                 </button>
               );
             })}
+          </div>
+        </div>
+
+        <Separator className="my-1" />
+
+        {/* Outputs View Options */}
+        <div className="flex flex-col gap-2">
+          <span className="text-cm-label-small uppercase text-cm-on-surface-variant font-medium">Outputs View</span>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setOutputViewMode('all')}
+              className={cn(
+                'flex flex-col items-center justify-center gap-1.5 p-2.5 rounded-xl border transition-all text-center cursor-pointer',
+                outputViewMode === 'all'
+                  ? 'bg-cm-backdrop-active border-cm-primary text-cm-on-backdrop font-medium shadow-2xs'
+                  : 'border-cm-hairline hover:bg-cm-surface-variant text-cm-on-surface'
+              )}
+            >
+              <span className="material-symbols-outlined text-[18px]">view_agenda</span>
+              <span className="text-[12px]">All outputs (scrolling list)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setOutputViewMode('single')}
+              className={cn(
+                'flex flex-col items-center justify-center gap-1.5 p-2.5 rounded-xl border transition-all text-center cursor-pointer',
+                outputViewMode === 'single'
+                  ? 'bg-cm-backdrop-active border-cm-primary text-cm-on-backdrop font-medium shadow-2xs'
+                  : 'border-cm-hairline hover:bg-cm-surface-variant text-cm-on-surface'
+              )}
+            >
+              <span className="material-symbols-outlined text-[18px]">crop_landscape</span>
+              <span className="text-[12px]">Single output</span>
+            </button>
           </div>
         </div>
 

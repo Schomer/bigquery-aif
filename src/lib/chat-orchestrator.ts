@@ -65,7 +65,12 @@ export interface ProcessMessageArgs {
     handoffContext?: Record<string, unknown>;
     // Cumulative session state
     conversationState?: ConversationState;
+    // Active dashboard / selected tile context for builder editing
+    activeDashboard?: import('../agent/prompts/flash').DashboardContextInfo;
+    selectedTile?: import('../agent/prompts/flash').SelectedTileInfo;
   };
+  activeDashboard?: import('../agent/prompts/flash').DashboardContextInfo;
+  selectedTile?: import('../agent/prompts/flash').SelectedTileInfo;
   onStatus?: StatusCallback;
   /** Optional AbortSignal -- if aborted, in-flight work should stop as soon as possible. */
   signal?: AbortSignal;
@@ -82,7 +87,7 @@ export interface OrchestrationResult {
 }
 
 export class ChatOrchestrator {
-  static async processMessage({ message, history, context, onStatus, signal }: ProcessMessageArgs): Promise<OrchestrationResult> {
+  static async processMessage({ message, history, context, onStatus, signal, activeDashboard, selectedTile }: ProcessMessageArgs): Promise<OrchestrationResult> {
     // -- Handle confirmation responses --
     if (context?.confirmedPayload && 'executionSql' in context.confirmedPayload) {
       const confirmed = context.confirmedPayload;
@@ -233,6 +238,8 @@ export class ChatOrchestrator {
         lastSkill: context?.lastSkill,
         lastDatasetTables: context?.lastDatasetTables,
         uid: context?.uid,
+        activeDashboard: (activeDashboard as any) ?? context?.activeDashboard,
+        selectedTile: (selectedTile as any) ?? context?.selectedTile,
       },
       onStatus,
       signal,

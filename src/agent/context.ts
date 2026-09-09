@@ -42,6 +42,8 @@ export interface AssembleContextOptions {
   lastTableSchema?: Array<{ name: string; type: string; description?: string }>;
   lastSkill?: string;
   lastDatasetTables?: string[];
+  activeDashboard?: import('./prompts/flash').DashboardContextInfo;
+  selectedTile?: import('./prompts/flash').SelectedTileInfo;
   /** Max number of history messages to include (default: 30). */
   historyLimit?: number;
 }
@@ -64,6 +66,8 @@ export async function assembleContext(opts: AssembleContextOptions): Promise<Loo
     lastSkill: opts.lastSkill,
     lastDatasetTables: opts.lastDatasetTables,
     skillSummary,
+    activeDashboard: opts.activeDashboard,
+    selectedTile: opts.selectedTile,
   };
 
   const systemPrompt = buildFlashSystemPrompt(promptCtx);
