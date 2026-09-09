@@ -43,9 +43,11 @@ describe('saveDocumentToBigQuery', () => {
 
     const doc = {
       id: 'doc_1',
+      userId: 'user_1',
       type: 'dashboard' as const,
       name: 'Test Dashboard',
       description: 'A test dashboard',
+      tags: [],
       tiles: [],
       globalFilters: [],
       createdAt: '2026-09-08T00:00:00Z',
@@ -73,9 +75,11 @@ describe('saveDocumentToBigQuery', () => {
 
     const doc = {
       id: 'doc_2',
+      userId: 'user_1',
       type: 'dashboard' as const,
       name: 'Fallback Dashboard',
       description: '',
+      tags: [],
       tiles: [],
       globalFilters: [],
       createdAt: '2026-09-08T00:00:00Z',

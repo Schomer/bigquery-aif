@@ -14,7 +14,13 @@ import {
   type ReactNode,
 } from 'react';
 import type { CompositionEnvelope } from './types';
-import type { BuilderDocument, BuilderTile, DocumentType, AppFilterControl } from './builder-types';
+import type {
+  BuilderDocument,
+  BuilderTile,
+  DocumentType,
+  AppFilterControl,
+  TileInteractionRule,
+} from './builder-types';
 import { envelopeToTile, groupTilesIntoRows, computeEqualizedSpans, equalizeRowTiles } from './builder-types';
 export { groupTilesIntoRows, computeEqualizedSpans, equalizeRowTiles } from './builder-types';
 import { saveBuilderDocument, getBuilderDocuments } from './builder-persistence';
@@ -77,6 +83,12 @@ interface BuilderContextValue {
   updateFilter: (docId: string, filterId: string, updates: Partial<AppFilterControl>) => void;
   setFilterValue: (docId: string, paramName: string, value: unknown) => void;
   clearFilters: (docId: string) => void;
+
+  // Interaction & Cross-Filter operations
+  addInteractionRule: (docId: string, rule: TileInteractionRule) => void;
+  removeInteractionRule: (docId: string, ruleId: string) => void;
+  setActiveSelection: (docId: string, dimension: string, value: unknown, sourceTileId?: string, project?: string) => Promise<void>;
+  clearActiveSelections: (docId: string, project?: string) => Promise<void>;
 
   // Reactive execution
   reRunTile: (docId: string, tileId: string, project: string) => Promise<void>;
@@ -174,12 +186,19 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
         tiles,
         globalFilters: [],
         filterValues: {},
+        interactions: [],
+        activeSelections: {},
         createdAt: now,
         updatedAt: now,
         tags: [],
       };
       setDocuments((prev) => [...prev, newDoc]);
       globalActiveDocIdRef = id;
+      if (user?.uid) {
+        saveBuilderDocument(user.uid, newDoc).catch((err) =>
+          console.warn('[builder-context] Auto-save on create failed:', err),
+        );
+      }
       return id;
     },
     [user?.uid],
@@ -198,12 +217,19 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
         tiles: initialTiles,
         globalFilters: initialFilters,
         filterValues: {},
+        interactions: [],
+        activeSelections: {},
         createdAt: now,
         updatedAt: now,
         tags: [],
       };
       setDocuments((prev) => [...prev, newDoc]);
       globalActiveDocIdRef = id;
+      if (user?.uid) {
+        saveBuilderDocument(user.uid, newDoc).catch((err) =>
+          console.warn('[builder-context] Auto-save on create failed:', err),
+        );
+      }
       return id;
     },
     [user?.uid],
@@ -455,11 +481,191 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
         return {
           ...d,
           filterValues: {},
+          activeSelections: {},
           updatedAt: new Date().toISOString(),
         };
       }),
     );
   }, []);
+
+  // Interaction & Cross-Filter operations
+  const addInteractionRule = useCallback(
+    (docId: string, rule: TileInteractionRule) => {
+      setDocuments((prev) =>
+        prev.map((d) => {
+          if (d.id !== docId) return d;
+          const currentRules = d.interactions || [];
+          const exists = currentRules.some((r) => r.id === rule.id);
+          const nextRules = exists
+            ? currentRules.map((r) => (r.id === rule.id ? rule : r))
+            : [...currentRules, rule];
+          const updated = {
+            ...d,
+            interactions: nextRules,
+            updatedAt: new Date().toISOString(),
+          };
+          if (user?.uid) {
+            saveBuilderDocument(user.uid, updated).catch(() => {});
+          }
+          return updated;
+        }),
+      );
+    },
+    [user?.uid],
+  );
+
+  const removeInteractionRule = useCallback(
+    (docId: string, ruleId: string) => {
+      setDocuments((prev) =>
+        prev.map((d) => {
+          if (d.id !== docId) return d;
+          const nextRules = (d.interactions || []).filter((r) => r.id !== ruleId);
+          const updated = {
+            ...d,
+            interactions: nextRules,
+            updatedAt: new Date().toISOString(),
+          };
+          if (user?.uid) {
+            saveBuilderDocument(user.uid, updated).catch(() => {});
+          }
+          return updated;
+        }),
+      );
+    },
+    [user?.uid],
+  );
+
+  const setActiveSelection = useCallback(
+    async (docId: string, dimension: string, value: unknown, sourceTileId?: string, project?: string) => {
+      const doc = documents.find((d) => d.id === docId);
+      if (!doc) return;
+
+      const currentActive = doc.activeSelections?.[dimension];
+      const isToggleOff =
+        currentActive && currentActive.value === value && value !== undefined && value !== null && value !== '';
+
+      const nextSelections = { ...(doc.activeSelections || {}) };
+      const nextFilterValues = { ...(doc.filterValues || {}) };
+
+      if (isToggleOff || value === null || value === undefined || value === '') {
+        delete nextSelections[dimension];
+        delete nextFilterValues[dimension];
+        delete nextFilterValues[dimension.toLowerCase()];
+      } else {
+        nextSelections[dimension] = { dimension, value, sourceTileId };
+        nextFilterValues[dimension] = value;
+      }
+
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === docId
+            ? { ...d, activeSelections: nextSelections, filterValues: nextFilterValues, updatedAt: new Date().toISOString() }
+            : d,
+        ),
+      );
+
+      // Re-run target tiles or all parameterized tiles if project available
+      if (project) {
+        const matchingRules = (doc.interactions || []).filter(
+          (r) =>
+            (r.dimension.toLowerCase() === dimension.toLowerCase() ||
+              r.paramName.toLowerCase() === dimension.toLowerCase()) &&
+            (!sourceTileId || !r.sourceTileId || r.sourceTileId === sourceTileId),
+        );
+
+        let targetTileIds: string[] = [];
+        for (const rule of matchingRules) {
+          if (rule.targetTileIds && rule.targetTileIds.length > 0) {
+            targetTileIds.push(...rule.targetTileIds);
+          } else if (rule.targetTileTitles && rule.targetTileTitles.length > 0) {
+            const matched = doc.tiles
+              .filter((t) =>
+                rule.targetTileTitles?.some((title) => t.title.toLowerCase().includes(title.toLowerCase())),
+              )
+              .map((t) => t.id);
+            targetTileIds.push(...matched);
+          }
+        }
+
+        const tilesToRun = doc.tiles.filter((tile) => {
+          if (tile.id === sourceTileId) return false;
+          if (targetTileIds.length > 0) return targetTileIds.includes(tile.id);
+          return (tile.cachedSql || tile.parameterizedSql) && tile.tileType !== 'text';
+        });
+
+        await Promise.allSettled(
+          tilesToRun.map(async (tile) => {
+            try {
+              const snapshot = await executeTileQuery(tile, nextFilterValues, doc.globalFilters || [], project);
+              setDocuments((prev) =>
+                prev.map((d) =>
+                  d.id === docId
+                    ? {
+                        ...d,
+                        tiles: d.tiles.map((t) =>
+                          t.id === tile.id ? { ...t, lastSnapshot: snapshot, artifactData: snapshot } : t,
+                        ),
+                      }
+                    : d,
+                ),
+              );
+            } catch (err) {
+              console.warn(`[builder-context] Re-run for cross-filtered tile ${tile.id} failed:`, err);
+            }
+          }),
+        );
+      }
+    },
+    [documents],
+  );
+
+  const clearActiveSelections = useCallback(
+    async (docId: string, project?: string) => {
+      const doc = documents.find((d) => d.id === docId);
+      if (!doc) return;
+
+      const activeDimensions = Object.keys(doc.activeSelections || {});
+      const nextFilterValues = { ...(doc.filterValues || {}) };
+      for (const dim of activeDimensions) {
+        delete nextFilterValues[dim];
+        delete nextFilterValues[dim.toLowerCase()];
+      }
+
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === docId
+            ? { ...d, activeSelections: {}, filterValues: nextFilterValues, updatedAt: new Date().toISOString() }
+            : d,
+        ),
+      );
+
+      if (project) {
+        const queryTiles = doc.tiles.filter((t) => (t.cachedSql || t.parameterizedSql) && t.tileType !== 'text');
+        await Promise.allSettled(
+          queryTiles.map(async (tile) => {
+            try {
+              const snapshot = await executeTileQuery(tile, nextFilterValues, doc.globalFilters || [], project);
+              setDocuments((prev) =>
+                prev.map((d) =>
+                  d.id === docId
+                    ? {
+                        ...d,
+                        tiles: d.tiles.map((t) =>
+                          t.id === tile.id ? { ...t, lastSnapshot: snapshot, artifactData: snapshot } : t,
+                        ),
+                      }
+                    : d,
+                ),
+              );
+            } catch (err) {
+              console.warn(`[builder-context] Re-run on clear selections failed for tile ${tile.id}:`, err);
+            }
+          }),
+        );
+      }
+    },
+    [documents],
+  );
 
   // Reactive re-execution
   const reRunTile = useCallback(async (docId: string, tileId: string, project: string) => {
@@ -867,6 +1073,10 @@ export function BuilderProvider({ children }: { children: ReactNode }) {
         updateFilter,
         setFilterValue,
         clearFilters,
+        addInteractionRule,
+        removeInteractionRule,
+        setActiveSelection,
+        clearActiveSelections,
         reRunTile,
         reRunAllTiles,
         saveToBigQuery,

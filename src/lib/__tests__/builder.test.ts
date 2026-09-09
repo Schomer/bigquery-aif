@@ -6,7 +6,7 @@ import type { BuilderTile } from '../builder-types';
 describe('builder layout & tile hydration', () => {
   describe('envelopeToTile for tables & SCHEMA_VIEW', () => {
     it('synthesizes SQL and extracts sample rows from SCHEMA_VIEW envelope', () => {
-      const schemaData: SchemaResult = {
+      const schemaData = {
         skill: 'schema',
         scope: 'TABLE',
         project: 'my-gcp-proj',
@@ -26,19 +26,16 @@ describe('builder layout & tile hydration', () => {
 
       const envelope: CompositionEnvelope = {
         id: 'env_schema_1',
-        conversationId: 'conv_1',
-        turnIndex: 1,
         skill: 'schema',
-        tone: 'NEUTRAL',
-        headline: { text: 'Table: analytics.users', basis: 'STATUS' },
+        headline: { text: 'Table: analytics.users', tone: 'NEUTRAL', basis: 'STATUS' },
         qualityFlags: [],
-        provenance: { project: 'my-gcp-proj', dataset: 'analytics', table: 'users' },
+        nextActions: [],
+        provenance: { visibility: 'COLLAPSED', project: 'my-gcp-proj', dataset: 'analytics', table: 'users' } as any,
         primaryArtifact: {
           type: 'SCHEMA_VIEW',
-          data: schemaData,
+          data: schemaData as any,
         },
         requiresConfirmation: false,
-        suggestedFollowups: [],
       };
 
       const tile = envelopeToTile(envelope, 0, 0);
@@ -57,13 +54,11 @@ describe('builder layout & tile hydration', () => {
     it('hydrates chart envelopes into BuilderTile with SQL and cached rows', () => {
       const envelope: CompositionEnvelope = {
         id: 'env_chart_1',
-        conversationId: 'conv_1',
-        turnIndex: 1,
         skill: 'query',
-        tone: 'NEUTRAL',
-        headline: { text: 'Monthly Revenue', basis: 'DATA' },
+        headline: { text: 'Monthly Revenue', tone: 'NEUTRAL', basis: 'DIRECT_ANSWER' },
         qualityFlags: [],
-        provenance: { sql: 'SELECT month, revenue FROM sales', project: 'my-proj' },
+        nextActions: [],
+        provenance: { visibility: 'COLLAPSED', sql: 'SELECT month, revenue FROM sales', project: 'my-proj' },
         primaryArtifact: {
           type: 'BAR_CHART',
           data: {
@@ -73,7 +68,6 @@ describe('builder layout & tile hydration', () => {
           },
         },
         requiresConfirmation: false,
-        suggestedFollowups: [],
       };
 
       const tile = envelopeToTile(envelope, 6, 2);

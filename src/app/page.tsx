@@ -211,49 +211,91 @@ export default function Home() {
       {/* -- AI Inbox page -- */}
       {activePage === 'inbox' && (
         <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
-          <AiInboxScreen />
+          <AiInboxScreen
+            activeProject={activeProject}
+            onJump={(prompt) => {
+              setActivePage('chat');
+              chat.sendMessage(prompt);
+            }}
+          />
         </div>
       )}
 
       {/* -- Automation page -- */}
       {activePage === 'automation' && (
         <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
-          <AutomationScreen />
+          <AutomationScreen
+            activeProject={activeProject}
+            onJump={(prompt) => {
+              setActivePage('chat');
+              chat.sendMessage(prompt);
+            }}
+          />
         </div>
       )}
 
       {/* -- Catalog page -- */}
       {activePage === 'catalog' && (
         <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
-          <CatalogScreen />
+          <CatalogScreen
+            activeProject={activeProject}
+            onJump={(prompt) => {
+              setActivePage('chat');
+              chat.sendMessage(prompt);
+            }}
+          />
         </div>
       )}
 
       {/* -- Security page -- */}
       {activePage === 'security' && (
         <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
-          <SecurityScreen />
+          <SecurityScreen
+            activeProject={activeProject}
+            onJump={(prompt) => {
+              setActivePage('chat');
+              chat.sendMessage(prompt);
+            }}
+          />
         </div>
       )}
 
       {/* -- Observability page -- */}
       {activePage === 'observability' && (
         <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
-          <ObservabilityScreen />
+          <ObservabilityScreen
+            activeProject={activeProject}
+            onJump={(prompt) => {
+              setActivePage('chat');
+              chat.sendMessage(prompt);
+            }}
+          />
         </div>
       )}
 
       {/* -- Infrastructure page -- */}
       {activePage === 'infrastructure' && (
         <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
-          <InfrastructureScreen />
+          <InfrastructureScreen
+            activeProject={activeProject}
+            onJump={(prompt) => {
+              setActivePage('chat');
+              chat.sendMessage(prompt);
+            }}
+          />
         </div>
       )}
 
       {/* -- Skills page -- */}
       {activePage === 'skills' && (
         <div style={{ height: '100%', overflow: 'auto', background: 'var(--chat-bg)' }}>
-          <SkillsScreen />
+          <SkillsScreen
+            activeProject={activeProject}
+            onJump={(prompt) => {
+              setActivePage('chat');
+              chat.sendMessage(prompt);
+            }}
+          />
         </div>
       )}
 

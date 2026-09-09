@@ -1,6 +1,17 @@
 # Operations Ledger
 
-## 2026-09-09 -- Attach DataTable bottom and pagination footer cleanly to dashboard tile containers
+## 2026-09-09 -- CM3 Design System Alignment Across Console Screens & SuggestionChip Integration
+
+**What**:
+1. *Console Screen Modernization*: Refactored all console screens (`CatalogScreen`, `ObservabilityScreen`, `SecurityScreen`, `AutomationScreen`, `InfrastructureScreen`, `SkillsScreen`, `AiInboxScreen`, `HomeScreen`) to utilize the CM3 Cloud Console layout patterns (`ActionBar`, `ActionBarTitle`, `ActionBarEnd`, `TableFrame`, `TableTitleBar`, `Pagination`, `<Tag>` token themes).
+2. *SuggestionChip Integration*: Integrated `@/kit` `<SuggestionChip>` components across all console action bars, diagnostic tables, and artifact cards (`ArtifactCard.tsx`), replacing custom prompt buttons with standardized CM3 pill chips.
+3. *Conversational Chat Continuity*: Connected all screen-level prompt triggers and diagnostic chips to `onJump(prompt)` and `chat.sendMessage()`, allowing instant transitions from console oversight to interactive AI analysis while retaining project context.
+4. *Feature & Invariant Preservation*: Preserved 100% of underlying BigQuery functionality (schema exploration, SQL execution, query jobs, reservations, security rules, CSV uploads, builder documents, and layout switching) without regressions.
+
+**Why**: Aligning `bigquery-aif` with `data-cloud-design-system-cm3` ensures visual parity with Google Cloud Console standards, improves keyboard navigation and typography hierarchy, and enhances usability by standardizing AI invocation chips across all console modules.
+
+**Rule derived**: Every console screen in the application must begin with an `<ActionBar>` containing an `<ActionBarTitle>` and primary action buttons, table containers must wrap `<TableTitleBar>` and `<Table>` inside `<TableFrame>`, and all AI prompt recommendations or quick actions must render as `<SuggestionChip>` components from `@/kit`.
+
 
 **What**:
 1. *Dashboard Tile Content Flex Container*: Updated `TileCard` content wrapper in `src/components/BuilderPage.tsx` to use `display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden'` so children can flex dynamically without clipping or outer scroll blowout.

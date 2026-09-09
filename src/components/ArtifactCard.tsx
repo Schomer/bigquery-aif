@@ -38,6 +38,7 @@ import { DashboardArtifactCard } from './DashboardArtifactCard';
 import { PlanCard } from './chat/PlanCard';
 import type { PlanCardData } from './chat/PlanCard';
 import { SparkSpinner } from './SparkSpinner';
+import { SuggestionChip } from '@/kit';
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { usePreferences } from '@/lib/preferences-context';
 import { useBuilder } from '@/lib/builder-context';
@@ -832,21 +833,19 @@ export function ArtifactCard({ envelope: propEnvelope, onConfirm, onCancel, onCh
               };
               const icon = chipIcons[action.targetSkill] ?? 'arrow_forward';
               return (
-                <button
+                <SuggestionChip
                   key={i}
-                  className="chip"
+                  icon={<span className="material-symbols-outlined" style={{ fontSize: 13, lineHeight: 1 }}>{icon}</span>}
                   onClick={() => onChipClick?.(action)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: 13, lineHeight: 1 }}>{icon}</span>
                   {action.label}
-                </button>
+                </SuggestionChip>
               );
             })}
 
             {(envelope.skill === 'query' || envelope.skill === 'schema' || envelope.skill === 'data-quality' || envelope.skill === 'monitoring') && (
-              <button
-                className="chip"
+              <SuggestionChip
+                icon={<span className="material-symbols-outlined" style={{ fontSize: 13, lineHeight: 1 }}>auto_awesome</span>}
                 onClick={() => {
                   const d = envelope.primaryArtifact?.data as Record<string, unknown> | undefined;
                   const sql = (d?.sql as string) || '';
@@ -859,7 +858,7 @@ export function ArtifactCard({ envelope: propEnvelope, onConfirm, onCancel, onCh
                 }}
               >
                 Generate insights
-              </button>
+              </SuggestionChip>
             )}
           </div>
         )}
@@ -875,16 +874,15 @@ export function ArtifactCard({ envelope: propEnvelope, onConfirm, onCancel, onCh
             : 'What can I do next with these results?';
           return (
           <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button
-              className="chip"
-              style={{ opacity: 0.7, fontSize: 11 }}
+            <SuggestionChip
+              icon={<span className="material-symbols-outlined" style={{ fontSize: 13, lineHeight: 1 }}>help</span>}
               onClick={() => handleInlineClick(fallbackMsg)}
             >
               Suggest next steps
-            </button>
+            </SuggestionChip>
             {(envelope.skill === 'query' || envelope.skill === 'schema' || envelope.skill === 'data-quality' || envelope.skill === 'monitoring') && (
-              <button
-                className="chip"
+              <SuggestionChip
+                icon={<span className="material-symbols-outlined" style={{ fontSize: 13, lineHeight: 1 }}>auto_awesome</span>}
                 onClick={() => {
                   const d = envelope.primaryArtifact?.data as Record<string, unknown> | undefined;
                   const sql = (d?.sql as string) || '';
@@ -897,7 +895,7 @@ export function ArtifactCard({ envelope: propEnvelope, onConfirm, onCancel, onCh
                 }}
               >
                 Generate insights
-              </button>
+              </SuggestionChip>
             )}
           </div>
           );

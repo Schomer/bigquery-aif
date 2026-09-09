@@ -2,6 +2,16 @@
  
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-09-09 -- CM3 Design System Alignment Across Console Screens & SuggestionChip Integration
+
+- Upgraded all console screens (`CatalogScreen`, `ObservabilityScreen`, `SecurityScreen`, `AutomationScreen`, `InfrastructureScreen`, `SkillsScreen`, `AiInboxScreen`, `HomeScreen`) to use Google Cloud Console CM3 design system patterns from `data-cloud-design-system-cm3`.
+- Replaced standard action bars and cards with `<ActionBar>`, `<ActionBarTitle>`, `<ActionBarEnd>`, `<TableFrame>`, `<TableTitleBar>`, `<Pagination>`, and `<SuggestionChip>`.
+- Connected all console views to conversational workspace chat via `onJump(prompt)` and `chat.sendMessage()`, allowing one-click transitions from console metrics, tables, and rules into interactive AI workflows.
+- Upgraded `ArtifactCard.tsx` next actions and suggestions to use `<SuggestionChip>` from `@/kit`.
+- Standardized design tokens, tag themes, and single-color icons across all views while preserving 100% of existing BigQuery query execution, CSV multipart uploads, schema inspection, workflow saving, and layout switching functionality.
+- Verified test suite (168 passing tests) and Next.js static export build.
+
+
 ## 2026-09-09 -- Attach DataTable bottom and pagination footer cleanly to dashboard tile containers
 
 - Updated `src/components/BuilderPage.tsx` `TileCard` content container to use a flex column with `flex: 1, minHeight: 0, overflow: 'hidden'`.

@@ -6,17 +6,41 @@ export type { ArtifactType };
 
 export type DocumentType = 'dashboard' | 'app' | 'report' | 'recipe';
 
-export type FilterControlType = 'DROPDOWN' | 'MULTI_SELECT' | 'DATE_RANGE' | 'SEARCH_INPUT' | 'NUMBER_INPUT';
+export type FilterControlType =
+  | 'DROPDOWN'
+  | 'MULTI_SELECT'
+  | 'DATE_RANGE'
+  | 'DATE_PICKER'
+  | 'NUMBER_RANGE'
+  | 'NUMBER_INPUT'
+  | 'SEARCH_INPUT'
+  | 'BUTTON_GROUP';
 
 export interface AppFilterControl {
   id: string;
   label: string;
   type: FilterControlType;
   paramName: string; // e.g. 'country' or 'start_date' or '{{country}}'
-  column?: string;
+  column?: string;   // Bound column/field in data
+  targetTileIds?: string[]; // Specific tile IDs targeted by this filter (empty/undefined = all tiles)
+  optionsSource?: 'dynamic' | 'custom';
   defaultValue?: string | number | string[] | null;
-  options?: string[];
+  options?: string[]; // Static curated option list
   optionsSql?: string; // Query to populate options dynamically from BigQuery
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+export interface TileInteractionRule {
+  id: string;
+  sourceTileId?: string;
+  sourceTileTitle?: string;
+  dimension: string; // e.g. 'country' or 'category' or 'state'
+  paramName: string; // e.g. 'country'
+  targetTileIds?: string[];
+  targetTileTitles?: string[];
+  action: 'filter' | 'highlight';
 }
 
 export interface TileSnapshot {
@@ -32,6 +56,8 @@ export interface BuilderTile {
   cachedSql?: string;
   parameterizedSql?: string;
   vizType?: ArtifactType;
+  colorPalette?: string;
+  colorCustomizations?: Record<string, string>;
   /** Snapshot of primaryArtifact.data for immediate rendering without re-query. */
   artifactData?: unknown;
   col: number;       // 0-based column in 12-col grid
@@ -63,6 +89,8 @@ export interface BuilderDocument {
   tiles: BuilderTile[];
   globalFilters?: AppFilterControl[];
   filterValues?: Record<string, any>;
+  interactions?: TileInteractionRule[];
+  activeSelections?: Record<string, { dimension: string; value: unknown; sourceTileId?: string }>;
   project?: string;
   density?: 'compact' | 'standard' | 'spacious';
   createdAt: string;

@@ -51,6 +51,19 @@ export function substituteSqlParameters(
     const placeholder1 = `{{${cleanParam}}}`;
     const placeholder2 = `@${cleanParam}`;
 
+    // Handle NUMBER_RANGE object: { min, max }
+    if (typeof val === 'object' && val !== null && !Array.isArray(val) && ('min' in val || 'max' in val)) {
+      const numRange = val as { min?: number | string; max?: number | string };
+      const minVal = numRange.min !== undefined && numRange.min !== '' ? String(numRange.min) : '-999999999';
+      const maxVal = numRange.max !== undefined && numRange.max !== '' ? String(numRange.max) : '999999999';
+
+      sql = sql.replaceAll(`{{min_${cleanParam}}}`, minVal);
+      sql = sql.replaceAll(`{{${cleanParam}_min}}`, minVal);
+      sql = sql.replaceAll(`{{max_${cleanParam}}}`, maxVal);
+      sql = sql.replaceAll(`{{${cleanParam}_max}}`, maxVal);
+      continue;
+    }
+
     // Handle array / MULTI_SELECT values
     if (Array.isArray(val)) {
       if (val.length === 0) continue;
@@ -97,6 +110,10 @@ export function substituteSqlParameters(
     }
   }
 
+  // Fallback: clean up any remaining unpopulated template placeholders with empty strings
+  // so queries like WHERE (country = '{{country}}' OR '{{country}}' = '') don't have syntax errors
+  sql = sql.replace(/\{\{[a-zA-Z0-9_]+\}\}/g, '');
+
   return sql;
 }
 
@@ -114,10 +131,15 @@ export async function executeTileQuery(
     throw new Error('Tile has no SQL query.');
   }
 
+  // Filter applicable global filters (check targetTileIds)
+  const applicableFilters = globalFilters.filter(
+    (f) => !f.targetTileIds || f.targetTileIds.length === 0 || f.targetTileIds.includes(tile.id)
+  );
+
   const resolvedSql = substituteSqlParameters(
     baseSql,
     filterValues,
-    globalFilters,
+    applicableFilters,
     tile.parameterBindings,
   );
 
