@@ -20,6 +20,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>
       <head>
+        {/* API hosts used on every turn: warm DNS + TCP + TLS before the first request */}
+        <link rel="preconnect" href="https://bigquery.googleapis.com" />
+        <link rel="preconnect" href="https://firebasevertexai.googleapis.com" />
         {/* Google Fonts: Google Sans + Material Symbols */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

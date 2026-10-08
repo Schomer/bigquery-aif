@@ -29,6 +29,7 @@ import {
 } from '@/lib/firestore-service';
 import { saveArtifact, recordRun } from '@/lib/saved-work';
 import { createBigQueryView, listDatasets } from '@/lib/bigquery-client';
+import { prewarmForProject } from '@/lib/prewarm';
 import type { BigQuerySaveOptions, StudioSaveOptions } from '@/components/SaveModal';
 import { ensureStudioWorkspace, saveStudioSavedQuery, saveNativeStudioQuery } from '@/lib/dataform-client';
 import html2canvas from 'html2canvas';
@@ -242,7 +243,7 @@ function summarizeEnvelopesForHistory(envelopes: CompositionEnvelope[]): string 
 }
 
 export function useChatOrchestration(): ChatOrchestrationReturn {
-  const { activeProject, user, signIn, refreshAccessToken } = useAuth();
+  const { activeProject, user, accessToken, signIn, refreshAccessToken } = useAuth();
   const { conversationId, addOperation } = useConversation();
   const { setRunning } = useChatRunState();
   const { openBuilderTab, openDashboardTab } = usePage();
@@ -314,6 +315,15 @@ export function useChatOrchestration(): ChatOrchestrationReturn {
     pendingStepsRef.current = [];
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
+
+  // ---- Pre-warm first-turn dependencies ----------------------------------
+  // Skill docs, the project dataset list, and the result store are loaded in
+  // the background as soon as we are signed in with an active project, so the
+  // first message does not pay for them. Idempotent per project.
+  useEffect(() => {
+    if (!user || !accessToken || !activeProject) return;
+    prewarmForProject(activeProject);
+  }, [user, accessToken, activeProject]);
 
   // ---- Auth-retry wrapper ------------------------------------------------
 

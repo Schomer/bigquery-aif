@@ -2,6 +2,23 @@
  
 A record of what changed in each coding session. Read this to understand recent changes without digging through git diffs.
 
+## 2026-10-08 -- Session: Speed optimizations (BigQuery fast path, progressive schema, agent loop, pre-warm)
+
+- `src/lib/bigquery-client.ts`: replaced the `jobs.insert` -> fixed 1.5 s sleep -> `jobs.get` polling -> `getQueryResults` chain with the synchronous `jobs.query` endpoint (server-side wait, `timeoutMs: 10000`, `useQueryCache: true`) plus `jobs.getQueryResults` long-polling only when `jobComplete` is false. Shared helper `runQueryWithServerWait()` backs both `executeQuery()` and `executeDml()` (the 1 s DML sleep loop is gone too). `executeQuery` now accepts an `ExecuteQueryOptions` object (`onProgress`, `maxResults`, `initialWaitMs`, `signal`) as well as the legacy progress callback. `dryRun()` unchanged.
+- `src/lib/skills/schema.ts` (rewritten): `fetchSchema()` returns base metadata first and runs enrichment (table counts, INFORMATION_SCHEMA column counts and query frequency, constraints) in the background, mutating the cached result in place. New `options.enrich` flag (default `true`, bounded by exported `ENRICH_WAIT_MS` = 2500 ms), in-flight dedup, `awaitSchemaEnrichment()`, `resetSchemaFetchState()`. Private `bqQuery` now delegates to the shared `executeQuery` (fixes silent zero-row results on slow INFORMATION_SCHEMA queries).
+- `src/agent/tools/get-schema.ts`, `src/agent/tools/list-resources.ts`, `src/lib/orchestrator-utils.ts`: all `fetchSchema` calls pass `{ enrich: false }` -- the LLM only needs names, the UI card path (`src/agent/index.ts`) keeps the default bounded wait.
+- `src/agent/loop.ts`: project ID extraction hoisted out of the per-tool-call loop.
+- `src/agent/result-cache.ts`: `ResultCache` gained an in-memory hot layer (24 entries), non-blocking `put()` with background persistence, `warm()`, sample-based `estimateResultBytes()` (old entries always recorded 0 bytes so LRU never evicted), and eviction throttled to once per 60 s instead of a full scan after every query. `PersistentResultCache` untouched.
+- `src/agent/context.ts`: added `prewarmSkillKnowledge()`.
+- `src/lib/prewarm.ts` (new): `prewarmForProject()` warms skill docs, the result-cache DB connection and the project dataset list (through `getSchemaTool`) once per project, best-effort and idempotent.
+- `src/hooks/useChatOrchestration.ts`: effect calls `prewarmForProject(activeProject)` once the user, access token and active project are all present.
+- `src/app/layout.tsx`: `<link rel="preconnect">` for `bigquery.googleapis.com` and `firebasevertexai.googleapis.com`.
+- `src/agent/tools/run-query.ts`: comment updates only.
+- Tests added: `src/lib/__tests__/bigquery-client.test.ts` (13, fake timers prove no sleep), `src/lib/__tests__/schema-progressive.test.ts` (8), `src/agent/__tests__/result-cache.test.ts` (8). Suite: 201 passing.
+- Live smoke test against real BigQuery (project `malloy-data`): `SELECT 1` 532 ms new vs 1112 ms old; cache-busted public-dataset scan median 691 ms new vs 1198 ms old; forced long-poll path verified end to end (progress event, correct result, job ID present); error path verified.
+- Knowledge updated: `ops-ledger.md`, `invariants.md` (BigQuery Client, Schema Skill, result cache, pre-warm), `component-map.md`.
+- Deferred follow-ups: Gemini thinking-budget tuning (quality risk), separate IndexedDB metadata store for eviction (needs `DB_VERSION` bump), plumbing an `AbortSignal` from the agent loop into tools.
+
 ## 2026-09-09 -- Natural Language Dashboard AI Editing, Card Selection Context, Advanced Multi-Filters, Cross-Filtering & Auto-Save
 
 - Implemented `BuilderChatSidebar.tsx` for natural language dashboard and app updates when in Edit mode.

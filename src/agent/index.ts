@@ -577,6 +577,9 @@ export async function processWithAgentLoop({
         renderedSchemaScopes.add(scopeKey);
 
         try {
+          // Default enrich: true -- waits (bounded) for the background
+          // enrichment (constraints, counts, query frequency) that the tool
+          // turn deliberately did not block on. Base data is already cached.
           const schemaResult = await fetchSchema(
             dataset || undefined,
             table || undefined,

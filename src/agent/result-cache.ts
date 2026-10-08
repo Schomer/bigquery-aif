@@ -79,27 +79,52 @@ function getDb(): Promise<IDBDatabase> {
 
 // ── ResultCache class (LRU, session-scoped) ───────────────────────────────────
 
-class ResultCache {
-  /** Store a result. Triggers LRU eviction if over budget. */
-  async put(result: CachedResult): Promise<void> {
-    try {
-      const db = await getDb();
-      await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readwrite');
-        tx.objectStore(STORE_NAME).put(result);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
+/** Number of most-recent results kept in memory for instant reads. */
+const HOT_LAYER_LIMIT = 24;
+/** Minimum interval between full-store eviction scans. */
+const EVICTION_INTERVAL_MS = 60_000;
 
-      // Non-blocking eviction check
-      this.evictIfNeeded().catch(() => { /* non-fatal */ });
+/**
+ * Approximate serialized size of a result. Samples the first rows and
+ * extrapolates so large results are not stringified in full on the hot path.
+ */
+export function estimateResultBytes(rows: unknown[][]): number {
+  if (!rows.length) return 0;
+  const sampleSize = Math.min(rows.length, 50);
+  const sampleBytes = JSON.stringify(rows.slice(0, sampleSize)).length;
+  return Math.round(sampleBytes * (rows.length / sampleSize));
+}
+
+class ResultCache {
+  /** Most-recent results, newest last. Reads hit this before IndexedDB. */
+  private hot = new Map<string, CachedResult>();
+  private lastEvictionAt = 0;
+
+  /** Open the database ahead of time so the first put/get does not pay for it. */
+  async warm(): Promise<void> {
+    try {
+      await getDb();
     } catch {
-      // IndexedDB write failure is non-fatal
+      // IndexedDB unavailable -- the hot layer still works
     }
   }
 
-  /** Retrieve a cached result by ID. */
+  /**
+   * Store a result. Resolves as soon as the result is in the hot layer; the
+   * IndexedDB write and any eviction run in the background.
+   */
+  async put(result: CachedResult): Promise<void> {
+    const entry: CachedResult = result.bytes > 0
+      ? result
+      : { ...result, bytes: estimateResultBytes(result.rows) };
+    this.remember(entry);
+    void this.persist(entry);
+  }
+
+  /** Retrieve a cached result by ID -- hot layer first, then IndexedDB. */
   async get(resultId: string): Promise<CachedResult | null> {
+    const hot = this.hot.get(resultId);
+    if (hot) return hot;
     try {
       const db = await getDb();
       return new Promise<CachedResult | null>((resolve, reject) => {
@@ -124,7 +149,9 @@ class ResultCache {
           const results = (request.result as CachedResult[]).map(r => ({
             result_id: r.result_id,
             created: r.created,
-            bytes: r.bytes,
+            // Entries written before byte accounting existed carry bytes: 0;
+            // estimate them so the budget reflects reality.
+            bytes: r.bytes > 0 ? r.bytes : estimateResultBytes(r.rows ?? []),
           }));
           resolve(results);
         };
@@ -137,6 +164,7 @@ class ResultCache {
 
   /** Remove a specific result. */
   async remove(resultId: string): Promise<void> {
+    this.hot.delete(resultId);
     try {
       const db = await getDb();
       await new Promise<void>((resolve, reject) => {
@@ -152,6 +180,7 @@ class ResultCache {
 
   /** Clear all cached results. */
   async clear(): Promise<void> {
+    this.hot.clear();
     try {
       const db = await getDb();
       await new Promise<void>((resolve, reject) => {
@@ -163,6 +192,39 @@ class ResultCache {
     } catch {
       // Non-fatal
     }
+  }
+
+  private remember(entry: CachedResult): void {
+    this.hot.delete(entry.result_id);
+    this.hot.set(entry.result_id, entry);
+    while (this.hot.size > HOT_LAYER_LIMIT) {
+      const oldest = this.hot.keys().next().value;
+      if (oldest === undefined) break;
+      this.hot.delete(oldest);
+    }
+  }
+
+  private async persist(entry: CachedResult): Promise<void> {
+    try {
+      const db = await getDb();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put(entry);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+      this.maybeEvict();
+    } catch {
+      // IndexedDB write failure is non-fatal -- the hot layer has the result
+    }
+  }
+
+  /** Run the eviction scan at most once per EVICTION_INTERVAL_MS. */
+  private maybeEvict(): void {
+    const now = Date.now();
+    if (now - this.lastEvictionAt < EVICTION_INTERVAL_MS) return;
+    this.lastEvictionAt = now;
+    this.evictIfNeeded().catch(() => { /* non-fatal */ });
   }
 
   /** Evict oldest results if total size exceeds MAX_CACHE_BYTES. */

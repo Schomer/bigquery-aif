@@ -118,28 +118,40 @@ UI Components (src/components/)
 
 ---
 
-### `src/lib/skills/schema.ts` (305 lines)
-**Responsibility**: Direct BigQuery REST API calls for metadata.
+### `src/lib/skills/schema.ts` (471 lines, rewritten 2026-10-08)
+**Responsibility**: Direct BigQuery REST API calls for metadata, with progressive loading.
 - The ONLY skill extracted into its own file
-- `fetchSchema()` -- public entry point, delegates to scope-specific functions
-- `fetchProjectSchema()` -- lists datasets with table counts
-- `fetchDatasetSchema()` -- lists tables in a dataset
-- `fetchTableSchema()` -- full table metadata
+- `fetchSchema(dataset, table, project, options?)` -- public entry point. Returns the base listing as soon as REST metadata arrives and starts enrichment in the background. `options.enrich` (default `true`) waits at most `ENRICH_WAIT_MS` (2500 ms) for enrichment; agent tools pass `{ enrich: false }`
+- `fetchProjectSchema()` -- lists datasets; enrichment adds table counts (skipped above `TABLE_COUNT_DATASET_LIMIT` = 50 datasets)
+- `fetchDatasetSchema()` -- lists tables; enrichment adds INFORMATION_SCHEMA column counts and query frequency, then re-sorts by frequency
+- `fetchTableSchema()` -- full table metadata; enrichment adds constraints
 - `fetchTableConstraints()` -- PK/FK via INFORMATION_SCHEMA
+- `awaitSchemaEnrichment(key, ms)` / `resetSchemaFetchState()` -- bounded wait and test reset
+- Internal: `enrichmentPromises` and `inflightBase` maps keyed by cache key; enrichment mutates the cached result in place; `bqQuery` delegates to the shared `executeQuery`
 
 ---
 
-### `src/lib/bigquery-client.ts` (~15KB)
+### `src/lib/bigquery-client.ts` (~1030 lines)
 **Responsibility**: BigQuery REST API wrapper.
-- `executeQuery()` -- runs read-only queries
-- `dryRun()` -- cost estimation
-- `executeDml()` -- runs DML statements
+- `runQueryWithServerWait()` -- private helper: `jobs.query` with server-side `timeoutMs`, then `jobs.getQueryResults` long-polling only while `jobComplete` is false. No client-side timers
+- `executeQuery(sql, project, progressOrOptions?)` -- runs read-only queries through the fast path; third argument is a progress callback or `ExecuteQueryOptions` (`onProgress`, `maxResults`, `initialWaitMs`, `signal`)
+- `dryRun()` -- cost estimation (`jobs.insert` with `dryRun: true`)
+- `executeDml()` -- runs DML/DDL through the same fast path, returns `numDmlAffectedRows`
 - `createDataset()` -- creates a new dataset via REST API
 - `exportToSheets()` -- Google Sheets export
 - `createScheduledQuery()` -- Data Transfer API
 - `detectBqRegion()` -- region detection for INFORMATION_SCHEMA
 - `parseQueryResponse()` -- coerces cell values to native JS types using BigQuery schema field types
 - `coerceValue()` -- type-specific coercion (NUMERIC -> Number, BOOLEAN -> boolean, etc.)
+
+---
+
+### `src/lib/prewarm.ts` (57 lines) [Added 2026-10-08]
+**Responsibility**: Warm first-turn dependencies as soon as the user is signed in and a project is active.
+- `prewarmForProject(project)` -- once per page load: `prewarmSkillKnowledge()` (skill docs) and `resultCache.warm()`; once per project: `getSchemaTool.execute({}, project)` to populate the dataset list and warm the BigQuery connection. Requires an access token; otherwise a no-op that the caller retries via effect dependencies
+- `resetPrewarmState()` -- test reset
+- Called from `src/hooks/useChatOrchestration.ts` in an effect keyed on `user`, `accessToken`, `activeProject`
+- Companion: `src/app/layout.tsx` adds `preconnect` links for `bigquery.googleapis.com` and `firebasevertexai.googleapis.com`
 
 ---
 
@@ -409,7 +421,10 @@ UI Components (src/components/)
 - `scripts/generate-report.mjs` -- Markdown report generator
 - `scripts/visual-test.mjs` -- Puppeteer headed-browser screenshot capture (20 tests)
 - `scripts/ux-eval.mjs` (~580 lines) -- UX evaluation: 25 scenarios, screenshots + Gemini scoring on 6 dimensions. Outputs `test-results/ux-eval-report.md`. Run: `node scripts/ux-eval.mjs`
-- No unit tests exist. No jest/vitest configuration.
+- Unit tests: vitest (`npm test`), configured in `vitest.config.ts` to pick up `src/**/__tests__/**/*.test.ts` in the node environment. 201 tests as of 2026-10-08 covering the router, sql-guard, format utilities, composer, builder persistence, and the speed path:
+  - `src/lib/__tests__/bigquery-client.test.ts` -- fast path (`jobs.query` + long-poll), fake timers prove no sleep is scheduled, error and DML paths
+  - `src/lib/__tests__/schema-progressive.test.ts` -- base-first return, `enrich` flag, in-place enrichment, in-flight dedup, re-enrichment after invalidation
+  - `src/agent/__tests__/result-cache.test.ts` -- hot layer, non-blocking `put()`, byte estimation, eviction throttling
 
 ---
 
@@ -467,10 +482,10 @@ New architecture components, behind feature flag `bqaif_agent_v2`.
 | prompts/flash.ts | 116 | Flash-optimized system prompt with planning and tool selection instructions |
 | step-events.ts | 150 | StepEvent protocol + emitter + StatusCallback bridge |
 | trace-recorder.ts | 165 | Trace recording for golden set evaluation |
-| context.ts | 170 | LoopContext assembly, history truncation, result summarization |
-| loop.ts | 300 | The agent loop (stall detection, interruption, gates, parallel reads) |
+| context.ts | 190 | LoopContext assembly, history truncation, result summarization, `prewarmSkillKnowledge()` |
+| loop.ts | 415 | The agent loop (stall detection, interruption, gates, parallel reads); project ID resolved once per turn, not per tool call |
 | action-classes.ts | 185 | Action-class taxonomy (read/reversible/destructive) |
-| result-cache.ts | 280 | IndexedDB result store: `results` (200MB LRU, session-scoped) + `persistent_results` (500MB, long-lived for conversation rehydration) |
+| result-cache.ts | 372 | IndexedDB result store: `results` (200MB LRU, session-scoped, in-memory hot layer of 24, non-blocking `put()`, throttled eviction, `warm()`) + `persistent_results` (500MB, long-lived for conversation rehydration) |
 | index.ts | 612 | Entry point, feature flag, processWithAgentLoop(), executionTrace collection, plan ambiguity detection |
 | tools/types.ts | 45 | ToolDef, ToolCall, ToolResult |
 | tools/run-query.ts | 115 | run_query tool (execute + dry_run + cache) |

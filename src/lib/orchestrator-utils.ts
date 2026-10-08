@@ -24,7 +24,7 @@ export function stepWithLink(text: string, opts: { project: string; dataset?: st
 
 export async function getAvailableDatasets(project: string): Promise<string[]> {
   try {
-    const schema = await fetchSchema(undefined, undefined, project);
+    const schema = await fetchSchema(undefined, undefined, project, { enrich: false });
     return schema.columns
       .map((c) => c.name)
       .filter((name) => name && name.toLowerCase() !== project.toLowerCase());
@@ -115,7 +115,7 @@ export function buildConversationStateSummary(context?: { lastSkill?: SkillName;
 export async function buildSchemaContext(project: string, dataset: string, priorityTable?: string): Promise<string> {
   if (!dataset) return '';
   try {
-    const datasetSchema = await fetchSchema(dataset, undefined, project);
+    const datasetSchema = await fetchSchema(dataset, undefined, project, { enrich: false });
     const tables = datasetSchema.columns.map((col) => col.name);
     if (!tables.length) return '';
 
@@ -133,7 +133,7 @@ export async function buildSchemaContext(project: string, dataset: string, prior
 
     const schemaPromises = tablesToFetch.map(async (tableId) => {
       try {
-        const tableSchema = await fetchSchema(dataset, tableId, project);
+        const tableSchema = await fetchSchema(dataset, tableId, project, { enrich: false });
         const colString = tableSchema.columns
           .map((col) => `${col.name} (${col.type})`)
           .join(', ');

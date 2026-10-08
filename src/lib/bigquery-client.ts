@@ -294,53 +294,108 @@ export interface QueryProgressEvent {
   bytesProcessed?: number;
 }
 
+export interface ExecuteQueryOptions {
+  /** Fired each time a long-running query is found to still be executing. */
+  onProgress?: (event: QueryProgressEvent) => void;
+  /** Maximum rows returned (first page). Default 1000. */
+  maxResults?: number;
+  /**
+   * How long BigQuery waits server-side on the initial jobs.query call before
+   * returning jobComplete=false. Default 10000 ms. The service caps this at
+   * roughly 200 s regardless of the value supplied.
+   */
+  initialWaitMs?: number;
+  /** Aborts the in-flight HTTP request(s). */
+  signal?: AbortSignal;
+}
+
+// Fast-path timing. The initial jobs.query call holds the request open on the
+// server for up to QUERY_INITIAL_WAIT_MS, which covers the overwhelming majority
+// of interactive queries in a single round trip. Slower queries fall back to
+// jobs.getQueryResults long-polling where the server again waits up to
+// QUERY_POLL_WAIT_MS per call -- the client never sleeps on a fixed timer.
+const QUERY_INITIAL_WAIT_MS = 10_000;
+const QUERY_POLL_WAIT_MS = 5_000;
+const QUERY_MAX_RESULTS = 1000;
+
+interface SyncQueryRequest {
+  query: string;
+  useLegacySql: boolean;
+  maxResults?: number;
+  timeoutMs?: number;
+  useQueryCache?: boolean;
+}
+
+/**
+ * Run a query through the synchronous jobs.query endpoint and, if it does not
+ * finish within the server-side wait, long-poll jobs.getQueryResults until it
+ * does. Resolves with the final response object (jobComplete === true).
+ *
+ * Both endpoints surface job failures as HTTP errors, which bqFetch converts to
+ * thrown Errors. The `errors` array on a completed response can hold warnings,
+ * so it is only treated as fatal when no result schema came back.
+ */
+async function runQueryWithServerWait(
+  projectId: string,
+  request: SyncQueryRequest,
+  opts: ExecuteQueryOptions,
+): Promise<any> {
+  const signal = opts.signal;
+  let data = await bqFetch(`${BQ_BASE}/${encodeURIComponent(projectId)}/queries`, {
+    method: 'POST',
+    body: JSON.stringify(request),
+    signal,
+  });
+
+  const jobId: string = data.jobReference?.jobId ?? '';
+  const location: string | undefined = data.jobReference?.location;
+
+  if (!data.jobComplete) {
+    if (!jobId) {
+      throw new Error('BigQuery did not return a job reference for a long-running query.');
+    }
+    const params = new URLSearchParams({
+      maxResults: String(request.maxResults ?? QUERY_MAX_RESULTS),
+      timeoutMs: String(QUERY_POLL_WAIT_MS),
+    });
+    if (location) params.set('location', location);
+    const pollUrl = `${BQ_BASE}/${encodeURIComponent(projectId)}/queries/${encodeURIComponent(jobId)}?${params.toString()}`;
+
+    do {
+      opts.onProgress?.({
+        state: 'RUNNING',
+        jobId,
+        bytesProcessed: data.totalBytesProcessed ? Number(data.totalBytesProcessed) : undefined,
+      });
+      data = await bqFetch(pollUrl, { signal });
+    } while (!data.jobComplete);
+  }
+
+  if (data.errors?.length && !data.schema) {
+    throw new Error(data.errors[0]?.message || 'BigQuery query failed');
+  }
+
+  return data;
+}
+
 export async function executeQuery(
   sql: string,
   project?: string,
-  onJobProgress?: (event: QueryProgressEvent) => void,
+  progressOrOptions?: ((event: QueryProgressEvent) => void) | ExecuteQueryOptions,
 ): Promise<QueryExecuteResult> {
   const projectId = project || '';
+  const opts: ExecuteQueryOptions = typeof progressOrOptions === 'function'
+    ? { onProgress: progressOrOptions }
+    : (progressOrOptions ?? {});
   try {
-    // Submit as async job so we can poll for progress (same pattern as executeDml)
-    const submitData = await bqFetch(`${BQ_BASE}/${encodeURIComponent(projectId)}/jobs`, {
-      method: 'POST',
-      body: JSON.stringify({
-        configuration: {
-          query: {
-            query: sql,
-            useLegacySql: false,
-          },
-        },
-      }),
-    });
-
-    let job = submitData;
-    const jobId: string = job.jobReference?.jobId ?? '';
-
-    // Poll until DONE, firing progress callbacks on each tick
-    while (job.status?.state !== 'DONE') {
-      onJobProgress?.({
-        state: job.status?.state ?? 'PENDING',
-        jobId,
-        bytesProcessed: job.statistics?.query?.totalBytesProcessed
-          ? Number(job.statistics.query.totalBytesProcessed)
-          : undefined,
-      });
-      await new Promise((r) => setTimeout(r, 1500));
-      job = await bqFetch(
-        `${BQ_BASE}/${encodeURIComponent(projectId)}/jobs/${encodeURIComponent(jobId)}`,
-      );
-    }
-
-    if (job.status?.errors?.length) {
-      throw new Error(job.status.errors[0].message);
-    }
-
-    // Fetch up to 1000 result rows from the completed job
-    const resultsData = await bqFetch(
-      `${BQ_BASE}/${encodeURIComponent(projectId)}/queries/${encodeURIComponent(jobId)}?maxResults=1000&timeoutMs=0`,
-    );
-    return parseQueryResponse({ ...resultsData, jobReference: { jobId } });
+    const data = await runQueryWithServerWait(projectId, {
+      query: sql,
+      useLegacySql: false,
+      maxResults: opts.maxResults ?? QUERY_MAX_RESULTS,
+      timeoutMs: opts.initialWaitMs ?? QUERY_INITIAL_WAIT_MS,
+      useQueryCache: true,
+    }, opts);
+    return parseQueryResponse(data);
   } catch (err: unknown) {
     throw new Error(`BigQuery query failed: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -364,31 +419,16 @@ export interface CreateViewResult {
 export async function executeDml(sql: string, project?: string): Promise<DmlResult> {
   const projectId = project || '';
   try {
-    const data = await bqFetch(`${BQ_BASE}/${encodeURIComponent(projectId)}/jobs`, {
-      method: 'POST',
-      body: JSON.stringify({
-        configuration: {
-          query: {
-            query: sql,
-            useLegacySql: false,
-          },
-        },
-      }),
-    });
-    // Poll for completion if needed
-    let job = data;
-    const jobId = job.jobReference?.jobId ?? '';
-    while (job.status?.state !== 'DONE') {
-      await new Promise((r) => setTimeout(r, 1000));
-      job = await bqFetch(
-        `${BQ_BASE}/${encodeURIComponent(projectId)}/jobs/${encodeURIComponent(jobId)}`
-      );
-    }
-    if (job.status?.errors?.length) {
-      throw new Error(job.status.errors[0].message);
-    }
-    const affected = parseInt(job.statistics?.query?.numDmlAffectedRows ?? '0', 10);
-    return { rowsAffected: affected, jobId };
+    // Same fast path as executeQuery: the server waits for completion, and
+    // slower statements are long-polled rather than slept on.
+    const data = await runQueryWithServerWait(projectId, {
+      query: sql,
+      useLegacySql: false,
+      maxResults: 1,
+      timeoutMs: QUERY_INITIAL_WAIT_MS,
+    }, {});
+    const affected = parseInt(data.numDmlAffectedRows ?? '0', 10);
+    return { rowsAffected: affected, jobId: data.jobReference?.jobId ?? '' };
   } catch (err: unknown) {
     throw new Error(`BigQuery DML failed: ${err instanceof Error ? err.message : String(err)}`);
   }

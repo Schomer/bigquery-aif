@@ -74,7 +74,9 @@ export const getSchemaTool: ToolDef = {
     }
 
     try {
-      const schema = await fetchSchema(dataset, table, project);
+      // Base data only -- enrichment (constraints, counts, frequency) continues
+      // in the background and is picked up by the schema card builder.
+      const schema = await fetchSchema(dataset, table, project, { enrich: false });
 
       let result: unknown;
 
@@ -118,7 +120,7 @@ export const getSchemaTool: ToolDef = {
       // If table not found, try fuzzy matching
       if (table && dataset && msg.includes('Not found')) {
         try {
-          const dsSchema = await fetchSchema(dataset, undefined, project);
+          const dsSchema = await fetchSchema(dataset, undefined, project, { enrich: false });
           const tableNames = dsSchema.columns.map(c => c.name);
           const lower = table.toLowerCase();
 
@@ -142,7 +144,7 @@ export const getSchemaTool: ToolDef = {
 
           if (match) {
             // Retry with the correct name
-            const correctSchema = await fetchSchema(dataset, match, project);
+            const correctSchema = await fetchSchema(dataset, match, project, { enrich: false });
             const result = {
               scope: 'table',
               dataset,

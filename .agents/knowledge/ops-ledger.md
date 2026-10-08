@@ -1,5 +1,32 @@
 # Operations Ledger
 
+## 2026-10-08 -- Speed optimizations: BigQuery fast path, progressive schema loading, agent loop and pre-warming
+
+**What changed**:
+1. *BigQuery fast path* (`src/lib/bigquery-client.ts`): `executeQuery()` now POSTs to the synchronous `jobs.query` endpoint (`/projects/{p}/queries`) with `timeoutMs: 10000`, `maxResults: 1000`, `useQueryCache: true`. BigQuery holds the request open server-side until the query finishes, so most interactive queries complete in a single round trip. When `jobComplete` is false, the client long-polls `jobs.getQueryResults` (`timeoutMs: 5000`, with `location` when present) in a `do/while` loop, firing `onProgress` each iteration. There is no `setTimeout` anywhere in the execution path. `executeDml()` shares the same helper (`runQueryWithServerWait`) and reads `numDmlAffectedRows`. The third argument of `executeQuery` accepts either the legacy progress callback or an `ExecuteQueryOptions` object (`onProgress`, `maxResults`, `initialWaitMs`, `signal`).
+2. *Progressive schema loading* (`src/lib/skills/schema.ts`): `fetchSchema(dataset, table, project, { enrich })` returns the base listing as soon as the REST metadata calls finish and starts enrichment (table counts for PROJECT scope, INFORMATION_SCHEMA column counts and query frequency for DATASET scope, constraints for TABLE scope) in the background. Enrichment mutates the cached result object in place, so later cache reads see the enriched data. `enrich: true` (default, used by the schema-card builder in `src/agent/index.ts`) waits at most `ENRICH_WAIT_MS` (2500 ms) for enrichment. Agent tools (`get-schema.ts`, `list-resources.ts`) and `orchestrator-utils.ts` pass `{ enrich: false }` because the LLM only needs names. In-flight base fetches are deduplicated per cache key. The private `bqQuery` helper now delegates to the shared `executeQuery`.
+3. *Agent loop* (`src/agent/loop.ts`): project ID extraction hoisted out of the per-tool-call loop. (`src/agent/result-cache.ts`): `ResultCache` gained an in-memory hot layer (`HOT_LAYER_LIMIT` = 24); `put()` resolves immediately and persists to IndexedDB in the background; `get()` checks the hot layer first; `warm()` opens the DB connection ahead of time; `estimateResultBytes()` replaces the old constant `bytes: 0`; eviction is throttled to once per `EVICTION_INTERVAL_MS` (60 s) instead of a full `getAll()` after every query.
+4. *Pre-warming* (`src/lib/prewarm.ts`, new; `src/agent/context.ts`; `src/hooks/useChatOrchestration.ts`): once the user is signed in with a token and a project is active, the chat hook calls `prewarmForProject()` which loads the skill docs (`prewarmSkillKnowledge()`), opens the result-cache DB, and runs `getSchemaTool.execute({}, project)` once per project so the dataset list and the BigQuery TLS connection are ready before the first message. `src/app/layout.tsx` adds `<link rel="preconnect">` for `bigquery.googleapis.com` and `firebasevertexai.googleapis.com`.
+
+**What worked** (live smoke test against `malloy-data`, real BigQuery, warm connection): `SELECT 1` 532 ms new vs 1112 ms old; cache-busted public-dataset scan (`samples.shakespeare` aggregate, 3 runs) median 691 ms new vs 1198 ms old; INFORMATION_SCHEMA.SCHEMATA 989 ms through the new path; forced long-poll (`initialWaitMs: 1` on a 50M-row aggregation) returned `jobComplete: false`, emitted one progress event, long-polled to completion in 2769 ms with the correct count and a job ID; missing-table error surfaced as a thrown error. Unit suite grew from 172 to 201 tests (`bigquery-client.test.ts` uses fake timers to prove no sleep is scheduled; `schema-progressive.test.ts` covers enrich flag, in-place enrichment, dedup and re-enrichment after invalidation; `result-cache.test.ts` covers the hot layer, byte estimation and eviction throttling).
+
+**What broke / root causes found along the way**:
+- The old `executeQuery` did `jobs.insert` -> `setTimeout(1500)` -> `jobs.get` polling -> `getQueryResults`, three or more round trips with a fixed 1.5 s sleep paid by every real table scan. `executeDml` had a similar 1000 ms sleep loop.
+- The schema skill's private `bqQuery` used `jobs.query` with the default 10 s timeout and silently returned zero rows when `jobComplete` was false, so slow INFORMATION_SCHEMA queries produced empty column counts and query-frequency data with no error. Delegating to the shared helper fixed this.
+- The result cache always recorded `bytes: 0`, so the 200 MB LRU never evicted anything, yet it still ran a full `getAll()` scan after every query.
+- `GENERATE_ARRAY` is capped at roughly 1M elements; the smoke test's forced long-poll query had to cross-join two arrays instead of generating 20M elements directly.
+- `jobCreationMode: JOB_CREATION_OPTIONAL` (stateless queries) was deliberately NOT enabled: provenance, console links and `getJobDetails` all depend on a job ID being present.
+
+**Derived rules**:
+- Never reintroduce client-side timer polling for BigQuery jobs. Let the server wait (`timeoutMs` on `jobs.query` / `jobs.getQueryResults`) and loop only on `jobComplete`.
+- Treat `errors[]` on a completed query response as fatal only when no `schema` came back; BigQuery puts warnings in the same array.
+- Anything the LLM calls as a tool must request `{ enrich: false }` from `fetchSchema`; only the UI schema-card path should wait for enrichment, and that wait must stay bounded.
+- Schema enrichment must mutate the cached object in place (never replace it) so callers holding the base result see the enriched data without a second fetch.
+- `resultCache.put()` must stay fire-and-forget for durability; callers that read right after a write are served from the hot layer.
+- Pre-warm work must be best-effort, idempotent per project, and must never throw into React effects.
+
+---
+
 ## 2026-09-09 -- Natural Language Dashboard AI Editing, Card Selection Context, Advanced Multi-Filters, Cross-Filtering & Auto-Save
 
 **What**:

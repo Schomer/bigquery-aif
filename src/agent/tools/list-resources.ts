@@ -38,7 +38,7 @@ export const listResourcesTool: ToolDef = {
 
     try {
       if (scope === 'datasets') {
-        const schema = await fetchSchema(undefined, undefined, project);
+        const schema = await fetchSchema(undefined, undefined, project, { enrich: false });
         const datasets = schema.columns
           .map(c => c.name)
           .filter(n => n && n.toLowerCase() !== project.toLowerCase());
@@ -58,7 +58,7 @@ export const listResourcesTool: ToolDef = {
             error: 'Missing dataset parameter',
           };
         }
-        const schema = await fetchSchema(dataset, undefined, project);
+        const schema = await fetchSchema(dataset, undefined, project, { enrich: false });
         const tables = schema.columns.map(c => c.name);
         return {
           data: {

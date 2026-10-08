@@ -31,6 +31,14 @@ async function getSkillKnowledge(): Promise<string> {
   return _skillKnowledgeCache;
 }
 
+/**
+ * Load and cache the skill knowledge ahead of the first turn. Safe to call
+ * repeatedly; subsequent calls return immediately once the cache is populated.
+ */
+export async function prewarmSkillKnowledge(): Promise<void> {
+  await getSkillKnowledge();
+}
+
 // ── Context assembly options ──────────────────────────────────────────────────
 
 export interface AssembleContextOptions {

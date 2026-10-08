@@ -102,7 +102,9 @@ export const runQueryTool: ToolDef = {
       // Generate a stable result_id for caching
       const result_id = `res_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-      // Store full result in IndexedDB cache
+      // Store the full result for the envelope builder and interactive views.
+      // put() resolves from the in-memory hot layer; the IndexedDB write
+      // happens in the background so the tool turn is not blocked on it.
       try {
         await resultCache.put({
           result_id,
@@ -119,7 +121,7 @@ export const runQueryTool: ToolDef = {
         // Cache failure is non-fatal -- the query still succeeded
       }
 
-      // Cap at 500 rows for model context
+      // Only a small sample goes into the model context
       const sampleRows = result.rows.slice(0, 20);
 
       return {

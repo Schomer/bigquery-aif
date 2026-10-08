@@ -129,6 +129,11 @@ export async function runLoop(
   // Working contents (mutated during the loop)
   const contents = [...ctx.contents];
 
+  // Project ID passed to every tool -- derived once, not per call.
+  const projectId = ctx.systemPrompt.includes('Project:')
+    ? (ctx.systemPrompt.match(/Project:\s*(\S+)/)?.[1] ?? '')
+    : '';
+
   for (let i = 0; i < hardCap; i++) {
     // Check for interruption
     if (interruptSignal?.isInterrupted) {
@@ -296,9 +301,7 @@ export async function runLoop(
         });
 
         try {
-          const result: ToolResult = await tool.execute(call.args, ctx.systemPrompt.includes('Project:')
-            ? (ctx.systemPrompt.match(/Project:\s*(\S+)/)?.[1] ?? '')
-            : '');
+          const result: ToolResult = await tool.execute(call.args, projectId);
 
           if (result.error) {
             // Auth errors must propagate -- don't let the LLM handle them
